@@ -146,7 +146,7 @@ Delivered to XrayR as `routes[]`; `block` routes become soga `audit_rules`.
 
 ## coupons
 `id, code varchar(64) unique, name, type int8 (1 fixed amount, 2 percent), value int64, show bool, limit_use *int, limit_use_with_user *int, limit_plan_ids json []uint64, limit_periods json []string, started_at time, ended_at time, timestamps`.
-Usage counted from `orders` (status != cancelled).
+`limit_use` is the **remaining** number of uses (Xboard): one use is taken when an order is created and given back when it is cancelled (Xboard does not give it back); NULL = unlimited. `used_count` (admin) is counted from `orders` (status != cancelled); `limit_use_with_user` counts the user's paid orders (status not pending/cancelled).
 
 ## invite_codes
 `id, user_id idx, code char(32) unique, status bool (consumed, only when invite_never_expire=false), pv int, timestamps`.

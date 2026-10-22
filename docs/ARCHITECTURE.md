@@ -74,7 +74,7 @@ No Redis, no queue workers: an in-process cache (ristretto) and batched DB write
 | expire_remind | `0 10 * * *` | email users expiring within 24h (remind_expire) |
 | traffic_remind | `0 10 * * *` | email users with >80% used (remind_traffic), once per day |
 | order_timeout | `*/1 * * * *` | cancel pending orders older than `order_timeout_minutes` (default 30) |
-| commission_settle | `0 */1 * * *` | orders with commission_status=1 → pay invite_user, log commission_logs, status=2 (respect `commission_auto_check_enable`) |
+| commission_settle | `0 */1 * * *` | with `commission_auto_check_enable`, completed orders pending ≥ 72 h → commission_status 1; orders with commission_status=1 → pay invite chain (l1/l2/l3 when distribution is on), log commission_logs, status=2 |
 | stats_daily | `5 0 * * *` | aggregate yesterday's `stats` row (orders, paid, registers, invites, transfer total) |
 | online_cleanup | `*/5 * * * *` | purge expired online/alive entries and `app.KV` |
 | traffic_flush | `@every 10s` | flush the in-memory traffic accumulator (also on shutdown) |

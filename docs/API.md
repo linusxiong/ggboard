@@ -17,6 +17,8 @@ Plan {"id","group_id","name","content","tags","transfer_enable"(GB),"speed_limit
       "prices":{"monthly":1000,...},"reset_traffic_method","show","sell","renew","sort","created_at","updated_at"}
 Node (admin) {"id","type","name","group_ids","route_ids","parent_id","host","port","server_port","tags","rate","show","sort",
       "protocol_settings":{...},"status":{"online":3,"last_check_at":"...","last_push_at":"...","load":{...}|null},"created_at","updated_at"}
+PublicPlan {"id","name","content","tags","transfer_enable"(GB),"speed_limit","device_limit","prices","reset_traffic_method","show","sell","renew","sort",
+      "sold_out"(capacity full; never for the holder),"is_current"(user's plan),"created_at","updated_at"}
 Order {"id","trade_no","user_id","plan_id","plan":{...},"type","period","status","commission_status","total_amount","handling_amount",
       "discount_amount","surplus_amount","refund_amount","balance_amount","payment_id","payment":{"id","name"},"callback_no","paid_at","created_at","updated_at"}
 Ticket {"id","user_id","subject","level","status","reply_status","created_at","updated_at","messages":[{"id","user_id","is_me","message","created_at"}]}
@@ -26,9 +28,9 @@ Ticket {"id","user_id","subject","level","status","reply_status","created_at","u
 | method | path | req | res |
 |---|---|---|---|
 | GET | `/guest/config` | — | `{app_name, app_description, app_url, logo, tos_url, currency, currency_symbol, register_enabled, email_verify, email_whitelist_suffix[], invite_force, captcha:{provider:"none|turnstile|recaptcha|hcaptcha", site_key}, downloads:{windows:{url,version},macos:{...},android:{...},ios:{...}}, locales:["zh-CN","en"]}` |
-| GET | `/guest/plans` | — | `[Plan]` where show=true & sell=true (prices only; no capacity leak) |
+| GET | `/guest/plans` | — | `[PublicPlan]` where show=true & sell=true and capacity left, by `sort` (no `group_id`/`capacity_limit`) |
 | ANY | `/guest/payment/notify/:gateway/:uuid` | gateway-specific | gateway-specific body (plugin returns it) |
-| GET | `/guest/payment/return/:trade_no` | — | 302 → `/orders/:trade_no` |
+| GET | `/guest/payment/return/:trade_no` | — | 302 → `<app_url>/orders/:trade_no` (gateway query parameters dropped) |
 | GET | `/guest/rulesets/catalog` | — | catalog (see `docs/SUBSCRIPTION.md`) |
 
 ## Passport 🔓 (`/passport`) — rate limited
@@ -61,16 +63,16 @@ password limit lockout (`password_limit_*`); register-by-ip limit.
 | PUT | `/user/rule-profile` | `RuleProfile` | `RuleProfile` |
 | GET | `/user/rulesets/catalog` | — | same as guest catalog |
 ### Shop
-| GET | `/user/plans` | — | `[Plan]` (show=true; includes current plan even if hidden, with `sell/renew` flags) |
-| GET | `/user/plans/:id` | — | `Plan` |
-| GET | `/user/payment-methods` | — | `[{id,name,icon,handling_fee_fixed,handling_fee_percent}]` |
-| POST | `/user/coupons/check` | `{code*, plan_id*, period*}` | `{id,code,name,type,value}` or 400 |
-| GET | `/user/orders` | `page`,`status?` | `[Order]` |
-| POST | `/user/orders` | `{plan_id*, period*, coupon_code?}` | `{trade_no}` (409 if pending order exists) |
+| GET | `/user/plans` | — | `[PublicPlan]` (show=true; includes current plan even if hidden, with `sell/renew` flags) |
+| GET | `/user/plans/:id` | — | `PublicPlan` (404 for hidden plans the user does not hold) |
+| GET | `/user/payment-methods` | — | `[{id,name,icon,gateway,handling_fee_fixed,handling_fee_percent}]` (enabled, by `sort`) |
+| POST | `/user/coupons/check` | `{code*, plan_id*, period*}` | `{id,code,name,type,value,limit_plan_ids,limit_periods,ended_at}` or 400 (`errors.code`) |
+| GET | `/user/orders` | `page`,`page_size`,`status?` | `[Order]` (newest first) |
+| POST | `/user/orders` | `{plan_id*, period*, coupon_code?}` | 201 `{trade_no, status}` (status 3 when nothing was left to pay). 409 if a pending order exists (`errors.trade_no=[pending]`) or the plan is sold out; 403 plan change disabled; 400 `period`/`plan_id`/`coupon_code` |
 | GET | `/user/orders/:trade_no` | — | `Order` |
-| POST | `/user/orders/:trade_no/checkout` | `{payment_id?}` (omit when total 0 / balance covers) | `{type:"url"|"qrcode"|"paid", data:"..."}` |
+| POST | `/user/orders/:trade_no/checkout` | `{payment_id?}` (omit when total 0 / balance covers) | `{type:"url"|"qrcode"|"html"|"paid", data:"..."}` (402 `payment_failed` when the gateway fails; 409 cancelled) |
 | GET | `/user/orders/:trade_no/status` | — | `{status}` (poll while paying) |
-| POST | `/user/orders/:trade_no/cancel` | — | `true` |
+| POST | `/user/orders/:trade_no/cancel` | — | `true` (409 unless pending; balance and coupon use restored) |
 ### Invite & commission
 | GET | `/user/invite` | — | `{codes:[{code,pv,created_at}], stat:{register_count, commission_pending, commission_paid, commission_rate, invite_gen_limit}}` |
 | POST | `/user/invite/codes` | — | `{code}` (respect `invite_gen_limit`) |
@@ -117,8 +119,8 @@ password limit lockout (`password_limit_*`); register-by-ip limit.
 | POST | `/admin/users/mail` | `{filters…, subject*, content*}` | `{queued}` |
 | POST | `/admin/users/:id/traffic-reset` | — | `User` |
 ### Plans / groups / nodes / routes
-| GET,POST | `/admin/plans` | Plan fields | `[Plan + user_count]` / `Plan` |
-| GET,PATCH,DELETE | `/admin/plans/:id` | | |
+| GET,POST | `/admin/plans` | Plan fields (`group_id*`, `name*`; defaults show=false, sell=true, renew=true) | `[Plan + user_count]` (active holders) / 201 `Plan` |
+| GET,PATCH,DELETE | `/admin/plans/:id` | PATCH: any Plan field (null clears nullable limits) + `force_update` (push group/traffic/limits to holders) | `Plan + user_count`; DELETE 409 while users hold the plan or it has unpaid orders |
 | POST | `/admin/plans/sort` | `{ids:[...]}` | `true` |
 | GET,POST | `/admin/groups` | `{name}` | `[{id,name,user_count,plan_count,node_count}]` |
 | PATCH,DELETE | `/admin/groups/:id` | | |
@@ -131,18 +133,18 @@ password limit lockout (`password_limit_*`); register-by-ip limit.
 | GET,POST | `/admin/routes` | `{remarks, match[], action, action_value}` | |
 | PATCH,DELETE | `/admin/routes/:id` | | |
 ### Orders / coupons / payments
-| GET | `/admin/orders` | `trade_no`,`user_id`,`email`,`status`,`commission_status`,`plan_id`,`payment_id`,`date_from`,`date_to` | `[Order + user.email]` |
-| GET | `/admin/orders/:id` | — | `Order` |
-| POST | `/admin/orders` | `{email* or user_id*, plan_id*, period*, total_amount?}` | `Order` (assigned, pending) |
-| POST | `/admin/orders/:id/paid` | — | `Order` (manual confirm → fulfil) |
-| POST | `/admin/orders/:id/cancel` | — | `Order` |
-| PATCH | `/admin/orders/:id` | `{commission_status}` | `Order` |
-| GET,POST | `/admin/coupons` | create: `{name*, code?, type*, value*, count? (batch), limit_use?, limit_use_with_user?, limit_plan_ids?, limit_periods?, started_at*, ended_at*, show?}` | `[Coupon + used_count]` / `[Coupon]` |
-| PATCH,DELETE | `/admin/coupons/:id` | | |
-| GET | `/admin/payments` | — | `[Payment(config included)]` |
+| GET | `/admin/orders` | `trade_no`,`user_id`,`email`,`status`,`commission_status`,`plan_id`,`payment_id`,`invite_user_id`,`type`,`date_from`,`date_to` (YYYY-MM-DD, `date_to` inclusive, or RFC 3339) | `[AdminOrder]` = Order + `user{id,email}`, `invite_user_id`, `coupon_id`, `commission_balance`, `surplus_order_ids` |
+| GET | `/admin/orders/:id` | — | `AdminOrder` + `commission_logs`, `surplus_orders` |
+| POST | `/admin/orders` | `{email* or user_id*, plan_id*, period*, total_amount?}` | 201 `AdminOrder` (assigned, pending; no discount/coupon/surplus/balance; 409 if the user has an unpaid order) |
+| POST | `/admin/orders/:id/paid` | — | `AdminOrder` (pending only; `callback_no="manual"` → fulfil) |
+| POST | `/admin/orders/:id/cancel` | — | `AdminOrder` (pending only) |
+| PATCH | `/admin/orders/:id` | `{commission_status}` (0, 1 or 3) | `AdminOrder` (2 is set by `commission_settle`; a settled commission → 409) |
+| GET,POST | `/admin/coupons` | list: `code?`,`name?`; create: `{name*, code?, type*, value*, count? (>1 = batch of generated 8-char codes), limit_use? (remaining uses), limit_use_with_user?, limit_plan_ids?, limit_periods?, started_at*, ended_at*, show? (default true)}` | `[Coupon + used_count]` / 201 `[Coupon + used_count]` (409 duplicate code) |
+| GET,PATCH,DELETE | `/admin/coupons/:id` | PATCH: any create field except `count` (null clears limits) | `Coupon + used_count` |
+| GET | `/admin/payments` | — | `[Payment(config included) + gateway_label + notify_url]` by `sort` |
 | GET | `/admin/payments/gateways` | — | `[{name, label, fields:[{key,label,description,type:"text|password|select|number|textarea",options?,default?,required}]}]` |
-| POST | `/admin/payments` | `{gateway*, name*, icon?, config*, notify_domain?, handling_fee_fixed?, handling_fee_percent?, enabled?}` | `Payment` + `notify_url` |
-| PATCH,DELETE | `/admin/payments/:id` | | |
+| POST | `/admin/payments` | `{gateway*, name*, icon?, config*, notify_domain?, handling_fee_fixed?, handling_fee_percent?, enabled? (default false)}` | 201 `Payment` + `gateway_label` + `notify_url` (uuid generated; required fields → `errors["config.<key>"]`; gateway rules → `errors.config`) |
+| GET,PATCH,DELETE | `/admin/payments/:id` | PATCH: any create field (config replaced as a whole) | `Payment` + `notify_url` |
 | POST | `/admin/payments/sort` | `{ids}` | `true` |
 ### Support & content 🧑‍💼
 | GET | `/admin/tickets` | `status?`,`reply_status?`,`user_id?` | `[Ticket + user.email]` |

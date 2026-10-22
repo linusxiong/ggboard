@@ -156,3 +156,41 @@
 - **根因**：zsh 把 `"$12"` 当作第 12 个位置参数展开成了空串（bash 则展开为 `${1}2`）。
 - **修复**：`internal/auth/password_test.go` 改用正确向量，`3d6431cb…` 只作为 salt=`abc` 的用例保留。
 - **规则**：含 `$` 的字符串一律用单引号（`printf '%s' 'pa$$'`）；测试向量至少用两种工具交叉验证。
+
+## 2026-10-22
+
+### 1. （BE-C 商城）测试按 UTC 计算“加一个月”，服务按服务器时区计算，跨夏令时差 1 小时
+- **现象**：`expired_at` 断言失败，实际值比期望晚 1 小时（10-22 EDT + 1 个月 = 11-22 EST）。
+- **根因**：服务用 `now.AddDate(0, months, 0)`，`now` 是本地时间（与 PHP `strtotime('+1 month')` 一致，日历月保持墙钟时间）；测试拿从数据库读回的 UTC 时间做 `AddDate`。
+- **修复**：测试期望值改为 `paidAt.Local().AddDate(...)`，并用 `TZ=UTC`、`TZ=Asia/Shanghai` 各跑一遍。
+- **规则**：凡是“日历月/日”的计算，测试必须在与代码相同的时区里算期望值；时间相关测试至少换两个 `TZ` 跑。
+
+### 2. （BE-C 商城）以为覆盖 `svc.Now` 就能让 `Scheduler.RunNow` 的任务也用假时钟
+- **现象**：`RunNow("commission_settle")` 没有结算任何订单。
+- **根因**：`app.RegisterJob` 注册的函数每次 `New(a)` 新建服务，用的是真实时钟，测试里改的是另一个实例。
+- **修复**：测试改为把数据库里的 `paid_at` 往前调，再跑 `RunNow`。
+- **规则**：通过调度器跑任务的测试，靠修改数据（时间戳）制造条件，不要依赖替换服务实例上的时钟。
+
+### 3. （BE-C 商城）`e.WithField(...)` 不接返回值被 errcheck 报错
+- **现象**：`golangci-lint` 报 `Error return value of e.WithField is not checked`。
+- **根因**：`(*httpx.Error).WithField` 返回 `*Error`（实现了 `error`），丢弃返回值会被 errcheck 当成未处理的错误。
+- **修复**：改用 `map[string][]string` 收集字段错误，最后一次性构造 `httpx.BadRequest` 并赋值 `Errors`。
+- **规则**：累积多个字段错误时用收集器，不要以语句形式调用返回 `error` 类型的链式方法。
+
+### 4. （BE-C 商城）任务简报说 Xboard 取消订单会归还优惠券次数，实际两个版本都不归还
+- **现象**：对照 `CouponService::use` 与两版 `OrderService::cancel`：创建订单时 `limit_use - 1`，取消只退余额，不退券。
+- **根因**：简报凭印象描述 Xboard 行为，没有对照代码。
+- **修复**：按简报实现“创建扣减、取消归还”（避免超时取消白白耗掉券），在 `docs/PAYMENTS.md`、`docs/DATA_MODEL.md` 写明这是相对 Xboard 的有意差异。
+- **规则**：“照 Xboard 做”之前先读对应的 Service 代码确认；与 Xboard 不同的地方必须写进契约文档。
+
+### 5. （BE-C 商城）批量文本替换误伤类型名
+- **现象**：用脚本把测试里的 `.ResponseRecorder` 全部删掉，连 `*httptest.ResponseRecorder` 也变成了 `*httptest`，编译失败。
+- **根因**：替换模式太宽，没有限定上下文。
+- **修复**：单独修回类型名。
+- **规则**：批量替换的模式要带足上下文（如 `).ResponseRecorder`），替换后先 `go build`/`grep` 核对再继续。
+
+### 6. （BE-C 商城）gosec G704 把支付网关请求当成 SSRF
+- **现象**：`gwutil.Do` 中 `client.Do(req)` 被 G704 标记为“taint 分析 SSRF”。
+- **根因**：网关地址来自管理员配置（EPay/Epusdt/BTCPay 本来就是自托管地址），属于设计如此。
+- **修复**：在该行加 `//nolint:gosec // G704: gateway endpoints come from admin configuration by design`，并保留 https 校验（EPay/Epusdt 的 http 只告警）。
+- **规则**：外呼地址来自管理员配置时，集中在一个函数里发请求并在那里统一说明 nolint 理由，不要到处散落。
