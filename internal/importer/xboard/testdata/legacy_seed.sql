@@ -88,7 +88,7 @@ INSERT INTO "v2_coupon" ("id", "code", "name", "type", "value", "show", "limit_u
 (4, 'PERCENT', 'Percent', 2, 20, 0, NULL, NULL, NULL, NULL, 1700000000, 1900000000, 1700000000, 1700000000);
 
 INSERT INTO "v2_payment" ("id", "uuid", "payment", "name", "icon", "config", "notify_domain", "handling_fee_fixed", "handling_fee_percent", "enable", "sort", "created_at", "updated_at") VALUES
-(1, 'AbCd1234', 'EPay', 'Alipay (EPay)', NULL, '{"url":"https://pay.example.com/","pid":"1001","key":"epay-example-key","type":"alipay"}', NULL, 100, 1.5, 1, 1, 1700000000, 1700000000),
+(1, 'AbCd1234', 'EPay', 'Alipay (EPay)', NULL, '{"url":"https://pay.example.com/","pid":"1001","key":"epay-example-key","type":"alipay","product_name":"VIP"}', NULL, 100, 1.5, 1, 1, 1700000000, 1700000000),
 (2, 'EfGh5678', 'EpusdtPay', 'USDT', 'usdt.png', '{"epusdt_pay_url":"https://usdt.example.com/","epusdt_pay_apitoken":"usdt-example-token","currency_types":""}', '', NULL, NULL, 1, 2, 1700000000, 1700000000),
 (3, 'IjKl9012', 'AlipayF2F', 'Alipay F2F', NULL, '{"app_id":"2021000000000000","private_key":"EXAMPLE-PRIVATE-KEY","public_key":"EXAMPLE-PUBLIC-KEY","product_name":"VIP"}', NULL, NULL, NULL, 1, 3, 1700000000, 1700000000),
 (4, 'MnOp3456', 'StripeALLInOne', 'Card', NULL, '{"currency":"usd","stripe_sk_live":"sk_test_example","stripe_webhook_key":"whsec_example","description":"x","payment_method":"cards"}', 'https://pay-notify.example.com', NULL, NULL, 1, 4, 1700000000, 1700000000),

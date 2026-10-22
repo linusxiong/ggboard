@@ -127,8 +127,26 @@ func (im *importer) disabledPaymentPlugins() (map[string]bool, error) {
 // mapGateway returns the ggboard gateway id and config for an Xboard payment class (table of §4.9) and may
 // disable p.
 func (im *importer) mapGateway(scope, class string, cfg map[string]any, p *model.Payment) (string, model.JSONObject[string]) {
-	get := func(k string) string { return strings.TrimSpace(str(cfg[k])) }
+	used := map[string]bool{}
+	get := func(k string) string {
+		used[k] = true
+		return strings.TrimSpace(str(cfg[k]))
+	}
 	out := model.JSONObject[string]{}
+	// §0 (nothing is dropped silently): keys the mapping below never reads are reported by name. Values are
+	// never printed, because most of them are secrets.
+	defer func() {
+		var unused []string
+		for k := range cfg {
+			if !used[k] {
+				unused = append(unused, k)
+			}
+		}
+		if len(unused) > 0 {
+			sort.Strings(unused)
+			im.warn(scope, "config keys not used by ggboard dropped: %s", strings.Join(unused, ", "))
+		}
+	}()
 	notify := func(gw string) string {
 		host := strings.TrimRight(im.appURL, "/")
 		if p.NotifyDomain != "" {
@@ -176,8 +194,9 @@ func (im *importer) mapGateway(scope, class string, cfg map[string]any, p *model
 		out["webhook_secret"] = get("stripe_webhook_key")
 		out["currency"] = strings.ToLower(get("currency"))
 		method := stripeClasses[class]
+		pm := strings.ToLower(get("payment_method")) // read for every class, so it never counts as dropped
 		if method == "" {
-			switch strings.ToLower(get("payment_method")) {
+			switch pm {
 			case "cards", "card":
 				method = "card"
 			case "alipay":
@@ -222,6 +241,7 @@ func (im *importer) mapGateway(scope, class string, cfg map[string]any, p *model
 	sort.Strings(keys)
 	for _, k := range keys {
 		out[k] = str(cfg[k])
+		used[k] = true
 	}
 	gw := strings.ToLower(class)
 	if gw == "" {

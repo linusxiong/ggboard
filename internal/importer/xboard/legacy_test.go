@@ -8,6 +8,7 @@ import (
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/auth"
 	"github.com/linusxiong/ggboard/internal/model"
+	"github.com/linusxiong/ggboard/internal/testutil"
 )
 
 func loadNode(t *testing.T, a *app.App, id uint64) model.Node {
@@ -443,6 +444,27 @@ func TestLegacySettings(t *testing.T) {
 }
 
 // §9 assertion 11 (legacy): payments.
+// A real legacy install (terabix rehearsal, 2026-10-22) stores email_encryption as "SSL" and a mixed-case setting
+// name (theme_Xboard): values and names are matched case-insensitively.
+func TestLegacySettingsCaseInsensitive(t *testing.T) {
+	a := testutil.NewTestApp(t)
+	rep, err := importInto(t, a, newSource(t, FlavorLegacy,
+		`UPDATE v2_settings SET value = 'SSL' WHERE name = 'email_encryption';`,
+		`INSERT INTO v2_settings ("id", "group", "type", "name", "value", "created_at", "updated_at") VALUES (900, NULL, NULL, 'theme_Xboard', '{"a":1}', NULL, NULL);`))
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	if got := a.Settings.String("email_encryption"); got != "ssl" {
+		t.Errorf("email_encryption = %q, want ssl", got)
+	}
+	if hasWarning(rep, "settings", "email_encryption") {
+		t.Error("SSL must not be reported as unsupported")
+	}
+	if !hasWarning(rep, "settings", "ignored settings: ") || !hasWarning(rep, "settings", "theme_xboard") {
+		t.Error("theme_Xboard must be listed (lower-cased) among the ignored settings")
+	}
+}
+
 func TestLegacyPayments(t *testing.T) {
 	a, rep := mustImport(t, FlavorLegacy)
 	var pays []model.Payment
@@ -480,6 +502,7 @@ func TestLegacyPayments(t *testing.T) {
 	for _, w := range []struct{ scope, text string }{
 		{"payments#4", "checkout.session.completed"}, {"payments#4", "exchange_rate"}, {"payments#5", "Coinbase Commerce closed"},
 		{"payments#6", "/notify/btcpay/UvWx1234"}, {"payments#7", "not available in ggboard"}, {"payments#3", "product_name"},
+		{"payments#1", "config keys not used by ggboard dropped: product_name"}, {"payments#4", "dropped: description"},
 	} {
 		if !hasWarning(rep, w.scope, w.text) {
 			t.Errorf("missing warning %s %q", w.scope, w.text)

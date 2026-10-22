@@ -389,6 +389,9 @@ U only: if `v2_plugins` has a row for the gateway's plugin `code` (`epay`, `alip
 | `BTCPay` | `btcpay` | `btcpay_url`→`server_url` (rtrim `/`), `btcpay_storeId`→`store_id`, `btcpay_api_key`→`api_key`, `btcpay_webhook_key`→`webhook_secret` | enabled as in source; W: update the webhook URL |
 | anything else (`CoinPayments`, `MGate`, third-party plugins) | `lower(name)` | verbatim | **`enabled=false`**, W: "gateway not available in ggboard; kept for reference" |
 
+Config keys that a mapping does not read (for example EPay `product_name`, Stripe `description`) are dropped with one W per
+payment that lists the key **names** only; values are never printed.
+
 **Notify URL**: Xboard uses `/api/v1/guest/payment/notify/<ClassName>/<uuid>` and ggboard uses `…/notify/<gateway>/<uuid>`.
 The payment is looked up by uuid (kept), and the `:gateway` segment also accepts the lower-cased Xboard class names
 (`epay`, `epusdtpay`, `alipayf2f`, `stripeallinone`, `stripealipay`, `stripewepay`, `stripecredit`, `stripecheckout`,
@@ -582,6 +585,9 @@ next: docs/IMPORT_XBOARD.md §7 post-import checklist
    (theme, Telegram). Xboard's `secure_path` no longer applies: restrict `/admin` at the proxy if you relied on it.
 6. **Content.** Knowledge articles that use access blocks (W) work as in Xboard; the warning is informational (§4.12).
 7. **Keep the Xboard DB** as a read-only backup. The importer never modifies it.
+
+A worked cutover plan for one real legacy install (dump, rehearsal, import, nginx-proxy-manager switch, node and subscription
+checks, rollback) is in [MIGRATION_TERABIX.md](MIGRATION_TERABIX.md).
 
 ## 8. Contract follow-ups for other owners
 
