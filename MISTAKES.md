@@ -349,3 +349,29 @@
 - **根因**：网关地址来自管理员配置（EPay/Epusdt/BTCPay 本来就是自托管地址），属于设计如此。
 - **修复**：在该行加 `//nolint:gosec // G704: gateway endpoints come from admin configuration by design`，并保留 https 校验（EPay/Epusdt 的 http 只告警）。
 - **规则**：外呼地址来自管理员配置时，集中在一个函数里发请求并在那里统一说明 nolint 理由，不要到处散落。
+
+## 2026-10-22
+
+### 1. （Xboard 导入）SQLite 夹具类型写得随意，换到 PostgreSQL / MySQL 加载就报错
+- **现象**：同一份 `testdata/*_schema.sql` 在 SQLite 上一切正常；集成测试把它转到 PostgreSQL 时报 `integer out of range`（100 GiB 的 `transfer_enable` 塞进了 `integer`），转到 MySQL 时报 3780 外键列类型不兼容（`v2_server.machine_id` bigint 引用 `integer` 主键）。
+- **根因**：SQLite 是动态类型，`integer` 能存 64 位、也不检查外键两端类型；转写迁移时把 `bigInteger()` 和 `id()`（bigint unsigned）都写成了 `integer`。
+- **修复**：夹具里 `bigInteger()` 列写 `BIGINT`；集成测试转换 DDL 时主键统一用 `bigint`。
+- **规则**：跨库夹具按 Laravel 的真实列类型转写（`bigInteger`→BIGINT、`id()`→bigint、`boolean`→各库原生布尔），并至少在 PostgreSQL 上真跑一次加载，SQLite 通过不代表 DDL 正确。
+
+### 2. （Xboard 导入）契约要求的种子行违反了迁移里的 NOT NULL 约束
+- **现象**：`docs/IMPORT_XBOARD.md` §9 要求 legacy 夹具里有 “hysteria `version` NULL” 和 “`group_id` NULL” 的节点，但迁移把 `v2_server_hysteria.version` 定义为 `NOT NULL DEFAULT 1`，legacy `group_id` 也是 NOT NULL，这两行根本插不进去。
+- **根因**：写契约时只看了读取代码的分支（`NULL → 1`），没对照建表迁移的约束。
+- **修复**：夹具用 `version = 0`，并在健壮性测试里 `DROP COLUMN` 模拟缺列的老 fork；NULL 的 group 列表改由 upstream 的 `group_ids` 覆盖；文档已更正。
+- **规则**：设计夹具前先逐列核对迁移里的 NOT NULL / default / unique；“NULL 怎么处理”的分支要说明它在哪种 schema 下才可能出现。
+
+### 3. （Xboard 导入）两份契约对同一网关配置键说法不一
+- **现象**：`IMPORT_XBOARD.md` §4.9 写 Stripe 导入 `publishable_key`、`currency` 转大写、Coinbase 保持启用、AlipayF2F `sandbox=false`；而 `PAYMENTS_GATEWAYS.md` 已核实：hosted Checkout 不用 publishable key、currency 用小写 ISO、键名是 `payment_methods`、Coinbase Commerce 已于 2026-03-31 关闭（旧 key 失效，必须禁用）、`sandbox` 是 `0`/`1`。
+- **根因**：导入文档早于网关文档定稿，之后没有回头同步。
+- **修复**：按 `PAYMENTS_GATEWAYS.md` 实现并更正 `IMPORT_XBOARD.md` §4.9。
+- **规则**：写映射前，把目标字段的每个键名、取值格式与“拥有该字段”的契约逐一核对；两份文档冲突时以更新、更具体的那份为准，并在汇报里写明。
+
+### 4. （Xboard 导入）警告文本差点把用户凭据打进日志
+- **现象**：重复 uuid / 无效 token 的警告初稿用 `%q` 打印了原值；这些警告会写到 stdout 并镜像到 slog。
+- **根因**：把 uuid、订阅 token 当成普通标识符，忘了它们就是节点密码 / 订阅凭据。
+- **修复**：警告只写用户 id 和原因，不写值。
+- **规则**：凡是能直接登录或连接的值（密码哈希、uuid、订阅 token、server_token、网关密钥）都不得出现在警告、错误或日志里；自查时 `grep -n '%q' ` 逐条看格式化的是什么。
