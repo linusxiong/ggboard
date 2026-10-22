@@ -1,0 +1,61 @@
+# ---- secrets / local ----
+.env
+.env.*
+!.env.example
+config.yaml
+config.local.yaml
+*.local.yaml
+.local/
+*.pem
+*.key
+*.crt
+!deploy/**/*.example.*
+
+# ---- data ----
+data/
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+storage/
+logs/
+*.log
+
+# ---- Go ----
+/bin/
+/dist/
+/build/
+/ggboard
+/ggboard.exe
+coverage.out
+coverage.html
+*.test
+*.prof
+vendor/
+
+# ---- Node / web ----
+web/node_modules/
+web/dist/
+web/.vite/
+web/coverage/
+web/.lighthouseci/
+web/src/routeTree.gen.ts
+node_modules/
+.pnpm-store/
+*.tsbuildinfo
+
+# ---- tooling ----
+.worktrees/
+.claude/settings.local.json
+.claude/*.local.*
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.scratch/
+tmp/
