@@ -20,9 +20,10 @@ import { useNow } from '../shared/useNow'
 import { useSite } from '../shared/useSite'
 import { LoginAsDialog } from './UserActionsMenu'
 import { useUserActions } from './useUserActions'
+import { UserSubscriptionTab } from './UserSubscriptionTab'
 import { NONE, randomPassword, userToValues, valuesToPatch } from './userForm'
 
-type Tab = 'summary' | 'profile'
+type Tab = 'summary' | 'profile' | 'subscription'
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -475,7 +476,10 @@ export function UserDrawer({
           ))}
         </div>
       ) : canEdit ? (
-        <Tabs selectedKey={tab} onSelectionChange={(k) => setTab(k === 'profile' ? 'profile' : 'summary')}>
+        <Tabs
+          selectedKey={tab}
+          onSelectionChange={(k) => setTab(k === 'profile' || k === 'subscription' ? k : 'summary')}
+        >
           <Tabs.ListContainer>
             <Tabs.List aria-label={t('detail.tabs')}>
               <Tabs.Tab id="summary">
@@ -486,6 +490,10 @@ export function UserDrawer({
                 {t('detail.profile')}
                 <Tabs.Indicator />
               </Tabs.Tab>
+              <Tabs.Tab id="subscription">
+                {t('subscription.tab')}
+                <Tabs.Indicator />
+              </Tabs.Tab>
             </Tabs.List>
           </Tabs.ListContainer>
           <Tabs.Panel id="summary" shouldForceMount className="pt-4 data-[inert=true]:hidden">
@@ -493,6 +501,9 @@ export function UserDrawer({
           </Tabs.Panel>
           <Tabs.Panel id="profile" shouldForceMount className="pt-4 data-[inert=true]:hidden">
             <EditForm user={user} onSaved={() => setTab('profile')} />
+          </Tabs.Panel>
+          <Tabs.Panel id="subscription" className="pt-4">
+            {tab === 'subscription' ? <UserSubscriptionTab user={user} /> : null}
           </Tabs.Panel>
         </Tabs>
       ) : (

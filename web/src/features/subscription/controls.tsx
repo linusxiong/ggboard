@@ -1,6 +1,6 @@
 /** Small controlled HeroUI inputs for the rule builder (not bound to a form library: the draft is local state). */
-import { FieldError, Label, ListBox, Select, Switch } from '@heroui/react'
-import type { ReactNode } from 'react'
+import { FieldError, Label, ListBox, Select, Switch, ToggleButton, ToggleButtonGroup } from '@heroui/react'
+import { type ReactNode, useId } from 'react'
 import { cx } from '@/lib/cn'
 
 export interface Option {
@@ -117,6 +117,106 @@ export function SectionTitle({
         {hint ? <p className="mt-0.5 text-footnote text-label-secondary">{hint}</p> : null}
       </div>
       {end}
+    </div>
+  )
+}
+
+/** FE-S: iOS-style segmented control (single selection that never empties) with a visible label. */
+export function Segmented<K extends string>({
+  label,
+  value,
+  options,
+  onChange,
+  isDisabled,
+}: {
+  label: string
+  value: K
+  options: ReadonlyArray<{ value: K; label: string }>
+  onChange: (value: K) => void
+  isDisabled?: boolean
+}) {
+  const id = useId()
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <span id={id} className="text-subhead font-medium text-label">
+        {label}
+      </span>
+      <ToggleButtonGroup
+        aria-labelledby={id}
+        selectionMode="single"
+        disallowEmptySelection
+        selectedKeys={[value]}
+        onSelectionChange={(keys) => {
+          const next = [...keys][0]
+          if (next !== undefined && next !== value) onChange(String(next) as K)
+        }}
+        isDisabled={isDisabled}
+        size="sm"
+        className="max-w-full flex-wrap justify-start self-start"
+      >
+        {options.map((option) => (
+          <ToggleButton key={option.value} id={option.value}>
+            {option.label}
+          </ToggleButton>
+        ))}
+      </ToggleButtonGroup>
+    </div>
+  )
+}
+
+/** FE-S: multi-select chips (node types, regions); an empty selection means "all". */
+export function ChipSelect({
+  label,
+  hint,
+  value,
+  options,
+  onChange,
+  isDisabled,
+}: {
+  label: string
+  hint?: ReactNode
+  value: readonly string[]
+  options: ReadonlyArray<{ value: string; label: ReactNode; textValue?: string }>
+  onChange: (value: string[]) => void
+  isDisabled?: boolean
+}) {
+  const id = useId()
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <div>
+        <span id={id} className="text-subhead font-medium text-label">
+          {label}
+        </span>
+        {hint ? <p className="text-footnote text-label-secondary">{hint}</p> : null}
+      </div>
+      <ToggleButtonGroup
+        aria-labelledby={id}
+        selectionMode="multiple"
+        selectedKeys={value}
+        onSelectionChange={(keys) => {
+          const picked = new Set([...keys].map(String))
+          // Keep the option order (stable payloads) and values without an option (stale saved entries).
+          onChange([
+            ...options.filter((o) => picked.has(o.value)).map((o) => o.value),
+            ...value.filter((v) => picked.has(v) && !options.some((o) => o.value === v)),
+          ])
+        }}
+        isDisabled={isDisabled}
+        isDetached
+        size="sm"
+        className="flex-wrap justify-start"
+      >
+        {options.map((option) => (
+          <ToggleButton
+            key={option.value}
+            id={option.value}
+            aria-label={option.textValue}
+            className="rounded-full"
+          >
+            {option.label}
+          </ToggleButton>
+        ))}
+      </ToggleButtonGroup>
     </div>
   )
 }

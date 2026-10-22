@@ -1406,3 +1406,141 @@ export interface AdminLogQuery {
   level?: string
   limit?: number
 }
+
+// ---- FE-S ----
+// Subscription profiles (Sub-Store-style node operations), age-encrypted subscriptions, access log /
+// token rotation and Telegram binding. Declaration merging only adds fields; new shapes get new names.
+
+/** `GET /user/rule-profiles` item. */
+export interface RuleProfileSummary {
+  id: ID
+  /** URL-safe id used in `/user/rule-profiles/:slug` and the subscribe URL `?profile=<slug>`. */
+  slug: string
+  name: string
+  is_default: boolean
+  /** A stored document exists (`false` = follows the site's default template). */
+  customized?: boolean
+  updated_at: ISODateTime | null
+}
+/** `POST /user/rule-profiles` body (max 10 profiles per user). */
+export interface RuleProfileCreateInput {
+  name: string
+  slug?: string
+  /** Slug of the profile to copy; omitted = the default template. */
+  copy_from?: string
+}
+export type NodeEmojiMode = 'keep' | 'add' | 'strip'
+export type NodeSortMode = 'default' | 'name' | 'region'
+export interface NodeRenameRule {
+  /** RE2 regular expression matched against the node name. */
+  match: string
+  /** Replacement (`$1` / `${name}` references). */
+  replace: string
+}
+/** `RuleProfile.nodes`: per-profile node operations applied before groups are resolved. */
+export interface NodeOperations {
+  /** Keep nodes whose name matches any of these RE2 expressions (empty = all). */
+  include: string[]
+  /** Drop nodes whose name matches any of these. */
+  exclude: string[]
+  /** Node types to keep (empty = all). */
+  types: string[]
+  /** Region codes to keep (HK TW JP SG US KR DE UK …; empty = all). */
+  regions: string[]
+  rename: NodeRenameRule[]
+  prefix: string
+  suffix: string
+  emoji: NodeEmojiMode
+  sort: NodeSortMode
+  dedupe: boolean
+  /** Maximum number of nodes, `0` = no limit. */
+  limit: number
+}
+export interface RuleProfile {
+  /** Node operations (servers without profile support omit it). `PUT` without `nodes` keeps the stored ones. */
+  nodes?: NodeOperations
+}
+/** `GET|PUT /user/rule-profile(s/:slug)` view extras (not part of the `PUT` body). */
+export interface RuleProfileView extends RuleProfile {
+  id?: ID
+  slug?: string
+  name?: string
+  is_default?: boolean
+}
+/** `GET /user/subscription` → per-profile links. */
+export interface SubscriptionProfileLink {
+  slug: string
+  name: string
+  is_default?: boolean
+  /** Plain link for the default profile, `…&profile=<slug>` for the others. */
+  subscribe_url: string
+}
+/** `GET /user/subscription` → output formats and whether they can decrypt age. */
+export interface SubscriptionFormatInfo {
+  id: string
+  name: string
+  supports_age: boolean
+}
+export interface UserSubscription {
+  profiles?: SubscriptionProfileLink[]
+  formats?: SubscriptionFormatInfo[]
+}
+/**
+ * `GET|POST|PATCH|DELETE /user/subscription/age` (also `/admin/users/:id/subscription/age`, never with the private key).
+ * Without a key the key fields are `null` (older contract drafts answered 404).
+ */
+export interface AgeKey {
+  enabled: boolean
+  /** `age1…` recipient, `null` without a key. */
+  public_key: string | null
+  /** `AGE-SECRET-KEY-1…` identity (owner only); `null` without a key or when it cannot be decrypted any more. */
+  private_key: string | null
+  created_at: ISODateTime | null
+  /** Format ids served encrypted (currently `clash-meta`). */
+  formats?: string[]
+  /** `subscribe_age_optional`: `?age=0` returns plaintext. */
+  optional?: boolean
+  /** `subscribe_age_strict`: formats without age support get 406. */
+  strict?: boolean
+}
+/** `GET /user/subscription/access-log` (masked IP) and `/admin/users/:id/subscription/access-log` (full IP). */
+export interface SubscriptionAccess {
+  ip: string
+  /** User-Agent / detected client. */
+  client: string
+  /** Rendered format id (`clash-meta`, `singbox`, …). */
+  format: string
+  at: ISODateTime
+  /** Admin view: IPv4 address or IPv6 /64 used by leak detection. */
+  ip_bucket?: string
+  /** Admin view: first 8 hex digits of SHA-256 of the token that was used. */
+  token_tag?: string
+}
+/** `POST /user/subscription/rotate-token` (the uuid is unchanged). */
+export interface SubscriptionRotate {
+  subscribe_url: string
+  token: string
+}
+export interface GuestConfig {
+  /** Users may turn on age-encrypted subscriptions. */
+  subscribe_age_optional?: boolean
+  /** With age on, clients that cannot decrypt get no plaintext fallback. */
+  subscribe_age_strict?: boolean
+}
+/** `GET /user/telegram` */
+export interface TelegramStatus {
+  /** A bot token is configured. */
+  enabled?: boolean
+  bound: boolean
+  username?: string | null
+  bot_username?: string | null
+  /** Group/channel invite link, `""` when not configured. */
+  discuss_link?: string | null
+}
+/** `POST /user/telegram/bind-code` */
+export interface TelegramBindCode {
+  code: string
+  bot_username: string
+  /** `https://t.me/<bot>?start=<code>` */
+  deep_link: string
+}

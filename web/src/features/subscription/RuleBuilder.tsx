@@ -5,7 +5,7 @@
 import { Button, Description, FieldError, Input, Label, NumberField, TextField } from '@heroui/react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, ExternalLink, Lock, Plus, Trash2 } from 'lucide-react'
-import { useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { FormError } from '@/components/FormError'
 import { confirm } from '@/components/feedback/confirm'
 import { useLocale, useT } from '@/i18n'
@@ -52,9 +52,22 @@ export interface RuleBuilderProps {
   saved: RuleProfile
   /** Admin disabled customisation (`allow_user_rule_profile=false`). */
   readOnly?: boolean
+  /** FE-S: saves the profile (default `PUT /user/rule-profile`); profiles pass their own endpoint + `nodes`. */
+  save?: (profile: RuleProfile) => Promise<RuleProfile>
+  /** FE-S: replaces the default cache update (`qk.user.ruleProfile()`) after a successful save. */
+  onSaved?: (result: RuleProfile) => void
+  /** FE-S: reports unsaved changes (the page warns before switching profiles). */
+  onDirtyChange?: (dirty: boolean) => void
 }
 
-export function RuleBuilder({ catalog, saved, readOnly: readOnlyProp = false }: RuleBuilderProps) {
+export function RuleBuilder({
+  catalog,
+  saved,
+  readOnly: readOnlyProp = false,
+  save: saveProfile = saveRuleProfile,
+  onSaved,
+  onDirtyChange,
+}: RuleBuilderProps) {
   const t = useT(['subscription', 'common'])
   const locale = useLocale()
   const queryClient = useQueryClient()
@@ -73,6 +86,7 @@ export function RuleBuilder({ catalog, saved, readOnly: readOnlyProp = false }: 
 
   const issues = useMemo(() => validateProfile(draft), [draft])
   const dirty = !sameProfile(draft, saved)
+  useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange])
   const template = findTemplate(catalog, draft.template)
   const errorFor = (key: string) => {
     const issue = issues[key]
@@ -80,9 +94,10 @@ export function RuleBuilder({ catalog, saved, readOnly: readOnlyProp = false }: 
   }
 
   const save = useMutation({
-    mutationFn: (profile: RuleProfile) => saveRuleProfile(normalizeProfile(profile)),
+    mutationFn: (profile: RuleProfile) => saveProfile(normalizeProfile(profile)),
     onSuccess: async (result) => {
-      queryClient.setQueryData(qk.user.ruleProfile(), result)
+      if (onSaved) onSaved(result)
+      else queryClient.setQueryData(qk.user.ruleProfile(), result)
       setDraftState(normalizeProfile(result))
       toast.success(t('builder.saved'))
       await queryClient.invalidateQueries({ queryKey: [...qk.user.subscription(), 'preview'] })
@@ -158,11 +173,11 @@ export function RuleBuilder({ catalog, saved, readOnly: readOnlyProp = false }: 
       ) : null}
 
       {/* ------------------------------------------------------------ templates */}
-      <fieldset className="flex flex-col gap-3" disabled={readOnly}>
+      <fieldset className="flex min-w-0 flex-col gap-3" disabled={readOnly}>
         <legend className="contents">
           <SectionTitle id="tpl-title" title={t('builder.templates')} hint={t('builder.templatesHint')} />
         </legend>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {catalog.templates.map((tpl) => {
             const selected = tpl.id === draft.template
             return (
@@ -204,11 +219,11 @@ export function RuleBuilder({ catalog, saved, readOnly: readOnlyProp = false }: 
       </fieldset>
 
       {/* ------------------------------------------------------------ sources */}
-      <fieldset className="flex flex-col gap-3" disabled={readOnly}>
+      <fieldset className="flex min-w-0 flex-col gap-3" disabled={readOnly}>
         <legend className="contents">
           <SectionTitle id="src-title" title={t('builder.source')} hint={t('builder.sourceHint')} />
         </legend>
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {sortedSources(catalog).map((id) => {
             const source = catalog.sources[id]
             if (!source) return null

@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import path from 'node:path'
 import type { Plugin } from 'vite'
+import { guestExtras, handleFeSUser, subscriptionExtras, type FeSUserContext } from './fe-s.ts'
 
 const here = import.meta.dirname
 const fixtures = path.resolve(here, '../fixtures')
@@ -178,6 +179,15 @@ function preview(client: string, override: string | null): string {
   ].join('\n')
 }
 
+const feS: FeSUserContext = {
+  defaultProfile: () => (state.profile ?? defaultProfile()) as unknown as Record<string, unknown>,
+  subscribeUrl: () => `http://localhost:5173/s/${state.subToken}`,
+  rotateToken: () => {
+    state.subToken = Math.random().toString(16).slice(2).padEnd(32, '0')
+    return { subscribe_url: `http://localhost:5173/s/${state.subToken}`, token: state.subToken }
+  },
+}
+
 async function handle(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
   const url = new URL(req.url ?? '/', 'http://localhost')
   if (!url.pathname.startsWith('/api/v1/')) return false
@@ -192,6 +202,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<boolea
         ...read(path.join(fixtures, 'guest-config.json')),
         passkey_enabled: true,
         allow_user_rule_profile: process.env.MOCK_RULES_LOCKED !== '1',
+        ...guestExtras(),
       })
       return true
     case 'GET /guest/plans':
@@ -276,6 +287,9 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<boolea
   }
 
   // ---------------------------------------------------------------- user
+  // FE-S: profiles, node operations, age, access log, rotation, Telegram (scripts/mock/fe-s.ts).
+  if (await handleFeSUser(route, req, res, feS)) return true
+
   const passkeyMatch = /^(PATCH|DELETE) \/user\/security\/passkeys\/(\d+)$/.exec(route)
   if (passkeyMatch) {
     const id = Number(passkeyMatch[2])
@@ -343,6 +357,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<boolea
         reset_day: 1,
         device_limit: user.device_limit,
         speed_limit: user.speed_limit,
+        ...subscriptionExtras(feS),
       })
       return true
     case 'POST /user/subscription/reset':

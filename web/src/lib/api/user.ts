@@ -223,3 +223,72 @@ export const renamePasskey = (id: Passkey['id'], name: string) =>
 /** `DELETE /user/security/passkeys/:id` with body `{password}`. */
 export const deletePasskey = (id: Passkey['id'], password: string) =>
   api.delete(`/user/security/passkeys/${enc(String(id))}`, { body: { password } })
+
+// ---- FE-S ---- subscription profiles, age encryption, access log, token rotation, Telegram
+import type {
+  AgeKey,
+  RuleProfileCreateInput,
+  RuleProfileSummary,
+  SubscriptionAccess,
+  SubscriptionRotate,
+  TelegramBindCode,
+  TelegramStatus,
+} from './types'
+
+/** `GET /user/rule-profiles` (max 10; 404 on servers without multi-profile support). */
+export const ruleProfiles = (signal?: AbortSignal) =>
+  api.get<RuleProfileSummary[]>('/user/rule-profiles', undefined, { signal })
+
+/** `POST /user/rule-profiles` → the new profile. */
+export const createRuleProfile = (input: RuleProfileCreateInput) =>
+  api.post<RuleProfileSummary>('/user/rule-profiles', input)
+
+/** `GET /user/rule-profiles/:slug` */
+export const ruleProfileBySlug = (slug: string, signal?: AbortSignal) =>
+  api.get<RuleProfile>(`/user/rule-profiles/${enc(slug)}`, undefined, { signal })
+
+/** `PUT /user/rule-profiles/:slug` (same validation as `PUT /user/rule-profile`). */
+export const saveRuleProfileBySlug = (slug: string, profile: RuleProfile) =>
+  api.put<RuleProfile>(`/user/rule-profiles/${enc(slug)}`, profile)
+
+/** `PATCH /user/rule-profiles/:slug {name?, slug?}` → summary (409 duplicate slug). */
+export const updateRuleProfile = (slug: string, patch: { name?: string; slug?: string }) =>
+  api.patch<RuleProfileSummary>(`/user/rule-profiles/${enc(slug)}`, patch)
+
+/** `DELETE /user/rule-profiles/:slug` (the default profile cannot be deleted). */
+export const deleteRuleProfile = (slug: string) => api.delete(`/user/rule-profiles/${enc(slug)}`)
+
+/** `POST /user/rule-profiles/:slug/default` */
+export const setDefaultRuleProfile = (slug: string) =>
+  api.post<unknown>(`/user/rule-profiles/${enc(slug)}/default`)
+
+/** `GET /user/subscription/age` (key fields `null` without a key). */
+export const ageKey = (signal?: AbortSignal) =>
+  api.get<AgeKey>('/user/subscription/age', undefined, { signal })
+
+/** `POST /user/subscription/age {regenerate?, enabled?}` — a new key starts disabled; 409 when one exists. */
+export const createAgeKey = (input: { regenerate?: boolean; enabled?: boolean } = {}) =>
+  api.post<AgeKey>('/user/subscription/age', input)
+
+/** `PATCH /user/subscription/age {enabled}` */
+export const setAgeEnabled = (enabled: boolean) => api.patch<AgeKey>('/user/subscription/age', { enabled })
+
+/** `DELETE /user/subscription/age` */
+export const deleteAgeKey = () => api.delete<unknown>('/user/subscription/age')
+
+/** `GET /user/subscription/access-log` (IPs masked). */
+export const subscriptionAccessLog = (signal?: AbortSignal) =>
+  api.get<SubscriptionAccess[]>('/user/subscription/access-log', undefined, { signal })
+
+/** `POST /user/subscription/rotate-token` → new token, same uuid. */
+export const rotateSubscriptionToken = () => api.post<SubscriptionRotate>('/user/subscription/rotate-token')
+
+/** `GET /user/telegram` */
+export const telegram = (signal?: AbortSignal) =>
+  api.get<TelegramStatus>('/user/telegram', undefined, { signal })
+
+/** `POST /user/telegram/bind-code` → one-time code + `t.me` deep link. */
+export const telegramBindCode = () => api.post<TelegramBindCode>('/user/telegram/bind-code')
+
+/** `DELETE /user/telegram` */
+export const unbindTelegram = () => api.delete('/user/telegram')
