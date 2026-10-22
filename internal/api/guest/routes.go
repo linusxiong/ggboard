@@ -15,4 +15,5 @@ func Register(r gin.IRouter, a *app.App) {
 	registerPlans(g, a)    // guest/plans.go    (BE-C)
 	registerPayment(g, a)  // guest/payment.go  (BE-C)
 	registerRulesets(g, a) // guest/rulesets.go (BE-D)
+	registerTelegram(g, a) // guest/telegram.go (BE-T)
 }

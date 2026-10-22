@@ -21,4 +21,6 @@ func Register(r gin.IRouter, a *app.App) {
 	registerContent(g, a)     // user/content.go      (BE-E2)
 	registerSecurity(g, a)    // user/security.go     (BE-A2)
 	registerSubGuard(g, a)    // user/subguard.go     (BE-S)
+
+	registerTelegram(g, a) // user/telegram.go     (BE-T)
 }

@@ -45,6 +45,11 @@ type App struct {
 	ownsDB    bool
 	closeOnce sync.Once
 	closeErr  error
+
+	compMu     sync.Mutex
+	components map[string]any
+	compOrder  []string
+	closed     bool
 }
 
 type options struct {
@@ -161,7 +166,8 @@ func (a *App) Start() {
 // FlushTraffic writes buffered traffic to the database.
 func (a *App) FlushTraffic(ctx context.Context) error { return a.Traffic.Flush(ctx, a.DB) }
 
-// Close stops the scheduler, flushes traffic, drains the mail queue and closes the cache and database.
+// Close stops the scheduler and the components (see Component), flushes traffic, drains the mail queue and
+// closes the cache and database.
 // It is safe to call more than once.
 func (a *App) Close(ctx context.Context) error {
 	a.closeOnce.Do(func() {
@@ -175,6 +181,9 @@ func (a *App) Close(ctx context.Context) error {
 		}
 		if a.Scheduler != nil {
 			phase(a.Scheduler.Stop)
+		}
+		for _, c := range a.closeComponents() {
+			phase(c.Stop)
 		}
 		if a.Traffic != nil && a.DB != nil {
 			phase(a.FlushTraffic)
@@ -254,4 +263,45 @@ func (a *App) registerJobs() error {
 		}
 	}
 	return nil
+}
+
+// Stopper is implemented by components that own background goroutines (see Component).
+type Stopper interface {
+	Stop(ctx context.Context) error
+}
+
+// Component returns the per-App singleton stored under name, building it with build on first use (build must
+// not call Component). Feature packages use it for state that lives as long as the App, such as the notification
+// queue. Components implementing Stopper are stopped by Close, newest first, after the scheduler and before the
+// final traffic flush (each with its own 10 s budget). After Close, Component returns nil without calling build.
+func (a *App) Component(name string, build func() any) any {
+	a.compMu.Lock()
+	defer a.compMu.Unlock()
+	if v, ok := a.components[name]; ok {
+		return v
+	}
+	if a.closed || build == nil {
+		return nil
+	}
+	v := build()
+	if a.components == nil {
+		a.components = map[string]any{}
+	}
+	a.components[name] = v
+	a.compOrder = append(a.compOrder, name)
+	return v
+}
+
+// closeComponents marks the App closed for Component and returns the stoppable components, newest first.
+func (a *App) closeComponents() []Stopper {
+	a.compMu.Lock()
+	defer a.compMu.Unlock()
+	a.closed = true
+	var out []Stopper
+	for i := len(a.compOrder) - 1; i >= 0; i-- {
+		if s, ok := a.components[a.compOrder[i]].(Stopper); ok {
+			out = append(out, s)
+		}
+	}
+	return out
 }

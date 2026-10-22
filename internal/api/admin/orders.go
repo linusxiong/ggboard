@@ -237,7 +237,7 @@ func adminCancelOrder(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		o, err := ordersvc.New(a).Cancel(c.Request.Context(), id)
+		o, err := ordersvc.New(a).CancelBy(c.Request.Context(), id, ordersvc.CancelByAdmin)
 		if err != nil {
 			httpx.Fail(c, err)
 			return

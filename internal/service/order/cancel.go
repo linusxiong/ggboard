@@ -9,11 +9,25 @@ import (
 
 	"github.com/linusxiong/ggboard/internal/httpx"
 	"github.com/linusxiong/ggboard/internal/model"
+	"github.com/linusxiong/ggboard/internal/notify"
 )
 
-// Cancel cancels a pending order: status 2, balance_amount back to the user's balance and the coupon use
-// returned. Orders that are not pending yield 409.
+// Who cancelled an order (CancelBy). Cancellations by the timeout job or an administrator are notified
+// (order_cancel); a user cancelling their own order is not.
+const (
+	CancelByUser    = "user"
+	CancelByAdmin   = notify.ReasonAdmin
+	CancelByTimeout = notify.ReasonTimeout
+)
+
+// Cancel cancels a pending order on its user's request: status 2, balance_amount back to the user's balance and
+// the coupon use returned. Orders that are not pending yield 409.
 func (s *Service) Cancel(ctx context.Context, orderID uint64) (*model.Order, error) {
+	return s.CancelBy(ctx, orderID, CancelByUser)
+}
+
+// CancelBy is Cancel on behalf of by (CancelByUser, CancelByAdmin or CancelByTimeout).
+func (s *Service) CancelBy(ctx context.Context, orderID uint64, by string) (*model.Order, error) {
 	var o model.Order
 	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		res := tx.Model(&model.Order{}).Where("id = ? AND status = ?", orderID, model.OrderStatusPending).
@@ -47,8 +61,25 @@ func (s *Service) Cancel(ctx context.Context, orderID uint64) (*model.Order, err
 	if o.BalanceAmount > 0 {
 		s.invalidateUser(o.UserID)
 	}
-	s.a.Log.Info("order cancelled", "trade_no", o.TradeNo, "user_id", o.UserID, "balance_restored", o.BalanceAmount)
+	s.a.Log.Info("order cancelled", "trade_no", o.TradeNo, "user_id", o.UserID, "balance_restored", o.BalanceAmount, "by", by)
+	if by != CancelByUser && notify.Enabled(s.a) {
+		notify.Emit(s.a, notify.OrderCancel(s.a, s.notifyOrder(ctx, &o, by)))
+	}
 	return &o, nil
+}
+
+// notifyOrder describes o for an order notification (the user's e-mail and the plan name are looked up).
+func (s *Service) notifyOrder(ctx context.Context, o *model.Order, reason string) notify.Order {
+	n := notify.Order{UserID: o.UserID, Period: o.Period, Amount: o.TotalAmount + o.BalanceAmount, TradeNo: o.TradeNo, Reason: reason}
+	var u model.User
+	if err := s.a.DB.WithContext(ctx).Select("id", "email").Where("id = ?", o.UserID).Limit(1).Find(&u).Error; err == nil {
+		n.Email = u.Email
+	}
+	var p model.Plan
+	if err := s.a.DB.WithContext(ctx).Select("id", "name").Where("id = ?", o.PlanID).Limit(1).Find(&p).Error; err == nil {
+		n.Plan = p.Name
+	}
+	return n
 }
 
 // CheckoutGrace is how long a pending order stays payable after its last checkout. Payment pages outlive the
@@ -78,7 +109,7 @@ func (s *Service) CancelExpired(ctx context.Context) (int, error) {
 		if err := ctx.Err(); err != nil {
 			return n, err
 		}
-		if _, err := s.Cancel(ctx, id); err != nil {
+		if _, err := s.CancelBy(ctx, id, CancelByTimeout); err != nil {
 			var he *httpx.Error
 			if errors.As(err, &he) && he.Status < 500 {
 				continue // paid or cancelled meanwhile

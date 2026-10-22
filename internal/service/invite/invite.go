@@ -16,6 +16,7 @@ import (
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/auth"
 	"github.com/linusxiong/ggboard/internal/model"
+	"github.com/linusxiong/ggboard/internal/notify"
 	"github.com/linusxiong/ggboard/internal/payment"
 	ticketsvc "github.com/linusxiong/ggboard/internal/service/ticket"
 	"github.com/linusxiong/ggboard/internal/settings"
@@ -238,11 +239,14 @@ func (s *Service) Withdraw(ctx context.Context, userID uint64, method, account s
 	tr := withdrawText(st.String("default_locale"))
 	amount := payment.FormatAmount(u.CommissionBalance) + " " + st.String("currency")
 	message := fmt.Sprintf("%s%s\n%s%s\n%s%s", tr.method, method, tr.account, account, tr.amount, amount)
-	t, err := ticketsvc.New(s.a).Create(ctx, u.ID, tr.subject, model.TicketLevelHigh, message)
+	t, err := ticketsvc.New(s.a).CreateSystem(ctx, u.ID, tr.subject, model.TicketLevelHigh, message)
 	if err != nil {
 		return nil, err
 	}
 	s.a.Log.Info("invite: withdrawal requested", "user_id", u.ID, "ticket_id", t.ID, "amount", u.CommissionBalance)
+	notify.Emit(s.a, notify.Withdraw(s.a, notify.Withdrawal{
+		Email: u.Email, Amount: u.CommissionBalance, Method: method, Account: account,
+	}))
 	return t, nil
 }
 

@@ -21,6 +21,8 @@ func registerSettings(g *gin.RouterGroup, a *app.App) {
 	s.GET("", settingsGetHandler(a))
 	s.PUT("", settingsPutHandler(a))
 	s.POST("/mail/test", settingsMailTestHandler(a))
+	s.POST("/telegram/webhook", settingsTelegramWebhookHandler(a)) // admin/telegram.go (BE-T)
+	s.POST("/telegram/test", settingsTelegramTestHandler(a))       // admin/telegram.go (BE-T)
 }
 
 // settingsGetHandler returns {"<group>": {"<key>": value}, ..., "groups": [settings.Group]} (secrets included).

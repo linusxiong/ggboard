@@ -142,7 +142,7 @@ func TestGroupedAndSecrets(t *testing.T) {
 		t.Fatal("app_name is not secret")
 	}
 	groups := Groups()
-	if len(groups) != 10 || groups[0].Name != "site" || groups[8].Name != "app" || groups[9].Name != "security" {
+	if len(groups) != 11 || groups[0].Name != "site" || groups[8].Name != "app" || groups[9].Name != "security" || groups[10].Name != "telegram" {
 		t.Fatalf("groups = %d", len(groups))
 	}
 	total := 0

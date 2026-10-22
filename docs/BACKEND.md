@@ -114,7 +114,9 @@ Global middleware: request id → access log → security headers → CORS (only
 `*app.App` fields: `Cfg *config.Config`, `DB *gorm.DB`, `Settings *settings.Service`, `Cache *cache.Cache`,
 `KV *cache.TTLMap[string, any]`, `Mailer *mail.Queue`, `Log *slog.Logger`, `Logs *logx.Ring`, `Version`, `StartedAt`,
 `Online *online.Store`, `Traffic *traffic.Accumulator`, `Scheduler *scheduler.Scheduler`.
-Helpers: `a.DBDriver()`, `a.FlushTraffic(ctx)`, `a.Start()`, `a.Close(ctx)`.
+Helpers: `a.DBDriver()`, `a.FlushTraffic(ctx)`, `a.Start()`, `a.Close(ctx)`,
+`a.Component(name, build) any` (per-App singleton built on first use; values implementing `app.Stopper` are stopped by `Close`
+after the scheduler, newest first; nil after `Close` — the notification queue lives here).
 
 - **Cache** (ristretto, may evict):
   - `a.Cache.Get` / `Set(key, v, ttl)` / `Delete` / `Clear`, `cache.GetAs[T]`.
@@ -262,6 +264,16 @@ Every service is cheap to build: call `New(a)` per request. Import aliases used 
 - **`service/maintenance`**:
   - jobs `TrafficReset`, `ExpireRemind`, `TrafficRemind`, `StatsDaily`, each taking an explicit `Clock` for tests
   - `maintenance.Enqueue(ctx, a.Mailer, msg)` waits while the mail queue is full: use it for any bulk mail
+- **`internal/notify`** (notifications, docs/ARCHITECTURE.md §Notifications):
+  - `notify.Emit(a, ev)` never blocks (dropped + WARN when the 1024-slot queue is full); `notify.EmitWait(ctx, a, ev)` for bulk
+    producers; `notify.Enabled(a)` before doing extra queries for an event; `notify.Reachable(a, u)` for user channels
+  - builders: `OrderNew/OrderPaid/OrderCancel(a, notify.Order{…})`, `AdminLogin(a, notify.Login{…})`,
+    `TicketNew/TicketReply(a, notify.Ticket{…})`, `Withdraw(a, notify.Withdrawal{…})`, `RemindExpire`, `RemindTraffic`, `Test`;
+    `SubscriptionLeak(a, u, distinct)` (+ `EmitSubscriptionLeak`, assignable to `subscription.LeakHook`); anything else:
+    `notify.New(a, type, body, notify.F("key", value), …)`
+  - drivers: `notify.Register(name, func(a) notify.Notifier)` (nil = not configured); `notify.Permanent(err)`,
+    `notify.ErrSkipped`, `notify.Done/MarkDone` for fan-out retries; `notify.Stats(a)`
+  - tests: `rec := notifytest.Attach(t, a)` then `rec.Last(t, notify.TypeOrderPaid)`; Telegram: `telegramtest.Enable(t, a)`
 - **`internal/payment`**:
   - `Gateway` interface: `Name`, `Label`, `Fields`, `Pay`, `Notify`
   - `Register`, `Get`, `List`, `Names`, `FormatAmount(cents)`, `ParseAmount(s)`, `FailResponse()`

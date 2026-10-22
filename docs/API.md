@@ -29,6 +29,7 @@ Base path `/api/v1` (exceptions: `/healthz`, `/.well-known/*`, the short subscri
 | 413 | `payload_too_large` | body over 1 MiB (8 MiB for node report endpoints) |
 | 429 | `rate_limited` | always with `Retry-After: <seconds>` |
 | 500 | `internal` | unexpected error (logged with the request id, never detailed to the client) |
+| 502 | `telegram_unavailable` | the Telegram Bot API could not be reached or refused `getMe` (§Telegram) |
 
 Rate limits (in-memory token buckets): every `/passport/*` route 30/min per IP, plus `POST /passport/email/send-code`
 10/h per IP; `POST /user/coupons/check`, `POST /user/orders` and `POST /user/orders/:trade_no/checkout` share 30/min per
@@ -82,6 +83,7 @@ Passkey {"id":1,"name":"Laptop","created_at":"…","last_used_at":null,"backup_e
 | GET | `/guest/rulesets/catalog` | — | public catalog `{sources, categories, templates, mirrors, clients, defaults, editable}` (no URL templates; `Cache-Control: public, max-age=300`; see `docs/SUBSCRIPTION.md`) |
 | ANY | `/guest/payment/notify/:gateway/:uuid` | gateway-specific | status, content type and body chosen by the gateway plugin (`docs/PAYMENTS.md`) |
 | GET | `/guest/payment/return/:trade_no` | — | 302 → `<app_url>/orders/<trade_no>` (gateway query parameters dropped; a relative `/orders/<trade_no>` when `app_url` is empty) |
+| POST | `/guest/telegram/webhook/:secret` | Telegram `Update` | the bot webhook (§Telegram); 403 unless `:secret` equals `telegram_webhook_secret` and a bot token is set |
 
 ## Passport 🔓 (`/passport`) — rate limited
 
@@ -280,6 +282,31 @@ Options JSON (pass as `optionsJSON` to `startRegistration`):
 Admin enforcement: with `admin_mfa_required` on, `/admin/*` answers 403 `mfa_setup_required` to admins/staff without TOTP and without
 a passkey (`mfasvc.AdminGate`, mounted right after `RequireStaff`); `/user/security` stays reachable to enrol.
 
+### Telegram
+
+| method | path | req | res |
+| --- | --- | --- | --- |
+| GET | `/user/telegram` | — | `{enabled, bound, username?, bot_username?, discuss_link}` |
+| POST | `/user/telegram/bind-code` | — | `{code, bot_username, deep_link}` (10/min per user, burst 5) |
+| DELETE | `/user/telegram` | — | `true` (idempotent) |
+
+- `enabled`: a bot token is configured. `bound`: `users.telegram_id` is set. `username`: the Telegram `@username` (without `@`)
+  stored at binding time, omitted when unknown (e.g. imported from Xboard). `bot_username`: from `getMe`, cached 1 h;
+  omitted while the bot is off or Telegram is unreachable (after a failed `getMe` the page does not wait again for 1 min).
+  `discuss_link` = `telegram_discuss_link` (`""` when unset).
+- `bind-code`: `code` = 24 alphanumeric characters, single use, valid 10 min; issuing a new code revokes the previous one.
+  `deep_link` = `https://t.me/<bot_username>?start=<code>`; opening it and tapping **Start** sends `/start <code>`.
+  403 `forbidden` when no bot token is set; 502 `telegram_unavailable` when `getMe` fails.
+- `DELETE` clears `telegram_id` and `telegram_username` and revokes a pending code.
+
+Bound users receive their own `order_paid`, `ticket_reply` and the expiry/traffic reminders while `telegram_user_notify` is on
+(§Telegram).
+
+```json
+{"data":{"enabled":true,"bound":true,"username":"alice_tg","bot_username":"ggbond_bot","discuss_link":"https://t.me/example_group"}}
+{"data":{"code":"<24 chars>","bot_username":"ggbond_bot","deep_link":"https://t.me/ggbond_bot?start=<24 chars>"}}
+```
+
 ## Client subscription 🔓 (token)
 
 `GET|HEAD /api/v1/client/subscribe?token=<token>[&flag=clash][&types=vmess,vless][&filter=HK,JP][&emoji=0][&list=1][&profile=<slug or template>][&source=blackmatrix7][&cats=openai,telegram][&final=Proxy][&mirror=1][&age=0]`
@@ -470,16 +497,18 @@ the provider.
 | GET | `/admin/settings` | — | `{"<group>": {"<key>": value}, …, "groups": [{name, keys:[{key, group, type, default, secret?, options?, min?, max?}]}]}`: every visible key by group (secrets included) + UI metadata in display order |
 | PUT | `/admin/settings` | `{"<key>": value, ...}` (`null` resets a key to its default) | `true`; unknown keys, invalid values and hidden keys (`rulesets_custom`, use `/admin/rulesets`) → 400 per key, nothing saved |
 | POST | `/admin/settings/mail/test` | `{email*}` | `true`; sent synchronously (template `notify`) with the current mail settings; delivery error → 400 with the driver's message and `errors.email` |
+| POST | `/admin/settings/telegram/webhook` | — | `{ok, description, error_code?, url}`: Telegram's answer to `setWebhook` with `url` = `<app_url>/api/v1/guest/telegram/webhook/<telegram_webhook_secret>` (§Telegram) |
+| POST | `/admin/settings/telegram/test` | — | `{sent, failed, results:[{chat_id, ok, error?}]}`: one test message per `telegram_admin_chat_ids` entry, sent synchronously (§Telegram) |
 | GET | `/admin/rulesets` | — | `{builtin: catalog, custom: {...}, effective: merged catalog}` |
 | PUT | `/admin/rulesets` | `{custom: {sources?, categories?, templates?, mirrors?}}` or `{custom: null}` (reset) | `true` (merged over builtin by id and validated; 400 on `custom` or per field) |
-| GET | `/admin/system/status` | — | `{version, go_version, uptime (s), db_driver, started_at, scheduler:[{name, spec, running, last_run, last_duration?, last_error, next_run, runs, failures}], mail:{pending, sent, failed, driver}, mail_queue (= mail.pending), cache:{items, max_items, hits, misses, hit_ratio}, online:{nodes, users}, goroutines, memory:{alloc, sys}}` |
+| GET | `/admin/system/status` | — | `{version, go_version, uptime (s), db_driver, started_at, scheduler:[{name, spec, running, last_run, last_duration?, last_error, next_run, runs, failures}], mail:{pending, sent, failed, driver}, mail_queue (= mail.pending), notify:{pending, sent, failed, drivers}, cache:{items, max_items, hits, misses, hit_ratio}, online:{nodes, users}, goroutines, memory:{alloc, sys}}` |
 | GET | `/admin/system/logs` | `level?` (`debug` default, `info`, `warn`/`warning`, `error` = minimum level), `limit?` (1..1000, default 200) | array `[{time, level, msg, attrs}]` newest first (in-memory ring buffer, last 1000 records) |
 
 ### Settings keys
 
 Source of truth: `internal/settings/defs.go`. Types: `string`, `int` (inclusive range), `bool`, `strings` (JSON array, or a
-comma/newline separated string), `json`. Secrets are returned to admins only and masked in logs; `server_token` is generated
-(32 chars) on first boot when empty.
+comma/newline separated string; elements must be among the options when a key lists them), `json`. Secrets are returned to
+admins only and masked in logs; `server_token` and `telegram_webhook_secret` are generated (32 chars) on first boot when empty.
 
 | group | key | type | default | notes |
 | --- | --- | --- | --- | --- |
@@ -566,6 +595,62 @@ comma/newline separated string), `json`. Secrets are returned to admins only and
 | security | `passkey_origins` | strings | `[]` | extra allowed origins (the `app_url` origin is always allowed) |
 | security | `admin_mfa_required` | bool | `false` | admins/staff need TOTP or a passkey for `/admin/*` |
 | security | `mfa_issuer` | string | `""` | TOTP issuer; empty → `app_name` |
+| telegram | `telegram_bot_token` | string (secret) | `""` | BotFather token; empty = Telegram off |
+| telegram | `telegram_admin_chat_ids` | strings | `[]` | chats receiving administrator events (numeric ids, `-100…` groups/channels or `@channel`) |
+| telegram | `telegram_events` | strings | `["order_paid","admin_login","ticket_new","withdraw","subscription_leak"]` | administrator events; each element one of `order_new`, `order_paid`, `order_cancel`, `admin_login`, `ticket_new`, `ticket_reply`, `withdraw`, `subscription_leak` (anything else → 400) |
+| telegram | `telegram_user_notify` | bool | `true` | bound users get their own `order_paid`, `ticket_reply`, expiry and traffic reminders |
+| telegram | `telegram_discuss_link` | string | `""` | community link shown to users (`/user/telegram`, bot help) |
+| telegram | `telegram_webhook_secret` | string (secret, ≥ 16) | generated | last path segment of the webhook URL and Telegram `secret_token`; generated (32 chars) on first boot; `null` regenerates it |
 
 Note: `PUT /admin/settings {"server_token": null}` (or `""`) empties the token; every node request is then rejected with 403
 until a new token is saved or the next start generates one. Rotate it by saving a new random value and updating every backend.
+
+## Telegram
+
+Bot driver of the notification system (`internal/notify/telegram`, docs/ARCHITECTURE.md §Notifications). Active only while
+`telegram_bot_token` is set. Bot API calls: `sendMessage` (`parse_mode: HTML`, every event value HTML-escaped, link previews
+off), `getMe` (cached 1 h) and `setWebhook`, each with a 10 s timeout; a 429 answer is retried after its `retry_after` (capped at
+60 s). The token and the webhook secret never appear in logs or API errors.
+
+Webhook `POST /api/v1/guest/telegram/webhook/:secret`:
+
+- `:secret` (and `X-Telegram-Bot-Api-Secret-Token` when Telegram sends it) must equal `telegram_webhook_secret` (constant-time
+  compare) and a bot token must be set, else 403. Access logs record the route pattern, never the secret. 600 requests/min per IP.
+- Handles `message` updates with text. Other updates, messages from bots and undecodable bodies get an empty 200, so Telegram does
+  not redeliver them.
+- The reply is the webhook response itself, a method call that Telegram performs:
+  `{"method":"sendMessage","chat_id":…,"text":"…","parse_mode":"HTML","link_preview_options":{"is_disabled":true}}`.
+- Commands (`/cmd@<bot>` is accepted; commands addressed to another bot are ignored once the bot's username is known):
+
+| command | chats | effect |
+| --- | --- | --- |
+| `/start <code>` | private | binds the account that issued `code`: `users.telegram_id` = chat id, `telegram_username` = the sender's `@username`; another account bound to the same chat is unbound first; replies 绑定成功（al***@example.com）… in `default_locale`. Invalid, used or expired codes get a short error; in groups the bot asks for a private chat |
+| `/unbind` | private | unbinds every account bound to this chat |
+| `/id` | any | replies `Chat ID: <code>…</code>` (administrators use it to fill `telegram_admin_chat_ids`) |
+| `/start`, `/help`, other text | private | short help, plus `telegram_discuss_link`; groups get no reply |
+
+Administrator events (`telegram_events`) go to every chat in `telegram_admin_chat_ids`; a retry after a partial failure resends
+only to the chats that failed. User events go to the bound chat while `telegram_user_notify` is on; a chat that is also an
+administrator chat subscribed to the same event gets it once. 4xx answers other than 429 (chat not found, bot blocked) are not
+retried.
+
+| event | to | fields |
+| --- | --- | --- |
+| `order_new` | admins | email, plan, period, amount, trade_no (user purchases; admin-assigned orders are not reported) |
+| `order_paid` | admins + buyer | email, plan, period, amount (total + handling + balance), trade_no, gateway (payment name), callback_no |
+| `order_cancel` | admins | email, plan, period, amount, trade_no, reason (timeout job or administrator; a user cancelling their own order is silent) |
+| `admin_login` | admins | email, role (admin or staff), method (password, password + TOTP, password + backup code, passkey), ip, ua (≤ 80 chars), time |
+| `ticket_new` | admins | subject, level, user; body = the first message (≤ 200 chars) |
+| `ticket_reply` | ticket owner, admins when subscribed | subject; body = the staff reply (≤ 200 chars); sent for every staff reply |
+| `withdraw` | admins | user, amount, method, account (masked `abc***xyz`) |
+| `subscription_leak` | admins | user, distinct (number of client IPs); `notify.EmitSubscriptionLeak` has the shape of `subscription.LeakHook` |
+| `remind_expire`, `remind_traffic` | bound user | sent by `expire_remind` / `traffic_remind` alongside the mail |
+
+`POST /admin/settings/telegram/webhook`: 400 with `errors` on `telegram_bot_token` (unset), `app_url` (unset) or
+`telegram_webhook_secret` (not 16–256 characters of `A-Za-z0-9_-`); 502 `telegram_unavailable` when Telegram cannot be reached.
+Telegram's refusals come back as `200 {"data":{"ok":false,"description":"…","error_code":400,"url":"…"}}`. The call registers
+`allowed_updates: ["message"]` and `secret_token` = the webhook secret. Telegram requires an HTTPS `app_url` (port 443, 80, 88 or 8443).
+
+`POST /admin/settings/telegram/test`: 400 on `telegram_bot_token` or `telegram_admin_chat_ids` when unset; otherwise 200 with one
+result per chat, e.g.
+`{"data":{"sent":1,"failed":1,"results":[{"chat_id":"123","ok":true},{"chat_id":"-100456","ok":false,"error":"telegram sendMessage: 400 Bad Request: chat not found"}]}}`.

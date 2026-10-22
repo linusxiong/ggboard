@@ -65,6 +65,13 @@ func normalizeTOTP(code string) (string, bool) {
 	return c, true
 }
 
+// IsTOTPCode reports whether code has the shape of a TOTP code (six digits, spaces ignored); anything else
+// accepted by the second step is a backup code.
+func IsTOTPCode(code string) bool {
+	_, ok := normalizeTOTP(code)
+	return ok
+}
+
 // matchTOTP returns the time step whose code equals code (current step first, then ±1).
 func matchTOTP(secret, code string, now time.Time) (int64, bool) {
 	step := now.Unix() / totpPeriod

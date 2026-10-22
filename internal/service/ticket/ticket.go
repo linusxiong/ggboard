@@ -16,6 +16,7 @@ import (
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/mail"
 	"github.com/linusxiong/ggboard/internal/model"
+	"github.com/linusxiong/ggboard/internal/notify"
 )
 
 // Errors.
@@ -42,8 +43,27 @@ type Service struct{ a *app.App }
 func New(a *app.App) *Service { return &Service{a: a} }
 
 // Create opens a ticket with its first message for userID. It returns ErrOpenExists when the user still has an
-// open ticket (Xboard rule: one open ticket per user). The new ticket awaits a staff reply.
+// open ticket (Xboard rule: one open ticket per user). The new ticket awaits a staff reply; administrators are
+// notified (ticket_new).
 func (s *Service) Create(ctx context.Context, userID uint64, subject string, level model.TicketLevel, message string) (*model.Ticket, error) {
+	t, email, err := s.create(ctx, userID, subject, level, message)
+	if err != nil {
+		return nil, err
+	}
+	notify.Emit(s.a, notify.TicketNew(s.a, notify.Ticket{
+		ID: t.ID, UserID: userID, Email: email, Subject: subject, Level: int(level), Message: message,
+	}))
+	return t, nil
+}
+
+// CreateSystem is Create for tickets the panel opens on the user's behalf (withdrawal requests): the caller
+// sends its own notification, so no ticket_new is emitted.
+func (s *Service) CreateSystem(ctx context.Context, userID uint64, subject string, level model.TicketLevel, message string) (*model.Ticket, error) {
+	t, _, err := s.create(ctx, userID, subject, level, message)
+	return t, err
+}
+
+func (s *Service) create(ctx context.Context, userID uint64, subject string, level model.TicketLevel, message string) (*model.Ticket, string, error) {
 	t := &model.Ticket{
 		UserID:          userID,
 		Subject:         subject,
@@ -52,11 +72,11 @@ func (s *Service) Create(ctx context.Context, userID uint64, subject string, lev
 		ReplyStatus:     model.TicketAwaitingStaff,
 		LastReplyUserID: &userID,
 	}
+	var owner model.User
 	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Serialize ticket creation per user: FOR UPDATE on PostgreSQL/MySQL; SQLite transactions are IMMEDIATE.
-		var owner model.User
 		if err := tx.Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).
-			Select("id").Where("id = ?", userID).First(&owner).Error; err != nil {
+			Select("id", "email").Where("id = ?", userID).First(&owner).Error; err != nil {
 			return err
 		}
 		var open int64
@@ -79,9 +99,9 @@ func (s *Service) Create(ctx context.Context, userID uint64, subject string, lev
 		return nil
 	})
 	if err != nil {
-		return nil, wrap(err)
+		return nil, "", wrap(err)
 	}
-	return t, nil
+	return t, owner.Email, nil
 }
 
 // Get loads a ticket with its messages (oldest first). ownerID, when non-zero, restricts the lookup to tickets
@@ -129,7 +149,8 @@ func (s *Service) ReplyAsOwner(ctx context.Context, id, userID uint64, message s
 }
 
 // ReplyAsStaff appends a staff message: the ticket is (re)opened and marked replied, and the owner is e-mailed
-// (see NotifyThrottle). A staff member answering their own ticket counts as an owner reply.
+// (see NotifyThrottle) and notified (ticket_reply, every reply). A staff member answering their own ticket
+// counts as an owner reply.
 func (s *Service) ReplyAsStaff(ctx context.Context, id, staffID uint64, message string) (*model.Ticket, error) {
 	var t *model.Ticket
 	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -152,6 +173,9 @@ func (s *Service) ReplyAsStaff(ctx context.Context, id, staffID uint64, message 
 	}
 	if staffID != t.UserID {
 		s.notify(ctx, t, message)
+		notify.Emit(s.a, notify.TicketReply(s.a, notify.Ticket{
+			ID: t.ID, UserID: t.UserID, Subject: t.Subject, Level: int(t.Level), Message: message,
+		}))
 	}
 	return s.Get(ctx, id, 0)
 }
