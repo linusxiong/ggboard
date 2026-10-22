@@ -13,6 +13,7 @@ import (
 	"github.com/linusxiong/ggboard/internal/httpx"
 	"github.com/linusxiong/ggboard/internal/logx"
 	"github.com/linusxiong/ggboard/internal/mail"
+	"github.com/linusxiong/ggboard/internal/notify"
 	"github.com/linusxiong/ggboard/internal/scheduler"
 	_ "github.com/linusxiong/ggboard/internal/service/maintenance" // registers traffic_reset, expire_remind, traffic_remind, stats_daily
 	statsvc "github.com/linusxiong/ggboard/internal/service/stat"
@@ -36,6 +37,7 @@ type systemStatus struct {
 	Scheduler  []scheduler.JobStatus `json:"scheduler"`
 	Mail       mail.QueueStats       `json:"mail"`
 	MailQueue  int64                 `json:"mail_queue"` // = mail.pending
+	Notify     notify.QueueStats     `json:"notify"`
 	Cache      cache.Stats           `json:"cache"`
 	Online     systemOnline          `json:"online"`
 	Goroutines int                   `json:"goroutines"`
@@ -72,6 +74,7 @@ func systemStatusHandler(a *app.App) gin.HandlerFunc {
 			Scheduler:  a.Scheduler.Status(),
 			Mail:       mailStats,
 			MailQueue:  mailStats.Pending,
+			Notify:     notify.Stats(a),
 			Cache:      a.Cache.Stats(),
 			Online:     systemOnline{Nodes: onlineNodes, Users: a.Online.OnlineUserCount()},
 			Goroutines: runtime.NumGoroutine(),

@@ -159,3 +159,20 @@ v2rayN 等只接收节点，规则需在客户端内设置。
 - **转入余额**：把可用佣金转入账户余额，用于购买套餐。
 - **申请提现**：填写提现方式（如 USDT、Alipay，须为站点允许的方式）与收款账户；需达到最低提现金额。提交后会创建一个工单，
   由工作人员人工处理（因此需要先关闭其他未关闭的工单）。站点可能关闭提现，此时只能转入余额。
+
+---
+
+## 9. Telegram 通知 / Telegram notifications
+
+站点启用了 Telegram 机器人时，可以把账户绑定到自己的 Telegram，接收订单支付成功、工单回复、订阅到期与流量提醒。
+*Bind your Telegram account to receive payment confirmations, ticket replies and expiry/traffic reminders.*
+
+1. 打开 **个人中心 → Telegram**，点 **绑定 Telegram**。页面给出一个链接（`https://t.me/<机器人>?start=<绑定码>`）。
+2. 在手机或电脑上打开链接，Telegram 会打开与机器人的对话，点 **开始 / Start**。机器人回复“绑定成功”即完成。
+   也可以手动把 `/start <绑定码>` 发给机器人。绑定码 10 分钟内有效、只能用一次，重新获取会让旧码失效。
+3. 页面显示已绑定的 Telegram 用户名；站点提供交流群时也会显示群链接。
+
+- **解除绑定**：在 **个人中心 → Telegram** 点 **解除绑定**，或在 Telegram 里给机器人发送 `/unbind`。
+- **换号**：用另一个 Telegram 账号重新绑定即可；一个 Telegram 账号只能绑定一个面板账户，用它绑定新账户时旧账户会自动解绑。
+- 到期与流量提醒遵循 **个人中心** 里的“到期提醒”“流量提醒”开关，每类提醒 24 小时内最多一次。
+- 机器人命令：`/start <绑定码>` 绑定、`/unbind` 解绑、`/id` 查看 Chat ID。

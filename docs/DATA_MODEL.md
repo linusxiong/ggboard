@@ -46,7 +46,8 @@ Conventions:
 | remind_expire, remind_traffic | bool | column default false; new users get the `default_remind_expire` / `default_remind_traffic` settings (default true) |
 | last_login_at | *time | |
 | last_login_ip | varchar(45) | |
-| telegram_id | *int64 | kept for import only |
+| telegram_id | *int64 idx | chat id of the bound Telegram account (bot `/start <code>`; imported from Xboard verbatim); one Telegram account binds one user |
+| telegram_username | *varchar(64) | Telegram `@username` (without `@`) at binding time; cleared on unbind and when an admin edits `telegram_id` |
 | remarks | text | admin notes |
 | password_version | int | bumped on password change / security reset; carried in the JWT `ver` claim |
 | created_at, updated_at | time | |

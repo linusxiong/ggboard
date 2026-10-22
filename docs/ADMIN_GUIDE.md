@@ -140,6 +140,17 @@ ggboard admin promote --email user@example.com              # 把已有用户提
 | `passkey_origins` | `[]` | 额外允许的来源（`app_url` 的来源始终允许） |
 | `mfa_issuer` | 空 | 身份验证器中显示的发行方，空 = `app_name` |
 
+### Telegram `telegram`
+
+| 键 | 默认 | 说明 |
+|---|---|---|
+| `telegram_bot_token` | 空 | BotFather 给的机器人 token；为空时 Telegram 通知整体关闭 |
+| `telegram_admin_chat_ids` | `[]` | 接收管理员通知的 Chat ID（个人、群组 `-100…` 或频道 `@频道名`），一行一个 |
+| `telegram_events` | 订单已支付、管理员登录、新工单、提现、订阅泄露 | 推送给管理员的事件，见 §9 |
+| `telegram_user_notify` | `true` | 已绑定的用户收到自己的支付成功、工单回复、到期与流量提醒 |
+| `telegram_discuss_link` | 空 | 交流群链接，显示在用户的 Telegram 绑定页与机器人帮助里 |
+| `telegram_webhook_secret` | 首次启动自动生成 | Webhook 地址的最后一段；重置为默认会生成新值，之后需重新 **设置 Webhook** |
+
 ---
 
 ## 3. 节点接入 / Adding nodes
@@ -355,3 +366,62 @@ ggboard import xboard --dsn "mysql://user:pass@127.0.0.1:3306/xboard" --with-sta
 - **找回**：用户丢失身份验证器时，可用备用码登录，或用已添加的通行密钥直接登录。后台与 CLI **没有**重置他人两步验证的功能，
   `ggboard admin reset-password` 也不会关闭两步验证；万不得已时由运维在数据库中删除该用户在 `user_mfa` 表中的行
   （关闭 TOTP 与备用码），或删除 `passkeys` 表中对应的行。
+
+---
+
+## 9. Telegram 通知 / Telegram notifications
+
+面板通过 Telegram 机器人把关键事件推送给管理员，并让用户绑定自己的 Telegram 接收订单与工单通知。
+*The panel pushes key events to admin chats through a Telegram bot; users can bind their own Telegram account.*
+
+### 9.1 创建机器人
+
+1. 在 Telegram 里打开 [@BotFather](https://t.me/BotFather)，发送 `/newbot`，按提示填写名称与用户名（必须以 `bot` 结尾）。
+2. BotFather 回复的 `123456789:AA…` 就是 token，填入 **系统设置 → Telegram → `telegram_bot_token`** 并保存。
+   token 等同于机器人密码：不要截图外传；泄露后在 BotFather 里 `/revoke` 换新。
+3. 可选：`/setdescription`、`/setuserpic` 设置简介与头像；`/setcommands` 填入
+   `start - 绑定面板账户`、`unbind - 解除绑定`、`id - 查看 Chat ID`。
+
+### 9.2 设置 Webhook
+
+机器人通过 Webhook 接收命令。先确认 **站点 → `app_url`** 是可公网访问的 HTTPS 地址（Telegram 只接受 443、80、88、8443 端口），
+然后在 **系统设置 → Telegram** 点 **设置 Webhook**（`POST /api/v1/admin/settings/telegram/webhook`）。面板把
+`<app_url>/api/v1/guest/telegram/webhook/<telegram_webhook_secret>` 注册给 Telegram，并显示 Telegram 的原始答复
+（`ok: true`、`Webhook was set` 即成功）。更换 `app_url`、重置 `telegram_webhook_secret` 或更换 token 后要重新设置一次。
+同一个 token 同时只能有一个 Webhook：如果旧面板（如 Xboard）还在用这个机器人，设置后旧面板就收不到命令了。
+
+### 9.3 获取 Chat ID 并测试
+
+1. **个人**：私聊机器人发送 `/id`，机器人回复 `Chat ID：123456789`。
+2. **群组**：把机器人拉进群，在群里发送 `/id`（多个机器人时发 `/id@你的机器人`），得到 `-100…` 开头的 ID。
+3. **频道**：把机器人设为频道管理员，`telegram_admin_chat_ids` 直接填 `@频道用户名`。
+4. 把这些 ID 填入 `telegram_admin_chat_ids`（一行一个）并保存，点 **发送测试消息**（`POST …/telegram/test`），
+   结果会逐个列出每个 Chat 是否成功（常见失败：`chat not found` = ID 错误或机器人没进群；`bot was blocked` = 被拉黑）。
+
+### 9.4 事件
+
+`telegram_events` 决定管理员收到哪些事件（默认前五项）：
+
+| 事件 | 键 | 内容 |
+|---|---|---|
+| 🧾 新订单 | `order_new` | 用户下单：邮箱、套餐、周期、金额、订单号（后台手动分配的订单不推送） |
+| 💰 订单已支付 | `order_paid` | 以上 + 支付方式、流水号；**默认开启** |
+| 🧾 订单已取消 | `order_cancel` | 超时自动取消或管理员取消（用户自己取消不推送） |
+| 🔐 管理员登录 | `admin_login` | 每次管理员 / 客服登录：角色、方式（密码、密码 + 两步验证、密码 + 备用码、通行密钥）、IP、设备、时间；**默认开启** |
+| 🎫 新工单 | `ticket_new` | 主题、优先级、用户与首条消息摘要；**默认开启** |
+| 🎫 工单有新回复 | `ticket_reply` | 客服的每条回复（本来就发给用户；管理员一般不需要） |
+| 💸 提现申请 | `withdraw` | 用户、金额、方式与打码后的账号；**默认开启** |
+| 🚨 订阅疑似泄露 | `subscription_leak` | 订阅泄露检测命中；**默认开启** |
+
+用户侧（`telegram_user_notify` 开启时，仅限已绑定的用户）：自己的订单支付成功、工单回复、到期提醒与流量提醒。
+到期 / 流量提醒随每天 10:00 的提醒任务一起发送，与邮件提醒共用“24 小时一次”的限制；关闭 `remind_mail_enable`
+只停邮件，已绑定 Telegram 的用户仍会收到 Telegram 提醒。
+
+发送失败会自动重试 3 次（1 s / 2 s / 4 s，遇到 Telegram 限流按其要求等待），仍失败的写入 **系统 → 日志**（WARN），
+**系统状态** 的 `notify` 一栏显示排队、成功、失败数与启用的渠道。服务器无法直连 `api.telegram.org` 时通知无法送达，
+请为服务器配置可用的出站网络。
+
+### 9.5 从 Xboard 迁移
+
+导入器保留每个用户的 `telegram_id`。若沿用 Xboard 原来的机器人 token，已绑定的用户无需重新绑定即可收到通知；
+记得按 §9.2 把 Webhook 改到 ggboard。Xboard 的 `telegram_*` 设置不会被导入，需要在这里重新填写。

@@ -8,7 +8,7 @@
 | 主题 | 条目 |
 | --- | --- |
 | Shell / zsh / 命令行工具 | 2, 7, 8, 9, 11, 17, 22, 23, 52, 64, 65, 91, 93, 94, 95, 108, 110, 114 |
-| Go | 21, 30, 31, 33, 34, 35, 37, 38, 39, 40, 41, 44, 45, 46, 47, 48, 49, 50, 53, 57, 61, 62, 63, 97, 98, 99, 102, 112 |
+| Go | 21, 30, 31, 33, 34, 35, 37, 38, 39, 40, 41, 44, 45, 46, 47, 48, 49, 50, 53, 57, 61, 62, 63, 97, 98, 99, 102, 112, 115, 116, 117, 118, 119 |
 | GORM / SQLite / 数据库 | 18, 19, 20, 42, 54, 55, 96 |
 | 前端（React / HeroUI / Vite / Vitest / pnpm） | 3, 15, 16, 24, 25, 26, 27, 28, 29, 58, 66, 67, 68, 69, 70, 71, 72, 74, 75, 76, 77, 80, 81, 82, 83, 84, 85, 86, 100, 101, 103, 104, 105, 106 |
 | 文档 / 契约 / 协作流程 | 1, 4, 5, 6, 10, 12, 13, 14, 32, 36, 43, 51, 56, 59, 60, 73, 78, 79, 87, 88, 89, 90, 92, 107, 109, 111, 113 |
@@ -843,3 +843,47 @@ Vitest 缓存 `import.meta.glob` 结果 67 / 72 / 77 / 85；`useLiteForm` 抢焦
 - **根因**：mysql 客户端在容器里默认用 latin1 输出。
 - **修复**：所有查询加 `--default-character-set=utf8mb4`；比对脚本改用 `JSON_ARRAYAGG` 输出 JSON 再解析。
 - **规则**：读含中文的库先确认客户端字符集；`??` 先怀疑客户端，不要先怀疑数据。
+
+### 115. （BE-T 通知）用 `testutil.Decode` 解析 Telegram webhook 的响应，拿到空的回复
+
+- **现象**：webhook 测试断言“绑定码无效”失败，实际回复文本是空串，看起来像 `/start` 没有被处理。
+- **根因**：webhook 故意不用 `{"data": …}` 信封，直接把 `sendMessage` 方法调用作为响应体返回给 Telegram；
+  `testutil.Decode` 按信封解码，`data` 不存在，于是得到零值。
+- **修复**：webhook 测试用 `json.Unmarshal(rec.Body.Bytes(), &reply)` 直接解码，并先断言状态码 200。
+- **规则**：凡是不走 `httpx.OK` 信封的端点（webhook、`/.well-known/*`、网关回调），测试必须按原始响应体解码；
+  断言“空值”之前先确认解码的形状对不对。
+
+### 116. （BE-T 通知）按 `"WARN"` 在日志环形缓冲里找告警，一条也找不到
+
+- **现象**：“重试耗尽后记 WARN 日志”的测试失败，日志其实写了。
+- **根因**：`logx.Ring` 存的 `Entry.Level` 是 `strings.ToLower(level.String())`，即 `"warn"`；按级别过滤应传
+  `slog.Level` 给 `Entries(min, limit)`。
+- **修复**：`a.Logs.Entries(slog.LevelWarn, 0)` 过滤，再比较 `e.Msg` 与 `e.Attrs`。
+- **规则**：断言日志前先读 `internal/logx` 的 `Entry` 构造代码；级别用 `slog.Level` 过滤，不要比较大小写敏感的字符串。
+
+### 117. （BE-T 通知）字典查找的兜底值带着内部前缀，未知字段显示成 `label.xxx`
+
+- **现象**：`notify.Label("en", "custom_key")` 返回 `label.custom_key`，测试期望 `custom_key`。
+- **根因**：`T(locale, key)` 找不到时返回传入的完整键；`Label` 直接调用 `T(locale, "label."+key)`，把内部命名空间前缀漏给了用户。
+- **修复**：`Label` 判断结果是否等于带前缀的键，相等时返回原始 `key`。
+- **规则**：带命名空间前缀的字典查找，兜底值必须去掉前缀；为“未知键”写一条测试。
+
+### 118. （BE-T 通知）golangci-lint 的 gosec G101 把设置键名和界面文案当成硬编码凭据
+
+- **现象**：`KeyToken = "telegram_bot_token"`、含 `"method.password"`、`"method.passkey"`、`"label.token"` 的文案 map 都被报
+  G101；测试里 `err.(settings.FieldErrors)` 被 errorlint 报出。
+- **根因**：G101 按名字和键名里的 `pass|token|secret|cred` 等子串匹配，不看值；errorlint 要求对错误用 `errors.As`。
+- **修复**：键名常量与文案 map 加带理由的 `//nolint:gosec // G101: …`（声明上方一行的 nolint 覆盖整个声明）；
+  去掉可有可无的 `label.token`；测试改为 `errors.As(err, &fe)`。
+- **规则**：新增设置键常量或文案表后立刻跑 `golangci-lint run ./...`；G101 只在确认是名字而不是值时才加 nolint，并写清理由；
+  断言错误类型一律 `errors.As`，测试代码也一样。
+
+### 119. （BE-T 通知）“队列已满”测试假设 worker 已经取走第一条，换个时区跑一次就偶发失败
+
+- **现象**：`TestQueueFullDropsAndEmitWaitThrottles` 单独跑总是通过，按 MISTAKES #48 换 `TZ=UTC` 连跑几个包时失败过一次。
+- **根因**：连续 `Emit` 6 次时，worker 可能还没从 channel 取走第一条：前两条占满容量、后四条被丢弃；之后 worker 取走一条，
+  channel 腾出空位，本应超时的 `EmitWait` 反而成功。断言依赖 goroutine 调度顺序。
+- **修复**：假驱动在 `SendAdmin` 入口向 `entered` channel 发信号，测试先等 worker 确实拿住第一条再继续 `Emit`，
+  断言改为精确值（3 条丢弃、3 条待处理），并用 `-race -count=30` 压测。
+- **规则**：测试并发队列的容量、丢弃与背压时，必须用 channel 显式同步到“worker 已阻塞在第 N 条”，不能靠调用顺序；
+  新写的并发测试至少 `-count=20 -race` 跑一遍再提交。

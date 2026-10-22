@@ -9,6 +9,7 @@ import (
 
 	"github.com/linusxiong/ggboard/internal/httpx"
 	"github.com/linusxiong/ggboard/internal/model"
+	"github.com/linusxiong/ggboard/internal/notify"
 	usersvc "github.com/linusxiong/ggboard/internal/service/user"
 )
 
@@ -35,7 +36,10 @@ func loadPlan(tx *gorm.DB, id uint64) (*model.Plan, error) {
 // pay is fulfilled before Create returns (callback_no "free" or "balance").
 func (s *Service) Create(ctx context.Context, userID uint64, in CreateInput) (*model.Order, error) {
 	now := s.now()
-	var order *model.Order
+	var (
+		order           *model.Order
+		email, planName string
+	)
 	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		u, err := lockUser(tx, userID)
 		if err != nil {
@@ -50,6 +54,7 @@ func (s *Service) Create(ctx context.Context, userID uint64, in CreateInput) (*m
 		if err != nil {
 			return err
 		}
+		email, planName = u.Email, plan.Name
 		if !plan.Show && (u.PlanID == nil || *u.PlanID != plan.ID) {
 			return httpx.NotFound("plan not found")
 		}
@@ -131,6 +136,10 @@ func (s *Service) Create(ctx context.Context, userID uint64, in CreateInput) (*m
 	}
 	s.a.Log.Info("order created", "trade_no", order.TradeNo, "user_id", order.UserID, "plan_id", order.PlanID,
 		"type", order.Type, "period", order.Period, "total", order.TotalAmount, "balance", order.BalanceAmount)
+	notify.Emit(s.a, notify.OrderNew(s.a, notify.Order{
+		UserID: order.UserID, Email: email, Plan: planName, Period: order.Period,
+		Amount: order.TotalAmount + order.BalanceAmount, TradeNo: order.TradeNo,
+	}))
 	if order.TotalAmount == 0 {
 		cb := CallbackFree
 		if order.BalanceAmount > 0 {

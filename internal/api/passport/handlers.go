@@ -9,6 +9,7 @@ import (
 	"github.com/linusxiong/ggboard/internal/auth"
 	"github.com/linusxiong/ggboard/internal/httpx"
 	"github.com/linusxiong/ggboard/internal/model"
+	"github.com/linusxiong/ggboard/internal/notify"
 	"github.com/linusxiong/ggboard/internal/service/account"
 	mfasvc "github.com/linusxiong/ggboard/internal/service/mfa"
 	usersvc "github.com/linusxiong/ggboard/internal/service/user"
@@ -111,6 +112,7 @@ func login(a *app.App) gin.HandlerFunc {
 		}
 		svc.RecordLogin(ctx, u, c.ClientIP())
 		httpx.Logger(c).Info("user logged in", "user_id", u.ID)
+		notifyStaffLogin(c, a, u, notify.MethodPassword)
 		respond(c, a, svc, u)
 	}
 }

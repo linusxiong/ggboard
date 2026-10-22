@@ -351,6 +351,7 @@ func (s *Service) changes(tx *gorm.DB, actor, u *model.User, in *UpdateInput, no
 	}
 	if in.TelegramID.Set {
 		set["telegram_id"] = in.TelegramID.Ptr()
+		set["telegram_username"] = nil // only the bot knows the username of a bound chat
 	}
 
 	if in.GroupID.Set {

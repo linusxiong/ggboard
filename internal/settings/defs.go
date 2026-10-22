@@ -42,6 +42,9 @@ func secret(group, key string) Def {
 }
 func withMinLen(d Def, n int) Def { d.MinLen = ip(n); return d }
 
+// withOptions restricts every element of a strings setting to opts.
+func withOptions(d Def, opts ...string) Def { d.Options = opts; return d }
+
 func i(group, key string, def, min, max int) Def {
 	return Def{Key: key, Group: group, Type: TypeInt, Default: def, Min: ip(min), Max: ip(max)}
 }
@@ -69,6 +72,7 @@ const (
 	GroupFrontend  = "frontend"
 	GroupApp       = "app"
 	GroupSecurity  = "security"
+	GroupTelegram  = "telegram"
 )
 
 // defs is the authoritative list of settings keys (docs/API.md "Settings keys").
@@ -168,9 +172,19 @@ var defs = []Def{
 	ss(GroupSecurity, "passkey_origins"),
 	b(GroupSecurity, "admin_mfa_required", false),
 	s(GroupSecurity, "mfa_issuer", ""),
+
+	// Telegram bot notifications (internal/notify/telegram). The driver is active only with a token; admin chats
+	// receive the events listed in telegram_events; telegram_webhook_secret is generated on first boot.
+	secret(GroupTelegram, "telegram_bot_token"),
+	ss(GroupTelegram, "telegram_admin_chat_ids"),
+	withOptions(ss(GroupTelegram, "telegram_events", "order_paid", "admin_login", "ticket_new", "withdraw", "subscription_leak"),
+		"order_new", "order_paid", "order_cancel", "admin_login", "ticket_new", "ticket_reply", "withdraw", "subscription_leak"),
+	b(GroupTelegram, "telegram_user_notify", true),
+	s(GroupTelegram, "telegram_discuss_link", ""),
+	withMinLen(secret(GroupTelegram, "telegram_webhook_secret"), 16),
 }
 
-var groupOrder = []string{GroupSite, GroupRegister, GroupSubscribe, GroupOrder, GroupInvite, GroupServer, GroupEmail, GroupFrontend, GroupApp, GroupSecurity}
+var groupOrder = []string{GroupSite, GroupRegister, GroupSubscribe, GroupOrder, GroupInvite, GroupServer, GroupEmail, GroupFrontend, GroupApp, GroupSecurity, GroupTelegram}
 
 var defIndex = func() map[string]Def {
 	m := make(map[string]Def, len(defs))
@@ -198,7 +212,8 @@ func Lookup(key string) (Def, bool) {
 	return d, ok
 }
 
-// IsSecret reports whether key holds a secret (captcha_secret, email_password, server_token).
+// IsSecret reports whether key holds a secret (captcha_secret, email_password, server_token, telegram_bot_token,
+// telegram_webhook_secret).
 func IsSecret(key string) bool { return defIndex[key].Secret }
 
 // Groups returns the admin-UI metadata for every visible key, grouped and ordered.

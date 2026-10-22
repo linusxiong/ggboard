@@ -12,6 +12,7 @@ import (
 	"github.com/linusxiong/ggboard/internal/httpx"
 	"github.com/linusxiong/ggboard/internal/mail"
 	"github.com/linusxiong/ggboard/internal/model"
+	"github.com/linusxiong/ggboard/internal/notify"
 	"github.com/linusxiong/ggboard/internal/payment"
 	plansvc "github.com/linusxiong/ggboard/internal/service/plan"
 	usersvc "github.com/linusxiong/ggboard/internal/service/user"
@@ -143,6 +144,13 @@ func (s *Service) afterFulfil(o *model.Order, plan *model.Plan, u *model.User) {
 	usersvc.New(s.a).InvalidateNodeUsers()
 	s.a.Log.Info("order paid", "trade_no", o.TradeNo, "user_id", o.UserID, "plan_id", o.PlanID, "type", o.Type,
 		"period", o.Period, "total", o.TotalAmount, "callback_no", o.CallbackNo, "commission", o.CommissionBalance)
+	if notify.Enabled(s.a) {
+		notify.Emit(s.a, notify.OrderPaid(s.a, notify.Order{
+			UserID: o.UserID, Email: u.Email, Plan: plan.Name, Period: o.Period,
+			Amount: o.TotalAmount + o.HandlingAmount + o.BalanceAmount, TradeNo: o.TradeNo,
+			Gateway: s.paymentName(o.PaymentID), CallbackNo: o.CallbackNo,
+		}))
+	}
 	if u.Email == "" {
 		return
 	}
@@ -160,4 +168,16 @@ func (s *Service) afterFulfil(o *model.Order, plan *model.Plan, u *model.User) {
 	if err := s.a.Mailer.SendTemplate(u.Email, mail.TplOrderPaid, data); err != nil {
 		s.a.Log.Warn("order paid mail not queued", "trade_no", o.TradeNo, "err", err)
 	}
+}
+
+// paymentName returns the display name of payment id ("" when unset or unknown).
+func (s *Service) paymentName(id *uint64) string {
+	if id == nil {
+		return ""
+	}
+	var p model.Payment
+	if err := s.a.DB.Select("id", "name").Where("id = ?", *id).Limit(1).Find(&p).Error; err != nil {
+		return ""
+	}
+	return p.Name
 }

@@ -1,8 +1,8 @@
 // Package maintenance registers the periodic maintenance jobs (docs/ARCHITECTURE.md §Scheduler jobs):
 //
 //	traffic_reset   0 0 * * *   reset u/d of users whose next_reset_at has passed and schedule the next reset
-//	expire_remind   0 10 * * *  mail users whose subscription expires within 24 h (remind_expire)
-//	traffic_remind  0 10 * * *  mail users who used at least 80 % of their traffic (remind_traffic)
+//	expire_remind   0 10 * * *  remind users whose subscription expires within 24 h (remind_expire): mail + Telegram
+//	traffic_remind  0 10 * * *  remind users who used at least 80 % of their traffic (remind_traffic): mail + Telegram
 //	stats_daily     5 0 * * *   upsert yesterday's `stats` row
 //
 // The jobs register themselves in init(); the binary links them through cmd/ggboard/jobs_maintenance.go.
@@ -21,6 +21,7 @@ import (
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/mail"
 	"github.com/linusxiong/ggboard/internal/model"
+	"github.com/linusxiong/ggboard/internal/notify"
 	statsvc "github.com/linusxiong/ggboard/internal/service/stat"
 	usersvc "github.com/linusxiong/ggboard/internal/service/user"
 )
@@ -167,48 +168,50 @@ func loadPlans(ctx context.Context, db *gorm.DB) (map[uint64]*model.Plan, error)
 
 // ---------------------------------------------------------------- reminders
 
-// ExpireRemind mails remind_expire to users (not banned, remind_expire on) whose expired_at is in
-// (now, now + 24h], at most once per 24 h per user. Nothing is sent when remind_mail_enable is off.
-// It returns the number of queued mails.
+// ExpireRemind reminds users (not banned, remind_expire on) whose expired_at is in (now, now + 24h], at most
+// once per 24 h per user: the remind_expire mail when remind_mail_enable is on, and a Telegram (notify) message
+// to users reachable there (telegram_user_notify). It returns the number of users reminded.
 func ExpireRemind(ctx context.Context, a *app.App, now Clock) (int, error) {
-	if !a.Settings.Bool("remind_mail_enable") {
-		return 0, nil
-	}
 	t := now()
-	q := a.DB.WithContext(ctx).Model(&model.User{}).Select("id", "email", "expired_at").
+	q := a.DB.WithContext(ctx).Model(&model.User{}).Select("id", "email", "expired_at", "telegram_id").
 		Where("banned = ? AND remind_expire = ?", false, true).
 		Where("expired_at > ? AND expired_at <= ?", t, t.Add(RemindWindow))
-	return remind(ctx, a, q, kvExpireRemind, func(u *model.User) (string, mail.Data) {
-		return mail.TplRemindExpire, mail.Data{"ExpiredAt": u.ExpiredAt.In(t.Location()).Format("2006-01-02 15:04")}
+	return remind(ctx, a, q, kvExpireRemind, func(u *model.User) (string, mail.Data, notify.Event) {
+		at := u.ExpiredAt.In(t.Location()).Format("2006-01-02 15:04")
+		return mail.TplRemindExpire, mail.Data{"ExpiredAt": at}, notify.RemindExpire(a, u.ID, at)
 	})
 }
 
-// TrafficRemind mails remind_traffic to users (not banned, not expired, remind_traffic on) who used at least
-// 80 % but less than 100 % of transfer_enable, at most once per 24 h per user. Nothing is sent when
-// remind_mail_enable is off. It returns the number of queued mails.
+// TrafficRemind reminds users (not banned, not expired, remind_traffic on) who used at least 80 % but less than
+// 100 % of transfer_enable, at most once per 24 h per user, by mail (remind_mail_enable) and notify (see
+// ExpireRemind). It returns the number of users reminded.
 func TrafficRemind(ctx context.Context, a *app.App, now Clock) (int, error) {
-	if !a.Settings.Bool("remind_mail_enable") {
-		return 0, nil
-	}
 	t := now()
-	q := a.DB.WithContext(ctx).Model(&model.User{}).Select("id", "email", "u", "d", "transfer_enable").
+	q := a.DB.WithContext(ctx).Model(&model.User{}).Select("id", "email", "u", "d", "transfer_enable", "telegram_id").
 		Where("banned = ? AND remind_traffic = ?", false, true).
 		Where("expired_at IS NULL OR expired_at > ?", t).
 		Where("transfer_enable > 0").
 		Where("(u + d) * 100 >= transfer_enable * ?", TrafficRemindPercent).
 		Where("u + d < transfer_enable")
-	return remind(ctx, a, q, kvTrafficRemind, func(u *model.User) (string, mail.Data) {
+	return remind(ctx, a, q, kvTrafficRemind, func(u *model.User) (string, mail.Data, notify.Event) {
 		used := u.Used()
+		percent := used * 100 / u.TransferEnable
 		return mail.TplRemindTraffic, mail.Data{
-			"Percent": used * 100 / u.TransferEnable,
+			"Percent": percent,
 			"Used":    FormatBytes(used),
 			"Total":   FormatBytes(u.TransferEnable),
-		}
+		}, notify.RemindTraffic(a, u.ID, percent, FormatBytes(used), FormatBytes(u.TransferEnable))
 	})
 }
 
-// remind walks q in id batches and queues one mail per user not yet marked under kvPrefix.
-func remind(ctx context.Context, a *app.App, q *gorm.DB, kvPrefix string, build func(*model.User) (string, mail.Data)) (int, error) {
+// remind walks q in id batches and reminds each user not yet marked under kvPrefix: one mail (when
+// remind_mail_enable) and one notify event (when the user is reachable on a notification channel). It does
+// nothing when neither channel is on.
+func remind(ctx context.Context, a *app.App, q *gorm.DB, kvPrefix string, build func(*model.User) (string, mail.Data, notify.Event)) (int, error) {
+	mailOn, notifyOn := a.Settings.Bool("remind_mail_enable"), notify.Enabled(a)
+	if !mailOn && !notifyOn {
+		return 0, nil
+	}
 	var lastID uint64
 	sent := 0
 	for {
@@ -223,13 +226,24 @@ func remind(ctx context.Context, a *app.App, q *gorm.DB, kvPrefix string, build 
 			if _, done := a.KV.Get(key); done {
 				continue
 			}
-			tpl, data := build(u)
-			msg, err := a.Mailer.Render(u.Email, tpl, data)
-			if err != nil {
-				return sent, err
+			reachable := notifyOn && notify.Reachable(a, u)
+			if !mailOn && !reachable {
+				continue
 			}
-			if err := Enqueue(ctx, a.Mailer, msg); err != nil {
-				return sent, err
+			tpl, data, ev := build(u)
+			if mailOn {
+				msg, err := a.Mailer.Render(u.Email, tpl, data)
+				if err != nil {
+					return sent, err
+				}
+				if err := Enqueue(ctx, a.Mailer, msg); err != nil {
+					return sent, err
+				}
+			}
+			if reachable {
+				if err := notify.EmitWait(ctx, a, ev); err != nil {
+					return sent, err
+				}
 			}
 			a.KV.Set(key, true, RemindWindow)
 			sent++
@@ -240,7 +254,7 @@ func remind(ctx context.Context, a *app.App, q *gorm.DB, kvPrefix string, build 
 		lastID = users[len(users)-1].ID
 	}
 	if sent > 0 {
-		a.Log.Info("reminders queued", "kind", kvPrefix, "mails", sent)
+		a.Log.Info("reminders queued", "kind", kvPrefix, "users", sent, "mail", mailOn)
 	}
 	return sent, nil
 }

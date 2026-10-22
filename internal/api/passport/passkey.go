@@ -8,6 +8,7 @@ import (
 
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/httpx"
+	"github.com/linusxiong/ggboard/internal/notify"
 	"github.com/linusxiong/ggboard/internal/service/account"
 	mfasvc "github.com/linusxiong/ggboard/internal/service/mfa"
 )
@@ -58,6 +59,7 @@ func passkeyLoginFinish(a *app.App) gin.HandlerFunc {
 		svc := account.New(a)
 		svc.RecordLogin(ctx, u, c.ClientIP())
 		httpx.Logger(c).Info("user logged in with passkey", "user_id", u.ID)
+		notifyStaffLogin(c, a, u, notify.MethodPasskey)
 		respond(c, a, svc, u)
 	}
 }

@@ -37,6 +37,7 @@ func loginMFA(a *app.App) gin.HandlerFunc {
 		svc := account.New(a)
 		svc.RecordLogin(ctx, u, c.ClientIP())
 		httpx.Logger(c).Info("user logged in with second factor", "user_id", u.ID)
+		notifyStaffLogin(c, a, u, secondFactorMethod(in.Code))
 		respond(c, a, svc, u)
 	}
 }

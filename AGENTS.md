@@ -171,6 +171,7 @@ deploy/                 Dockerfile、compose、systemd、nginx 示例
 | 数据导入 | `internal/cli`（`cli.Register` 注册子命令） | `import xboard`（legacy 分表 / upstream 统一表） |
 | 定时任务 | `internal/app/app.go`（`app.RegisterJob`，见 `docs/ARCHITECTURE.md`） | online_cleanup, traffic_flush（`internal/app`）；order_timeout, commission_settle（`service/order`）；traffic_reset, expire_remind, traffic_remind, stats_daily（`service/maintenance`） |
 | 邮件驱动 | `internal/mail/mailer.go`（`mail.FromSettings` 按 `email_driver` 选择，非 registry） | smtp, log |
+| 通知渠道 | `internal/notify/notify.go`（`notify.Register`；汇总导入 `cmd/ggboard/plugins_notify.go`） | telegram |
 | 节点对接协议 | `internal/api/node/`（同一包内两组路由，非 registry） | xrayr(UniProxy, V2bX 超集), soga-v1 |
 
 新增 registry 类插件 = 新建一个包 + 在 `init()` 里 `Register` + 在汇总文件里加一行空白导入；不改核心代码。

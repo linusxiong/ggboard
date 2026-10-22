@@ -32,7 +32,8 @@ type User struct {
 	RemindTraffic     bool           `gorm:"not null;default:false" json:"remind_traffic"`
 	LastLoginAt       *time.Time     `json:"last_login_at"`
 	LastLoginIP       string         `gorm:"size:45" json:"last_login_ip"`
-	TelegramID        *int64         `json:"telegram_id"`
+	TelegramID        *int64         `gorm:"index" json:"telegram_id"`         // bound Telegram account (chat id of the private chat)
+	TelegramUsername  *string        `gorm:"size:64" json:"telegram_username"` // @username at binding time, without "@"
 	Remarks           string         `gorm:"type:text" json:"remarks"`
 	PasswordVersion   int            `gorm:"not null;default:0" json:"-"`
 	CreatedAt         time.Time      `gorm:"index" json:"created_at"`

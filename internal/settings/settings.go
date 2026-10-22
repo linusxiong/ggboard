@@ -48,15 +48,20 @@ func (e FieldErrors) Error() string {
 // FieldErrors returns the per-field messages.
 func (e FieldErrors) FieldErrors() map[string][]string { return e }
 
-// New loads all settings and generates server_token on first boot.
+// generated lists the secrets created on first boot (32 random characters) and regenerated when reset to null.
+var generated = []string{"server_token", "telegram_webhook_secret"}
+
+// New loads all settings and generates server_token and telegram_webhook_secret on first boot.
 func New(db *gorm.DB) (*Service, error) {
 	s := &Service{db: db}
 	if err := s.Reload(context.Background()); err != nil {
 		return nil, err
 	}
-	if s.String("server_token") == "" {
-		if err := s.Set(map[string]any{"server_token": RandomToken(32)}); err != nil {
-			return nil, fmt.Errorf("settings: generate server_token: %w", err)
+	for _, key := range generated {
+		if s.String(key) == "" {
+			if err := s.Set(map[string]any{key: RandomToken(32)}); err != nil {
+				return nil, fmt.Errorf("settings: generate %s: %w", key, err)
+			}
 		}
 	}
 	return s, nil
@@ -175,11 +180,13 @@ func (s *Service) SetContext(ctx context.Context, values map[string]any) error {
 	if len(values) == 0 {
 		return nil
 	}
-	if v, ok := values["server_token"]; ok && v == nil {
-		// "Reset to default" means a fresh token, as on first boot: the default ("") would disconnect every node
-		// (an unset token rejects all requests) until the next restart regenerated it.
-		values = maps.Clone(values)
-		values["server_token"] = RandomToken(32)
+	for _, key := range generated {
+		if v, ok := values[key]; ok && v == nil {
+			// "Reset to default" means a fresh token, as on first boot: the default ("") would disconnect every node
+			// (an unset token rejects all requests) or the Telegram webhook until the next restart regenerated it.
+			values = maps.Clone(values)
+			values[key] = RandomToken(32)
+		}
 	}
 	errs := FieldErrors{}
 	type write struct {
@@ -314,6 +321,13 @@ func normalize(d Def, v any) (any, error) {
 			}
 		default:
 			return nil, fmt.Errorf("must be a list of strings")
+		}
+		if len(d.Options) > 0 {
+			for _, e := range out {
+				if !slices.Contains(d.Options, e) {
+					return nil, fmt.Errorf("unknown value %q: must be among %s", e, strings.Join(d.Options, ", "))
+				}
+			}
 		}
 		return out, nil
 	case TypeJSON:

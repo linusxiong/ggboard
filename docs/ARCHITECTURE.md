@@ -5,7 +5,7 @@ One Go binary (`ggboard`) serves:
 - the JSON API
 - the node-facing APIs (UniProxy for XrayR/V2bX, soga-v1)
 - subscriptions and payment callbacks
-- a cron scheduler and an in-process mail queue
+- a cron scheduler, an in-process mail queue and an in-process notification queue (Telegram bot)
 - the embedded React SPA
 
 There is no Redis and no separate worker. A panel needs nothing more than an in-process cache (ristretto), a TTL map and
@@ -65,8 +65,9 @@ batched DB writes.
    The router lives outside `httpx` because every API package imports `httpx`.
 5. `app.Start()` starts the mail worker and the scheduler. The HTTP server timeouts are: read header 10 s, read 60 s,
    write 120 s, idle 120 s.
-6. SIGINT/SIGTERM drains HTTP for 10 s. `app.Close` then stops the scheduler, flushes traffic, drains the mail queue
-   (10 s budget), closes the cache and the DB.
+6. SIGINT/SIGTERM drains HTTP for 10 s. `app.Close` then stops the scheduler, stops the App components (newest first:
+   the notification queue drains, 10 s budget), flushes traffic, drains the mail queue (10 s budget), closes the cache and
+   the DB.
 
 ## CLI
 
@@ -156,8 +157,8 @@ recovers panics, skips a run while the previous one is still running, and report
 | `order_timeout` | `*/1 * * * *` | `service/order` | cancel pending orders older than `order_timeout_minutes` (default 30). Balance and coupon use are given back. At most 500 per run |
 | `commission_settle` | `0 */1 * * *` | `service/order` | see below |
 | `traffic_reset` | `0 0 * * *` | `service/maintenance` | see below |
-| `expire_remind` | `0 10 * * *` | `service/maintenance` | with `remind_mail_enable`, mail users (not banned, `remind_expire`) whose `expired_at` is in (now, now + 24 h]. At most once per 24 h per user |
-| `traffic_remind` | `0 10 * * *` | `service/maintenance` | with `remind_mail_enable`, mail users (not banned, not expired, `remind_traffic`) who used 80 % ≤ x < 100 %. At most once per 24 h per user |
+| `expire_remind` | `0 10 * * *` | `service/maintenance` | remind users (not banned, `remind_expire`) whose `expired_at` is in (now, now + 24 h]: a mail with `remind_mail_enable`, a Telegram message when bound (`telegram_user_notify`). At most once per 24 h per user |
+| `traffic_remind` | `0 10 * * *` | `service/maintenance` | remind users (not banned, not expired, `remind_traffic`) who used 80 % ≤ x < 100 %, by mail and Telegram as above. At most once per 24 h per user |
 | `stats_daily` | `5 0 * * *` | `service/maintenance` | upsert yesterday's `stats` row (docs/DATA_MODEL.md) |
 
 `commission_settle`:
@@ -177,6 +178,38 @@ recovers panics, skips a run while the previous one is still running, and report
 The mail queue is not a cron job. It is a worker goroutine with a bounded channel (1024) and 3 retries
 (1 s, 2 s, 4 s). Requests never send mail inline; every outcome is written to `mail_logs`.
 
+## Notifications (`internal/notify`)
+
+Feature code describes what happened as a `notify.Event{Type, Title, Body, Fields, UserID, Admin, At}` and calls
+`notify.Emit(a, ev)`, which never blocks:
+
+```text
+order / ticket / invite / passport / maintenance ──Emit──▶ bounded queue (1024) ──1 worker──▶ every configured Notifier
+                                                     │ full → dropped, WARN, failed++        ├─ SendAdmin(ev)        (ev.Admin)
+                                     EmitWait (bulk) ┘ waits for room                        └─ SendUser(chatRef, ev) (ev.UserID reachable)
+```
+
+- **Channels** register a `notify.Factory` from `init()` (`notify.Register`, a `plugin.Registry`). The factory is called per
+  event and returns nil while the channel is not configured, so settings changes apply at once. Emit returns immediately
+  when no channel is configured (no queue is created).
+- **Events** are localized when built (`default_locale`, zh-CN or en; templates in `internal/notify/i18n.go`). `Title` and `Body`
+  are plain text; `Fields` are `{key, value}` pairs whose labels come from `notify.Label`. Builders (`OrderNew`, `OrderPaid`,
+  `OrderCancel`, `AdminLogin`, `TicketNew`, `TicketReply`, `Withdraw`, `SubscriptionLeak`, `RemindExpire`, `RemindTraffic`,
+  `Test`) and the generic `notify.New(a, type, body, fields...)`. `notify.EmitSubscriptionLeak` matches `subscription.LeakHook`.
+- **Delivery**: one attempt plus 3 retries per channel and side (administrators / user), waiting 1 s, 2 s, 4 s, or the
+  channel's `retry_after` when longer (429, capped at 60 s). `notify.Permanent` errors (Telegram 4xx such as "chat not found")
+  and `notify.ErrSkipped` (event not subscribed, no destination) end at once. A channel that fans out to several chats marks
+  each served chat with `notify.MarkDone`, so a retry never sends twice. Failures are logged at WARN and counted.
+- **Stats**: `notify.Stats(a)` → `/admin/system/status` `notify:{pending, sent, failed, drivers}` (outcomes count one per
+  channel and side; skips count as neither).
+- **Lifecycle**: the queue is an App component (`a.Component`), created on first use and stopped by `app.Close`, which drains
+  it for up to 10 s; after that pending retries are abandoned and counted as failed.
+- **Telegram** (`internal/notify/telegram`): active with `telegram_bot_token`. Administrator chats (`telegram_admin_chat_ids`)
+  receive the types listed in `telegram_events`; users who bound their account (`users.telegram_id`) receive their own
+  `order_paid`, `ticket_reply` and reminders while `telegram_user_notify` is on. Binding uses one-time codes in `app.KV`
+  (10 min) and the `t.me/<bot>?start=<code>` deep link; the webhook answers bot commands in its HTTP response. `getMe` is
+  cached 1 h in `a.Cache`, keyed by a hash of the token. See docs/API.md §Telegram.
+
 ## Security
 
 - **Passwords**: argon2id (m = 64 MiB, t = 3, p = 4) for new hashes. Imported users can still sign in with bcrypt
@@ -195,8 +228,9 @@ The mail queue is not a cron job. It is a worker goroutine with a bounded channe
 - **Subscriptions**: a malformed or unknown token gets 403 without revealing whether it exists. A banned, expired or
   over-quota user gets a valid document with only the info entries and no nodes.
 - **Payment notify**: every gateway verifies its signature; fulfilment is idempotent and compares the amount with the order.
-- **Secrets**: `server_token`, `email_password`, `captcha_secret` and payment configs are only served by admin-only
-  endpoints.
+- **Secrets**: `server_token`, `email_password`, `captcha_secret`, `telegram_bot_token`, `telegram_webhook_secret` and payment
+  configs are only served by admin-only endpoints. The Telegram client strips the request URL (which embeds the bot token) from
+  transport errors and never follows redirects; the webhook secret travels in a path parameter, which logs never record.
 - **Proxies & limits**: per-IP rate limits key IPv6 clients by /64. `X-Forwarded-For`/`X-Real-IP`/`X-Forwarded-Proto` are
   honoured only from `server.trusted_proxies` (`httpx.RequestScheme`/`RequestBase` for links built without `app_url`).
 - **Hashing budget**: argon2id derivations run at most `NumCPU` (≥ 2) at a time; unknown emails at login still spend one
@@ -219,6 +253,7 @@ Every plugin point is a Go interface plus a registry built on `plugin.NewRegistr
 | subscription format | `subscription.RegisterFormat` | clash-meta, stash, clash, singbox, surge, surfboard, quantumultx, shadowrocket, loon, v2ray, ssr | `internal/api/client` → `internal/subscription/formats` |
 | captcha | `captcha.Register` | none, turnstile, recaptcha, hcaptcha | `internal/captcha` itself |
 | mail driver | `mail.FromSettings` (`email_driver`) | smtp, log (memory in tests) | `internal/mail` |
+| notification channel | `notify.Register(name, factory)` | telegram (`notifytest` "record" in tests) | `cmd/ggboard/plugins_notify.go` → `internal/notify/telegram` (also imported by the API packages) |
 | jobs | `app.RegisterJob(name, spec, fn)` | see above | `cmd/ggboard/jobs_maintenance.go`; `service/order` through the API packages |
 | CLI subcommands | `cli.Register(factory)` | `import xboard` | `cmd/ggboard/import.go` |
 
