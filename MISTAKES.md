@@ -8,13 +8,13 @@
 | 主题 | 条目 |
 | --- | --- |
 | Shell / zsh / 命令行工具 | 2, 7, 8, 9, 11, 17, 22, 23, 52, 64, 65, 91, 93, 94, 95 |
-| Go | 21, 30, 31, 33, 34, 35, 37, 38, 39, 40, 41, 44, 45, 46, 47, 48, 49, 50, 53, 57, 61, 62, 63, 97, 98, 99 |
+| Go | 21, 30, 31, 33, 34, 35, 37, 38, 39, 40, 41, 44, 45, 46, 47, 48, 49, 50, 53, 57, 61, 62, 63, 97, 98, 99, 102 |
 | GORM / SQLite / 数据库 | 18, 19, 20, 42, 54, 55, 96 |
-| 前端（React / HeroUI / Vite / Vitest / pnpm） | 3, 15, 16, 24, 25, 26, 27, 28, 29, 58, 66, 67, 68, 69, 70, 71, 72, 74, 75, 76, 77, 80, 81, 82, 83, 84, 85, 86 |
+| 前端（React / HeroUI / Vite / Vitest / pnpm） | 3, 15, 16, 24, 25, 26, 27, 28, 29, 58, 66, 67, 68, 69, 70, 71, 72, 74, 75, 76, 77, 80, 81, 82, 83, 84, 85, 86, 100, 101, 103, 104, 105, 106 |
 | 文档 / 契约 / 协作流程 | 1, 4, 5, 6, 10, 12, 13, 14, 32, 36, 43, 51, 56, 59, 60, 73, 78, 79, 87, 88, 89, 90, 92 |
 
 同一问题被多个 agent 分别记录过（均保留原文，便于对照）：
-zsh glob 未加引号 8 / 64 / 94；手算测试向量 23 / 41；路由选项把依赖拉进首屏入口 66 / 84；
+zsh glob 未加引号 8 / 64 / 94；手算测试向量 23 / 41；路由选项把依赖拉进首屏入口 66 / 84 / 100；
 Vitest 缓存 `import.meta.glob` 结果 67 / 72 / 77 / 85；`useLiteForm` 抢焦点 68 / 86；浏览器面板共用标签页 73 / 78；rtk 截断长输出 9 / 91。
 
 ---
@@ -734,7 +734,7 @@ Vitest 缓存 `import.meta.glob` 结果 67 / 72 / 77 / 85；`useLiteForm` 抢焦
 - **现象**：`git stash push <impl files>` 后 `go test` 报 build failed，不能证明测试在旧代码上失败。
 - **规则**：回归测试尽量只通过旧 API 观察行为（HTTP 请求、已有导出函数）；需要新常量时，用字面量写一份只依赖旧 API 的断言来做 stash 验证。
 
-### 1. （E2E 集成）FE-1 #1 的坑被后来的功能路由原样重犯，React Query 又进了公开页首屏
+### 100. （E2E 集成）FE-1 #1 的坑被后来的功能路由原样重犯，React Query 又进了公开页首屏
 - **现象**：合并全部前端分支后，落地页入口静态 JS 从约 109 KB 涨到 124 KB gzip（超 120 KB 预算），
   `dist/index.html` 多了 `tanstack-query` 与 `queries` 两个 modulepreload；构建日志里一直有 `INEFFECTIVE_DYNAMIC_IMPORT`。
 - **根因**：两处叠加。① shop / invite / orders / orders/$tradeNo / tickets/$id 的 `loader` 直接调用顶层静态导入的
@@ -746,7 +746,7 @@ Vitest 缓存 `import.meta.glob` 结果 67 / 72 / 77 / 85；`useLiteForm` 抢焦
 - **规则**：路由文件里除 `component` 外的代码只能用入口已有或零依赖模块，**永远不要在路由文件导入桶文件**。
   每次合并后执行 `grep -o 'import"./[^"]*"' dist/assets/index-*.js`（裸导入）并按页面统计首屏 JS。
 
-### 2. （E2E 集成）预渲染后移动端 LCP 没有变化：React 替换节点、Lantern 统计首绘前的请求
+### 101. （E2E 集成）预渲染后移动端 LCP 没有变化：React 替换节点、Lantern 统计首绘前的请求
 - **现象**：公开页加了预渲染快照，移动端 Lighthouse 仍是 91–95；本地观测 FCP 36 ms，但 LCP 56 ms，
   模拟 FCP 恒为 1951 ms。
 - **根因**：① Chrome 还没报告快照那一帧的 LCP 候选，React（createRoot）就把节点换掉了，LCP 落到替换后的同尺寸元素上；
@@ -759,7 +759,7 @@ Vitest 缓存 `import.meta.glob` 结果 67 / 72 / 77 / 85；`useLiteForm` 抢焦
   客户端快照不能 `hydrateRoot`（客户端 `useId` 与水合格式不同，属性不匹配在生产环境静默保留，会让
   `aria-describedby` 指向不存在的 id）。
 
-### 3. （E2E 集成）IP 形式的 `app_url` 让通行密钥接口 500
+### 102. （E2E 集成）IP 形式的 `app_url` 让通行密钥接口 500
 - **现象**：`app_url=http://127.0.0.1:18090` 时 `POST /user/security/passkeys/begin` 返回 500，`/guest/config` 却报告
   `passkey_enabled: true`，前端显示可点的“添加通行密钥”。
 - **根因**：RP ID 直接取 `app_url` 的主机名，go-webauthn 在配置校验阶段拒绝 IP（"must be a domain and not an IP"），
@@ -767,7 +767,7 @@ Vitest 缓存 `import.meta.glob` 结果 67 / 72 / 77 / 85；`useLiteForm` 抢焦
 - **修复**：IP 形式的 RP ID 视为“未配置”（400 + `passkey_enabled=false`），并加测试；前端按 `passkey_enabled` 禁用入口并本地化提示。
 - **规则**：第三方库的配置校验错误属于“功能不可用”，不是 500；派生配置（RP ID、回调域名）要覆盖 IP、localhost、带端口三种输入。
 
-### 4. （E2E 集成）类型声明合并掩盖了“公开 catalog”与“完整 catalog”的形状差异
+### 103. （E2E 集成）类型声明合并掩盖了“公开 catalog”与“完整 catalog”的形状差异
 - **现象**：用户端分流规则里每个来源都显示“覆盖 0 / 32 个分类”，回退来源提示从不出现；单测全绿。
 - **根因**：公开 catalog 的分类是 `sources: [...]`（契约 docs/SUBSCRIPTION.md），前端类型却写成完整 catalog 的
   `rules: {source: ref}`；单测读取的是仓库里的完整 `catalog.json`，所以永远测不到真实接口返回的形状。
@@ -775,7 +775,7 @@ Vitest 缓存 `import.meta.glob` 结果 67 / 72 / 77 / 85；`useLiteForm` 抢焦
 - **规则**：前端单测的夹具必须来自**接口返回**（或按契约构造），不能直接读后端的内部数据文件；
   同名类型出现两套形状时拆成两个类型名，不要靠声明合并。
 
-### 5. （E2E 集成）对比度只在纯色背景上验证过，soft 色块上的文字不达标
+### 104. （E2E 集成）对比度只在纯色背景上验证过，soft 色块上的文字不达标
 - **现象**：axe/Lighthouse 报 color-contrast：`bg-accent-soft` 上的 `text-label-blue` 4.25:1，`danger-soft`
   按钮 4.09:1（hover 3.69:1），暗色模式同样 3.9:1。
 - **根因**：`--label-*` 是按白底与 #F2F2F7 校验的；HeroUI 的 soft 背景是 15%（hover 20%）的着色叠加，没人按叠加后的颜色算。
@@ -784,13 +784,13 @@ Vitest 缓存 `import.meta.glob` 结果 67 / 72 / 77 / 85；`useLiteForm` 抢焦
 - **规则**：改任何前景色或 soft/tint 背景时，按“背景色 × 透明度叠加到卡片与画布”计算最差对比度；
   `pnpm ui:smoke --axe` 两种主题都要跑。
 
-### 6. （E2E 集成）先 `queryClient.clear()` 再离开页面，退出登录多出一个 401
+### 105. （E2E 集成）先 `queryClient.clear()` 再离开页面，退出登录多出一个 401
 - **现象**：在个人中心退出登录，控制台出现 `GET /user/me 401`。
 - **根因**：`clear()` 时 profile 页的 `useQuery(meQuery())` 仍挂载，缓存被清空后立即无 token 重新请求。
 - **修复**：先 `navigate('/login')`（卸载外壳），再 `clear()`。
 - **规则**：清缓存、换会话之类的全局操作放在离开受保护区域之后；检查控制台是否出现“登出后的请求”。
 
-### 7. （E2E 集成）lhci 的 `puppeteerScript` 相对路径按 cwd 解析
+### 106. （E2E 集成）lhci 的 `puppeteerScript` 相对路径按 cwd 解析
 - **现象**：`puppeteerScript: path.join(__dirname, …)` 报 `Cannot find module '<cwd>/<abs path>'`。
 - **根因**：lhci 把该值与 `process.cwd()` 拼接，不识别绝对路径。
 - **修复**：写成 `'./scripts/lh-login.cjs'`，从 `web/` 运行。
