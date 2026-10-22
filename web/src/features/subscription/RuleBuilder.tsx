@@ -99,11 +99,13 @@ export function RuleBuilder({ catalog, saved, readOnly: readOnlyProp = false }: 
           if (messages[0]) mapped[errorKey(key)] = messages[0]
         setServerErrors(mapped)
         setFormError(t('builder.fixErrors'))
-        requestAnimationFrame(() =>
-          sectionRef.current
-            ?.querySelector<HTMLElement>('[data-invalid="true"], [aria-invalid="true"]')
-            ?.scrollIntoView({ block: 'center', behavior: 'smooth' }),
-        )
+        requestAnimationFrame(() => {
+          const el = sectionRef.current?.querySelector<HTMLElement>(
+            '[data-invalid="true"], [aria-invalid="true"]',
+          )
+          // jsdom has no scrollIntoView; browsers always do.
+          el?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+        })
         return
       }
       setFormError(errorMessage(error))
