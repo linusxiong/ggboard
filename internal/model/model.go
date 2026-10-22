@@ -29,5 +29,7 @@ func All() []any {
 		&Stat{},
 		&MailLog{},
 		&RuleProfile{},
+		&UserMFA{},
+		&Passkey{},
 	}
 }

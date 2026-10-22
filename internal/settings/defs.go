@@ -65,6 +65,7 @@ const (
 	GroupEmail     = "email"
 	GroupFrontend  = "frontend"
 	GroupApp       = "app"
+	GroupSecurity  = "security"
 )
 
 // defs is the authoritative list of settings keys (docs/API.md "Settings keys").
@@ -156,9 +157,16 @@ var defs = []Def{
 	s(GroupApp, "android_version", ""),
 	s(GroupApp, "ios_download_url", ""),
 	s(GroupApp, "ios_version", ""),
+
+	// Two-factor authentication and passkeys (internal/service/mfa). Empty passkey_rp_id = host of app_url;
+	// the app_url origin is always allowed in addition to passkey_origins; empty mfa_issuer = app_name.
+	s(GroupSecurity, "passkey_rp_id", ""),
+	ss(GroupSecurity, "passkey_origins"),
+	b(GroupSecurity, "admin_mfa_required", false),
+	s(GroupSecurity, "mfa_issuer", ""),
 }
 
-var groupOrder = []string{GroupSite, GroupRegister, GroupSubscribe, GroupOrder, GroupInvite, GroupServer, GroupEmail, GroupFrontend, GroupApp}
+var groupOrder = []string{GroupSite, GroupRegister, GroupSubscribe, GroupOrder, GroupInvite, GroupServer, GroupEmail, GroupFrontend, GroupApp, GroupSecurity}
 
 var defIndex = func() map[string]Def {
 	m := make(map[string]Def, len(defs))

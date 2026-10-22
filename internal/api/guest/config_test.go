@@ -17,7 +17,8 @@ func TestConfigShape(t *testing.T) {
 	rec := testutil.Do(t, r, http.MethodGet, "/api/v1/guest/config", nil, "")
 	raw := testutil.Decode[map[string]json.RawMessage](t, rec)
 	want := []string{"app_name", "app_description", "app_url", "logo", "tos_url", "currency", "currency_symbol",
-		"register_enabled", "email_verify", "email_whitelist_suffix", "invite_force", "captcha", "downloads", "locales"}
+		"register_enabled", "email_verify", "email_whitelist_suffix", "invite_force", "captcha", "downloads", "locales",
+		"passkey_enabled"}
 	var got []string
 	for k := range raw {
 		got = append(got, k)
