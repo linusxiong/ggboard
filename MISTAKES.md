@@ -7,15 +7,15 @@
 
 | 主题 | 条目 |
 | --- | --- |
-| Shell / zsh / 命令行工具 | 2, 7, 8, 9, 11, 17, 22, 23, 52, 64, 65, 91, 93, 94, 95, 108, 110, 114, 120 |
-| Go | 21, 30, 31, 33, 34, 35, 37, 38, 39, 40, 41, 44, 45, 46, 47, 48, 49, 50, 53, 57, 61, 62, 63, 97, 98, 99, 102, 112, 115, 117 |
+| Shell / zsh / 命令行工具 | 2, 7, 8, 9, 11, 17, 22, 23, 52, 64, 65, 91, 93, 94, 95, 108, 110, 114, 120, 108, 110, 114 |
+| Go | 21, 30, 31, 33, 34, 35, 37, 38, 39, 40, 41, 44, 45, 46, 47, 48, 49, 50, 53, 57, 61, 62, 63, 97, 98, 99, 102, 112, 115, 117, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 133 |
 | GORM / SQLite / 数据库 | 18, 19, 20, 42, 54, 55, 96, 116, 118 |
 
 | Shell / zsh / 命令行工具 | 2, 7, 8, 9, 11, 17, 22, 23, 52, 64, 65, 91, 93, 94, 95, 108, 110, 114 |
 | Go | 21, 30, 31, 33, 34, 35, 37, 38, 39, 40, 41, 44, 45, 46, 47, 48, 49, 50, 53, 57, 61, 62, 63, 97, 98, 99, 102, 112, 115, 116, 117, 118, 119 |
 | GORM / SQLite / 数据库 | 18, 19, 20, 42, 54, 55, 96 |
-| 前端（React / HeroUI / Vite / Vitest / pnpm） | 3, 15, 16, 24, 25, 26, 27, 28, 29, 58, 66, 67, 68, 69, 70, 71, 72, 74, 75, 76, 77, 80, 81, 82, 83, 84, 85, 86, 100, 101, 103, 104, 105, 106 |
-| 文档 / 契约 / 协作流程 | 1, 4, 5, 6, 10, 12, 13, 14, 32, 36, 43, 51, 56, 59, 60, 73, 78, 79, 87, 88, 89, 90, 92, 107, 109, 111, 113, 119 |
+| 前端（React / HeroUI / Vite / Vitest / pnpm） | 3, 15, 16, 24, 25, 26, 27, 28, 29, 58, 66, 67, 68, 69, 70, 71, 72, 74, 75, 76, 77, 80, 81, 82, 83, 84, 85, 86, 100, 101, 103, 104, 105, 106, 127, 128, 129, 130, 131, 132, 134, 135, 136, 137, 138, 139, 140, 141, 142 |
+| 文档 / 契约 / 协作流程 | 1, 4, 5, 6, 10, 12, 13, 14, 32, 36, 43, 51, 56, 59, 60, 73, 78, 79, 87, 88, 89, 90, 92, 107, 109, 111, 113, 119, 109, 111, 112, 113 |
 
 | Shell / zsh / 命令行工具 | 2, 7, 8, 9, 11, 17, 22, 23, 52, 64, 65, 91, 93, 94, 95, 108, 110, 114, 115, 116 |
 | Go | 21, 30, 31, 33, 34, 35, 37, 38, 39, 40, 41, 44, 45, 46, 47, 48, 49, 50, 53, 57, 61, 62, 63, 97, 98, 99, 102, 112 |
@@ -903,7 +903,7 @@ Vitest 缓存 `import.meta.glob` 结果 67 / 72 / 77 / 85；`useLiteForm` 抢焦
   `gh api repos/<o>/<r>/contents/<path>`（走 core 限额）。
 - **规则**：调研第三方实现优先浅克隆 + 本地搜索；`gh search code` 只用来定位仓库，且一次会话控制在几次以内。
 
-### 115. （BE-T 通知）用 `testutil.Decode` 解析 Telegram webhook 的响应，拿到空的回复
+### 121. （BE-T 通知）用 `testutil.Decode` 解析 Telegram webhook 的响应，拿到空的回复
 
 - **现象**：webhook 测试断言“绑定码无效”失败，实际回复文本是空串，看起来像 `/start` 没有被处理。
 - **根因**：webhook 故意不用 `{"data": …}` 信封，直接把 `sendMessage` 方法调用作为响应体返回给 Telegram；
@@ -912,7 +912,7 @@ Vitest 缓存 `import.meta.glob` 结果 67 / 72 / 77 / 85；`useLiteForm` 抢焦
 - **规则**：凡是不走 `httpx.OK` 信封的端点（webhook、`/.well-known/*`、网关回调），测试必须按原始响应体解码；
   断言“空值”之前先确认解码的形状对不对。
 
-### 116. （BE-T 通知）按 `"WARN"` 在日志环形缓冲里找告警，一条也找不到
+### 122. （BE-T 通知）按 `"WARN"` 在日志环形缓冲里找告警，一条也找不到
 
 - **现象**：“重试耗尽后记 WARN 日志”的测试失败，日志其实写了。
 - **根因**：`logx.Ring` 存的 `Entry.Level` 是 `strings.ToLower(level.String())`，即 `"warn"`；按级别过滤应传
@@ -920,14 +920,14 @@ Vitest 缓存 `import.meta.glob` 结果 67 / 72 / 77 / 85；`useLiteForm` 抢焦
 - **修复**：`a.Logs.Entries(slog.LevelWarn, 0)` 过滤，再比较 `e.Msg` 与 `e.Attrs`。
 - **规则**：断言日志前先读 `internal/logx` 的 `Entry` 构造代码；级别用 `slog.Level` 过滤，不要比较大小写敏感的字符串。
 
-### 117. （BE-T 通知）字典查找的兜底值带着内部前缀，未知字段显示成 `label.xxx`
+### 123. （BE-T 通知）字典查找的兜底值带着内部前缀，未知字段显示成 `label.xxx`
 
 - **现象**：`notify.Label("en", "custom_key")` 返回 `label.custom_key`，测试期望 `custom_key`。
 - **根因**：`T(locale, key)` 找不到时返回传入的完整键；`Label` 直接调用 `T(locale, "label."+key)`，把内部命名空间前缀漏给了用户。
 - **修复**：`Label` 判断结果是否等于带前缀的键，相等时返回原始 `key`。
 - **规则**：带命名空间前缀的字典查找，兜底值必须去掉前缀；为“未知键”写一条测试。
 
-### 118. （BE-T 通知）golangci-lint 的 gosec G101 把设置键名和界面文案当成硬编码凭据
+### 124. （BE-T 通知）golangci-lint 的 gosec G101 把设置键名和界面文案当成硬编码凭据
 
 - **现象**：`KeyToken = "telegram_bot_token"`、含 `"method.password"`、`"method.passkey"`、`"label.token"` 的文案 map 都被报
   G101；测试里 `err.(settings.FieldErrors)` 被 errorlint 报出。
@@ -937,7 +937,7 @@ Vitest 缓存 `import.meta.glob` 结果 67 / 72 / 77 / 85；`useLiteForm` 抢焦
 - **规则**：新增设置键常量或文案表后立刻跑 `golangci-lint run ./...`；G101 只在确认是名字而不是值时才加 nolint，并写清理由；
   断言错误类型一律 `errors.As`，测试代码也一样。
 
-### 119. （BE-T 通知）“队列已满”测试假设 worker 已经取走第一条，换个时区跑一次就偶发失败
+### 125. （BE-T 通知）“队列已满”测试假设 worker 已经取走第一条，换个时区跑一次就偶发失败
 
 - **现象**：`TestQueueFullDropsAndEmitWaitThrottles` 单独跑总是通过，按 MISTAKES #48 换 `TZ=UTC` 连跑几个包时失败过一次。
 - **根因**：连续 `Emit` 6 次时，worker 可能还没从 channel 取走第一条：前两条占满容量、后四条被丢弃；之后 worker 取走一条，
@@ -947,119 +947,119 @@ Vitest 缓存 `import.meta.glob` 结果 67 / 72 / 77 / 85；`useLiteForm` 抢焦
 - **规则**：测试并发队列的容量、丢弃与背压时，必须用 channel 显式同步到“worker 已阻塞在第 N 条”，不能靠调用顺序；
   新写的并发测试至少 `-count=20 -race` 跑一遍再提交。
 
-### 115. （FE-S 订阅前端）把 Modal 直接放在 HeroUI `<Tabs>` 里（Tabs.Panel 之外），点弹窗内任意位置弹窗就关闭
+### 126. （FE-S 订阅前端）把 Modal 直接放在 HeroUI `<Tabs>` 里（Tabs.Panel 之外），点弹窗内任意位置弹窗就关闭
 
 - **现象**：订阅配置的“新建配置”弹窗一点名称输入框就关闭，什么请求都没发；同一套 Modal 写法在 TwoFactorCard 里正常。
 - **根因**：弹窗组件作为 `<Tabs>` 的直接子元素渲染（在 `Tabs.ListContainer` 与 `Tabs.Panel` 之外）。弹窗是 portal，但 React 事件仍沿组件树冒泡到 Tabs，被当成弹窗外的交互，`onOpenChange(false)` 触发。放在 `Tabs.Panel` 内部的弹窗（FE-1 的 2FA 弹窗）不受影响。
 - **修复**：`ProfileTabs` 返回 `<>{<Tabs>…</Tabs>}{dialog}</>`，弹窗放到 Tabs 外面。
 - **规则**：Modal/Drawer 不要作为 HeroUI/RAC 复合组件（Tabs、Menu、ListBox 等）的直接子元素渲染；在浏览器里实际点一次弹窗内的输入框再提交。
 
-### 116. （FE-S）在 jsdom 里点击 HeroUI Tabs 抛 `element.getAnimations is not a function`
+### 127. （FE-S）在 jsdom 里点击 HeroUI Tabs 抛 `element.getAnimations is not a function`
 
 - **现象**：路由级测试一切换标签页就出现 4 个 Uncaught Exception，断言随后全部失败。
 - **根因**：React Aria 的 `SharedElementTransition`（Tabs.Indicator 的过渡）调用 Web Animations API，jsdom 没有实现；此前的测试都直接用 `?tab=` 打开页面，从没点过标签。
 - **修复**：在新测试文件顶部补 `Element.prototype.getAnimations = () => []`（不改共享的 setup.ts）。
 - **规则**：测试里要切换 Tabs/动画指示器时先补 `getAnimations`；集成者可以把它挪进 `src/test/setup.ts`。
 
-### 117. （FE-S）单选 `ToggleButtonGroup` 的按钮角色是 `radio`，多选才是 `button`
+### 128. （FE-S）单选 `ToggleButtonGroup` 的按钮角色是 `radio`，多选才是 `button`
 
 - **现象**：`getByRole('button', { name: '自动添加' })` 找不到分段控件的选项。
 - **根因**：RAC `ToggleButtonGroup selectionMode="single"` 渲染 `radiogroup` + `radio`；`multiple` 才是带 `aria-pressed` 的按钮。
 - **修复**：分段控件按 `radio` 查询，类型/地区多选芯片按 `button` 查询。
 - **规则**：写查询前先看组件的 ARIA 角色（或 `screen.logTestingPlaygroundURL()`），不要按外观猜。
 
-### 118. （FE-S）删除标签后 HeroUI `Tabs.ListContainer` 的滚动阴影状态过期，残留 “›” 滚动按钮
+### 129. （FE-S）删除标签后 HeroUI `Tabs.ListContainer` 的滚动阴影状态过期，残留 “›” 滚动按钮
 
 - **现象**：删除一个订阅配置后，只剩一个标签，右侧仍显示滚动箭头。
 - **根因**：ListContainer 的 scroll-shadow 状态（`data-right-scroll`）在子项减少时没有重新计算；我自己加的 `overflow-x-auto` 也与它内置的滚动容器重复。
 - **修复**：去掉自加的 overflow 类；`<Tabs.ListContainer key={profiles.map(tabKey).join('|')}>` 在列表变化时重建。另外 `Tabs.Panel` 默认 8px 内边距会让卡片与标签栏错位，面板加 `p-0`。
 - **规则**：动态增删标签时检查滚动箭头；HeroUI 组件自带的滚动/内边距先看计算样式再叠加类名。
 
-### 119. （FE-S）i18n 一致性测试要求复数键在每个语言都存在
+### 130. （FE-S）i18n 一致性测试要求复数键在每个语言都存在
 
 - **现象**：英文用了 `matches_one` / `matches_other`，中文只写了 `matches`，`has the same keys in every locale` 失败。
 - **根因**：键集合按完整路径逐一比较，复数后缀也是键的一部分。
 - **修复**：中文同样写 `_one` / `_other`（内容相同），与 dashboard.json 的做法一致。
 - **规则**：新增带 `{count}` 的英文复数键时，中文同步写两个后缀键。
 
-### 120. （FE-S）按“冻结契约”先写了实现，后端完成后形状不同，三处返工
+### 131. （FE-S）按“冻结契约”先写了实现，后端完成后形状不同，三处返工
 
 - **现象**：按契约实现了“无密钥 → GET age 404”“改名 = PUT 整个档案 + name”“`subscribe_age_optional=false` = 功能不可用”，后端最终是：无密钥返回 200 + null 字段；改名走 `PATCH /user/rule-profiles/:slug {name}`（PUT 拒绝未知字段）；optional 只决定 `?age=0` 是否给明文。节点处理的顺序（去重在重命名之前、按协议+地址+端口去重）与地区识别（行优先级而非出现位置、47 个地区）也与我的猜测不同。
 - **根因**：契约对这些细节没有写死，我按直觉补全，没有在开工中途去看后端分支的文档草稿。
 - **修复**：读后端 worktree 的 docs（只读）与协调者消息后，统一按后端实现：age 视图兼容 404 与 null 两种形状；改名用 PATCH；节点预览完全移植后端的流水线、Go `regexp.Expand` 替换规则与地区表；mock 与测试同步。
 - **规则**：契约留白处（错误码、可选字段、改名/删除这类辅助操作、算法顺序）不要自行补全后埋头实现；先在汇报里列为假设，并在中途主动对照后端分支的文档或测试。
 
-### 121. （FE-S）用 Write 工具写入的 `\u2028\u2029` 转义变成了真实的行分隔符，Prettier 报正则未闭合
+### 132. （FE-S）用 Write 工具写入的 `\u2028\u2029` 转义变成了真实的行分隔符，Prettier 报正则未闭合
 
 - **现象**：`nodeOps.ts` 中 `/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g` 落盘后被拆成两行，Prettier/TS 报 “Unterminated regular expression literal”。
 - **根因**：写文件时 `\u2028` / `\u2029` 被当成真实字符写入，而它们在 JS 源码里是行终止符；同一行里的 `\u0000` 等转义保持不变，所以肉眼不易察觉。
 - **修复**：用 Python 把文件里的 U+2028/U+2029 替换回 `\u2028`/`\u2029` 转义；用脚本检查 src 下没有残留。
 - **规则**：源码里需要 U+2028/2029 时写成 `\u{2028}` 或在写入后 `grep` 校验；Prettier 报奇怪的语法错误时先看是否有不可见字符。
 
-### 115. （FE-P 设计打磨）第二个 dev server 选了别人正在用的端口，`kill $(lsof -t …)` 差点误杀其他 agent 的进程
+### 133. （FE-P 设计打磨）第二个 dev server 选了别人正在用的端口，`kill $(lsof -t …)` 差点误杀其他 agent 的进程
 
 - **现象**：为公开页另起 `vite --port 5181`，`lsof -t` 返回两个 PID：一个是我的，另一个是 `fe-subscription` worktree 的 mock dev server（监听另一地址族）。`kill $PID` 因为变量里有两行而报 `illegal pid`，什么都没杀掉——纯属侥幸。
 - **根因**：启动前没 `lsof` 检查端口；`--strictPort` 只对同一地址族生效；用模式/端口反查 PID 再 kill。
 - **修复**：只 kill 自己那个 PID（命令行里带 `fe-polish` 的），改用 5186；对方进程未受影响。
 - **规则**：开端口前 `lsof -nP -iTCP:<port> -sTCP:LISTEN` 看 IPv4 和 IPv6；kill 前逐个 `ps -o pid,command -p <pid>` 确认是自己启动的；永远不要 `kill $(lsof -t …)`（同 #22、#110）。
 
-### 116. （FE-P）用 Python 按 `s.index('}\n')` 截取代码块，命中了 JSX 里的 `{children}\n`，把 fields.tsx 切坏
+### 134. （FE-P）用 Python 按 `s.index('}\n')` 截取代码块，命中了 JSX 里的 `{children}\n`，把 fields.tsx 切坏
 
 - **现象**：把 `FieldAffix`/`SelectItemContent` 挪到新文件后，`tsc` 报一串 TS1128/TS17008，两个文件都残缺。
 - **根因**：结尾锚点 `}\n` 在 JSX 表达式里也会出现（同 #88 的 `---`）。
 - **修复**：按完整的上下文片段（`steppers?: boolean\n}\n\n    </span>…`）手工修复，再整体写出新文件。
 - **规则**：脚本搬代码时用唯一的整行锚点（下一个 `export ` 声明、完整的函数体文本），搬完立刻 `tsc -b`，失败就先看 diff 再动手。
 
-### 117. （FE-P）手机上单列 grid 被横向滚动的子元素撑宽，整页出现横向溢出
+### 135. （FE-P）手机上单列 grid 被横向滚动的子元素撑宽，整页出现横向溢出
 
 - **现象**：设置页 `grid md:grid-cols-[220px_minmax(0,1fr)]` 在 375 px 下，分组卡片右侧的开关被挤出屏幕。
 - **根因**：md 以下没有 `grid-template-columns`，隐式列按内容（可横向滚动的分组胶囊条）自动加宽；grid item 默认 `min-width: auto`。
 - **修复**：基础类加 `grid-cols-[minmax(0,1fr)]`。
 - **规则**：任何“桌面多列、手机单列”的 grid，只要子元素可能横向滚动或很长（代码、URL、胶囊条），手机端也要显式写 `grid-cols-[minmax(0,1fr)]`；375 px 截图逐页看一遍。
 
-### 118. （FE-P）sr-only 单位文字的前导空格被可访问名称计算吞掉
+### 136. （FE-P）sr-only 单位文字的前导空格被可访问名称计算吞掉
 
 - **现象**：`<Label>{label}<span className="sr-only"> ({unit})</span></Label>` 在测试里的名称是 “Update interval(hours)”，按 “Update interval (hours)” 查不到。
 - **根因**：dom-accessibility-api 对内联元素的文本先 trim 再拼接，元素内的前导空格不算。
 - **修复**：空格放到元素外：`{label} <span className="sr-only">({unit})</span>`。
 - **规则**：拼接可访问名称时，分隔空格写在兄弟文本节点里，不要写在 sr-only 元素内部。
 
-### 119. （FE-P）放在字段描述里的可点按钮在 blur 校验后消失，点击落空
+### 137. （FE-P）放在字段描述里的可点按钮在 blur 校验后消失，点击落空
 
 - **现象**：注册页把邮箱白名单做成 `@gmail.com` 快捷按钮放进 `NativeField` 的 `description`。按下按钮 → 邮箱框 blur 校验失败 → 描述被错误信息替换 → click 落在空处，邮箱没补全。
 - **根因**：`NativeField` 在 invalid 时隐藏 description；mousedown 先触发 blur。
 - **修复**：快捷按钮移到字段外常驻，并 `onMouseDown={(e) => e.preventDefault()}` 保持焦点。
 - **规则**：可交互的辅助控件不要放进“出错就隐藏”的描述区；点按辅助按钮不应让输入框失焦。
 
-### 120. （FE-P）label 同时命名 input、group 和 list，`getByLabelText` 匹配到三个元素
+### 138. （FE-P）label 同时命名 input、group 和 list，`getByLabelText` 匹配到三个元素
 
 - **现象**：TagInput 测试 `getByLabelText('Domains')` 报 multiple elements。
 - **根因**：`<label for>` 命名 input，同一个 label id 又被 `role="group"` 和 `<ul>` 的 `aria-labelledby` 引用。
 - **修复**：测试改用 `getByRole('textbox', { name: 'Domains' })`。
 - **规则**：一个标签命名多个元素时，按 role + name 查询（同 #71 的思路）。
 
-### 121. （FE-P）差点让 settings 页为两个展示组件背上整个 TanStack Form
+### 139. （FE-P）差点让 settings 页为两个展示组件背上整个 TanStack Form
 
 - **现象**：设置页的受控输入从 `@/components/form`（桶文件）导入 `FieldAffix`，而桶文件顶层执行 `createFormHook`，会把 `@tanstack/react-form` 拉进 settings chunk。
 - **根因**：展示组件和表单运行时放在同一模块。
 - **修复**：抽出无依赖的 `components/form/parts.tsx`、`unit.tsx`，受控输入直接从这两个文件导入。
 - **规则**：被多个区域复用的纯展示片段放进零依赖模块；导入共享组件时看一眼它的模块顶层副作用（同 #100 的桶文件问题）。
 
-### 122. （FE-P）store 用方法简写，传给 `useSyncExternalStore` 被 `unbound-method` 拦下
+### 140. （FE-P）store 用方法简写，传给 `useSyncExternalStore` 被 `unbound-method` 拦下
 
 - **现象**：`toastStore.subscribe(cb) {…}` 作为回调传入，eslint 报 `@typescript-eslint/unbound-method`。
 - **根因**：方法简写在类型上带隐式 `this`，脱离对象调用有风险。
 - **修复**：store 的成员一律写成箭头函数属性。
 - **规则**：要被当作回调传递的对象成员写成箭头属性（`subscribe: (cb) => …`）。
 
-### 123. （FE-P）新加的“选中态浅色底”只在白底上算过对比度，放到灰色画布上 4.43:1 不达标（重犯 #104）
+### 141. （FE-P）新加的“选中态浅色底”只在白底上算过对比度，放到灰色画布上 4.43:1 不达标（重犯 #104）
 
 - **现象**：`ui:smoke --axe` 报设置页左侧分组列表的选中项 `color-contrast`：`#0062cc` on `#d5e2f7` = 4.43。同一个 `bg-selection` 在侧边栏（白底）上是 4.92，所以只在设置页出现。
 - **根因**：`--selection-tint`（tint 12%）叠加在 `#F2F2F7` 画布上比叠加在白卡片上更暗；文字用了按纯色背景校验的 `--label-blue`。
 - **修复**：选中态文字改用为浅色底准备的 `--label-blue-soft`（画布 5.2、白底 5.76、深色 5.6+），并用脚本把新颜色组合在白底 / 画布 / 深色卡片上都算了一遍。
 - **规则**：同 #104：任何半透明底 + 文字的组合，要分别叠加到它可能出现的每一种底色（白卡片、`#F2F2F7` 画布、`#1C1C1E`/`#000`）上算最差值；浅着色底上的文字一律用 `*-soft` 标签色。
 
-### 124. （FE-P）手机仿真下横向溢出不会体现在 `scrollWidth - innerWidth`，ui-smoke 一直没发现仪表盘溢出
+### 142. （FE-P）手机仿真下横向溢出不会体现在 `scrollWidth - innerWidth`，ui-smoke 一直没发现仪表盘溢出
 
 - **现象**：截图时发现 375 px 下底部 tab bar 不见了。探测得 `innerWidth` = 624（仪表盘）/ 417（订阅页），`visualViewport` 才是 375；`ui:smoke` 的 overflow 检查（`scrollWidth - innerWidth`）结果为 0。根源是 7 天流量图在 `grid lg:grid-cols-5` 里：手机端没有列模板，隐式列按图表的回退宽度（560 px）撑开（同 #117），这个问题在打磨前就存在。
 - **根因**：开启 `isMobile` 仿真后，内容溢出会把布局视口加宽（为了缩放适配），`innerWidth` 跟着变大，“溢出量”恒为 0；grid item 默认 `min-width: auto`。
