@@ -31,7 +31,12 @@ GG Bond（猪猪侠谐音）是一个 **简洁、美观、高性能** 的代理�
 15. 登录安全：支持 **2FA（TOTP，备用码）** 与 **Passkey（WebAuthn，可无用户名登录、多设备管理）**。
     用 Go 标准实现：`github.com/pquerna/otp` 与 `github.com/go-webauthn/webauthn`；前端 `@simplewebauthn/browser`。
     不引入 better-auth 之类的 Node 认证框架（后端是单个 Go 二进制）。
-16. 开源项目（GPL-3.0），可以 commit / push 到 GitHub；**绝不提交任何个人信息、密钥、服务器地址**，
+16. **密码管理器自动填充兼容**（1Password、Vaultwarden/Bitwarden、iCloud 钥匙串、Chrome 等）：
+    登录/注册/找回/改密表单必须是真正的 `<form>` + 原生 `<input>`，带正确的 `autocomplete`
+    （`username`/`email`、`current-password`、`new-password`、`one-time-code`、Passkey 条件式 UI `webauthn`）、
+    `name`/`id`/`<label>`、`type="password"`、`inputmode`；Passkey 使用 discoverable credential（`residentKey: required`）；
+    后端提供 `/.well-known/change-password` 与 `/.well-known/passkey-endpoints`。
+17. 开源项目（GPL-3.0），可以 commit / push 到 GitHub；**绝不提交任何个人信息、密钥、服务器地址**，
     `.gitignore` 必须配置好。
 
 ---
