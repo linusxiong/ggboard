@@ -14,10 +14,10 @@ services:
     env_file:
       - path: ../.env
         required: false
+    # Only the data dir is pinned here; database driver/DSN, JWT secret, etc. come from ../.env
+    # (values in `environment:` would override env_file, so keep them out of this block).
     environment:
       GGBOARD_DATA_DIR: /data
-      GGBOARD_DATABASE_DRIVER: ${GGBOARD_DATABASE_DRIVER:-sqlite}
-      GGBOARD_DATABASE_DSN: ${GGBOARD_DATABASE_DSN:-/data/ggboard.db}
     ports:
       # Published on localhost only; put nginx (deploy/nginx.example.conf) in front.
       - "127.0.0.1:8080:8080"
