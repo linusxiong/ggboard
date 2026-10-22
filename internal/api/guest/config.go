@@ -49,7 +49,7 @@ type Config struct {
 	Captcha              CaptchaConfig `json:"captcha"`
 	Downloads            Downloads     `json:"downloads"`
 	Locales              []string      `json:"locales"`
-	PasskeyEnabled       bool          `json:"passkey_enabled"` // a WebAuthn RP can be derived (app_url or passkey_rp_id)
+	PasskeyEnabled       bool          `json:"passkey_enabled"`         // a WebAuthn RP can be derived (app_url or passkey_rp_id)
 	AllowUserRuleProfile bool          `json:"allow_user_rule_profile"` // users may customize their subscription rule profile
 }
 
