@@ -1322,11 +1322,6 @@ export interface RulesetCategoryFull {
 export interface RulesetTemplateFull extends RulesetTemplate {
   description?: LocalizedText
 }
-export interface RulesetMirror {
-  id: string
-  name?: LocalizedText
-  prefix: string
-}
 export interface RulesetCatalogFull {
   sources: Record<string, RulesetSourceFull>
   categories: RulesetCategoryFull[]
