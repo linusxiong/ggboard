@@ -1,215 +1,364 @@
 # Data model (GORM, `internal/model`)
 
-Conventions: table names are plain plural snake_case (no `v2_` prefix). `id` is `uint64` autoincrement.
-`created_at`/`updated_at` are `time.Time` (GORM auto). Money = integer **cents** (`int64`). Traffic = **bytes** (`int64`).
-JSON columns use `datatypes.JSON`-like typed wrappers (`model.JSONSlice[T]`, `model.JSONMap`) that implement
-`driver.Valuer`/`sql.Scanner` so they work on SQLite, PostgreSQL and MySQL.
-Nullable scalars are pointers. Booleans are real `bool` columns.
+`model.All()` lists every table; `db.Migrate` auto-migrates them on every start (`ggboard migrate` runs only that step).
+There are no custom migrations or hand-written indexes: every index below comes from a GORM tag.
+
+Conventions:
+
+- Table names are plain plural snake_case (no `v2_` prefix). The exceptions are `knowledge` and `user_mfa`, which set `TableName()`.
+- `id` is a `uint64` auto-increment primary key. `created_at`/`updated_at` are `time.Time`, managed by GORM.
+- Money is integer **cents** (`int64`). Traffic is **bytes** (`int64`); the only exception is `plans.transfer_enable`, which is in GB.
+- `varchar(N)` means a Go `string` with `size:N` (VARCHAR on PostgreSQL/MySQL, TEXT affinity on SQLite).
+- Nullable scalars are Go pointers. Booleans are real `bool` columns with `default:false`. Defaults that should be `true`
+  are set in code, never in the tag (docs/BACKEND.md §9).
+- JSON columns are TEXT on every driver and are never SQL NULL (empty slice = `[]`, empty map = `{}`):
+  `model.JSONSlice[T]` (array), `model.JSONObject[V]` (`map[string]V`), `model.JSONMap` (free-form object) and
+  `model.RawJSON` (opaque document).
+- `date` columns (`stat_users.record_at`, `stat_nodes.record_at`, `stats.record_at`) hold `model.Day(t)`: the calendar
+  day in the server's local zone, stored as midnight UTC.
+- No foreign-key constraints are created (`DisableForeignKeyConstraintWhenMigrating`, because imports may contain
+  dangling references). Code deletes dependent rows explicitly.
 
 ## users
+
 | column | type | notes |
 |---|---|---|
 | id | uint64 PK | |
-| email | varchar(191) unique | lower-cased |
-| password_hash | varchar(255) | argon2id (new) or bcrypt `$2y$` (imported) |
-| uuid | char(36) unique | per-user credential for vmess/vless/tuic; also derives other passwords |
-| token | char(32) unique | subscription token |
+| email | varchar(191) unique, not null | lower-cased |
+| password_hash | varchar(255) not null | argon2id (new users), bcrypt `$2y$`/`$2a$`/`$2b$` or Xboard `xb$<algo>$<salt>$<hex>` (imported). `!…` never verifies |
+| uuid | varchar(36) unique, not null | per-user credential, see "Derived credentials" |
+| token | varchar(32) unique, not null | subscription token (32 hex characters) |
 | plan_id | *uint64 idx | |
-| group_id | *uint64 idx | server group the user can see |
+| group_id | *uint64 idx | server group whose nodes the user can use |
 | transfer_enable | int64 | bytes |
-| u, d | int64 | bytes used (upload/download) |
+| u, d | int64 | bytes used (upload/download), already multiplied by the node rate |
 | expired_at | *time idx | null = never expires |
-| next_reset_at | *time idx | next traffic reset, computed from plan reset method |
+| next_reset_at | *time idx | next traffic reset, computed from the plan's reset method |
 | speed_limit | *int | Mbps, null = unlimited |
 | device_limit | *int | null = unlimited |
 | balance | int64 | cents |
 | commission_balance | int64 | cents |
-| commission_type | int8 | 0 system default, 1 period, 2 one-time |
+| commission_type | int8 | 0 follow settings, 1 every paid order, 2 first order only |
 | commission_rate | *int | percent override |
 | discount | *int | percent |
 | invite_user_id | *uint64 idx | |
 | is_admin, is_staff, banned | bool | |
-| remind_expire, remind_traffic | bool | default true |
+| remind_expire, remind_traffic | bool | column default false; new users get the `default_remind_expire` / `default_remind_traffic` settings (default true) |
 | last_login_at | *time | |
 | last_login_ip | varchar(45) | |
 | telegram_id | *int64 | kept for import only |
 | remarks | text | admin notes |
-| password_version | int | bumped on password change / reset-security; part of JWT |
+| password_version | int | bumped on password change / security reset; carried in the JWT `ver` claim |
+| created_at, updated_at | time | |
 
-Derived credentials (shared helper `model.UserCredentials(u, node)`):
-- vmess / vless / tuic: `uuid`.
-- trojan / hysteria / anytls / shadowsocksr / plain-shadowsocks: password = `uuid`.
-- shadowsocks 2022: user key = base64(uuid[:16]) for `2022-blake3-aes-128-gcm`, base64(uuid[:32]) otherwise
-  (identical to Xboard `Helper::uuidToBase64`). Node key = base64(md5(created_at_unix)[:16|32]) (Xboard `getServerKey`) unless `protocol_settings.server_key` set.
-- mieru: username = `uuid`, password = `uuid`.
+Derived credentials (`model.UserCredentials(u, node)`):
+
+- Every protocol uses `uuid` as the UUID and, where a password is needed (trojan, hysteria, anytls, tuic, shadowsocksr,
+  plain shadowsocks), as the password.
+- shadowsocks 2022: the user key is base64(uuid[:16]) for `2022-blake3-aes-128-gcm` and base64(uuid[:32]) otherwise
+  (Xboard `Helper::uuidToBase64`). The client password is `<server_key>:<user_key>`. The node key is
+  `protocol_settings.server_key` when set, otherwise `base64(md5hex(created_at_unix)[:16|32])` (Xboard `getServerKey`);
+  a child node uses its parent's `created_at`.
+- mieru: username = password = `uuid`.
+- shadowsocksr node password (soga `config.password`): `protocol_settings.password`, otherwise
+  `base64(md5hex(created_at_unix)[:16])`.
 
 ## plans
+
 | column | type | notes |
 |---|---|---|
 | id | uint64 PK | |
-| group_id | uint64 idx | server group granted on purchase |
-| name | varchar(191) | |
+| group_id | uint64 idx, not null | server group granted on purchase |
+| name | varchar(191) not null | |
 | content | text | markdown description |
 | tags | json []string | |
-| transfer_enable | int64 | **GB** (as entered); converted to bytes on purchase |
+| transfer_enable | int64 | **GB** (as entered); `TransferBytes()` = GB × 2^30 on purchase |
 | speed_limit | *int | Mbps |
 | device_limit | *int | |
-| capacity_limit | *int | max concurrent subscribers (null = unlimited) |
-| prices | json map[string]int64 | keys: `monthly quarterly half_yearly yearly two_yearly three_yearly onetime reset_traffic`; absent = not for sale |
-| reset_traffic_method | *int8 | null = follow setting `reset_traffic_method`; 0 monthly on 1st, 1 monthly on purchase day, 2 never, 3 yearly on Jan 1, 4 yearly on purchase day |
-| show | bool | visible in shop |
-| sell | bool | purchasable (false = legacy plan: renew only) |
+| capacity_limit | *int | max active subscribers (null = unlimited) |
+| prices | json map[string]int64 | period → cents. Keys: `monthly`, `quarterly`, `half_yearly`, `yearly`, `two_yearly`, `three_yearly`, `onetime`, `reset_traffic`. A missing key means not for sale |
+| reset_traffic_method | *int8 | null = follow the `reset_traffic_method` setting. 0 on the 1st of each month, 1 monthly on the purchase (expiry) day, 2 never, 3 on Jan 1, 4 yearly on the purchase (expiry) day |
+| show | bool | visible in the shop |
+| sell | bool | purchasable (false = legacy plan, renew only) |
 | renew | bool | existing users may renew |
 | sort | int | |
+| created_at, updated_at | time | |
 
 ## server_groups
-`id, name, created_at, updated_at`.
+
+`id, name varchar(191), created_at, updated_at`.
 
 ## nodes
+
 | column | type | notes |
 |---|---|---|
 | id | uint64 PK | |
-| type | varchar(16) idx | `vmess vless shadowsocks shadowsocksr trojan hysteria anytls mieru tuic` |
-| name | varchar(191) | |
+| type | varchar(16) idx, not null | `vmess`, `vless`, `shadowsocks`, `shadowsocksr`, `trojan`, `hysteria`, `anytls`, `mieru`, `tuic` |
+| name | varchar(191) not null | |
 | group_ids | json []uint64 | groups allowed to use the node |
-| route_ids | json []uint64 | node_routes applied (XrayR routes / soga audit) |
-| parent_id | *uint64 | child nodes (relay) inherit parent's config; traffic counted on parent |
-| host | varchar(255) | address shown to clients |
-| port | varchar(32) | client port; may be a range `10000-20000` (hysteria port hopping) |
-| server_port | int | port the backend listens on |
-| tags | json []string | |
-| rate | float64 | traffic multiplier |
+| route_ids | json []uint64 | `node_routes` applied (XrayR routes / soga audit rules) |
+| parent_id | *uint64 idx | child node (relay entrance): served as its parent, see docs/NODE_PROTOCOLS.md §5.3 |
+| host | varchar(255) not null | address shown to clients |
+| port | varchar(32) not null | client port: `443`, a range `20000-30000` or a comma list of both (port hopping) |
+| server_port | int not null | port the backend listens on (a child without one takes its parent's) |
+| tags | json []string | at most 32, each ≤ 64 characters |
+| rate | float64 not null | traffic multiplier 0–100 (admin create defaults to 1) |
 | show | bool | |
 | sort | int | |
-| protocol_settings | json | per type, below |
+| protocol_settings | json object | per type, below |
+| created_at, updated_at | time | `created_at` also seeds the derived SS2022 / SSR node keys |
 
-`protocol_settings` by `type` (all keys optional unless marked *):
+`protocol_settings` by `type`. Every key is optional: `model.<Type>Settings.Decode` applies the defaults from
+`internal/model/protocol.go` and then overlays the stored JSON. Values below are the defaults; alternatives are listed in
+comments. A child node's `protocol_settings` are not validated or used (the parent's apply).
+
 ```jsonc
 // vmess
-{"network":"tcp|ws|grpc|http|h2|httpupgrade|xhttp","network_settings":{...},"tls":0,"tls_settings":{"server_name":"","allow_insecure":false}}
+{"network":"tcp",            // tcp | ws | grpc | http | h2 | httpupgrade | xhttp
+ "network_settings":{}, "tls":0, // tls: 0 none | 1 tls
+ "tls_settings":{"server_name":"","allow_insecure":false}}
 // vless
-{"network":"tcp","network_settings":{...},"tls":0|1|2,"flow":"|xtls-rprx-vision","encryption":"none","decryption":"",
- "tls_settings":{"server_name":"","allow_insecure":false,"public_key":"","private_key":"","short_id":"","dest":"example.com:443","server_port":"443","fingerprint":"chrome"}}
+{"network":"tcp", "network_settings":{},
+ "tls":0,                     // 0 none | 1 tls | 2 reality
+ "flow":"",                   // "" | xtls-rprx-vision | xtls-rprx-vision-udp443
+ "encryption":"none",         // client-side value written into subscriptions
+ "decryption":"",             // server-side VLESS encryption: "" / "none" or mlkem768x25519plus.<mode>.<ticket>[.<padding>].<private key>
+ "tls_settings":{"server_name":"","allow_insecure":false,
+   "public_key":"","private_key":"","short_id":"",   // reality: X25519 keys (base64url), short_id = even-length hex ≤ 16
+   "dest":"example.com:443","server_port":"443",     // reality handshake target ("host" or "host:port")
+   "fingerprint":"chrome"}}
 // shadowsocks
-{"cipher":"aes-128-gcm|aes-256-gcm|chacha20-ietf-poly1305|2022-blake3-aes-128-gcm|2022-blake3-aes-256-gcm|2022-blake3-chacha20-poly1305",
- "server_key":"","obfs":"plain|http|tls","obfs_settings":{"path":"/","host":""},"plugin":"","plugin_opts":""}
+{"cipher":"aes-128-gcm",      // aes-128-gcm | aes-256-gcm | chacha20-ietf-poly1305 | 2022-blake3-aes-128-gcm | 2022-blake3-aes-256-gcm | 2022-blake3-chacha20-poly1305
+ "server_key":"",             // SS2022 only: base64 of 16/32 bytes; empty = derived from created_at
+ "obfs":"plain",              // plain | http | tls
+ "obfs_settings":{"path":"/","host":""}, "plugin":"", "plugin_opts":""}
 // shadowsocksr
-{"cipher":"chacha20-ietf","password":"","protocol":"auth_chain_a","protocol_param":"","obfs":"http_simple","obfs_param":"","single_port_type":"protocol|obfs"}
+{"cipher":"chacha20-ietf", "password":"",   // password: node-level SSR password; empty = derived from created_at
+ "protocol":"origin", "protocol_param":"", "obfs":"plain", "obfs_param":"",
+ "single_port_type":""}       // "" | protocol | obfs
 // trojan
-{"network":"tcp|ws|grpc","network_settings":{...},"server_name":"","allow_insecure":false}
+{"network":"tcp",            // tcp | ws | grpc
+ "network_settings":{}, "server_name":"", "allow_insecure":false}
 // hysteria
-{"version":2,"up_mbps":100,"down_mbps":100,"ignore_client_bandwidth":false,"obfs":"plain|salamander","obfs_password":"","server_name":"","allow_insecure":false,"alpn":"h3","hop_interval":30}
+{"version":2,                // 1 | 2
+ "up_mbps":100, "down_mbps":100,              // 0–100000
+ "ignore_client_bandwidth":false,             // hysteria2: ignore client-declared bandwidth (BBR)
+ "obfs":"plain", "obfs_password":"",          // plain | salamander (password required)
+ "server_name":"", "allow_insecure":false, "alpn":"h3", "hop_interval":30}
 // anytls
-{"tls":1|2,"server_name":"","allow_insecure":false,"padding_scheme":[],"tls_settings":{"public_key":"","private_key":"","short_id":"","dest":"","server_names":[]}}
+{"tls":1,                    // 1 tls | 2 reality
+ "server_name":"", "allow_insecure":false, "padding_scheme":[],
+ "tls_settings":{"public_key":"","private_key":"","short_id":"","dest":"","server_names":[]}}
 // mieru
-{"transport":"TCP","multiplexing":"MULTIPLEXING_LOW|MULTIPLEXING_MIDDLE|MULTIPLEXING_HIGH"}
+{"transport":"TCP",          // TCP | UDP
+ "multiplexing":"MULTIPLEXING_LOW"}  // MULTIPLEXING_OFF | _LOW | _MIDDLE | _HIGH
 // tuic
-{"congestion_control":"bbr","zero_rtt_handshake":false,"udp_relay_mode":"native","server_name":"","allow_insecure":false,"alpn":"h3"}
+{"congestion_control":"bbr", // cubic | bbr | new_reno
+ "zero_rtt_handshake":false,
+ "udp_relay_mode":"native",  // native | quic
+ "server_name":"", "allow_insecure":false, "alpn":"h3"}
 ```
-`network_settings` (xray style): ws `{"path":"/","headers":{"Host":"..."}}`; grpc `{"serviceName":"..."}`;
-http/h2 `{"path":"/","host":["..."]}`; httpupgrade `{"path":"/","host":"..."}`; xhttp `{"path":"/","host":"","mode":"auto","extra":{}}`;
-tcp `{"header":{"type":"none|http"}}`.
 
-Runtime (not persisted): `NodeStatus{LastCheckAt, LastPushAt, Online int, Load{cpu,mem,swap,disk,uptime}, Version}` in `app.Online`.
+`network_settings` follows the xray style and is normalised by `model.DecodeNetwork`:
+
+- ws: `{"path":"/","headers":{"Host":"..."}}`
+- grpc: `{"serviceName":"..."}` (`service_name` is also accepted)
+- http/h2: `{"path":"/","host":["..."]}`
+- httpupgrade: `{"path":"/","host":"..."}`
+- xhttp: `{"path":"/","host":"","mode":"auto","extra":{}}`
+- tcp: `{"header":{"type":"none|http","request":{"path":["/"],"headers":{"Host":["..."]}}}}`
+
+Reality `tls_settings.dest` is stored as `host:port`. The node APIs split it into `dest` (host) and `server_port`
+(string); see docs/NODE_PROTOCOLS.md.
 
 ## node_routes
-`id, remarks varchar, match json []string, action varchar(16) (block|dns), action_value varchar, created_at, updated_at`.
-Delivered to XrayR as `routes[]`; `block` routes become soga `audit_rules`.
+
+`id, remarks varchar(191), match json []string, action varchar(16) not null, action_value varchar(255), created_at, updated_at`.
+
+- `action` is `block` or `dns`.
+- `match` holds 1–999 entries. `block` entries joined with `|` must compile as one Go regexp.
+- A `dns` route needs `action_value` (the DNS server) unless `match[0]` is `main`.
+- Routes are delivered to XrayR/V2bX as `routes[]`; `block` routes become soga `audit_rules`.
 
 ## orders
+
 | column | type | notes |
 |---|---|---|
 | id | uint64 PK | |
-| trade_no | char(32) unique | `YYYYMMDDHHMMSS` + random |
-| user_id | uint64 idx | |
-| plan_id | uint64 | |
-| invite_user_id | *uint64 | |
+| trade_no | varchar(32) unique, not null | `YYYYMMDDHHMMSS` (local time) + 6 random digits |
+| user_id | uint64 idx, not null | |
+| plan_id | uint64 idx, not null | |
+| invite_user_id | *uint64 idx | inviter credited with the commission |
 | coupon_id | *uint64 | |
 | payment_id | *uint64 | |
-| type | int8 | 1 new, 2 renew, 3 upgrade, 4 reset_traffic |
-| period | varchar(16) | price key |
-| callback_no | varchar(191) | gateway txn id |
-| total_amount | int64 | final payable |
+| type | int8 not null | 1 new, 2 renew, 3 upgrade, 4 reset_traffic |
+| period | varchar(16) not null | price key (see `plans.prices`) |
+| callback_no | varchar(191) | gateway transaction id, or `free` / `balance` / `manual` |
+| total_amount | int64 | final payable amount |
 | handling_amount | int64 | gateway fee |
 | discount_amount | int64 | coupon + user discount |
-| surplus_amount | int64 | credit from previous plan on upgrade |
-| refund_amount | int64 | returned to balance when surplus exceeds price |
-| balance_amount | int64 | paid from balance |
-| surplus_order_ids | json []uint64 | |
-| status | int8 idx | 0 pending, 1 processing, 2 cancelled, 3 completed, 4 discounted |
-| commission_status | int8 | 0 pending, 1 processing, 2 valid, 3 invalid |
+| surplus_amount | int64 | credit from the previous plan on upgrade |
+| refund_amount | int64 | returned to the balance when the surplus exceeds the price |
+| balance_amount | int64 | paid from the balance |
+| surplus_order_ids | json []uint64 | orders whose remaining value was credited |
+| status | int8 idx | 0 pending, 1 processing, 2 cancelled, 3 completed, 4 discounted (superseded by an upgrade) |
+| commission_status | int8 idx | 0 pending, 1 processing (approved), 2 valid (paid out), 3 invalid |
 | commission_balance | int64 | commission amount |
 | paid_at | *time | |
+| created_at | time idx | |
+| updated_at | time | |
+
+A user can hold at most one order in status 0 or 1. "Paid" for statistics means status 1, 3 or 4, bucketed by `paid_at`.
 
 ## payments
-`id, uuid char(32) unique, gateway varchar(32), name, icon, config json (secret), notify_domain, handling_fee_fixed int64, handling_fee_percent float64, enabled bool, sort int, timestamps`.
 
-## coupons
-`id, code varchar(64) unique, name, type int8 (1 fixed amount, 2 percent), value int64, show bool, limit_use *int, limit_use_with_user *int, limit_plan_ids json []uint64, limit_periods json []string, started_at time, ended_at time, timestamps`.
-`limit_use` is the **remaining** number of uses (Xboard): one use is taken when an order is created and given back when it is cancelled (Xboard does not give it back); NULL = unlimited. `used_count` (admin) is counted from `orders` (status != cancelled); `limit_use_with_user` counts the user's paid orders (status not pending/cancelled).
-
-## invite_codes
-`id, user_id idx, code char(32) unique, status bool (consumed, only when invite_never_expire=false), pv int, timestamps`.
-
-## commission_logs
-`id, invite_user_id idx, user_id, trade_no, order_amount int64, get_amount int64, created_at`.
-
-## tickets / ticket_messages
-tickets: `id, user_id idx, subject, level int8 (0 low 1 medium 2 high), status int8 (0 open 1 closed), reply_status int8 (0 awaiting staff, 1 replied), last_reply_user_id *uint64, timestamps`.
-ticket_messages: `id, ticket_id idx, user_id, message text, created_at`.
-
-## notices
-`id, title, content text (markdown), img_url, tags json []string, show bool, sort int, timestamps`.
-
-## knowledge
-`id, language char(5), category varchar, title varchar, body text (markdown), sort int, show bool, timestamps`.
-
-## settings
-`key varchar(64) PK, value text (JSON encoded), updated_at`. Defaults live in code (`settings.Defaults`). Keys and groups in `docs/API.md` §Admin settings.
-
-## stat_users / stat_nodes / stats
-- stat_users: `id, user_id idx, node_id idx, rate float64, u, d int64, record_at date idx` unique(user_id,node_id,record_at).
-- stat_nodes: `id, node_id idx, u, d int64, record_at date` unique(node_id,record_at).
-- stats: `id, record_at date unique, order_count, order_total, paid_count, paid_total, commission_count, commission_total, register_count, invite_count, transfer_used_total`.
-
-## mail_logs
-`id, email, subject, template, error text nullable, created_at`.
-
-## rule_profiles
-`user_id uint64 PK, data json (see docs/SUBSCRIPTION.md), updated_at`.
-
-## user_mfa
-One row per user, created on first use (`internal/service/mfa`).
 | column | type | notes |
 |---|---|---|
-| user_id | uint64 PK | |
-| totp_secret | text | `v1.` + base64url(nonce ‖ AES-256-GCM ciphertext); key = HKDF-SHA256(`jwt.secret`, info `ggboard/mfa/totp-secret/v1`), AAD = user id; empty when off |
+| id | uint64 PK | |
+| uuid | varchar(32) unique, not null | 32 hex characters; part of the notify URL `/api/v1/guest/payment/notify/:gateway/:uuid` |
+| gateway | varchar(32) not null | registered gateway name (`epay`, `epusdt`, `alipay_f2f`, `stripe`, `coinbase`, `btcpay`) |
+| name | varchar(191) not null | |
+| icon | varchar(255) | |
+| config | json map[string]string | gateway settings; secret, admin only |
+| notify_domain | varchar(255) | overrides `app_url` for callback URLs |
+| handling_fee_fixed | int64 | cents |
+| handling_fee_percent | float64 | |
+| enabled | bool | |
+| sort | int | |
+| created_at, updated_at | time | |
+
+## coupons
+
+| column | type | notes |
+|---|---|---|
+| id | uint64 PK | |
+| code | varchar(64) unique, not null | |
+| name | varchar(191) not null | |
+| type | int8 not null | 1 fixed amount (cents), 2 percent |
+| value | int64 not null | |
+| show | bool | |
+| limit_use | *int | **remaining** uses, null = unlimited |
+| limit_use_with_user | *int | uses per user |
+| limit_plan_ids | json []uint64 | |
+| limit_periods | json []string | |
+| started_at, ended_at | time not null | |
+| created_at, updated_at | time | |
+
+`limit_use` follows Xboard: one use is taken when an order is created and given back when that order is cancelled
+(Xboard does not give it back). The admin `used_count` counts orders with status ≠ cancelled.
+`limit_use_with_user` counts the user's paid orders (status not pending or cancelled).
+
+## invite_codes
+
+`id, user_id uint64 idx, code varchar(32) unique, status bool, pv int, created_at, updated_at`.
+New codes are 32 random alphanumeric characters (imported Xboard codes keep their length). `status` = consumed; it is only
+set when `invite_never_expire` is false.
+
+## commission_logs
+
+`id, invite_user_id uint64 idx, user_id uint64, trade_no varchar(32), order_amount int64, get_amount int64, created_at`.
+
+## tickets / ticket_messages
+
+| column | type | notes |
+|---|---|---|
+| id | uint64 PK | |
+| user_id | uint64 idx, not null | |
+| subject | varchar(255) not null | |
+| level | int8 | 0 low, 1 medium, 2 high |
+| status | int8 idx | 0 open, 1 closed |
+| reply_status | int8 idx | 0 awaiting staff, 1 replied |
+| last_reply_user_id | *uint64 | |
+| created_at, updated_at | time | |
+
+ticket_messages: `id, ticket_id uint64 idx, user_id uint64, message text not null, created_at`.
+
+## notices
+
+`id, title varchar(255), content text (markdown), img_url varchar(255), tags json []string, show bool, sort int, created_at, updated_at`.
+
+## knowledge
+
+`id, language varchar(5) idx, category varchar(191), title varchar(255), body text (markdown), sort int, show bool, created_at, updated_at`.
+
+## settings
+
+`key varchar(64) PK, value text (JSON-encoded), updated_at`. Defaults live in code (`internal/settings/defs.go`,
+`settings.Defaults`); the full key list is in docs/API.md "Settings keys". Use `internal/settings`, never this table.
+
+## stat_users / stat_nodes / stats
+
+| table | columns | indexes |
+|---|---|---|
+| stat_users | `id, user_id uint64, node_id uint64, rate float64, u int64, d int64, record_at date` | `user_id`, `node_id`, `record_at`; unique `uniq_stat_users_day(user_id, node_id, record_at)` |
+| stat_nodes | `id, node_id uint64, u int64, d int64, record_at date` | `record_at`; unique `uniq_stat_nodes_day(node_id, record_at)` |
+| stats | `id, record_at date, order_count, order_total, paid_count, paid_total, commission_count, commission_total, register_count, invite_count, transfer_used_total` (int64) | unique `record_at` |
+
+- `stat_users.u/d` are already multiplied by the node rate. `stat_nodes.u/d` are raw bytes.
+- `stats` is written by the `stats_daily` job:
+  - `order_*`: orders created that day.
+  - `paid_*`: orders with status 1, 3 or 4, by `paid_at`.
+  - `commission_*`: `commission_logs.get_amount`.
+  - `register_count` / `invite_count`: users created that day, and how many of them were invited.
+  - `transfer_used_total`: `stat_nodes` u + d.
+
+## mail_logs
+
+`id, email varchar(191) idx, subject varchar(255), template varchar(64), error *text (null = sent), created_at`.
+
+## rule_profiles
+
+`user_id uint64 PK (no auto-increment), data json (docs/SUBSCRIPTION.md), updated_at`.
+
+## user_mfa
+
+One row per user, created on first use (`internal/service/mfa`).
+
+| column | type | notes |
+|---|---|---|
+| user_id | uint64 PK (no auto-increment) | |
+| totp_secret | text | `v1.` + base64url(nonce ‖ AES-256-GCM ciphertext). Key = HKDF-SHA256(`jwt.secret`, info `ggboard/mfa/totp-secret/v1`), AAD = `ggboard:totp:<user id>`. Empty when TOTP is off. Rotating `jwt.secret` invalidates every enrolled authenticator |
 | totp_enabled | bool | |
 | totp_enabled_at | *time | |
-| totp_last_step | int64 | last accepted TOTP time step (unix/30); replay guard |
-| backup_codes | json []string | SHA-256 hex of the unused backup codes |
-| webauthn_handle | varchar(64) unique, null | hex of the 16-byte WebAuthn user handle shared by all passkeys of the user |
+| totp_last_step | int64 | last accepted TOTP time step (unix / 30); replay guard |
+| backup_codes | json []string | hex SHA-256 of `ggboard-backup-code:<code>` for each unused backup code |
+| webauthn_handle | *varchar(64) unique | hex of the 16-byte WebAuthn user handle shared by all of the user's passkeys |
 | created_at, updated_at | time | |
 
 ## passkeys
+
 | column | type | notes |
 |---|---|---|
 | id | uint64 PK | |
-| user_id | uint64 idx | |
-| rp_id | varchar(255) | RP id the credential was registered for; only passkeys of the current RP id are used for login |
-| credential_hash | char(64) unique | hex SHA-256 of the raw credential id (portable unique lookup) |
-| credential_id | text | base64url credential id |
-| credential | text | JSON go-webauthn `Credential` (public key, flags, attestation, transports) |
-| name | varchar(64) | |
+| user_id | uint64 idx, not null | |
+| rp_id | varchar(255) not null | RP ID the credential was registered for; only passkeys of the current RP ID are used to sign in |
+| credential_hash | varchar(64) unique, not null | hex SHA-256 of the raw credential id (portable unique lookup) |
+| credential_id | text not null | base64url (unpadded) credential id |
+| credential | text not null | JSON of the go-webauthn `Credential` (public key, flags, attestation, transports) |
+| name | varchar(64) not null | |
 | sign_count | int64 | authenticator signature counter; must increase when non-zero |
 | backup_eligible, backup_state | bool | BE / BS flags |
 | transports | json []string | |
 | last_used_at | *time | |
 | created_at, updated_at | time | |
 
-## Ephemeral (memory only)
-- email verification codes (10 min TTL), login attempts, register-by-ip counters.
-- MFA: pending TOTP secrets (10 min), MFA login tokens (5 min, single use), WebAuthn ceremony state (2 min, single use),
-  wrong second-factor code counters (1 h window); cached "has a second factor" flag for the admin gate (30 s).
-- online users per node, alive IPs per user (`map[userID]set[ip]` with TTL `max(300s, 2×push_interval)`), node status (three-state model, see docs/NODE_PROTOCOLS.md §5).
-- Reality `tls_settings.dest` is stored as `host:port`; node APIs split it into `dest` (host) + `server_port` (string) — see docs/NODE_PROTOCOLS.md.
+`sign_count`, `backup_state` and `last_used_at` are updated after every successful assertion.
+
+## Ephemeral state (memory only, lost on restart)
+
+Kept in `app.KV` (a TTL map that never evicts early) or `app.Online`:
+
+- Email verification codes (10 min) and their resend cooldown, failed-password counters per email
+  (`password_limit_*`) and registrations per IP (`register_limit_*`).
+- MFA:
+  - pending TOTP secrets (10 min)
+  - MFA login tokens (5 min, single use)
+  - WebAuthn ceremony state (2 min, single use)
+  - wrong second-factor counters (1 h window)
+  - the cached "has a second factor" flag used by the admin gate (30 s)
+- One-time admin login tokens (`/admin/users/:id/login-token`, 5 min, single use).
+- Reminder markers of `expire_remind` / `traffic_remind` (24 h).
+- Node runtime state (`online.Status`): `online`, `last_check_at`, `last_push_at`, `load{cpu,mem,swap,disk,uptime}` and
+  `version` per effective node. This drives the three-state node status (docs/NODE_PROTOCOLS.md §5.1).
+- Alive IPs per user and node, with TTL `max(300 s, 2 × server_push_interval)` (docs/NODE_PROTOCOLS.md §5.2).
+- Buffered traffic (`app.Traffic`), flushed to `users`, `stat_users` and `stat_nodes` every 10 s and on shutdown.

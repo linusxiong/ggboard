@@ -164,15 +164,17 @@ deploy/                 Dockerfile、compose、systemd、nginx 示例
 
 | 插件点 | 接口位置 | 内置实现 |
 |---|---|---|
-| 支付网关 | `internal/payment/gateway.go` | epay, epusdt, alipay_f2f, stripe, coinbase (Business Checkouts), btcpay |
-| 邮件驱动 | `internal/mail/mailer.go` | smtp, log |
-| 订阅格式 | `internal/subscription/format.go` | clash(mihomo), clash(classic), singbox, surge, quantumultx, shadowrocket, loon, v2ray(base64), ssr |
-| 规则集来源 | `internal/subscription/rulesets/` | blackmatrix7, Loyalsoldier, MetaCubeX, ACL4SSR, SagerNet(sing-geosite/geoip), DustinWin |
-| 节点对接协议 | `internal/api/node/` | xrayr(UniProxy, V2bX 超集), soga-v1 |
-| 验证码 | `internal/captcha/` | none, turnstile, recaptcha, hcaptcha |
-| 数据导入 | `internal/importer/` | xboard(legacy 分表 / upstream 统一表) |
+| 支付网关 | `internal/payment/gateway.go`（`payment.Register`；汇总导入 `internal/payment/gateways/all.go`） | epay, epusdt, alipay_f2f, stripe, coinbase (Business Checkouts), btcpay |
+| 订阅格式 | `internal/subscription/format.go`（`subscription.RegisterFormat`） | clash-meta(mihomo), clash(classic), stash, singbox, surge, surfboard, quantumultx, shadowrocket, loon, v2ray(base64), ssr |
+| 规则集来源 | `internal/subscription/rulesets/catalog.json` | blackmatrix7, Loyalsoldier, MetaCubeX, ACL4SSR, SagerNet(sing-geosite/geoip), DustinWin |
+| 验证码 | `internal/captcha/captcha.go`（`captcha.Register`） | none, turnstile, recaptcha, hcaptcha |
+| 数据导入 | `internal/cli`（`cli.Register` 注册子命令） | `import xboard`（legacy 分表 / upstream 统一表） |
+| 定时任务 | `internal/app/app.go`（`app.RegisterJob`，见 `docs/ARCHITECTURE.md`） | online_cleanup, traffic_flush（`internal/app`）；order_timeout, commission_settle（`service/order`）；traffic_reset, expire_remind, traffic_remind, stats_daily（`service/maintenance`） |
+| 邮件驱动 | `internal/mail/mailer.go`（`mail.FromSettings` 按 `email_driver` 选择，非 registry） | smtp, log |
+| 节点对接协议 | `internal/api/node/`（同一包内两组路由，非 registry） | xrayr(UniProxy, V2bX 超集), soga-v1 |
 
-新增插件 = 新建一个包 + 在 `init()` 里 `Register`；不改核心代码。
+新增 registry 类插件 = 新建一个包 + 在 `init()` 里 `Register` + 在汇总文件里加一行空白导入；不改核心代码。
+详见 `CONTRIBUTING.md`。
 
 ---
 

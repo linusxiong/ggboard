@@ -1,112 +1,246 @@
 # Architecture
 
-Single Go binary (`ggboard`) that serves the JSON API, the node-facing APIs (XrayR/UniProxy and soga-v1),
-subscription generation, payment callbacks, a cron scheduler and the embedded React frontend.
-No Redis, no queue workers: an in-process cache (ristretto) and batched DB writes are enough for a panel.
+One Go binary (`ggboard`) serves:
 
-```
-┌──────────────┐   HTTPS    ┌─────────────────────────────────────────────┐
-│  React SPA   │ ─────────▶ │ gin router                                   │
-│ (embedded)   │            │  /api/v1/guest  /passport  /user  /admin     │
-└──────────────┘            │  /api/v1/client/subscribe  (token)           │
-┌──────────────┐            │  /api/v1/server/UniProxy/* (XrayR / V2bX)    │
-│ XrayR / V2bX │ ─────────▶ │  /api/v1/{node,users,traffic,...} (soga-v1)  │
-│ soga         │            │  /api/v1/guest/payment/notify/:gw/:uuid      │
-└──────────────┘            └───────────────┬──────────────────────────────┘
-                                            │ services (order, user, node, stat, ticket, invite, subscription)
+- the JSON API
+- the node-facing APIs (UniProxy for XrayR/V2bX, soga-v1)
+- subscriptions and payment callbacks
+- a cron scheduler and an in-process mail queue
+- the embedded React SPA
+
+There is no Redis and no separate worker. A panel needs nothing more than an in-process cache (ristretto), a TTL map and
+batched DB writes.
+
+```text
+┌──────────────┐   HTTPS    ┌──────────────────────────────────────────────────────────┐
+│  React SPA   │ ─────────▶ │ gin engine (internal/router)                             │
+│  (embedded)  │            │  /api/v1/guest  /passport  /user  /admin                 │
+└──────────────┘            │  /api/v1/client/subscribe · /s/:token   (token)          │
+┌──────────────┐            │  /api/v1/server/UniProxy/*              (XrayR / V2bX)   │
+│ XrayR / V2bX │ ─────────▶ │  /api/v1/{node,users,…} · /soga/api/v1/* (soga-v1)       │
+│ soga         │            │  /api/v1/guest/payment/notify/:gateway/:uuid             │
+└──────────────┘            │  /.well-known/{change-password,passkey-endpoints}        │
+                            │  /healthz · SPA fallback (internal/static)               │
+                            └───────────────┬──────────────────────────────────────────┘
+                                            │ internal/service/* · subscription · payment
                                             ▼
-                     ┌──────────┐   ┌─────────────┐   ┌──────────┐   ┌───────────┐
-                     │  GORM DB │   │ ristretto   │   │ cron     │   │ mailer    │
-                     │ sqlite/pg│   │ cache+ETag  │   │ jobs     │   │ smtp/log  │
-                     └──────────┘   └─────────────┘   └──────────┘   └───────────┘
+              ┌───────────┐  ┌──────────────┐  ┌───────────────┐  ┌──────────────┐  ┌────────────┐
+              │ GORM DB   │  │ ristretto    │  │ app.KV        │  │ scheduler    │  │ mail queue │
+              │ sqlite/pg/│  │ cache + ETag │  │ app.Online    │  │ (robfig/cron)│  │ smtp / log │
+              │ mysql     │  │              │  │ app.Traffic   │  │              │  │            │
+              └───────────┘  └──────────────┘  └───────────────┘  └──────────────┘  └────────────┘
 ```
 
-## Boot sequence (`cmd/ggboard serve`)
-1. `config.Load()` — viper: defaults ← `config.yaml` (optional) ← env `GGBOARD_*` ← flags. Keys:
-   `server.addr`, `server.trusted_proxies[]`, `server.cors_origins[]`, `database.driver` (sqlite|postgres|mysql), `database.dsn`,
-   `jwt.secret` (generated once into `<data_dir>/jwt.secret` when empty), `jwt.ttl` (default 168h), `log.level`, `log.format`,
-   `data_dir`, `frontend.dir` (optional override of the embedded SPA).
-2. `app.New(cfg)` builds the dependency container: `db.Open()` + `db.Migrate()` (auto-migrate `model.All()`, idempotent, every boot),
-   `settings.New(db)` (generates `server_token` on first boot), caches, mail queue, `Online`, `Traffic`, scheduler with every job
-   registered through `app.RegisterJob`. `*app.App{Cfg, DB, Settings, Cache, KV, Mailer, Log, Logs, Version, StartedAt, Online, Traffic, Scheduler}`.
-   Admin users are created with `ggboard admin create`.
-3. `router.New(app)` (`internal/router`): `httpx.NewEngine` (request id, access log, security headers, CORS when configured, gzip,
-   recovery, body limit) → `api/<pkg>.Register(root, app)` for guest, passport, user, admin, client, node (each mounts its own paths
-   under `/api/v1`; client/node also mount `/s/:token` and `/soga/api/v1`) → `static.Mount` as the NoRoute handler
-   (embedded SPA, precompressed assets, immutable cache for hashed files, SPA fallback). The router lives outside `httpx`
-   because every API package imports `httpx`.
-4. `app.Start()` starts the mail worker and the scheduler.
-5. Graceful shutdown on SIGINT/SIGTERM: HTTP drain 10s, then `app.Close()` stops the scheduler, flushes traffic, drains mail, closes the DB.
+## Boot sequence (`ggboard serve`)
+
+1. `cli.Execute` builds the cobra tree (`internal/cli`). Its `PersistentPreRunE` runs `config.Load` and `app.Init`
+   for every command except `version`, `help` and `completion`.
+2. `config.Load` reads values with precedence flags > env `GGBOARD_*` > config file > defaults. The config file is
+   `--config`/`-c`, else `$GGBOARD_CONFIG`, else `./config.yaml` when present.
+   - Keys: `server.addr`, `server.trusted_proxies[]`, `server.cors_origins[]`, `database.driver`
+     (sqlite\|postgres\|mysql), `database.dsn`, `jwt.secret`, `jwt.ttl` (default 168h), `log.level`, `log.format`,
+     `frontend.dir`, `data_dir` (default `./data`, created with mode 0700).
+   - The SQLite DSN defaults to `<data_dir>/ggboard.db`.
+   - An empty `jwt.secret` is generated once into `<data_dir>/jwt.secret` (0600). A secret shorter than 32 characters
+     logs a warning.
+3. `app.Init` builds the dependency container `*app.App{Cfg, DB, Settings, Cache, KV, Mailer, Log, Logs, Version,
+   StartedAt, Online, Traffic, Scheduler}` in this order:
+   1. logger (`logx`, with a ring buffer for `/admin/system/logs`)
+   2. `db.Open`:
+      - SQLite: WAL, `busy_timeout(5000)`, `foreign_keys(1)`, `synchronous(NORMAL)`, `_txlock=immediate`, 8 connections,
+        UTC time parameters
+      - PostgreSQL/MySQL: 32 open / 8 idle connections, 30 min lifetime. MySQL DSNs get `parseTime`, `loc=UTC` and `utf8mb4`
+   3. `db.Migrate` (auto-migrate `model.All()`; idempotent, runs on every start)
+   4. `settings.New` (generates `server_token` on first boot)
+   5. ristretto cache, `KV` (`cache.TTLMap`), `Online` store, `Traffic` accumulator, mail queue
+   6. scheduler (`time.Local`) with every job (see below)
+4. `router.New(app)` (`internal/router`):
+   - `httpx.NewEngine` sets the middleware chain below and `server.trusted_proxies` (an invalid list falls back to
+     trusting none).
+   - `GET /healthz` returns `{"data":{"status":"ok","version","uptime"}}`.
+   - The `Register` of `guest`, `passport`, `user`, `admin`, `client` and `node` runs in that order. Each mounts its own
+     paths under `/api/v1`; `client` also mounts `/s/:token`, `node` mounts `/soga/api/v1`, and `passport` mounts `/.well-known/*`.
+   - `static.Mount` serves the SPA as the NoRoute handler.
+
+   The router lives outside `httpx` because every API package imports `httpx`.
+5. `app.Start()` starts the mail worker and the scheduler. The HTTP server timeouts are: read header 10 s, read 60 s,
+   write 120 s, idle 120 s.
+6. SIGINT/SIGTERM drains HTTP for 10 s. `app.Close` then stops the scheduler, flushes traffic, drains the mail queue
+   (10 s budget), closes the cache and the DB.
 
 ## CLI
-- `ggboard serve` — run server.
-- `ggboard migrate` — run migrations only.
-- `ggboard admin create --email --password` / `admin reset-password` / `admin promote`.
-- `ggboard import xboard --dsn "<driver>://..." [--dry-run] [--skip-users ...]` — see `docs/IMPORT_XBOARD.md`.
-- `ggboard version`.
+
+| command | what |
+|---|---|
+| `ggboard serve [--addr :8080]` | HTTP server, scheduler and mail queue |
+| `ggboard migrate` | create or update the schema (the App migrates on init), then exit |
+| `ggboard admin create --email E [--password P] [--staff]` | create an administrator (or staff). A password is generated and printed when omitted |
+| `ggboard admin reset-password --email E [--password P]` | set a password (signs out existing sessions) |
+| `ggboard admin promote --email E` | grant `is_admin` to an existing user |
+| `ggboard import xboard --dsn … [--driver] [--dry-run] [--force] [--with-stats] [--stats-days N] [--source-tz TZ]` | Xboard import, see docs/IMPORT_XBOARD.md |
+| `ggboard version` | print the version (no config or DB needed) |
+
+Global flags: `-c/--config`, `--data-dir`, `--log-level`, `--log-format`, `--db-driver`, `--db-dsn`.
 
 ## HTTP conventions (`internal/httpx`)
-- Success: `200 {"data": ...}`; lists: `{"data": [...], "total": N}`; empty success: `{"data": true}`.
-- Errors: status + `{"code": "validation_failed", "message": "...", "errors": {"field": ["msg"]}}`.
-  Codes: `validation_failed`(400) `unauthorized`(401) `forbidden`(403) `not_found`(404) `conflict`(409)
-  `payload_too_large`(413) `rate_limited`(429) `payment_failed`(402) `internal`(500).
-- Body limit: 1 MiB; node push endpoints 8 MiB (`httpx.LargeBody`).
-- Auth: `Authorization: Bearer <JWT>`; JWT claims `{sub: user_id, email, iat, exp, ver}`; `ver` is
-  bumped on password change / security reset so old tokens die. Middleware loads the user (cached 30s) and rejects banned users.
-- Admin middleware: user.is_admin; Staff middleware: is_admin || is_staff.
-- Pagination query: `page` (1-based), `page_size` (default 20, max 200), `sort` (`field` or `-field`), filters as query params.
-- Node APIs authenticate with the shared `server_token` setting (constant-time compare) — XrayR passes `token` query; soga passes `API-KEY` header.
-- All handlers bind + validate with `binding:"required,..."` tags; translate validator errors into `errors` map.
 
-## Caching rules
-- `settings`: whole map cached, invalidated on save.
-- Node user lists (`/UniProxy/user`, `/api/v1/users`): cached per group-set for 60s; ETag = sha1 of JSON body; 304 honored.
-- Node config: ETag = quoted sha1 of the response body (XrayR/V2bX compare the header value, see docs/NODE_PROTOCOLS.md).
-- Subscription: generated per request (cheap), node list cached 5s per user; `ETag` on response too.
-- Online users / alive IPs / node status: in-memory maps with TTL `max(300s, 2×push_interval)`, surfaced in admin node list (three-state node status: online / idle / offline per docs/NODE_PROTOCOLS.md §5).
-- Traffic push: aggregated in memory per (node,user) and flushed to DB every 10s in one transaction
-  (user.u/d increments + stat_users/stat_nodes daily upserts). Flush also on shutdown.
+- Success is `200 {"data": …}` and creates are `201 {"data": …}`. Lists are `{"data": [...], "total": N}`.
+  An empty success is `{"data": true}`.
+- Errors are status + `{"code", "message", "errors": {"field": ["msg"]}}`.
+  - Standard codes: `validation_failed` (400), `unauthorized` (401), `payment_failed` (402), `forbidden` (403),
+    `not_found` (404), `conflict` (409), `payload_too_large` (413), `rate_limited` (429), `internal` (500).
+  - MFA adds `mfa_invalid` (401), `mfa_expired` (401) and `mfa_setup_required` (403).
+  - A 429 carries `Retry-After`.
+- Body limit: 1 MiB. Node push routes raise it to 8 MiB (`httpx.LargeBody(httpx.NodeBodyLimit)`).
+- Auth: `Authorization: Bearer <JWT>` (HS256). Claims are `{sub: user id, email, ver: password_version, iat, exp, iss: "ggboard"}`.
+  - A `ver` mismatch → 401 (password change / security reset signs every session out). A banned user → 403.
+  - The user row is cached for 30 s.
+- Roles: `/admin` is mounted with `RequireStaff` + the MFA admin gate. Every area except tickets, notices, knowledge and
+  reading users adds `RequireAdmin`.
+- Pagination query: `page` (1-based), `page_size` (default 20, max 200), `sort` (`field` or `-field`); filters are
+  query params.
+- Node APIs authenticate with the `server_token` setting, compared in constant time. An empty token rejects everything.
+  UniProxy sends the `token` query parameter; soga sends the `API-KEY` header.
 
-## Scheduler jobs (`internal/scheduler`)
-| job | cron | what |
+Middleware chain: request id (`X-Request-ID`, reused when sane) → access log → security headers → CORS (only when
+`server.cors_origins` is set) → gzip → recovery → body limit.
+
+- The **access log** records the route pattern (`c.FullPath()`, e.g. `/s/:token`) and never the query string, so tokens
+  in paths or queries never reach the access log. An unmatched request (404) logs its literal path. Known gap: the
+  `rate limited` (429), 5xx and panic log lines still log `c.Request.URL.Path`, so a throttled `/s/:token` leaks the token.
+- **gzip** compresses compressible responses of at least 1 KiB. It skips HEAD requests, upgrades and responses that
+  already set `Content-Encoding`.
+- `node.Register` sets `RemoveExtraSlash`, so soga's `/soga//api/v1/node` still matches.
+
+## Caching
+
+| what | where | TTL / invalidation |
 |---|---|---|
-| traffic_reset | `0 0 * * *` | users whose `next_reset_at <= now`, 500 per transaction: u=d=0 and the next `next_reset_at` when the plan still resets (plan present, effective method ≠ never, `expired_at` set), otherwise only `next_reset_at` is cleared; node user lists invalidated |
-| expire_remind | `0 10 * * *` | `remind_mail_enable`: email users (not banned, `remind_expire`) whose `expired_at` is in (now, now+24h]; once per 24 h per user (`app.KV`) |
-| traffic_remind | `0 10 * * *` | `remind_mail_enable`: email users (not banned, not expired, `remind_traffic`) with 80% ≤ used < 100%, once per 24 h per user (`app.KV`) |
-| order_timeout | `*/1 * * * *` | cancel pending orders older than `order_timeout_minutes` (default 30) |
-| commission_settle | `0 */1 * * *` | orders with commission_status=1 → pay invite_user, log commission_logs, status=2 (respect `commission_auto_check_enable`) |
-| stats_daily | `5 0 * * *` | upsert yesterday's `stats` row: orders created, orders paid (status 1/3/4 by `paid_at`), commission_logs, registers, invites, `stat_nodes` traffic |
+| settings | `settings.Service` snapshot | swapped after every successful `Set`; reads never hit the DB |
+| session user | `auth.LoadUser` | 30 s; `auth.InvalidateUser` after password/ban/role/uuid changes |
+| available users per group set | `usersvc.AvailableUsersForGroups` | 60 s; `InvalidateNodeUsers()` |
+| node config / user list / audit rules bodies, resolved nodes | `nodesvc` namespace | 60 s; `nodesvc.Invalidate()` after node, route or group writes |
+| subscription node list | `subscription.AvailableNodes` | 5 s per group; `subscription.InvalidateNodes(a)` |
+| stored rule profile | `engine.LoadStoredProfile` | 1 min; dropped on save |
+| MFA "has a second factor" | `mfasvc` (admin gate) | 30 s |
 
-| commission_settle | `0 */1 * * *` | with `commission_auto_check_enable`, completed orders pending ≥ 72 h → commission_status 1; orders with commission_status=1 → pay invite chain (l1/l2/l3 when distribution is on), log commission_logs, status=2 |
-| stats_daily | `5 0 * * *` | aggregate yesterday's `stats` row (orders, paid, registers, invites, transfer total) |
-| online_cleanup | `*/5 * * * *` | purge expired online/alive entries and `app.KV` |
-| traffic_flush | `@every 10s` | flush the in-memory traffic accumulator (also on shutdown) |
-| mail_queue | continuous | in-process worker goroutine with bounded channel + retry (mail is never sent inline in a request) |
+Node responses (`config`, `user`, soga `node`/`users`/`audit_rules`) carry `ETag: "<sha1 hex of the body>"`. A request
+whose `If-None-Match` contains the tag gets 304 (substring compare, so quoted, bare and `W/` forms all match).
+Subscriptions are generated per request and also carry a sha1 `ETag` with 304 support.
+
+## Runtime node state
+
+`app.Online` keeps, per effective node, `last_check_at` (any authenticated node request), `last_push_at` (push/traffic),
+online users, load and the backend's User-Agent as `version`. Status uses the window `W = 2 × max(push, pull interval)`
+and has three states (docs/NODE_PROTOCOLS.md §5.1):
+
+- **2 online**: push within W
+- **1 online, no push** (`StateIdle`): only a check within W
+- **0 offline**
+
+`is_online` means status ≥ 1. Alive IPs per user expire after `max(300 s, 2 × server_push_interval)` and are counted by
+`device_limit_mode`. Everything is in memory, so after a restart nodes show offline until their next poll.
+
+Traffic reports go to `app.Traffic`, aggregated per (node, user). They are flushed every 10 s and on shutdown, in one
+transaction: `users.u/d += bytes × rate`, plus daily upserts of `stat_users` (× rate) and `stat_nodes` (raw).
+
+## Scheduler jobs
+
+Jobs run only in `ggboard serve`. Specs use the 5-field cron format in the server's local time zone. The scheduler
+recovers panics, skips a run while the previous one is still running, and reports status in `/admin/system/status`.
+
+| job | spec | registered in | what |
+|---|---|---|---|
+| `online_cleanup` | `*/5 * * * *` | `internal/app` | purge expired alive IPs / node entries and `app.KV` |
+| `traffic_flush` | `@every 10s` | `internal/app` | flush the traffic accumulator |
+| `order_timeout` | `*/1 * * * *` | `service/order` | cancel pending orders older than `order_timeout_minutes` (default 30). Balance and coupon use are given back. At most 500 per run |
+| `commission_settle` | `0 */1 * * *` | `service/order` | see below |
+| `traffic_reset` | `0 0 * * *` | `service/maintenance` | see below |
+| `expire_remind` | `0 10 * * *` | `service/maintenance` | with `remind_mail_enable`, mail users (not banned, `remind_expire`) whose `expired_at` is in (now, now + 24 h]. At most once per 24 h per user |
+| `traffic_remind` | `0 10 * * *` | `service/maintenance` | with `remind_mail_enable`, mail users (not banned, not expired, `remind_traffic`) who used 80 % ≤ x < 100 %. At most once per 24 h per user |
+| `stats_daily` | `5 0 * * *` | `service/maintenance` | upsert yesterday's `stats` row (docs/DATA_MODEL.md) |
+
+`commission_settle`:
+
+1. With `commission_auto_check_enable`, completed orders whose commission has been pending for 72 h become 1 (approved).
+2. Every approved order is paid out to the invite chain (l1/l2/l3 shares when `commission_distribution_enable` is on).
+   The money goes to `commission_balance`, or to `balance` with `withdraw_close_enable`.
+3. Each payout is logged in `commission_logs` and the order becomes 2 (valid).
+
+`traffic_reset` handles users with `next_reset_at <= now`, 500 per transaction:
+
+- If the plan still resets (plan present, effective method ≠ never, `expired_at` set), it sets u = d = 0 and computes
+  the next `next_reset_at`.
+- Otherwise it only clears `next_reset_at`.
+- It then invalidates the node user lists.
+
+The mail queue is not a cron job. It is a worker goroutine with a bounded channel (1024) and 3 retries
+(1 s, 2 s, 4 s). Requests never send mail inline; every outcome is written to `mail_logs`.
 
 ## Security
-- Passwords: argon2id for new hashes; bcrypt (`$2y$`, `$2a$`, `$2b$`) verified for imported users and transparently upgraded on login.
-- Login/register/send-code rate limits per IP + per email; optional captcha (turnstile/recaptcha/hcaptcha).
-- Subscription endpoint rate-limited per token; invalid token → 403 without leaking existence.
-- Payment notify: every gateway verifies signature; idempotent `paid()`; amount compared with order.
-- Admin config values that are secrets (SMTP password, payment configs, server_token) are never returned to non-admin; config endpoint returns them to admin only.
-- CORS: same-origin by default; `server.cors_origins` to widen.
-- Headers: `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options: DENY` on SPA, CSP on SPA (`default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'`).
+
+- **Passwords**: argon2id (m = 64 MiB, t = 3, p = 4) for new hashes. Imported users can still sign in with bcrypt
+  `$2y$`/`$2a$`/`$2b$` and Xboard `xb$…` hashes, which are upgraded transparently on login without bumping
+  `password_version`.
+- **Second factor**: TOTP (RFC 6238, ±1 step, replay guard via `totp_last_step`) with single-use backup codes, and
+  passkeys (WebAuthn discoverable credentials, usernameless login).
+  - With `admin_mfa_required`, admins and staff without a second factor get `403 mfa_setup_required` on `/admin/*`.
+  - TOTP secrets are encrypted with a key derived from `jwt.secret`.
+- **Rate limits**:
+  - `/passport/*`: 30 requests/min per IP; `send-code`: 10 requests/h per IP.
+  - Per email: a code cooldown and the password lockout (`password_limit_*`); registrations per IP (`register_limit_*`).
+  - `/user/security/*` and order create / checkout / coupon check: rate limited.
+  - Subscriptions: 120 requests/h per token, burst 30.
+  - An optional captcha (turnstile, recaptcha, hcaptcha).
+- **Subscriptions**: a malformed or unknown token gets 403 without revealing whether it exists. A banned, expired or
+  over-quota user gets a valid document with only the info entries and no nodes.
+- **Payment notify**: every gateway verifies its signature; fulfilment is idempotent and compares the amount with the order.
+- **Secrets**: `server_token`, `email_password`, `captcha_secret` and payment configs are only served by admin-only
+  endpoints.
+- **CORS**: same-origin by default; `server.cors_origins` widens it.
+- **Headers**: every response sets `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`
+  and `X-Frame-Options: DENY`. HTML documents add this CSP:
+  `default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'`.
 
 ## Pluggability
-Every plugin point is a Go interface + a registry in `internal/plugin` (`Registry[T]` with `Register(name, v)`, `Get`, `Names`, `Each`).
-Jobs register with `app.RegisterJob(name, spec, fn)` and CLI subcommands with `cli.Register(factory)`, both from `init()`.
-Built-ins self-register in `init()`; `cmd/ggboard/main.go` blank-imports the plugin packages.
-See `AGENTS.md` §7 for the table.
 
-## Frontend delivery
-- `web/` builds to `web/dist` (Vite). The Go build embeds `web/dist` via `internal/static` (`//go:embed all:dist`, copied by `make web`).
-- Assets are served with `Cache-Control: public, max-age=31536000, immutable` (hashed names), `index.html` with `no-cache`.
-- Brotli/gzip precompressed files served when `Accept-Encoding` allows (`vite-plugin-compression2` emits `.br`/`.gz`).
-- `GET /` and unknown paths fall back to `index.html` (SPA). `/api/*` never falls back.
+Every plugin point is a Go interface plus a registry built on `plugin.NewRegistry[T](kind)` (`Register`, `Get`, `Has`,
+`Names`, `Each`, `Len`; duplicate names panic). Built-ins register in `init()` and are linked by blank imports:
+
+| plugin point | registry | built-ins | linked by |
+|---|---|---|---|
+| payment gateway | `payment.Register` | epay, epusdt, alipay_f2f, stripe, coinbase, btcpay | `cmd/ggboard/plugins_payment.go` → `internal/payment/gateways` |
+| subscription format | `subscription.RegisterFormat` | clash-meta, stash, clash, singbox, surge, surfboard, quantumultx, shadowrocket, loon, v2ray, ssr | `internal/api/client` → `internal/subscription/formats` |
+| captcha | `captcha.Register` | none, turnstile, recaptcha, hcaptcha | `internal/captcha` itself |
+| mail driver | `mail.FromSettings` (`email_driver`) | smtp, log (memory in tests) | `internal/mail` |
+| jobs | `app.RegisterJob(name, spec, fn)` | see above | `cmd/ggboard/jobs_maintenance.go`; `service/order` through the API packages |
+| CLI subcommands | `cli.Register(factory)` | `import xboard` | `cmd/ggboard/import.go` |
+
+See `AGENTS.md` §7.
+
+## Frontend delivery (`internal/static`)
+
+- `make web` builds `web/` with Vite and copies `web/dist` into `internal/static/dist`, which is embedded with
+  `//go:embed all:dist`. `frontend.dir` serves a directory instead.
+- Files under `assets/` (content-hashed) get `Cache-Control: public, max-age=31536000, immutable`. Everything else,
+  including `index.html` and `sw.js`, gets `no-cache` with a sha256 ETag.
+- `.br`/`.gz` siblings (emitted by `vite-plugin-compression2`) are served when `Accept-Encoding` allows.
+- Fallbacks:
+  - Unknown GET/HEAD paths fall back to `index.html`.
+  - Missing asset-like paths (with an extension, or under `assets/`) return 404.
+  - `/api/*` and `/soga/*` return a JSON 404.
+  - Without a built frontend, a small "Frontend not built" page is served.
 
 ## Testing
-- Unit tests next to code. API tests use `testutil.NewTestApp(t)` → private SQLite file in `t.TempDir()` (WAL, so concurrency behaves
-  like production; an in-memory DB with one connection deadlocks on legitimate nested reads), default settings, in-memory mailbox;
-  `testutil.NewRouterWith(t, app, pkg.Register)` builds the engine; `testutil.Login(t, app, user)` returns a JWT. See `docs/BACKEND.md`.
-- `make test` runs `go test ./... -race`; `make e2e` builds the frontend, starts the server on a random port and runs the smoke script in `scripts/e2e.sh`.
-- Frontend: `vitest` for utils/stores; Lighthouse via `@lhci/cli` against `vite preview` (see `web/lighthouserc.cjs`).
+
+- Unit tests sit next to the code. `testutil.NewTestApp(t)` gives each test a private SQLite file in `t.TempDir()`.
+  - It uses WAL so concurrency behaves like production. A one-connection in-memory DB deadlocks on legitimate
+    nested reads.
+  - It also provides default settings, cheap argon2 parameters and an in-memory mailbox.
+  - `testutil.NewRouterWith(t, app, pkg.Register)` builds an engine; `testutil.Login(t, app, user)` returns a JWT.
+    See docs/BACKEND.md §10.
+- `make test` runs `go test ./... -race -count=1`.
+- `make e2e` (`scripts/e2e.sh`) builds the binary, starts it on a random port with a throwaway data dir, and checks
+  `/healthz`, `GET /api/v1/guest/config` and the SPA root. It does not build the frontend; run `make web` first to
+  test the real SPA.
+- Frontend: `vitest` for utils and stores; Lighthouse via `@lhci/cli` (see `web/lighthouserc.cjs`).

@@ -6,45 +6,61 @@ with `AGENTS.md`, `MISTAKES.md` and `docs/FRONTEND.md` (verified library cheat s
 
 ```bash
 pnpm install
-pnpm dev                 # http://localhost:5173, /api → http://localhost:8080 (GGBOARD_API=… to override)
+pnpm dev                 # http://localhost:5173, /api and /s/ → http://localhost:8080 (GGBOARD_API=… to override)
 pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm lh   # quality gates — all must pass
-pnpm preview:mock        # serve dist/ with fixture API (demo login: any email/password)
+pnpm routes              # regenerate src/routeTree.gen.ts (typecheck/lint/test do it first)
+pnpm preview:mock        # serve dist/ like the Go server + fixture API (demo login: any email/password)
 pnpm lh:mobile           # Lighthouse with mobile emulation (informational, see "Performance")
-pnpm format              # prettier
+pnpm format              # prettier (format:check in CI)
 ```
+
+Dev-only mock backends (in-memory, fake data on example.com, never bundled): `pnpm exec vite --config
+scripts/mock/vite.config.ts` (dev server + user-portal mock), or `node scripts/mock/server.ts` (admin console mock on
+`:8787`) together with `GGBOARD_API=http://localhost:8787 pnpm dev`; `scripts/mock/{commerce,admin-a}.ts` are smaller
+area mocks (see their header comments).
 
 ## Layout
 
-```
+```text
 src/
   main.tsx                 bootstrap: theme, <html lang>, `core` dictionary, router
-  router.tsx               createRouter (preload on intent, default pending/error/404, 401 → /login)
-  routes/                  file-based routes (TanStack Router plugin → routeTree.gen.ts, do not edit)
-    __root.tsx             tiny root: Suspense + toast region + 404
-    index.tsx              landing (hero) · -landing/ = lazy below-the-fold sections ("-" = ignored by the generator)
-    login.tsx register.tsx forgot.tsx
-    _user.tsx              pathless layout: /dashboard /shop /orders /orders/$tradeNo /subscription /invite /tickets …
-    _user/*.tsx            user pages (placeholders → replace the component body)
-    _admin.tsx             pathless layout (is_admin || is_staff) for /admin/*
-    _admin/admin/*.tsx     admin pages (admin-only pages keep `beforeLoad: requireAdmin`)
-  lib/api/                 client.ts, types.ts, guest.ts, passport.ts, user.ts, admin.ts, queries.ts
-  lib/                     guards, format, toast, motion, theme, errors, button, publicData, queryClient, validators
-  stores/                  auth.ts (token/user), ui.ts (theme/locale/sidebar) — persisted to localStorage
-  i18n/                    index.ts + <locale>/<namespace>.json
-  components/              shared UI (see below); reactbits/ (lazy animated text/cards)
-  styles/                  index.css (entry), theme.css (Apple tokens), utilities.css
-scripts/                   heroui-css.ts (per-component CSS), preview.ts (prod-like preview + mock API), fixtures/
+  router.tsx               createRouter (preload on intent, default pending/error/404, 401 → /login,
+                           403 mfa_setup_required → /profile?tab=security)
+  routes/                  file-based routes (TanStack Router plugin → routeTree.gen.ts, generated + git-ignored)
+    __root.tsx             tiny root: Suspense + lazy toast region + 404
+    index.tsx              landing · -landing/ = lazy below-the-fold sections ("-" = ignored by the generator)
+    login.tsx register.tsx forgot.tsx · -login/MfaStep.tsx (TOTP / backup-code step)
+    _user.tsx              pathless layout (signed in): /dashboard /shop /orders /orders/$tradeNo /subscription
+                           /invite /tickets /tickets/$id /knowledge /notices /profile (tabs, ?tab=security)
+    _admin.tsx             pathless layout (is_admin || is_staff) for /admin/* (/admin → dashboard or tickets)
+    _admin/admin/*.tsx     dashboard users plans groups nodes routes orders coupons payments tickets notices
+                           knowledge settings rulesets system (staff: users, tickets, notices, knowledge)
+  features/<area>/         page bodies, dialogs and helpers per area: dashboard, shop, orders, subscription, invite,
+                           tickets, content, security, admin/<page>/ (route files stay thin)
+  lib/api/                 client.ts, types.ts, guest.ts, passport.ts, user.ts, admin.ts, queries.ts, index.ts
+  lib/                     guards, format, toast, motion, theme, errors, authErrors, button, clipboard, cn,
+                           publicData, queryClient, validators
+  hooks/                   useLiteForm, useFinishAuth, useCooldown, useCssVar
+  stores/                  auth.ts (token/user, `gg-auth`), ui.ts (theme/locale/sidebar, `gg-ui`), storage.ts
+  i18n/                    index.ts + <locale>/<namespace>.json (zh-CN, en)
+  components/              shared UI (see below)
+  styles/                  index.css (entry), theme.css (Apple tokens), utilities.css (@utility classes)
+  test/                    vitest setup + cross-feature tests (autofill, login/MFA, security, …)
+scripts/                   gen-routes.mjs, heroui-css.ts (per-component CSS), preview.ts (prod-like preview + mock
+                           API), fixtures/, mock/ (dev mock backends)
+public/                    favicon.svg, apple-touch-icon.png, manifest.webmanifest, robots.txt
 ```
 
 ## Adding a page
 
 1. Create the route file, e.g. `src/routes/_user/orders/index.tsx` (URL `/orders`) or
    `src/routes/_admin/admin/users.tsx` (URL `/admin/users`). The dev server/build regenerates `routeTree.gen.ts`.
-2. Export **only** `Route` from a route file (anything else breaks code splitting). Put helpers next to it in a
-   `-something/` folder or `-columns.tsx` file (the `-` prefix is ignored by the generator).
+2. Export **only** `Route` from a route file (anything else breaks code splitting). Put the page body and helpers in
+   `src/features/<area>/` (or a `-something/` folder next to the route; the `-` prefix is ignored by the generator).
 3. Wrap the body in `<PageShell title=… description=… actions=…>`; it renders the single `<h1>` and sets `document.title`.
-4. Admin-only pages: `beforeLoad: requireAdmin`. Staff pages (tickets/notices/knowledge): nothing extra.
-5. Navigation entries live in `src/components/layout/nav.ts` (labels in `i18n/*/nav.json`).
+4. Admin-only pages: `beforeLoad: requireAdmin`. Staff pages (users read-only, tickets, notices, knowledge): nothing extra.
+5. Navigation entries live in `src/components/layout/nav.ts` (labels in `i18n/*/nav.json`; `staff: true` shows an
+   admin entry to staff).
 
 ```tsx
 import { useQuery } from '@tanstack/react-query'
@@ -75,11 +91,15 @@ function OrdersPage() {
 
 ## Data: API + React Query
 
-- **Never call `fetch` directly.** Endpoint functions for every route in `docs/API.md` live in `src/lib/api/{guest,passport,user,admin}.ts`:
+- **Never call `fetch` directly.** Endpoint functions for every route the SPA uses live in `src/lib/api/{guest,passport,user,admin}.ts`
+  (2FA/passkey calls included; `src/features/security/webauthn.ts` wraps `@simplewebauthn/browser`):
   `import { userApi, adminApi } from '@/lib/api'` → `userApi.orders({ page })`, `adminApi.updateUser(id, patch)`.
 - The client (`lib/api/client.ts`) unwraps `{data}` → `T` and `{data,total}` → `Page<T> = { items, total }`, adds
-  `Authorization: Bearer`, times out after 15 s and throws `ApiError { status, code, message, errors, fieldError(f) }`.
-  A 401 on an authenticated call clears the session and redirects to `/login?redirect=…`.
+  `Authorization: Bearer` and `Accept-Language`, times out after 15 s and throws
+  `ApiError { status, code, message, errors, retryAfter, fieldError(f) }` (`retryAfter` = the 429 `Retry-After` seconds).
+  A 401 on an authenticated call clears the session and redirects to `/login?redirect=…` (`keepSession: true` opts out,
+  e.g. a failed WebAuthn check); a 403 `mfa_setup_required` (admin/staff without 2FA) sends the user to
+  `/profile?tab=security`.
 - Types for every object are in `src/lib/api/types.ts` (money = cents, traffic = bytes, `Plan.transfer_enable` = GB).
 - Reads: use (or add) a `xxxQuery()` factory in `src/lib/api/queries.ts` — `queryOptions` + `qk` key + forwarded `signal`.
 - Writes: `useMutation` → on success `queryClient.invalidateQueries({ queryKey: qk.user.orders() })` (or `qk.admin.all`).
@@ -145,11 +165,13 @@ React Aria JS) — see "Performance".
 
 ## Shared components (`src/components`)
 
-`PageShell`, `EmptyState`, `ComingSoon`, `LoadingPage`/`Spinner`, `StatCard` (numbers count up after idle),
+`PageShell`, `EmptyState`, `LoadingPage`/`Spinner`, `ErrorBoundary`, `RouteError`, `NotFound`, `StatCard` (numbers count up after idle),
 `TrafficBar` (ARIA meter), `Money`/`Traffic`/`DateTime` (`Formatters.tsx`, Intl based; raw functions in `lib/format.ts`),
 `CopyButton` (+ `lib/clipboard.ts`), `QRCode` (lazy `qrcode`, SVG), `Markdown` (lazy `marked` + `dompurify`),
 `ThemeToggle`, `LocaleToggle`, `Logo`, `Captcha` (Turnstile / reCAPTCHA / hCaptcha script loaded only when enabled; the
-backend CSP must allow the provider when it is on), `data-table/`, `form/`, `feedback/`, `layout/` (AppShell, AuthLayout, nav).
+backend CSP must allow the provider when it is on; `LazyCaptcha` defers it), `AriaProviders` (React Aria router + locale, rendered by
+`AppShell`), `data-table/`, `form/`, `feedback/`, `layout/` (AppShell, AuthLayout, nav), `charts/` (SVG line/bar/sparkline),
+`editor/` (Markdown editor), `native/` (`NativeField`, `NativeButton`), `icons/inline.tsx`, `auth/EmailCodeButton`.
 `reactbits/` — ShinyText, GradientText, BlurText, SpotlightCard, CountUp (React Bits, _MIT + Commons Clause_: use inside
 the app is fine, don't extract them). Always via the lazy exports + `<WhenIdle fallback={same-size static}>`.
 
@@ -179,7 +201,8 @@ No hex colors in components. Dark mode follows the OS; `useUiStore().setTheme('l
 
 ## Performance rules (AGENTS §6)
 
-- **First-load budget: ≤ 120 KB gzip JS** for landing/login. Current: landing ≈ 109 KB, login ≈ 111 KB (incl. dictionaries).
+- **First-load budget: ≤ 120 KB gzip JS** for landing/login. Last measured at merge time: landing ≈ 109 KB, login ≈ 111 KB
+  (incl. dictionaries); re-measure after dependency changes.
   Fixed cost: React 19 (67 KB) + TanStack Router (26 KB). Check with `pnpm build` (sum the chunks a page loads).
 - Public pages use native elements with HeroUI CSS classes (`NativeButton`, `NativeField`, `buttonClass`, inline icons in
   `components/icons/inline.tsx`) and no React Query; HeroUI React components, React Aria, lucide and React Query load with
@@ -197,15 +220,19 @@ No hex colors in components. Dark mode follows the OS; `useUiStore().setTheme('l
 
 ## Assumptions about the backend
 
-- Admin "login as" URL is `/login?token=<one-time token>` (handled by the login page → `POST /passport/login/token`).
-- Invite links: `/register?code=<invite code>`. Payment return: `/orders/<trade_no>` (route exists).
-- Static server: SPA fallback to `index.html` (no-cache), `.br`/`.gz` + `immutable` for `/assets/*`.
+- Admin "login as" URL is `<app_url>/login?token=<one-time token>` (`POST /admin/users/:id/login-token` → `{url}`; the login
+  page exchanges it with `POST /passport/login/token`).
+- Invite links: `<app_url>/register?code=<invite code>`. Payment return: gateways go to
+  `/api/v1/guest/payment/return/<trade_no>`, which 302s to `/orders/<trade_no>`.
+- `/.well-known/change-password` and `/.well-known/passkey-endpoints` point password managers at `/profile?tab=security`.
+- Static server (`internal/static`): SPA fallback to `index.html` (no-cache), precompressed `.br`/`.gz` and `immutable`
+  caching for hashed assets.
 
 ## Tooling notes
 
 - `src/routeTree.gen.ts` is generated and git-ignored; `pnpm typecheck|lint|test` regenerate it first
   (`pnpm routes` = resolve the Vite config, which runs the router generator).
-
 - TypeScript 7 (`tsc -b`) has no compiler API; `.pnpmfile.cjs` gives typescript-eslint its own TypeScript 6.0 so
-  type-aware lint works (equivalent to the alias documented in `docs/FRONTEND.md` §1).
-- `pnpm-workspace.yaml` (pnpm ≥ 10 settings). New packages younger than pnpm's minimum release age are held back.
+  type-aware lint works (see `docs/FRONTEND.md` §1).
+- `pnpm-workspace.yaml` (pnpm ≥ 10 settings; standalone project). New packages younger than pnpm's minimum release age are
+  held back (`minimumReleaseAgeExclude` lists the exceptions). Node ≥ 22 (`engines`).

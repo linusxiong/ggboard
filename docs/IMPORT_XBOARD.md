@@ -1,11 +1,12 @@
 # Import from Xboard — `ggboard import xboard`
 
-Implementation spec for `internal/importer/xboard`. You do not need the PHP sources: every rule below was checked against
+Spec of `internal/importer/xboard` (package `xboardimport`; the code implements this file). You do not need the PHP sources: every rule below was checked against
 the user's fork `linusxiong/Xboard` (Laravel 10, **legacy**, "L") and `cedar2025/Xboard` master as of 2026-05 (**upstream**, "U").
 Target schema: `docs/DATA_MODEL.md` (`internal/model`). Notation: `ts(x)` = `time.Unix(x,0).UTC()`; **W** = emit a warning;
 "—" = the column does not exist in that version.
 
 ## 0. Guarantees
+
 - The source is opened read-only, in one consistent snapshot. The importer never writes to it.
 - All target writes run in **one transaction**. Any fatal error rolls back, and the target is left unchanged.
 - Primary keys are kept, so `invite_user_id`, `plan_id`, `group_id`, `parent_id` and `ticket_id` stay valid. The one
@@ -14,15 +15,20 @@ Target schema: `docs/DATA_MODEL.md` (`internal/model`). Notation: `ts(x)` = `tim
 - Every lossy conversion emits a W line. No data is dropped silently.
 
 ## 1. Connection and detection
+
 ### 1.1 DSN (`--dsn "<scheme>://<rest>"`)
+
 | scheme | Go driver | `<rest>` | example |
 |---|---|---|---|
-| `mysql://` | `github.com/go-sql-driver/mysql` | go-sql-driver DSN | `mysql://xboard:secret@tcp(127.0.0.1:3306)/xboard` |
+| `mysql://` | `github.com/go-sql-driver/mysql` | go-sql-driver DSN, or URL form `user:pass@host[:3306]/db` | `mysql://xboard:secret@tcp(127.0.0.1:3306)/xboard`, `mysql://xboard:secret@127.0.0.1:3306/xboard` |
 | `postgres://`, `postgresql://` | `pgx/v5/stdlib` | whole URL, unchanged | `postgres://xboard:secret@127.0.0.1:5432/xboard?sslmode=disable` |
-| `sqlite://` | `github.com/glebarez/sqlite` (pure Go) | file path | `sqlite:///srv/xboard/database/database.sqlite` |
+| `sqlite://`, `sqlite3://` | `github.com/glebarez/sqlite` (pure Go) | file path (`sqlite://rel/path` is relative to the working directory) | `sqlite:///srv/xboard/database/database.sqlite` |
 
-- **mysql**: the importer forces `parseTime=false`, `charset=utf8mb4` and `interpolateParams=true`, and removes `loc`. So
-  `?parseTime=true` in the user's DSN is accepted and then overridden. **Never set `time_zone`.** Reasons in §1.2.
+With `--driver mysql|postgres|sqlite`, `--dsn` may be a raw driver DSN without a scheme (`ParseDSN` in `dsn.go`).
+
+- **mysql**: the importer forces `parseTime=false`, `charset=utf8mb4`, `interpolateParams=true` and `loc=UTC`, and removes
+  any `loc` / `time_zone` parameter. So `?parseTime=true` in the user's DSN is accepted and then overridden. **Never set
+  `time_zone`.** Reasons in §1.2.
 - **sqlite**: open with `file:<path>?mode=ro&_pragma=busy_timeout(5000)`. The file is whatever Xboard's `.env`
   `DB_DATABASE` points to, relative to the Xboard root.
 - **postgres**: tables live in `current_schema()`, which is `public` because Xboard sets `search_path=public`. A
@@ -32,6 +38,7 @@ Target schema: `docs/DATA_MODEL.md` (`internal/model`). Notation: `ts(x)` = `tim
 - The DSN password is never printed. The summary shows only the driver, host and database name.
 
 ### 1.2 Reading rules
+
 - **Snapshot**: mysql `START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY`; pg `BEGIN ISOLATION LEVEL REPEATABLE READ
   READ ONLY`; sqlite one read transaction. Stream rows and insert them into the target in batches of 500.
 - **Flex scanners are mandatory**, because one Laravel column has different types per driver. `boolean()` is `tinyint(1)` on
@@ -50,6 +57,7 @@ Target schema: `docs/DATA_MODEL.md` (`internal/model`). Notation: `ts(x)` = `tim
   (§4.14), and to compute `next_reset_at` (§4.5.2).
 
 ### 1.3 Detection probes
+
 - **Tables**: mysql `information_schema.tables WHERE table_schema=DATABASE()`; pg `… WHERE table_schema=current_schema()`;
   sqlite `sqlite_master WHERE type='table'`.
 - **Columns**: `information_schema.columns`, or `PRAGMA table_info(t)` on sqlite.
@@ -72,9 +80,10 @@ Target schema: `docs/DATA_MODEL.md` (`internal/model`). Notation: `ts(x)` = `tim
 Run each column probe independently of the flavor. Forks cherry-pick migrations.
 
 ## 2. Shared parsers
+
 - **`parseIDList(raw) []uint64`**, used for `group_id`, `route_id`, `group_ids`, `route_ids` and `limit_plan_ids`. Accepts
-  NULL/`""` → `[]`; a JSON array of numbers or numeric strings (`["1","2"]`, `[1,2]`); a JSON **object** (PHP `array_filter`
-  + `json_encode` produces `{"0":"1","2":"3"}`: take values in key order); a bare scalar `3` / `"3"`; non-JSON text split
+  NULL/`""` → `[]`; a JSON array of numbers or numeric strings (`["1","2"]`, `[1,2]`); a JSON **object** (PHP `array_filter` then
+  `json_encode` produces `{"0":"1","2":"3"}`: take values in key order); a bare scalar `3` / `"3"`; non-JSON text split
   on `,`, `\n` and `|`. Non-numeric or ≤ 0 elements are dropped with W; duplicates removed, order kept.
 - **`parseStringList(raw) []string`**: the same shapes, for `tags`, `match`, `email_whitelist_suffix`, etc. Trim each item
   and drop empty ones (and repeats). Plain text splits on newlines when it has any, else on `,`; `|` never splits
@@ -83,7 +92,9 @@ Run each column probe independently of the flavor. Forks cherry-pick migrations.
 - **`nz(v)`**: 0 or NULL becomes `nil`. Used for Xboard columns where "0 = unlimited".
 
 ## 3. Order, IDs, idempotency
+
 ### 3.1 Write order (one transaction)
+
 settings → server_groups → plans → node_routes → nodes (two passes: insert with `parent_id` NULL, then `UPDATE parent_id`)
 → users (two passes for `invite_user_id`) → invite_codes → commission_logs → coupons → payments → tickets → ticket_messages
 → notices → knowledge → stats, stat_nodes, stat_users (only with `--with-stats`) → sequence reset (§3.3).
@@ -96,6 +107,7 @@ pre-pass over `v2_user` resolves email collisions), so `parent_id` and `invite_u
 each table is inserted in one pass. The result is the same as the two passes above.
 
 ### 3.2 IDs
+
 - **Kept ids**: every table except `nodes` and `stat_*` is inserted with the source `id`. Upstream nodes keep `v2_server.id`.
 - **Legacy nodes**: the 5 legacy tables each have their own id space, so ids can collide.
   1. Process types in Xboard's own merge order: shadowsocks, vmess, trojan, hysteria, vless. Within a type, go by id ascending.
@@ -112,17 +124,22 @@ each table is inserted in one pass. The result is the same as the two passes abo
 - **stat_\* rows** get fresh ids.
 
 ### 3.3 Sequences
+
 - **PostgreSQL**: before commit, run this for every table with kept ids:
   `SELECT setval(pg_get_serial_sequence('<t>','id'), COALESCE((SELECT MAX(id) FROM <t>),0)+1, false);`
 - **MySQL (InnoDB) and SQLite**: no action needed. InnoDB raises AUTO_INCREMENT on explicit ids, and SQLite `AUTOINCREMENT`
   updates `sqlite_sequence`.
 
 ### 3.4 Idempotency
+
 - **Default**: abort with exit 1, writing nothing, if any of these target tables has rows: users, plans, server_groups, nodes,
   node_routes, orders, payments, coupons, invite_codes, commission_logs, tickets, ticket_messages, notices, knowledge,
   stat_users, stat_nodes, stats, rule_profiles.
   - Run the import right after `ggboard migrate` and **before** `ggboard admin create`. Imported `is_admin` users stay admins.
   - The `settings` table is allowed to be non-empty, because defaults are seeded on boot.
+  - Not in the list: `user_mfa` and `passkeys` (and `mail_logs`, which is keyed by email). They are neither checked nor
+    cleared, so `--force` on a panel that already had users keeps their 2FA and passkey rows, keyed by user ids that the
+    import then reuses. Delete them by hand before a `--force` run (tracked as a code bug).
 - **`--force`**: inside the same transaction, `DELETE FROM` all the tables above (children first), then import. Imported
   settings keys are upserted. Other settings keys are not touched.
 - **No upsert-by-id mode**. Rows deleted in Xboard would linger, and node remaps are not stable between runs. To refresh,
@@ -132,10 +149,13 @@ each table is inserted in one pass. The result is the same as the two passes abo
   transactional and would survive the rollback) and the reload of the running settings snapshot.
 
 ## 4. Table mappings
+
 ### 4.1 server_groups ← `v2_server_group` (L = U)
+
 `id`, `name` verbatim. `created_at`, `updated_at` = `ts()`.
 
 ### 4.2 plans ← `v2_plan`
+
 | ours | L | U | conversion |
 |---|---|---|---|
 | id | id | id | keep |
@@ -163,6 +183,7 @@ kept, because L lets users buy it for free; W.
 `getActivePeriods` hides them and its admin form strips them). Unknown keys are dropped with W.
 
 ### 4.3 node_routes ← `v2_server_route`
+
 | ours | L / U | conversion |
 |---|---|---|
 | id, remarks | id, remarks | verbatim |
@@ -172,6 +193,7 @@ kept, because L lets users buy it for free; W.
 | created_at, updated_at | int | `ts()` |
 
 ### 4.4 nodes ← `v2_server_<type>` (L) / `v2_server` (U)
+
 **Common columns**:
 
 | ours | L | U | conversion |
@@ -191,6 +213,7 @@ kept, because L lets users buy it for free; W.
 | created_at, updated_at | int → `ts()` | datetime (§1.2) | |
 
 **Dropped columns** (W when non-empty or enabled):
+
 - L: `excludes` (hides nodes from mainland-China visitors) and `ips`. In the fork, `ips` lets child nodes with their own
   rate account traffic by backend IP. Ours always counts on the parent.
 - U: `code` (§3.2), `machine_id`, `transfer_enable`/`u`/`d` (node quota), `rate_time_enable`/`rate_time_ranges`,
@@ -198,6 +221,7 @@ kept, because L lets users buy it for free; W.
 
 **Materialised keys.** Xboard derives the SS2022 server PSK and the hysteria obfs password from the node's `created_at`:
 `base64(hex(md5(decimal(created_at)))[0:n])`. That is std base64, with padding, of the first n **hex characters**.
+
 - For child nodes, use the **parent's** `created_at`. Both versions do this for clients, and the backend polls the parent.
 - Write the result into `protocol_settings` instead of relying on our `created_at` fallback. That fallback ignores parents,
   and U datetimes depend on the time zone.
@@ -231,6 +255,7 @@ kept, because L lets users buy it for free; W.
 | mieru | `transport` ?? `"TCP"`. `traffic_pattern` is dropped (W if non-empty). |
 
 ### 4.5 users ← `v2_user` (L = U, plus U-only columns)
+
 | ours | source | conversion |
 |---|---|---|
 | id | id | keep |
@@ -262,6 +287,7 @@ kept, because L lets users buy it for free; W.
 Dropped columns: `t` (last traffic time); U-only `online_count`, `last_online_at`, `last_reset_at`, `reset_count`, `next_reset_at`.
 
 #### 4.5.1 Password hashes
+
 Xboard's `Helper::multiPasswordVerify` works like this. U added `sha256salt`.
 
 | `password_algo` (trimmed) | Xboard verify | stored `password_hash` |
@@ -283,6 +309,7 @@ A value starting with `!` never verifies. Vectors for `password123`: md5 `482c81
 `ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f`; md5salt with salt `abc$12` `1b84a6e599feeab25ace9f402aaa4858`.
 
 #### 4.5.2 `next_reset_at` (recomputed for every user)
+
 Let L = `--source-tz`, now = the import start time in L, E = `expired_at` in L, and M = `plan.reset_traffic_method`, or
 the imported effective setting `reset_traffic_method` when the plan's value is NULL (§4.13).
 
@@ -301,6 +328,7 @@ only the next-month one). The anchor is the **expiry** day. `DATA_MODEL.md` says
 period purchases because expiry = purchase + N months; §8 asks for the wording to be aligned.
 
 ### 4.6 invite_codes ← `v2_invite_code`
+
 `id`, `code`, `pv`, `created_at`, `updated_at` map directly; `user_id` must be an imported user (else skip, W);
 `status` = `flexBool` (true means consumed).
 
@@ -308,11 +336,13 @@ period purchases because expiry = purchase + N months; §8 asks for the wording 
 Duplicates are compared case-insensitively, because a MySQL target's unique index uses a case-insensitive collation.
 
 ### 4.7 commission_logs ← `v2_commission_log` (all rows; these are not orders)
+
 `id`, `invite_user_id`, `user_id`, `trade_no` (char(36)), `order_amount`, `get_amount` (cents), `created_at` = `ts()`.
 
 A row whose `invite_user_id` is not an imported user is still imported, with W. The log is historical.
 
 ### 4.8 coupons ← `v2_coupon`
+
 | ours | source | conversion |
 |---|---|---|
 | id, name | same | |
@@ -326,6 +356,7 @@ A row whose `invite_user_id` is not an imported user is still imported, with W. 
 | started_at, ended_at, created_at, updated_at | int | `ts()` |
 
 ### 4.9 payments ← `v2_payment`
+
 **Common columns**:
 
 | ours | source | conversion |
@@ -358,12 +389,14 @@ U only: if `v2_plugins` has a row for the gateway's plugin `code` (`epay`, `alip
 | anything else (`CoinPayments`, `MGate`, third-party plugins) | `lower(name)` | verbatim | **`enabled=false`**, W: "gateway not available in ggboard; kept for reference" |
 
 **Notify URL**: Xboard uses `/api/v1/guest/payment/notify/<ClassName>/<uuid>` and ggboard uses `…/notify/<gateway>/<uuid>`.
-Because the uuid is kept, URLs registered once in a gateway dashboard (Stripe, Coinbase, BTCPay) differ only in that one
-path segment (§8 proposes an alias). The warnings and the checklist print the new URL, built from the payment's
-`notify_domain`, else `app_url`. The user's live install has 3 EPay rows, all of which import as enabled with no action
-needed.
+The payment is looked up by uuid (kept), and the `:gateway` segment also accepts the lower-cased Xboard class names
+(`epay`, `epusdtpay`, `alipayf2f`, `stripeallinone`, `stripealipay`, `stripewepay`, `stripecredit`, `stripecheckout`,
+`coinbase`, `btcpay`; `ordersvc.GatewayMatches`), so URLs already registered in a gateway dashboard keep working. The
+warnings and the checklist still print the canonical URL, built from the payment's `notify_domain`, else `app_url`. The
+user's live install has 3 EPay rows, all of which import as enabled with no action needed.
 
 ### 4.10 tickets ← `v2_ticket`, ticket_messages ← `v2_ticket_message`
+
 - **tickets**: `id`, `subject` map directly; `user_id` must be an imported user (else skip the ticket and its messages, W).
   `level` = `flexInt` 0/1/2 (withdraw tickets use 2); `status` 0 open, 1 closed; timestamps `ts()`.
 - **`reply_status`, derived** (ours: 0 = awaiting staff, 1 = replied):
@@ -376,16 +409,20 @@ needed.
   was skipped are skipped too.
 
 ### 4.11 notices ← `v2_notice`
+
 `id`, `title`, `content` directly; `img_url` NULL → `""`; `tags` = `parseStringList`; `show` = `flexBool`. `sort`: U `sort`
 (NULL → 0). L has no column and orders notices by `created_at DESC`, so assign `sort` = rank by `created_at DESC, id DESC`
 (0, 1, …) to keep that order.
 
 ### 4.12 knowledge ← `v2_knowledge` (L = U)
+
 `id`, `language` (char(5), trimmed), `category`, `title`, `body` directly; `sort` NULL → 0; `show` = `flexBool`;
 timestamps `ts()`. Bodies may contain Xboard's `<!--access start-->…<!--access end-->` blocks, which Xboard shows only to users with a valid
-plan. Count those articles and emit W (§8).
+plan. ggboard honours them the same way (`content.RenderBody` replaces each block with a `knowledge-no-access` notice for users
+without a valid plan). The importer still counts those articles and emits W, with a stale message (see §8).
 
 ### 4.13 settings ← `v2_settings` (`name`, `value`)
+
 U's "optimised" table has the same columns; only `value` became `mediumtext`.
 
 - **Reading**: lower-case `name` (U lower-cases on save); on duplicate names the highest `id` wins. `value` is text: arrays
@@ -427,6 +464,7 @@ Explicitly dropped (listed in the summary): `force_https`, `secure_path`, `front
 fixed at `/s/:token`).
 
 ### 4.14 stats (only with `--with-stats`; window `--stats-days`, default 90)
+
 - **Row filter**: `record_type='d'` and `record_at ≥ (midnight(now in L) − N days)`.
 - **`record_at` conversion**: `record_at` is a unix **local midnight**. Convert it to a date in L. For example,
   `1729440000` → `2024-10-21`; using UTC would give the 20th.
@@ -442,6 +480,7 @@ fixed at `/s/:token`).
 rounded to 2 decimals; for U, raw = `charged/rate`, skipping rate 0; nothing derivable → rate 1.
 
 ### 4.15 Skipped tables
+
 | table(s) | reason |
 |---|---|
 | `v2_order` | requirement: no historical orders |
@@ -454,6 +493,7 @@ rounded to 2 decimals; for U, raw = `charged/rate`, skipping rate 0; nothing der
 | `migrations`, `personal_access_tokens`, `v2_server_stat` | framework or legacy internals |
 
 ## 5. Validation and edge cases
+
 | case | handling |
 |---|---|
 | `plan_id` → deleted plan | `plan_id` = NULL, W. `transfer_enable`/`expired_at` kept; `next_reset_at` null (Xboard's reset job also skips them) |
@@ -473,12 +513,14 @@ rounded to 2 decimals; for U, raw = `charged/rate`, skipping rate 0; nothing der
 | value longer than the ggboard column | Xboard `string()` is varchar(255); some of our columns are shorter (names 191, port 32). PostgreSQL and strict MySQL reject over-long values, so names are truncated and URLs (`icon`, `img_url`, `notify_domain`) dropped, W |
 
 ## 6. CLI
-```
+
+```bash
 ggboard import xboard --dsn "mysql://xboard:secret@tcp(127.0.0.1:3306)/xboard?parseTime=true" \
   [--dry-run] [--with-stats] [--stats-days 90] [--force] [--source-tz Asia/Shanghai]
 ```
+
 - The target DB comes from the normal ggboard config (`database.driver` / `database.dsn`).
-- This spec supersedes the `--skip-users` placeholder in `ARCHITECTURE.md`. Partial imports would break references.
+- There is no partial-import flag (such as `--skip-users`): partial imports would break references.
 - Exit codes: 0 success (warnings allowed; dry run too), 1 fatal (nothing written) or usage error (the foundation's
   `cli.Run` maps every command error to 1; usage errors wrap `xboardimport.ErrUsage`). Warnings go to stdout and are
   mirrored to slog at WARN. Secrets are never printed.
@@ -488,7 +530,8 @@ ggboard import xboard --dsn "mysql://xboard:secret@tcp(127.0.0.1:3306)/xboard?pa
   nodes, webhook URLs, disabled payments, unusable hashes, access-block articles, a missing `app_url`).
 
 Summary format:
-```
+
+```text
 Xboard import — source mysql 127.0.0.1/xboard · flavor legacy · migrations 33 (last 2024_03_19_103149_modify_icon_column_to_v2_payment_table)
 mode: DRY-RUN (rolled back) · source-tz Asia/Shanghai · stats: off
 table             source  imported  skipped
@@ -513,17 +556,22 @@ next: docs/IMPORT_XBOARD.md §7 post-import checklist
 ```
 
 ## 7. Operator checklist
-**Before the import**
+
+### Before the import
+
 1. Put Xboard in maintenance or stop selling. Wait for pending payments: pending orders are **not** migrated.
 2. Settle commissions: run `php artisan check:commission` in Xboard. Unsettled order commissions do not carry over.
 3. Run with `--dry-run`, read every warning, then run for real.
 
-**After the import**
+### After the import
+
 1. **Backends.** `server_token` was copied 1:1, so XrayR `ApiKey`, V2bX and soga keys stay valid. Point `ApiHost`/
    `webapi_url` at ggboard (or move the old domain's DNS). Apply every node-renumber (`NodeID`) and `code` warning.
-2. **Payments.** EPay, Epusdt and AlipayF2F work as-is. Stripe, Coinbase, BTCPay: change the webhook URL in the gateway
-   dashboard to `https://<host>/api/v1/guest/payment/notify/<stripe|coinbase|btcpay>/<uuid>` (Stripe: also
-   subscribe `checkout.session.completed`), then enable. Review and delete the disabled unknown gateways.
+2. **Payments.** EPay, Epusdt and AlipayF2F work as-is. Stripe and BTCPay: the old webhook URL keeps working (class-name
+   alias, §4.9), but switching it to `https://<host>/api/v1/guest/payment/notify/<stripe|btcpay>/<uuid>` is cleaner
+   (Stripe: subscribe `checkout.session.completed` and `checkout.session.async_payment_succeeded`); then enable Stripe.
+   Coinbase: create Coinbase Business (CDP) credentials and a webhook to `…/notify/coinbase/<uuid>`, then enable. Review
+   and delete the disabled unknown gateways.
 3. **Subscriptions.** `curl -sI "https://<host>/api/v1/client/subscribe?token=<a real token>"` → 200 with
    `subscription-userinfo` (same path as L; U's short link `/s/<token>` works if `subscribe_path` was `s`). Check that
    `subscribe_url` lists the domains users already have.
@@ -531,20 +579,24 @@ next: docs/IMPORT_XBOARD.md §7 post-import checklist
    hashes must use "forgot password".
 5. **Settings.** Send a test mail (`/admin/settings/mail/test`); re-check captcha keys; re-set dropped items you need
    (theme, Telegram). Xboard's `secure_path` no longer applies: restrict `/admin` at the proxy if you relied on it.
-6. **Content.** Knowledge articles that use access blocks (W) need §8's knowledge rule before you publish them.
+6. **Content.** Knowledge articles that use access blocks (W) work as in Xboard; the warning is informational (§4.12).
 7. **Keep the Xboard DB** as a read-only backup. The importer never modifies it.
 
 ## 8. Contract follow-ups for other owners
-1. **auth**: verify `xb$<algo>$<salt>$<hash>` (§4.5.1) and upgrade to argon2id on success.
-2. **payment router**: optionally map Xboard class names to gateway ids in `:gateway` (`EPay`, `EpusdtPay`, `AlipayF2F`,
-   `StripeALLInOne`, `Coinbase`, `BTCPay`), because lookup is by uuid. Statically registered webhooks would then keep working
-   without changes.
+
+Status as of 2026-10-22: 1, 2 and 5 are implemented; 3, 6 (scheduler zone) and 7 are open; 4 is accepted.
+
+1. **auth** (done, `internal/auth/password.go`): verify `xb$<algo>$<salt>$<hash>` (§4.5.1) and upgrade to argon2id on success.
+2. **payment router** (done, `ordersvc.GatewayMatches`): map Xboard class names to gateway ids in `:gateway` (`EPay`,
+   `EpusdtPay`, `AlipayF2F`, `StripeALLInOne` and the old Stripe classes, `Coinbase`, `BTCPay`), because lookup is by uuid.
+   Statically registered webhooks keep working without changes.
 3. **order/invite**: with `commission_first_time_enable`, an invitee who already paid in Xboard looks like a first-time
    buyer. Proposal: add `users.first_paid_at *time`. The importer would fill it from `MIN(paid_at)` over `v2_order` rows with
    status 3 or 4. That reads orders but does not import them. Until then, document the risk.
 4. **upgrade surplus**: upgrade credit is computed from previous orders, so imported users get none on their first upgrade.
    Accepted limitation.
-5. **knowledge**: strip `<!--access start-->…<!--access end-->` for users without a valid plan, or W stays.
+5. **knowledge** (done, `internal/service/content`): replace `<!--access start-->…<!--access end-->` for users without a
+   valid plan. The importer's W text ("ggboard shows to every user") and the checklist line still predate this.
 6. **DATA_MODEL wording**: reset methods 1 and 4 anchor on the **expiry** day (§4.5.2). `stat_users.u/d` = charged bytes and
    `node_id = 0` = "unknown node (imported)". The traffic-log API must left-join nodes. The scheduler should run
    reset jobs in the same zone as `--source-tz`; there is no timezone setting yet.
@@ -552,6 +604,7 @@ next: docs/IMPORT_XBOARD.md §7 post-import checklist
    `code` before `id`, as U does.
 
 ## 9. Test plan
+
 **Fixtures.** Commit SQL, not binary `.sqlite` files, in `internal/importer/xboard/testdata/`.
 
 | file | contents |
@@ -567,11 +620,13 @@ The helper `newSource(t, flavor, extraSQL...) string` builds a temp sqlite file 
 `sqlite://…`. The target is `testutil.NewTestApp(t)` (a private sqlite file). The build-tagged `integration` suite
 (`integration_test.go`) runs against servers given by `GGBOARD_IT_POSTGRES_DSN` / `GGBOARD_IT_MYSQL_DSN` (each test
 creates and drops its own database; the file header has the `docker run` lines for PostgreSQL 16 and MySQL 8.4):
+
 - sources: the same seed loaded into PostgreSQL / MySQL with driver-adjusted DDL (real `boolean` and `timestamp`
   columns on PostgreSQL, `tinyint(1)` on MySQL) must produce a target dump identical to the SQLite-source import;
 - targets: the SQLite fixtures imported into PostgreSQL / MySQL targets (dry run, real run, next id = max+1, `--force`).
 
 **Seed must include**:
+
 - L nodes: shadowsocks `2022-blake3-aes-128-gcm` with `created_at=1700000000`, its child (`parent_id`), one with `obfs=http`;
   vmess with **id 1** (collides with ss #1) plus a child of it, `tlsSettings` in camelCase; vless reality (tls=2); trojan
   with `networkSettings`; hysteria v1 (alpn 3, is_obfs 1) and one with `version` 0 (the column is `NOT NULL DEFAULT 1`;
@@ -588,6 +643,7 @@ creates and drops its own database; the file header has the `docker run` lines f
   1729440000; L stat_user rows with rates 1 and 0.5 for the same user and day.
 
 **Assertions**:
+
 1. Detection: legacy, upstream, both (fatal), neither (fatal).
 2. Per-table counts equal the summary. Unchanged-id tables keep ids. `next insert id = max+1` on sqlite, mysql and pg (pg
    checks the sequence reset).
