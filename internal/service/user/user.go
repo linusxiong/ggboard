@@ -252,6 +252,22 @@ func (s *Service) ResetSecurity(ctx context.Context, u *model.User) error {
 	return nil
 }
 
+// RotateToken issues a new subscription token only: the uuid (node credentials) and password_version
+// (sessions) are kept, so clients just need the new link. The old token stops working at once.
+func (s *Service) RotateToken(ctx context.Context, u *model.User) error {
+	newToken := NewToken()
+	res := s.a.DB.WithContext(ctx).Model(&model.User{}).Where("id = ?", u.ID).Update("token", newToken)
+	if res.Error != nil {
+		return fmt.Errorf("user: rotate token: %w", res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	u.Token = newToken
+	auth.InvalidateUser(s.a, u.ID)
+	return nil
+}
+
 // SubscribeURL returns the subscription URL: a random entry of settings.subscribe_url, else app_url, plus
 // SubscribePath + token. Without any configured base it returns the path only.
 func (s *Service) SubscribeURL(u *model.User) string {

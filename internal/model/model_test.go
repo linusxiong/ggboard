@@ -223,7 +223,7 @@ func TestEnumsAndHelpers(t *testing.T) {
 	if !n.InGroup(3) || n.InGroup(1) || !n.InAnyGroup(9, 2) {
 		t.Fatal("node groups")
 	}
-	if len(All()) != 22 {
+	if len(All()) != 24 {
 		t.Fatalf("All() = %d models", len(All()))
 	}
 }

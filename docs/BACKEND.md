@@ -179,7 +179,8 @@ Brand (`app_name`, `app_url`, `logo`) and locale (`default_locale`, zh-CN/en) co
   - Tests call `a.Scheduler.RunNow(name)`.
   - Built-in: `online_cleanup` (`*/5 * * * *`), `traffic_flush` (`@every 10s`). Feature jobs: `order_timeout`,
     `commission_settle` (`service/order`); `traffic_reset`, `expire_remind`, `traffic_remind`, `stats_daily`
-    (`service/maintenance`, linked by `cmd/ggboard/jobs_maintenance.go`).
+    (`service/maintenance`, linked by `cmd/ggboard/jobs_maintenance.go`); `subscription_access_flush` (`@every 10s`) and
+    `subscription_access_prune` (daily, `subscription/guard`, linked through `internal/api/client`).
 - Subcommands: put `func init() { cli.Register(func(a *app.App) *cobra.Command { … }) }` in your package, plus a file in
   `cmd/ggboard/` that blank-imports it (e.g. `import.go` → `internal/importer/xboard`). `a` is initialized (config
   loaded, DB migrated) before `RunE`, unless the command sets the `cli.AnnotationNoApp` annotation.
@@ -204,7 +205,8 @@ Every service is cheap to build: call `New(a)` per request. Import aliases used 
   - `Create(ctx, email, pw, CreateOptions{…, PasswordHash})` (`ErrEmailTaken`)
   - `Authenticate(ctx, email, pw)` (`ErrInvalidCredentials`, `ErrBanned`; upgrades legacy hashes without bumping
     `password_version`)
-  - `RecordLogin`, `SetPassword` (bumps the version), `ResetSecurity` (new uuid and token, bumps the version), `SubscribeURL(u)`
+  - `RecordLogin`, `SetPassword` (bumps the version), `ResetSecurity` (new uuid and token, bumps the version),
+    `RotateToken` (new subscription token only), `SubscribeURL(u)`
   - traffic reset: `ComputeNextResetAt(u, plan, now)`, `usersvc.NextResetAt(method, expiredAt, now)`, `ResetDay(u)`
   - `AvailableUsersForGroups(ctx, groupIDs) ([]NodeUser{ID, UUID, SpeedLimit, DeviceLimit}, error)`: 60 s cache; call
     `InvalidateNodeUsers()` after any user change nodes must see
@@ -217,6 +219,8 @@ Every service is cheap to build: call `New(a)` per request. Import aliases used 
   - dashboard `Stats`; views `ToUserView` / `ToAdminUserView`
   - `account.Fail(c, err)` adds `Retry-After` for `*RetryError`
 - **`service/mfa`** (`mfasvc`):
+  - `SealString` / `OpenString`: the TOTP-secret AES-256-GCM scheme for other secrets the owner must read again (own HKDF
+    info label per use, owner id as AAD)
   - TOTP: `SetupTOTP`, `EnableTOTP`, `DisableTOTP`, `RegenerateBackupCodes`
   - password + code login: `Challenge` / `CompleteLogin`
   - passkeys: `BeginRegistration` / `FinishRegistration`, `BeginLogin` / `FinishLogin`, `ListPasskeys`, `RenamePasskey`,
@@ -264,11 +268,18 @@ Every service is cheap to build: call `New(a)` per request. Import aliases used 
   - see docs/PAYMENTS.md
 - **`internal/subscription`**:
   - `Format` (`Name`, `Supports`, `Render`; optional `ProxyFilter`, `RuleConsumer`), `RenderContext`
-  - `RegisterFormat`, `GetFormat`, `FormatNames`, `DetectFormat(flag, ua)`
+  - `RegisterFormat`, `GetFormat`, `FormatNames`, `DetectFormat(flag, ua)`, `SupportsAge(name)` / `AgeFormats()`
+    (formats implementing `AgeCapable`)
   - `subscription.AvailableNodes(ctx, a, u)`: show + group, sort/id, child nodes, three-state status; 5 s cache per group.
     Call `subscription.InvalidateNodes(a)` after node or group writes that must show at once
   - `subscription/rulesets`: `Current(a.Settings)` (merged catalog), `ResolveProfile`, `BuildPlan`, `ValidateProfile`, `PublicView`
-  - `subscription/engine`: `Generate`, `SaveProfile`, `LoadStoredProfile`
+  - `subscription/engine`: `Generate`, `EffectiveProfile` (`?profile=` slug), profiles `LoadProfiles`, `DefaultOf`,
+    `StoredProfileSlug`, `SaveProfile` (default) / `SaveProfileSlug`, `CreateProfile`, `UpdateProfileMeta`, `DeleteProfile`,
+    `SetDefaultProfile`, `EnsureDefault`
+  - node operations: `subscription.NodeOps`, `ApplyNodeOps`, `DetectRegion`, `RegionCode`, `RegionFlag`
+  - `subscription/guard`: age keys `LoadKey`, `GenerateKey`, `SetKeyEnabled`, `DeleteKey`, `View`, `Encrypt`, `Decide`;
+    access log `Record` (non-blocking), `FlushAccess`, `PruneAccess`, `ListAccess`, `MaskIP`
+  - `subscription.LeakHook` (default `DefaultLeakHook`: WARN log + `notify` mail): the seam for leak notifications
   - see docs/SUBSCRIPTION.md and docs/RULESETS.md
 - **`internal/captcha`**: `captcha.FromSettings(a.Settings).Verify(ctx, token, c.ClientIP())`, `captcha.Enabled(a.Settings)`.
 - **`internal/plugin`**: `plugin.NewRegistry[T](kind)` for new plugin points.

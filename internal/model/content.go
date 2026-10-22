@@ -72,9 +72,25 @@ type MailLog struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// RuleProfile is a user's subscription rule profile (see internal/subscription.RuleProfile for the schema).
+// Rule profile defaults: the profile migrated from the one-profile-per-user table (and created for users that
+// had none) is "default" / "默认"; a user has at most MaxRuleProfiles.
+const (
+	RuleProfileDefaultSlug = "default"
+	RuleProfileDefaultName = "默认"
+	MaxRuleProfiles        = 10
+)
+
+// RuleProfile is one of a user's named subscription rule profiles (see internal/subscription.RuleProfile for
+// the data schema). A user has at most 10; exactly one is the default (picked when ?profile= names none of
+// them). Data is null for a profile that follows the admin's default template. The composite unique index
+// (user_id, slug) also serves lookups by user_id.
 type RuleProfile struct {
-	UserID    uint64    `gorm:"primaryKey;autoIncrement:false" json:"user_id"`
+	ID        uint64    `gorm:"primaryKey" json:"id"`
+	UserID    uint64    `gorm:"not null;uniqueIndex:idx_rule_profiles_user_slug,priority:1" json:"user_id"`
+	Slug      string    `gorm:"size:32;not null;uniqueIndex:idx_rule_profiles_user_slug,priority:2" json:"slug"`
+	Name      string    `gorm:"size:64;not null" json:"name"`
+	IsDefault bool      `gorm:"not null;default:false" json:"is_default"`
 	Data      RawJSON   `json:"data"`
+	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

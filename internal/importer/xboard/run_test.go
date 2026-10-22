@@ -29,7 +29,7 @@ func dump(t *testing.T, a *app.App, mask func(table string, r map[string]any)) s
 	for i := len(targetTables) - 1; i >= 0; i-- {
 		name := targetTables[i].name
 		order := "id"
-		if name == "rule_profiles" || name == "user_mfa" {
+		if name == "rule_profiles" || name == "user_mfa" || name == "subscription_keys" {
 			order = "user_id"
 		}
 		var rows []map[string]any

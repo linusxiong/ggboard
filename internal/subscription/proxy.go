@@ -358,7 +358,8 @@ type ProxyOptions struct {
 	Types        []string // node types (aliases ss, ssr, hy, hy2, hysteria2 ...); empty = all
 	Keywords     []string // case-insensitive name/tag substrings; empty = all
 	StripEmoji   bool
-	ShowProtocol bool // prefix names with "[vmess] " (show_protocol_to_server_enable)
+	ShowProtocol bool     // prefix names with "[vmess] " (show_protocol_to_server_enable)
+	Ops          *NodeOps // the profile's node operations (after the filters above, before the protocol prefix)
 }
 
 // ParseList splits "a,b|c" on commas and pipes, trimming blanks.
@@ -434,6 +435,15 @@ func NodeProxies(u *model.User, nodes []AvailableNode, opt ProxyOptions) []Proxy
 		}
 		p = withUser(p, n.entry.secret, u)
 		p.Status = n.Status
+		p.Name = DisplayName(p.Name, false)
+		out = append(out, p)
+	}
+	if opt.Ops != nil {
+		out = ApplyNodeOps(out, *opt.Ops)
+	}
+	for i := range out {
+		p := &out[i]
+		// Again after the node operations: renames, prefixes and suffixes are user input.
 		p.Name = DisplayName(p.Name, opt.StripEmoji)
 		if p.Name == "" {
 			p.Name = "node-" + strconv.FormatUint(p.NodeID, 10)
@@ -441,7 +451,6 @@ func NodeProxies(u *model.User, nodes []AvailableNode, opt ProxyOptions) []Proxy
 		if opt.ShowProtocol {
 			p.Name = "[" + p.ProtoName() + "] " + p.Name
 		}
-		out = append(out, p)
 	}
 	return out
 }

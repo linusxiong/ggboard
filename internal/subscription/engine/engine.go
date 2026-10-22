@@ -14,10 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"gorm.io/gorm/clause"
-
 	"github.com/linusxiong/ggboard/internal/app"
-	"github.com/linusxiong/ggboard/internal/cache"
 	"github.com/linusxiong/ggboard/internal/model"
 	"github.com/linusxiong/ggboard/internal/settings"
 	"github.com/linusxiong/ggboard/internal/subscription"
@@ -81,71 +78,14 @@ func queryBool(q url.Values, key string) (value, ok bool) {
 	return b && err == nil, err == nil
 }
 
-// LoadStoredProfile returns the raw stored profile of a user (nil when there is none).
-func LoadStoredProfile(ctx context.Context, a *app.App, userID uint64) ([]byte, error) {
-	key := profileKey(a, userID)
-	lctx := context.WithoutCancel(ctx) // singleflight: the load is shared by concurrent callers, so it must not fail because the first caller went away
-	return cache.GetOrLoad(a.Cache, key, ProfileTTL, func() ([]byte, error) {
-		var rows []model.RuleProfile
-		if err := a.DB.WithContext(lctx).Where("user_id = ?", userID).Limit(1).Find(&rows).Error; err != nil {
-			return nil, err
-		}
-		if len(rows) == 0 || len(rows[0].Data) == 0 || string(rows[0].Data) == "null" {
-			return []byte{}, nil
-		}
-		return []byte(rows[0].Data), nil
-	})
-}
-
-// SaveProfile stores a validated profile for a user.
-func SaveProfile(ctx context.Context, a *app.App, userID uint64, raw []byte) error {
-	row := model.RuleProfile{UserID: userID, Data: model.RawJSON(raw), UpdatedAt: time.Now()}
-	err := a.DB.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "user_id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"data", "updated_at"}),
-	}).Create(&row).Error
-	// A per-user namespace generation rather than Delete: a load that read the old row before this write can
-	// only store it under the previous generation's key, which no reader builds any more.
-	a.Cache.InvalidateNamespace(profileNamespace(userID))
-	return err
-}
-
 func profileNamespace(userID uint64) string {
 	return ProfileNamespace + ":" + strconv.FormatUint(userID, 10)
 }
 
 // profileKey is versioned by both the shared namespace (InvalidateNamespace(ProfileNamespace) drops every
-// profile) and the user's own generation (SaveProfile).
+// profile) and the user's own generation (profile writes).
 func profileKey(a *app.App, userID uint64) string {
 	return a.Cache.Key(ProfileNamespace, a.Cache.Key(profileNamespace(userID), ""))
-}
-
-// StoredProfile decodes the user's stored profile (nil when none or when it no longer decodes).
-func StoredProfile(ctx context.Context, a *app.App, c *subscription.Catalog, userID uint64) (*subscription.RuleProfile, error) {
-	raw, err := LoadStoredProfile(ctx, a, userID)
-	if err != nil || len(raw) == 0 {
-		return nil, err
-	}
-	p, err := rulesets.DecodeProfile(c, raw, rulesets.DefaultsFrom(a.Settings))
-	if err != nil {
-		a.Log.Warn("subscription: ignoring undecodable rule profile", "user_id", userID, "err", err)
-		return nil, nil //nolint:nilerr // a broken stored profile falls back to the defaults
-	}
-	return &p, nil
-}
-
-// EffectiveProfile returns the profile a request uses. With allow_user_rule_profile=false everyone gets the
-// default template (stored profiles and overrides are ignored).
-func EffectiveProfile(ctx context.Context, a *app.App, c *subscription.Catalog, u *model.User, ov rulesets.Overrides) (subscription.RuleProfile, error) {
-	def := rulesets.DefaultsFrom(a.Settings)
-	if !a.Settings.Bool("allow_user_rule_profile") {
-		return rulesets.DefaultProfile(c, def), nil
-	}
-	stored, err := StoredProfile(ctx, a, c, u.ID)
-	if err != nil {
-		return subscription.RuleProfile{}, err
-	}
-	return rulesets.ResolveProfile(c, stored, def, ov)
 }
 
 // Generate renders the subscription of u for req.
@@ -213,6 +153,7 @@ func Generate(ctx context.Context, a *app.App, u *model.User, req Request) (*Res
 			Keywords:     keywords,
 			StripEmoji:   emojiSet && !emojiOn,
 			ShowProtocol: a.Settings.Bool("show_protocol_to_server_enable"),
+			Ops:          &profile.Nodes,
 		}
 		proxies = append(proxies, subscription.NodeProxies(u, nodes, opt)...)
 	}

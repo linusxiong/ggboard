@@ -152,16 +152,20 @@ func MySQLDSN(dsn string) (string, error) {
 	return c.FormatDSN(), nil
 }
 
-// Migrate auto-migrates every model in model.All(). It is idempotent and safe to run on every boot.
+// Migrate auto-migrates every model in model.All(), with the schema upgrades of upgrade.go around it. It is
+// idempotent and safe to run on every boot.
 func Migrate(db *gorm.DB) error {
 	tx := db
 	if db.Dialector.Name() == config.DriverMySQL {
 		tx = db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci")
 	}
+	if err := beforeAutoMigrate(tx); err != nil {
+		return err
+	}
 	if err := tx.AutoMigrate(model.All()...); err != nil {
 		return fmt.Errorf("db: migrate: %w", err)
 	}
-	return nil
+	return afterAutoMigrate(db)
 }
 
 // Close closes the underlying *sql.DB.

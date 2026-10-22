@@ -159,6 +159,8 @@ recovers panics, skips a run while the previous one is still running, and report
 | `expire_remind` | `0 10 * * *` | `service/maintenance` | with `remind_mail_enable`, mail users (not banned, `remind_expire`) whose `expired_at` is in (now, now + 24 h]. At most once per 24 h per user |
 | `traffic_remind` | `0 10 * * *` | `service/maintenance` | with `remind_mail_enable`, mail users (not banned, not expired, `remind_traffic`) who used 80 % ≤ x < 100 %. At most once per 24 h per user |
 | `stats_daily` | `5 0 * * *` | `service/maintenance` | upsert yesterday's `stats` row (docs/DATA_MODEL.md) |
+| `subscription_access_flush` | `@every 10s` | `subscription/guard` | write buffered subscription access rows, then run leak detection (docs/SUBSCRIPTION.md) |
+| `subscription_access_prune` | `37 4 * * *` | `subscription/guard` | delete access rows older than 30 days; keep the newest 100 per user |
 
 `commission_settle`:
 

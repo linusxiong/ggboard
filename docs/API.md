@@ -24,6 +24,7 @@ Base path `/api/v1` (exceptions: `/healthz`, `/.well-known/*`, the short subscri
 | 403 | `forbidden` | banned account, admin/staff only, feature switched off, invalid subscription or node token |
 | 403 | `mfa_setup_required` | `/admin/*` while `admin_mfa_required` is on and the caller has neither TOTP nor a passkey |
 | 404 | `not_found` | unknown route or resource (also a non-numeric or zero `:id`) |
+| 406 | `not_acceptable` | client subscription in a format that cannot be age-encrypted while the user's key is on and `subscribe_age_strict` is set |
 | 409 | `conflict` | state conflict or duplicate |
 | 413 | `payload_too_large` | body over 1 MiB (8 MiB for node report endpoints) |
 | 429 | `rate_limited` | always with `Retry-After: <seconds>` |
@@ -154,8 +155,9 @@ Every route requires a valid JWT (401) of a user who is not banned (403).
 | PATCH | `/user/me` | `{remind_expire?, remind_traffic?}` | `User` |
 | POST | `/user/password` | `{old_password*, new_password* (8..128)}` | `true`; bumps `password_version`, so every session (the caller's too) must sign in again; wrong `old_password` → 400 on `old_password` (counts towards the password lockout, 429) |
 | GET | `/user/stats` | — | `{pending_orders, open_tickets, notices_count, invite_count, commission_pending}` (`commission_pending` as in `/user/invite` `stat`) |
-| GET | `/user/subscription` | — | `{subscribe_url, token, plan, transfer_enable, u, d, expired_at, next_reset_at, reset_day, device_limit, speed_limit}` (`plan` is `{id,name}` or null; `subscribe_url` = a random entry of `subscribe_url`, else `app_url`, + `/api/v1/client/subscribe?token=`) |
+| GET | `/user/subscription` | — | `{subscribe_url, token, plan, transfer_enable, u, d, expired_at, next_reset_at, reset_day, device_limit, speed_limit, profiles}` (`plan` is `{id,name}` or null; `subscribe_url` = a random entry of `subscribe_url`, else `app_url`, + `/api/v1/client/subscribe?token=`; `profiles` = `[{slug, name, is_default, subscribe_url}]`, the default profile's link is `subscribe_url`, the others append `&profile=<slug>`; a user without stored profiles gets the virtual `default` / `默认`) |
 | POST | `/user/subscription/reset` | — | `{subscribe_url, token, auth_token}` (new uuid + token; the reset bumps `password_version`, so `auth_token` is the caller's new session JWT) |
+| POST | `/user/subscription/rotate-token` | — | `{subscribe_url, token}` (new subscription token only: uuid, node credentials and sessions are kept; the old link stops working at once) |
 | GET | `/user/subscription/preview` | `client?` (format or client name, default `clash-meta`) + every query parameter of client subscribe | `text/plain` body of the generated config (base64 formats v2ray/shadowrocket/ssr shown decoded), headers `X-Subscription-Format`, `Cache-Control: no-store`; unknown client → 400 on `client` |
 | GET | `/user/traffic-logs` | `page`, `page_size` | paginated `[{record_at:"YYYY-MM-DD", node_id, node_name, rate, u, d}]` newest first (u/d already × rate); `node_name` is null for unknown/deleted nodes |
 | GET | `/user/nodes` | — | array `[{id, name, type, tags, rate, host?, port?, is_online, sort}]`: `show=true` nodes of the user's group by `sort`, `id`; `host`/`port` (string) only when `show_info_to_user`; `is_online` = state online or idle; `[]` when the user is expired, out of traffic or has no group, like Xboard |
@@ -165,9 +167,33 @@ Every route requires a valid JWT (401) of a user who is not banned (403).
 
 | method | path | req | res |
 | --- | --- | --- | --- |
-| GET | `/user/rule-profile` | — | `RuleProfile` (stored, else the default template) + `customized`, `editable`, `effective` (see `docs/SUBSCRIPTION.md`) |
-| PUT | `/user/rule-profile` | `RuleProfile` (omitted parts filled from its template; empty body → 400) | same view as GET; 400 field errors (limits in `docs/SUBSCRIPTION.md`); 60 requests/min per user (also for preview); 403 when `allow_user_rule_profile=false` |
+| GET | `/user/rule-profile` | — | `ProfileView` of the default profile: `RuleProfile` (stored, else the default template) + `customized`, `editable`, `effective`, `id`, `slug`, `name`, `is_default` (see `docs/SUBSCRIPTION.md`) |
+| PUT | `/user/rule-profile` | `RuleProfile` (omitted parts filled from its template; omitted `nodes` keeps the stored node operations; empty body → 400) | same view as GET; 400 field errors (limits in `docs/SUBSCRIPTION.md`, node operations under `nodes.*`); 60 requests/min per user (shared by every rule-profile write and the preview); 403 when `allow_user_rule_profile=false` |
+| GET | `/user/rule-profiles` | — | array `[{id, slug, name, is_default, customized, updated_at}]` by id (creates the `default` row for a user without profiles) |
+| POST | `/user/rule-profiles` | `{name* (1..64), slug? (^[a-z0-9][a-z0-9_-]{0,31}$, derived from the name when omitted), copy_from? (slug)}` | 201 summary (`{id, slug, name, is_default, customized, updated_at}`); 400 on `name`/`slug`/`copy_from` (unknown); 409 duplicate slug (`errors.slug`) or more than 10 profiles; 403 when customization is disabled |
+| GET | `/user/rule-profiles/:slug` | — | `ProfileView` of that profile; 404 unknown |
+| PUT | `/user/rule-profiles/:slug` | `RuleProfile` | same rules as `PUT /user/rule-profile`, for that profile; 404 unknown |
+| PATCH | `/user/rule-profiles/:slug` | `{name?, slug?}` | summary; 409 duplicate slug; 404 unknown |
+| DELETE | `/user/rule-profiles/:slug` | — | `true`; 409 for the default profile; 404 unknown |
+| POST | `/user/rule-profiles/:slug/default` | — | summary of the new default profile |
 | GET | `/user/rulesets/catalog` | — | same body as the guest catalog |
+
+`NodeOps` (the `nodes` object of a `RuleProfile`): `{include:[re2], exclude:[re2], types:[type], regions:[code], rename:[{match, replace}], prefix, suffix, emoji: "keep"/"add"/"strip", sort: "default"/"name"/"region", dedupe, limit}`; semantics,
+the region keyword table and limits in `docs/SUBSCRIPTION.md` "Node operations".
+
+### Subscription protection
+
+| method | path | req | res |
+| --- | --- | --- | --- |
+| GET | `/user/subscription/age` | — | `AgeKey` (`public_key`, `private_key`, `created_at` null when the user has no key) |
+| POST | `/user/subscription/age` | `{regenerate?, enabled?}` | `AgeKey` with the new key pair (X25519); a new key is disabled unless `enabled: true`; `regenerate` keeps the current switch unless `enabled` is given; 409 when a key exists and `regenerate` is not true |
+| PATCH | `/user/subscription/age` | `{enabled*}` | `AgeKey`; 404 without a key |
+| DELETE | `/user/subscription/age` | — | `true` (encryption off; no error without a key) |
+| GET | `/user/subscription/access-log` | — | array `[{ip, client, format, at}]`, newest 50 first; `ip` masked (`203.0.113.*`, `2001:db8:1:2:*`) |
+
+`AgeKey` = `{enabled, public_key ("age1…"), private_key ("AGE-SECRET-KEY-1…"; owner only, null when it cannot be decrypted after a jwt.secret rotation), created_at, formats (["clash-meta"]: formats served encrypted), optional (subscribe_age_optional), strict (subscribe_age_strict)}`.
+`POST`/`PATCH`/`DELETE` here and `rotate-token` share 30 requests/min per user. See `docs/SUBSCRIPTION.md`
+"Encrypted subscriptions (age)" and "Access log and leak detection".
 
 ### Shop
 
@@ -256,14 +282,19 @@ a passkey (`mfasvc.AdminGate`, mounted right after `RequireStaff`); `/user/secur
 
 ## Client subscription 🔓 (token)
 
-`GET|HEAD /api/v1/client/subscribe?token=<token>[&flag=clash][&types=vmess,vless][&filter=HK,JP][&emoji=0][&list=1][&profile=standard][&source=blackmatrix7][&cats=openai,telegram][&final=Proxy][&mirror=1]`
+`GET|HEAD /api/v1/client/subscribe?token=<token>[&flag=clash][&types=vmess,vless][&filter=HK,JP][&emoji=0][&list=1][&profile=<slug or template>][&source=blackmatrix7][&cats=openai,telegram][&final=Proxy][&mirror=1][&age=0]`
 
 - Detects the format from `flag` or `User-Agent` (see `docs/SUBSCRIPTION.md`); `types`/`filter` narrow the nodes, `emoji=0` strips
-  flag emoji, `list=1` returns proxy lines only (surge, surfboard, loon, quantumultx), `profile`/`source`/`cats`/`final`/`mirror`
-  override the user's rule profile for this request.
+  flag emoji, `list=1` returns proxy lines only (surge, surfboard, loon, quantumultx). `profile` selects one of the user's rule
+  profiles by slug (a catalog template id instead overrides the default profile's template; anything else = the default
+  profile, never an error); `source`/`cats`/`final`/`mirror` override the selected profile for this request.
+- Age encryption: when the user's age key is enabled, `clash-meta` bodies are armored age (`text/plain; charset=utf-8`,
+  `X-Subscription-Encryption: age`, ETag `<sha1>-age-<key tag>`); `age=0` forces plaintext while `subscribe_age_optional`;
+  other formats get plaintext, or 406 `not_acceptable` with `subscribe_age_strict` (rules in `docs/SUBSCRIPTION.md`).
+- Every served request (200/304) is written to the subscription access log (batched, never blocking).
 - Headers: `Subscription-Userinfo` (`upload=…; download=…; total=…; expire=<unix or 0>`), `Profile-Update-Interval`
   (`subscribe_update_interval` h), `Content-Disposition` (`app_name`, RFC 5987), `Profile-Web-Page-Url` (`app_url`, when set),
-  `ETag`, `Cache-Control: no-store`. `If-None-Match` with the current ETag → 304.
+  `ETag`, `Cache-Control: no-store`. `If-None-Match` naming the current ETag exactly → 304.
 - Unknown/malformed token (allowed: `[A-Za-z0-9_-]`, ≤ 64 chars) → 403 (no detail). Banned/expired/out-of-traffic users → 200 with
   info-only entries when `show_info_to_server_enable` (also prepended for active users), else a config without proxies.
   Invalid overrides → 400. Rate limit 120/h per token (burst 30) → 429; unknown tokens are limited per IP (30 misses → 429).
@@ -316,6 +347,9 @@ nodes/users keep their ranking rows with an empty `name`/`email`.
 | POST | `/admin/users/:id/reset-secret` | — | `AdminUser` (new uuid/token; bumps `password_version`, ending the user's sessions) |
 | POST | `/admin/users/:id/login-token` | — | `{url}` one-time login URL |
 | POST | `/admin/users/:id/traffic-reset` | — | `AdminUser` (u = d = 0) |
+| GET | `/admin/users/:id/subscription/age` | — | `AgeKey` without the private key (`private_key` always null) |
+| POST | `/admin/users/:id/subscription/age/reset` | — | `AgeKey` without the private key: a new key pair, the enabled switch kept (the user reads the new private key in the user center); 404 when the user has no key |
+| GET | `/admin/users/:id/subscription/access-log` | — | array `[{ip, ip_bucket, token_tag, client, format, at}]`, newest 100 first, unmasked |
 | POST | `/admin/users/generate` | `{email_prefix?, email_suffix*, count* (1..500), plan_id?, expired_at?, password? (8..128)}` | `{count, csv}` |
 | POST | `/admin/users/export` | same filters as the list, in the JSON body | `text/csv` attachment |
 | POST | `/admin/users/mail` | `{<filters>, subject* (≤255), content*}` | `{queued}` |
@@ -333,8 +367,9 @@ and `token` blanked. `AdminUser` = self view + `token`, `commission_type`, `rema
   telegram_id`; `null` clears nullable fields. Setting `plan_id` without `group_id` also moves the user to the plan's group;
   `next_reset_at` is recomputed when `plan_id` or `expired_at` is present. 409: banning or demoting yourself, demoting the last admin,
   duplicate email. Sessions are invalidated immediately (password, ban, roles).
+- The three `subscription/*` routes are admin only (staff get 403).
 - `DELETE` → 409 for yourself or the last admin. Cascade: orders, tickets + messages, stat_users, invite_codes, commission_logs earned
-  as inviter, rule_profiles, passkeys, user_mfa; users and orders that reference the user as inviter get `invite_user_id = null`.
+  as inviter, rule_profiles, passkeys, user_mfa, subscription_keys, subscription_access; users and orders that reference the user as inviter get `invite_user_id = null`.
 - `login-token` → `{url: app_url + "/login?token=<one-time, 5 min>"}`; the SPA posts the token to `/passport/login/token`.
   Administrators and staff cannot be impersonated: 409 for such a target (the token skips the second factor), and a token
   whose user was promoted after it was issued is refused with 401.
@@ -485,7 +520,11 @@ comma/newline separated string), `json`. Secrets are returned to admins only and
 | subscribe | `ruleset_default_source` | string | `"blackmatrix7"` | catalog source id |
 | subscribe | `ruleset_mirror` | string | `""` | GitHub mirror prefix, e.g. `https://ghproxy.net/` (empty = direct) |
 | subscribe | `subscribe_update_interval` | int 1..720 | `24` | hours (`Profile-Update-Interval`) |
-| subscribe | `allow_user_rule_profile` | bool | `true` | users may customize their rule profile |
+| subscribe | `allow_user_rule_profile` | bool | `true` | users may customize their rule profiles |
+| subscribe | `subscribe_age_optional` | bool | `true` | `age=0` returns plaintext although the user's age key is on |
+| subscribe | `subscribe_age_strict` | bool | `false` | formats without age support get 406 instead of plaintext while the key is on |
+| subscribe | `subscribe_leak_max_ips` | int 0..1000 | `0` | distinct IPs (IPv6 per /64) per token within 24 h before a leak alert (0 = off) |
+| subscribe | `subscribe_leak_action` | string | `"notify"` | `notify` (log + mail the user, `subscription.LeakHook`) or `rotate` (also rotate the token and mail the new link) |
 | subscribe | `rulesets_custom` | json (hidden) | `{}` | only via `/admin/rulesets` |
 | order | `order_timeout_minutes` | int 1..10080 | `30` | pending orders are cancelled after this |
 | invite | `invite_commission` | int 0..100 | `10` | percent |

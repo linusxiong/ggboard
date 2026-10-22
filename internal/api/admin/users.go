@@ -37,6 +37,10 @@ func registerUsers(g *gin.RouterGroup, a *app.App) {
 	w.POST("/:id/reset-secret", usersResetSecretHandler(a))
 	w.POST("/:id/login-token", usersLoginTokenHandler(a))
 	w.POST("/:id/traffic-reset", usersTrafficResetHandler(a))
+	// Subscription leak protection (admin/subguard.go, BE-S).
+	w.GET("/:id/subscription/age", subguardAgeHandler(a))
+	w.POST("/:id/subscription/age/reset", subguardAgeResetHandler(a))
+	w.GET("/:id/subscription/access-log", subguardAccessLogHandler(a))
 }
 
 // usersRedact blanks credentials in views returned to staff.

@@ -262,8 +262,13 @@ func TestProfilesAndOverrides(t *testing.T) {
 		t.Fatalf("overrides:\n%s", body)
 	}
 	rec := e.get(t, e.sub("&flag=surge&profile=nope&cats=x"), nil)
-	if err := testutil.DecodeError(t, rec); err.Status != http.StatusBadRequest || len(err.Errors["profile"]) == 0 {
+	if err := testutil.DecodeError(t, rec); err.Status != http.StatusBadRequest || len(err.Errors["cats"]) == 0 {
 		t.Fatalf("bad override = %+v", err)
+	}
+	// An unknown ?profile= (neither one of the user's slugs nor a template) selects the default profile.
+	body = e.get(t, e.sub("&flag=clash-meta&profile=nope"), nil).Body.String()
+	if !strings.Contains(body, "- name: Fast") {
+		t.Fatalf("unknown profile must fall back to the default profile:\n%.1500s", body)
 	}
 
 	// Customization disabled: everyone gets the default template, overrides are ignored.

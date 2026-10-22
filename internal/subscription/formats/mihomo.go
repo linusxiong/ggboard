@@ -36,6 +36,10 @@ func (f clashFormat) RuleFamily() string {
 	return f.name
 }
 
+// SupportsAge implements subscription.AgeCapable: mihomo >= 1.19.27 decrypts armored age configs and proxy
+// providers (age-secret-key), as do Clash Party and FlClash; Stash and the classic core do not.
+func (f clashFormat) SupportsAge() bool { return f.flavor == flavorMeta }
+
 // SupportsProxy drops configurations the dialect cannot express.
 func (f clashFormat) SupportsProxy(p *subscription.Proxy) bool {
 	pi := ssPlugin(p)

@@ -54,6 +54,34 @@ type RuleConsumer interface {
 	RuleFamily() string
 }
 
+// AgeCapable is implemented by formats whose clients can decrypt age-encrypted subscriptions (the armored
+// age-encryption.org/v1 format; docs/SUBSCRIPTION.md "Encrypted subscriptions (age)"). Formats without it are
+// always served in plaintext (or refused when subscribe_age_strict is on).
+type AgeCapable interface {
+	SupportsAge() bool
+}
+
+// SupportsAge reports whether the format named name may be served age-encrypted.
+func SupportsAge(name string) bool {
+	f, ok := GetFormat(name)
+	if !ok {
+		return false
+	}
+	ac, ok := f.(AgeCapable)
+	return ok && ac.SupportsAge()
+}
+
+// AgeFormats returns the sorted names of the formats that support age encryption.
+func AgeFormats() []string {
+	var out []string
+	for _, n := range FormatNames() {
+		if SupportsAge(n) {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
 // RenderContext is everything a format needs. Proxies are already filtered to what the user may see and to
 // what the format supports, carry the user's credentials and have unique names; Groups are resolved against
 // them. Rules is nil when the effective profile disables rules for this format.

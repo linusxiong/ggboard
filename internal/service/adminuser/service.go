@@ -445,6 +445,8 @@ func (s *Service) Delete(ctx context.Context, actor *model.User, id uint64) erro
 			// resolves the owner through these rows), and an orphaned TOTP secret would be forced on them.
 			func() error { return tx.Where("user_id = ?", id).Delete(&model.Passkey{}).Error },
 			func() error { return tx.Where("user_id = ?", id).Delete(&model.UserMFA{}).Error },
+			func() error { return tx.Where("user_id = ?", id).Delete(&model.SubscriptionKey{}).Error },
+			func() error { return tx.Where("user_id = ?", id).Delete(&model.SubscriptionAccess{}).Error },
 			func() error {
 				return tx.Model(&model.User{}).Where("invite_user_id = ?", id).Update("invite_user_id", nil).Error
 			},

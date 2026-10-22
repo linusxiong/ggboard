@@ -3,6 +3,7 @@ module github.com/linusxiong/ggboard
 go 1.27.3
 
 require (
+	filippo.io/age v1.3.2
 	github.com/dgraph-io/ristretto/v2 v2.4.2
 	github.com/gin-contrib/cors v1.7.9
 	github.com/gin-gonic/gin v1.12.0
@@ -32,6 +33,7 @@ require (
 
 require (
 	filippo.io/edwards25519 v1.2.0 // indirect
+	filippo.io/hpke v0.4.0 // indirect
 	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/bytedance/gopkg v0.1.4 // indirect
 	github.com/bytedance/sonic v1.15.4 // indirect

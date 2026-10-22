@@ -113,6 +113,13 @@ var defs = []Def{
 	s(GroupSubscribe, "ruleset_mirror", ""),
 	i(GroupSubscribe, "subscribe_update_interval", 24, 1, 720),
 	b(GroupSubscribe, "allow_user_rule_profile", true),
+	// Subscription leak protection (internal/subscription/guard): age-encrypted subscriptions, and alerts (or
+	// a token rotation) when one token is fetched from more than subscribe_leak_max_ips distinct IPs
+	// (IPv6 /64) within 24 hours (0 = off).
+	b(GroupSubscribe, "subscribe_age_optional", true),
+	b(GroupSubscribe, "subscribe_age_strict", false),
+	i(GroupSubscribe, "subscribe_leak_max_ips", 0, 0, 1000),
+	s(GroupSubscribe, "subscribe_leak_action", "notify", "notify", "rotate"),
 	{Key: "rulesets_custom", Group: GroupSubscribe, Type: TypeJSON, Default: map[string]any{}, Hidden: true},
 
 	i(GroupOrder, "order_timeout_minutes", 30, 1, 10080),

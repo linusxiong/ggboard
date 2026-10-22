@@ -84,7 +84,7 @@ func TestRuleProfileEndpoints(t *testing.T) {
 	if rec := testutil.Do(t, r, http.MethodGet, "/api/v1/user/subscription/preview", nil, tok); !strings.Contains(rec.Body.String(), "proxy-groups:") {
 		t.Fatal("default preview is clash-meta")
 	}
-	if rec := testutil.Do(t, r, http.MethodGet, "/api/v1/user/subscription/preview?client=surge&profile=nope", nil, tok); rec.Code != http.StatusBadRequest {
+	if rec := testutil.Do(t, r, http.MethodGet, "/api/v1/user/subscription/preview?client=surge&cats=nope", nil, tok); rec.Code != http.StatusBadRequest {
 		t.Fatalf("bad override = %d", rec.Code)
 	}
 
