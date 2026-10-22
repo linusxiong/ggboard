@@ -114,13 +114,14 @@ func (s *Service) Stat(ctx context.Context, userID uint64) (Stat, error) {
 	return st, nil
 }
 
-// CommissionPending sums orders.commission_balance of completed orders referred by userID whose commission is
+// CommissionPending sums orders.commission_balance of paid orders (processing, completed, discounted) referred by userID whose commission is
 // pending or processing. With commission_distribution_enable only the first-level share
 // (commission_distribution_l1 %) belongs to the direct inviter, as in Xboard.
 func (s *Service) CommissionPending(ctx context.Context, userID uint64) (int64, error) {
 	var sum struct{ Total int64 }
 	err := s.a.DB.WithContext(ctx).Model(&model.Order{}).Select("COALESCE(SUM(commission_balance), 0) AS total").
-		Where("invite_user_id = ? AND status = ?", userID, model.OrderStatusCompleted).
+		Where("invite_user_id = ?", userID).
+		Where("status IN ?", []model.OrderStatus{model.OrderStatusProcessing, model.OrderStatusCompleted, model.OrderStatusDiscounted}).
 		Where("commission_status IN ?", []model.CommissionStatus{model.CommissionStatusPending, model.CommissionStatusProcessing}).
 		Scan(&sum).Error
 	if err != nil {

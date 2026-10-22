@@ -2,8 +2,7 @@ package account
 
 import (
 	"context"
-
-	"gorm.io/gorm"
+	invitesvc "github.com/linusxiong/ggboard/internal/service/invite"
 
 	"github.com/linusxiong/ggboard/internal/model"
 )
@@ -21,19 +20,6 @@ type Stats struct {
 // completed, discounted). Pending and cancelled orders carry a provisional commission_balance that never
 // counts.
 var PaidOrderStatuses = []model.OrderStatus{model.OrderStatusProcessing, model.OrderStatusCompleted, model.OrderStatusDiscounted}
-
-// CommissionPending sums commission_balance (cents) of paid orders invited by inviterID whose commission is
-// not settled yet (commission_status pending or processing).
-func CommissionPending(ctx context.Context, db *gorm.DB, inviterID uint64) (int64, error) {
-	var sum int64
-	err := db.WithContext(ctx).Model(&model.Order{}).
-		Select("COALESCE(SUM(commission_balance), 0)").
-		Where("invite_user_id = ?", inviterID).
-		Where("status IN ?", PaidOrderStatuses).
-		Where("commission_status IN ?", []model.CommissionStatus{model.CommissionStatusPending, model.CommissionStatusProcessing}).
-		Scan(&sum).Error
-	return sum, err
-}
 
 // Stats returns the dashboard counters of userID.
 func (s *Service) Stats(ctx context.Context, userID uint64) (Stats, error) {
@@ -54,6 +40,6 @@ func (s *Service) Stats(ctx context.Context, userID uint64) (Stats, error) {
 		return st, err
 	}
 	var err error
-	st.CommissionPending, err = CommissionPending(ctx, s.a.DB, userID)
+	st.CommissionPending, err = invitesvc.New(s.a).CommissionPending(ctx, userID)
 	return st, err
 }

@@ -1,19 +1,16 @@
 package user
 
 import (
-	"crypto/md5"
-	"encoding/hex"
 	"errors"
 	"strings"
-	"time"
+
+	"github.com/linusxiong/ggboard/internal/service/account"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/auth"
 	"github.com/linusxiong/ggboard/internal/httpx"
-	"github.com/linusxiong/ggboard/internal/model"
 	invitesvc "github.com/linusxiong/ggboard/internal/service/invite"
 	ticketsvc "github.com/linusxiong/ggboard/internal/service/ticket"
 )
@@ -89,7 +86,7 @@ func commissionTransfer(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		view, err := commissionUserView(c, a, u)
+		view, err := account.New(a).View(c.Request.Context(), u)
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -132,62 +129,4 @@ func commissionWithdraw(a *app.App) gin.HandlerFunc {
 			httpx.Created(c, gin.H{"ticket_id": t.ID})
 		}
 	}
-}
-
-// commissionPlanRef is the plan summary embedded in the user view.
-type commissionPlanRef struct {
-	ID   uint64 `json:"id"`
-	Name string `json:"name"`
-}
-
-// commissionUser is the self view of docs/API.md "User" returned by the commission transfer. The account
-// package owns the canonical view; this one follows the same contract.
-type commissionUser struct {
-	ID                uint64             `json:"id"`
-	Email             string             `json:"email"`
-	UUID              string             `json:"uuid"`
-	PlanID            *uint64            `json:"plan_id"`
-	Plan              *commissionPlanRef `json:"plan"`
-	GroupID           *uint64            `json:"group_id"`
-	TransferEnable    int64              `json:"transfer_enable"`
-	U                 int64              `json:"u"`
-	D                 int64              `json:"d"`
-	ExpiredAt         *time.Time         `json:"expired_at"`
-	NextResetAt       *time.Time         `json:"next_reset_at"`
-	SpeedLimit        *int               `json:"speed_limit"`
-	DeviceLimit       *int               `json:"device_limit"`
-	Balance           int64              `json:"balance"`
-	CommissionBalance int64              `json:"commission_balance"`
-	CommissionRate    *int               `json:"commission_rate"`
-	Discount          *int               `json:"discount"`
-	RemindExpire      bool               `json:"remind_expire"`
-	RemindTraffic     bool               `json:"remind_traffic"`
-	IsAdmin           bool               `json:"is_admin"`
-	IsStaff           bool               `json:"is_staff"`
-	Banned            bool               `json:"banned"`
-	AvatarURL         string             `json:"avatar_url"`
-	CreatedAt         time.Time          `json:"created_at"`
-	LastLoginAt       *time.Time         `json:"last_login_at"`
-}
-
-func commissionUserView(c *gin.Context, a *app.App, u *model.User) (commissionUser, error) {
-	v := commissionUser{
-		ID: u.ID, Email: u.Email, UUID: u.UUID, PlanID: u.PlanID, GroupID: u.GroupID,
-		TransferEnable: u.TransferEnable, U: u.U, D: u.D, ExpiredAt: u.ExpiredAt, NextResetAt: u.NextResetAt,
-		SpeedLimit: u.SpeedLimit, DeviceLimit: u.DeviceLimit, Balance: u.Balance, CommissionBalance: u.CommissionBalance,
-		CommissionRate: u.CommissionRate, Discount: u.Discount, RemindExpire: u.RemindExpire, RemindTraffic: u.RemindTraffic,
-		IsAdmin: u.IsAdmin, IsStaff: u.IsStaff, Banned: u.Banned, CreatedAt: u.CreatedAt, LastLoginAt: u.LastLoginAt,
-	}
-	sum := md5.Sum([]byte(strings.ToLower(strings.TrimSpace(u.Email))))
-	v.AvatarURL = "https://www.gravatar.com/avatar/" + hex.EncodeToString(sum[:]) + "?s=200&d=mp"
-	if u.PlanID != nil {
-		var p commissionPlanRef
-		err := a.DB.WithContext(c.Request.Context()).Model(&model.Plan{}).Select("id", "name").Where("id = ?", *u.PlanID).Take(&p).Error
-		if err == nil {
-			v.Plan = &p
-		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return commissionUser{}, err
-		}
-	}
-	return v, nil
 }

@@ -127,7 +127,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*model.User, 
 	if err != nil {
 		return nil, err
 	}
-	if plan != nil {
+	if plan != nil && st.Int("try_out_hour") > 0 {
 		exp := now.Add(time.Duration(st.Int("try_out_hour")) * time.Hour)
 		groupID := plan.GroupID
 		opts.PlanID, opts.GroupID = &plan.ID, &groupID
