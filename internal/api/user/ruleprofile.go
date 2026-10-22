@@ -5,7 +5,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -20,10 +22,18 @@ import (
 // registerRuleProfile mounts GET/PUT /user/rule-profile, GET /user/rulesets/catalog, GET /user/subscription/preview.
 // Owner: BE-D subscription.
 func registerRuleProfile(g *gin.RouterGroup, a *app.App) {
+	// Saving and previewing render whole configs (rule-set plans, group resolution over every node): 60 per
+	// minute per user, like the subscription endpoint's burst, keeps one account from monopolising the CPU.
+	limit := httpx.Limit("rule_profile", httpx.NewLimiter(httpx.Per(60, time.Minute), 30), func(c *gin.Context) string {
+		if u := auth.CurrentUser(c); u != nil {
+			return "u" + strconv.FormatUint(u.ID, 10)
+		}
+		return httpx.KeyByIP(c)
+	})
 	g.GET("/rule-profile", getRuleProfile(a))
-	g.PUT("/rule-profile", putRuleProfile(a))
+	g.PUT("/rule-profile", limit, putRuleProfile(a))
 	g.GET("/rulesets/catalog", func(c *gin.Context) { httpx.OK(c, rulesets.PublicView(rulesets.Current(a.Settings), a.Settings)) })
-	g.GET("/subscription/preview", previewSubscription(a))
+	g.GET("/subscription/preview", limit, previewSubscription(a))
 }
 
 // ruleProfileView is the RuleProfile (stored, or the default template when none) plus whether it is stored,

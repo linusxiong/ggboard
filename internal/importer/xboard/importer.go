@@ -103,6 +103,10 @@ var targetTables = []struct {
 	{"ticket_messages", &model.TicketMessage{}},
 	{"tickets", &model.Ticket{}},
 	{"rule_profiles", &model.RuleProfile{}},
+	// Second factors are keyed by user id: --force re-creates users with Xboard's ids, so a leftover passkey
+	// would sign in as the imported user that receives the same id.
+	{"passkeys", &model.Passkey{}},
+	{"user_mfa", &model.UserMFA{}},
 	{"stat_users", &model.StatUser{}},
 	{"stat_nodes", &model.StatNode{}},
 	{"stats", &model.Stat{}},

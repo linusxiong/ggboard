@@ -47,7 +47,7 @@ func TestConfigReflectsSettingsWithoutSecrets(t *testing.T) {
 		"currency": "USD", "currency_symbol": "$", "stop_register": true, "email_verify": true, "invite_force": true,
 		"email_whitelist_suffix": []string{"example.com"}, "captcha_provider": "turnstile",
 		"captcha_site_key": "site-key", "captcha_secret": secret, "macos_download_url": "https://example.com/mac.dmg",
-		"macos_version": "1.2.3", "email_password": "smtp-secret", "server_token": "node-secret",
+		"macos_version": "1.2.3", "email_password": "smtp-secret", "server_token": "node-secret-0123456789",
 	}))
 	r := testutil.NewRouterWith(t, a, guest.Register)
 	rec := testutil.Do(t, r, http.MethodGet, "/api/v1/guest/config", nil, "")

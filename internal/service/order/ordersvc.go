@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/httpx"
@@ -84,13 +85,16 @@ var ErrOrderCancelled = errors.New("ordersvc: order is cancelled")
 var openStatuses = []model.OrderStatus{model.OrderStatusPending, model.OrderStatusProcessing}
 
 // lockUser takes the user's row lock with a portable no-op UPDATE (SQLite has no SELECT … FOR UPDATE and
-// upgrades to a write lock here) and reloads the row inside tx.
+// upgrades to a write lock here) and reloads the row inside tx. The reload is a locking read: under MySQL's
+// REPEATABLE READ a plain SELECT returns the snapshot taken at the transaction's first read (Paid reads the
+// order first), i.e. the user as it was before the lock, and fulfilment would overwrite a change committed in
+// between. The SQLite dialect drops the FOR UPDATE clause.
 func lockUser(tx *gorm.DB, id uint64) (*model.User, error) {
 	if err := tx.Model(&model.User{}).Where("id = ?", id).UpdateColumn("balance", gorm.Expr("balance")).Error; err != nil {
 		return nil, err
 	}
 	var u model.User
-	if err := tx.First(&u, id).Error; err != nil {
+	if err := tx.Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).First(&u, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, httpx.NotFound("user not found")
 		}

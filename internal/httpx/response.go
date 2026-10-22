@@ -35,7 +35,7 @@ func Fail(c *gin.Context, err error) {
 		e = Internal(nil)
 	}
 	if e.Status >= http.StatusInternalServerError {
-		Logger(c).Error("request failed", "path", c.Request.URL.Path, "err", err)
+		Logger(c).Error("request failed", "path", LogPath(c), "err", err)
 	}
 	if c.Writer.Written() {
 		c.Abort()

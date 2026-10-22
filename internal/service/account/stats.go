@@ -2,9 +2,9 @@ package account
 
 import (
 	"context"
-	invitesvc "github.com/linusxiong/ggboard/internal/service/invite"
 
 	"github.com/linusxiong/ggboard/internal/model"
+	invitesvc "github.com/linusxiong/ggboard/internal/service/invite"
 )
 
 // Stats is the user dashboard summary (GET /user/stats).

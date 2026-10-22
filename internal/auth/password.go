@@ -11,7 +11,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"golang.org/x/crypto/argon2"
@@ -40,6 +42,27 @@ func SetParams(p Params) { params.Store(&p) }
 // CurrentParams returns the parameters used for new hashes.
 func CurrentParams() Params { return *params.Load() }
 
+// argon2 allocates Params.Memory (64 MiB by default) per call: without a bound, a burst of logins (30 per IP
+// are allowed) needs gigabytes. hashSlots caps concurrent derivations; callers queue for a slot.
+var (
+	hashSlots = make(chan struct{}, max(2, runtime.NumCPU()))
+	argon2Key = argon2.IDKey // replaced in tests
+)
+
+// Bounds on the parameters of stored argon2id hashes: a hash asking for more is rejected, not computed.
+const (
+	maxMemory  = 1 << 20 // KiB (1 GiB)
+	maxPasses  = 64
+	maxThreads = 64
+	maxKeyLen  = 1024
+)
+
+func deriveKey(password, salt []byte, time, memory uint32, threads uint8, keyLen uint32) []byte {
+	hashSlots <- struct{}{}
+	defer func() { <-hashSlots }()
+	return argon2Key(password, salt, time, memory, threads, keyLen)
+}
+
 // ErrUnsupportedHash reports a malformed or unknown password hash.
 var ErrUnsupportedHash = errors.New("auth: unsupported password hash")
 
@@ -50,7 +73,7 @@ func HashPassword(password string) (string, error) {
 	if _, err := rand.Read(salt); err != nil {
 		return "", fmt.Errorf("auth: salt: %w", err)
 	}
-	key := argon2.IDKey([]byte(password), salt, p.Time, p.Memory, p.Threads, p.KeyLen)
+	key := deriveKey([]byte(password), salt, p.Time, p.Memory, p.Threads, p.KeyLen)
 	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s", argon2.Version, p.Memory, p.Time, p.Threads,
 		base64.RawStdEncoding.EncodeToString(salt), base64.RawStdEncoding.EncodeToString(key)), nil
 }
@@ -74,6 +97,18 @@ func VerifyPassword(hash, password string) bool {
 		return verifyXboard(hash, password)
 	}
 	return false
+}
+
+var (
+	dummyOnce sync.Once
+	dummyHash string
+)
+
+// VerifyDummy spends the time of a real VerifyPassword without any account: login calls it for unknown emails
+// so response timing does not reveal which emails are registered.
+func VerifyDummy(password string) {
+	dummyOnce.Do(func() { dummyHash, _ = HashPassword("ggboard: no such account") })
+	VerifyPassword(dummyHash, password)
 }
 
 // NeedsRehash reports whether hash should be replaced by HashPassword after a successful login
@@ -114,7 +149,8 @@ func decodeArgon2(hash string) (p Params, salt, key []byte, err error) {
 		return p, nil, nil, ErrUnsupportedHash
 	}
 	p.SaltLen, p.KeyLen = uint32(len(salt)), uint32(len(key))
-	if p.Threads == 0 || p.Time == 0 || p.KeyLen == 0 {
+	if p.Threads == 0 || p.Time == 0 || p.KeyLen == 0 || p.KeyLen > maxKeyLen ||
+		p.Memory > maxMemory || p.Time > maxPasses || p.Threads > maxThreads {
 		return p, nil, nil, ErrUnsupportedHash
 	}
 	return p, salt, key, nil
@@ -125,7 +161,7 @@ func verifyArgon2(hash, password string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	got := argon2.IDKey([]byte(password), salt, p.Time, p.Memory, p.Threads, p.KeyLen)
+	got := deriveKey([]byte(password), salt, p.Time, p.Memory, p.Threads, p.KeyLen)
 	return subtle.ConstantTimeCompare(got, key) == 1, nil
 }
 

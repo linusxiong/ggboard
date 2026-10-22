@@ -21,15 +21,55 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/linusxiong/ggboard/internal/app"
+	"github.com/linusxiong/ggboard/internal/captcha"
 	"github.com/linusxiong/ggboard/internal/httpx"
 )
 
 //go:embed all:dist
 var embedded embed.FS
 
-// CSP is the Content-Security-Policy sent with HTML documents.
+// CSP is the Content-Security-Policy sent with HTML documents when no captcha provider is enabled.
 const CSP = "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; " +
 	"connect-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+
+// captchaSources are the origins each captcha widget (web/src/components/Captcha.tsx) loads scripts, frames,
+// XHRs and styles from, per the providers' CSP guides. reCAPTCHA is loaded from www.recaptcha.net (reachable in
+// mainland China) and may still frame or fetch from www.google.com.
+var captchaSources = map[string]struct{ script, frame, connect, style string }{
+	captcha.Turnstile: {
+		script: "https://challenges.cloudflare.com",
+		frame:  "https://challenges.cloudflare.com",
+	},
+	captcha.ReCaptcha: {
+		script: "https://www.recaptcha.net/recaptcha/ https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/",
+		frame:  "https://www.recaptcha.net/recaptcha/ https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/",
+	},
+	captcha.HCaptcha: {
+		script:  "https://hcaptcha.com https://*.hcaptcha.com",
+		frame:   "https://hcaptcha.com https://*.hcaptcha.com",
+		connect: "https://hcaptcha.com https://*.hcaptcha.com",
+		style:   "https://hcaptcha.com https://*.hcaptcha.com",
+	},
+}
+
+// CSPFor returns the HTML Content-Security-Policy allowing the given captcha provider's widget ("none" or an
+// unknown provider: CSP). Only the enabled provider is allowed, never all of them.
+func CSPFor(provider string) string {
+	src, ok := captchaSources[provider]
+	if !ok {
+		return CSP
+	}
+	join := func(base, extra string) string {
+		if extra == "" {
+			return base
+		}
+		return base + " " + extra
+	}
+	return "default-src 'self'; img-src 'self' data: https:; style-src " + join("'self' 'unsafe-inline'", src.style) +
+		"; script-src " + join("'self'", src.script) + "; frame-src " + join("'self'", src.frame) +
+		"; connect-src " + join("'self'", src.connect) +
+		"; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+}
 
 // Cache-Control values.
 const (
@@ -50,6 +90,18 @@ type file struct {
 type Handler struct {
 	fsys  fs.FS
 	files map[string]*file
+	csp   func() string // policy for HTML documents (CSP when nil)
+}
+
+// SetCSP makes HTML documents carry the policy returned by fn (evaluated per request, so settings changes
+// apply at once).
+func (h *Handler) SetCSP(fn func() string) { h.csp = fn }
+
+func (h *Handler) policy() string {
+	if h.csp == nil {
+		return CSP
+	}
+	return h.csp()
 }
 
 // FS returns the frontend file system: cfg.Frontend.Dir when set, else the embedded dist directory.
@@ -73,6 +125,12 @@ func Mount(e *gin.Engine, a *app.App) error {
 	if err != nil {
 		return err
 	}
+	h.SetCSP(func() string {
+		if !captcha.Enabled(a.Settings) {
+			return CSP
+		}
+		return CSPFor(a.Settings.String("captcha_provider"))
+	})
 	e.NoRoute(h.Serve)
 	return nil
 }
@@ -167,7 +225,10 @@ func (h *Handler) Serve(c *gin.Context) {
 	}
 	f, ok := h.files[name]
 	if !ok {
-		if strings.HasPrefix(name, ImmutablePrefix) || (path.Ext(name) != "" && path.Ext(name) != ".html") {
+		// Missing assets and well-known URLs (RFC 8615: webauthn, apple-app-site-association, acme-challenge...)
+		// are real 404s: the SPA page would be a 200 that clients parse as the resource.
+		if strings.HasPrefix(name, ImmutablePrefix) || strings.HasPrefix(name, ".well-known/") ||
+			(path.Ext(name) != "" && path.Ext(name) != ".html") {
 			c.Header("Cache-Control", CacheNoCache)
 			c.String(http.StatusNotFound, "404 not found")
 			return
@@ -200,7 +261,7 @@ func (h *Handler) serveFile(c *gin.Context, f *file) {
 		hd.Set("Content-Encoding", enc)
 	}
 	if f.html {
-		hd.Set("Content-Security-Policy", CSP)
+		hd.Set("Content-Security-Policy", h.policy())
 		hd.Set("X-Frame-Options", "DENY")
 	}
 	rs, err := h.open(name)

@@ -26,7 +26,10 @@ func sogaError(c *gin.Context, err error) {
 
 // sogaAuth authenticates soga requests: headers API-KEY, NODE-ID, NODE-TYPE (docs/NODE_PROTOCOLS.md §1.3).
 func (h *handler) sogaAuth(c *gin.Context) {
-	if !h.tokenOK(c.GetHeader("API-KEY")) {
+	if ok, limited := h.tokenCheck(c, c.GetHeader("API-KEY")); limited {
+		sogaFail(c, http.StatusTooManyRequests, "too many invalid API-KEY attempts, retry later")
+		return
+	} else if !ok {
 		sogaFail(c, http.StatusForbidden, "invalid API-KEY")
 		return
 	}

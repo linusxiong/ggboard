@@ -547,7 +547,7 @@ Settlement is in **USDC** on Base (`network` defaults to `base`), and a Coinbase
 | `api_key_name` | CDP API key name | text | ✓ | `organizations/{org_id}/apiKeys/{key_id}` (JWT `kid` and `sub`). |
 | `api_key_secret` | CDP API key secret | textarea | ✓ | ECDSA P-256 PEM (`-----BEGIN EC PRIVATE KEY-----`; literal `\n` accepted). Create the key as **ECDSA**: Ed25519 is undocumented here, and Coinbase App APIs reject it. |
 | `webhook_secret` | Webhook secret | password | ✓ | The `secret` returned when creating the webhook subscription (the sample shows `metadata.secret`). |
-| `exchange_rate` | Exchange rate | number | – | USDC per site-currency unit. Default `1`, which is only valid for a USD site. |
+| `exchange_rate` | Exchange rate | number | – | USDC per site-currency unit. Empty means `1`, which is only accepted for a USD/USDC/USDT site: other site currencies need an explicit rate ≠ 1 (checked on save and again before every checkout). |
 
 **Auth.** Build a fresh JWT per request with `github.com/golang-jwt/jwt/v5` (already in the stack).
 - Header: `{"alg":"ES256","kid":"<api_key_name>","nonce":"<hex of 16 random bytes>","typ":"JWT"}`.

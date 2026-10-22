@@ -133,16 +133,16 @@ func SQLiteDSN(dsn string) (string, bool) {
 	return path + "?" + q.Encode(), memory
 }
 
-// MySQLDSN forces parseTime=true and defaults loc to UTC and charset to utf8mb4.
+// MySQLDSN forces parseTime=true and loc=UTC and defaults charset to utf8mb4. loc is forced (not defaulted):
+// date columns hold model.Day values (midnight UTC), and any other loc shifts them to another day or turns
+// record_at = ? lookups into mismatches (the driver always sets a Loc, so a nil check never applied).
 func MySQLDSN(dsn string) (string, error) {
 	c, err := mysqldriver.ParseDSN(dsn)
 	if err != nil {
 		return "", fmt.Errorf("db: invalid mysql dsn: %w", err)
 	}
 	c.ParseTime = true
-	if c.Loc == nil {
-		c.Loc = time.UTC
-	}
+	c.Loc = time.UTC
 	if c.Params == nil {
 		c.Params = map[string]string{}
 	}

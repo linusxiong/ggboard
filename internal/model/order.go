@@ -11,7 +11,7 @@ type Order struct {
 	PlanID            uint64            `gorm:"index;not null" json:"plan_id"`
 	Plan              *Plan             `gorm:"foreignKey:PlanID" json:"plan,omitempty"`
 	InviteUserID      *uint64           `gorm:"index" json:"invite_user_id"`
-	CouponID          *uint64           `json:"coupon_id"`
+	CouponID          *uint64           `gorm:"index" json:"coupon_id"`
 	PaymentID         *uint64           `json:"payment_id"`
 	Payment           *Payment          `gorm:"foreignKey:PaymentID" json:"payment,omitempty"`
 	Type              OrderType         `gorm:"not null" json:"type"`
@@ -27,7 +27,7 @@ type Order struct {
 	Status            OrderStatus       `gorm:"index;not null;default:0" json:"status"`
 	CommissionStatus  CommissionStatus  `gorm:"index;not null;default:0" json:"commission_status"`
 	CommissionBalance int64             `gorm:"not null;default:0" json:"commission_balance"`
-	PaidAt            *time.Time        `json:"paid_at"`
+	PaidAt            *time.Time        `gorm:"index" json:"paid_at"`
 	CreatedAt         time.Time         `gorm:"index" json:"created_at"`
 	UpdatedAt         time.Time         `json:"updated_at"`
 }
@@ -83,8 +83,8 @@ type CommissionLog struct {
 	ID           uint64    `gorm:"primaryKey" json:"id"`
 	InviteUserID uint64    `gorm:"index;not null" json:"invite_user_id"`
 	UserID       uint64    `gorm:"not null" json:"user_id"`
-	TradeNo      string    `gorm:"size:32;not null" json:"trade_no"`
+	TradeNo      string    `gorm:"size:32;index;not null" json:"trade_no"`
 	OrderAmount  int64     `gorm:"not null" json:"order_amount"`
 	GetAmount    int64     `gorm:"not null" json:"get_amount"`
-	CreatedAt    time.Time `json:"created_at"`
+	CreatedAt    time.Time `gorm:"index" json:"created_at"`
 }

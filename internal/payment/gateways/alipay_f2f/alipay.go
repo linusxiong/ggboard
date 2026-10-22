@@ -380,7 +380,7 @@ func (*Gateway) Notify(_ context.Context, cfg map[string]string, r *http.Request
 	if params["out_trade_no"] == "" {
 		return nil, nil, errors.New("alipay_f2f: missing out_trade_no")
 	}
-	amount, err := gwutil.ParseCents(params["total_amount"])
+	amount, err := gwutil.ParsePaidCents(params["total_amount"])
 	if err != nil {
 		return nil, nil, err
 	}

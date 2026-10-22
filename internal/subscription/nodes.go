@@ -50,8 +50,9 @@ func AvailableNodes(ctx context.Context, a *app.App, u *model.User) ([]Available
 	}
 	gid := *u.GroupID
 	key := a.Cache.Key(NodesNamespace, strconv.FormatUint(gid, 10))
+	lctx := context.WithoutCancel(ctx) // singleflight: the load is shared by concurrent callers, so it must not fail because the first caller went away
 	entries, err := cache.GetOrLoad(a.Cache, key, NodesTTL, func() ([]*nodeEntry, error) {
-		return loadNodes(ctx, a.DB, a.Log, gid)
+		return loadNodes(lctx, a.DB, a.Log, gid)
 	})
 	if err != nil {
 		return nil, err

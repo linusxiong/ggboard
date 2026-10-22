@@ -100,7 +100,10 @@ Optional extensions (duck-typed, no change to the interface):
    - the order's `payment_id` must equal the resolved payment, and when `NotifyResult.Amount != 0` it must equal
      `total_amount + handling_amount`; otherwise the order is NOT paid, ERROR + admin alert, acknowledged;
    - an already-paid order with a different `CallbackNo` is logged WARN (possible double payment) and acknowledged;
-   - a verified payment for a cancelled order is NOT dropped: `callback_no` stored, ERROR, admin alerted;
+   - a verified payment for a cancelled order is NOT dropped: `callback_no` stored, ERROR, admin alerted (once per
+     gateway transaction: replays of the same notification are acknowledged without a new alert);
+   - gateways that always report the amount (EPay, Epusdt, Alipay) treat a zero or negative signed amount as a
+     verification failure (`gwutil.ParsePaidCents`), since `Amount == 0` means "not reported" here;
    - otherwise `Paid(tradeNo, callbackNo)` (conditional `status 0 → 3` update + fulfilment in one transaction, idempotent);
      database errors answer 500 so the gateway retries. The gateway's `NotifyResponse` is written verbatim.
    Admin alerts use the `notify` mail template and go to the first administrator (lowest id).
@@ -110,8 +113,11 @@ Optional extensions (duck-typed, no change to the interface):
    it; speed/device limits from the plan; `next_reset_at` (`usersvc.ComputeNextResetAt`); surplus orders → status 4;
    `refund_amount` → balance; commission computed (`commission_status = 0`). After commit: `auth.InvalidateUser`,
    `usersvc.InvalidateNodeUsers()`, email `order_paid`.
-5. `order_timeout` job (every minute) cancels pending orders older than `order_timeout_minutes`; cancel (user, admin or
-   job) returns `balance_amount` to the balance and the coupon use. Admin `POST /admin/orders/:id/paid` fulfils a pending
+5. `order_timeout` job (every minute) cancels pending orders older than `order_timeout_minutes`, except orders checked
+   out (payment_id set) within the last `ordersvc.CheckoutGrace` (31 min: Stripe sessions live ≥ 30 min, so a payment
+   page opened just before the deadline would otherwise turn into "paid after cancel"); checkout refuses (409) orders
+   past `created_at + order_timeout_minutes`. Cancel (user, admin or job) returns `balance_amount` to the balance and
+   the coupon use. Admin `POST /admin/orders/:id/paid` fulfils a pending
    order with `callback_no = "manual"`.
 
 ## Commissions

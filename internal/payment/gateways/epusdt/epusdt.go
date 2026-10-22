@@ -206,7 +206,7 @@ func (*Gateway) Notify(_ context.Context, cfg map[string]string, r *http.Request
 	if tradeNo == "" {
 		return nil, nil, errors.New("epusdt: missing order_id")
 	}
-	amount, err := gwutil.ParseCents(exact["amount"])
+	amount, err := gwutil.ParsePaidCents(exact["amount"])
 	if err != nil {
 		return nil, nil, err
 	}

@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"regexp/syntax"
 	"slices"
 	"strconv"
 	"strings"
-	"unicode"
 	"unicode/utf8"
 
 	"github.com/linusxiong/ggboard/internal/subscription"
@@ -25,6 +25,11 @@ const (
 	MaxGroups       = 32
 	MaxGroupName    = 64
 	MaxIncludeToken = 256
+	MaxIncludeLen   = 2048 // bytes of one group's include list
+	MaxIncludeRegex = 32   // regular-expression tokens per group list (matched against every proxy on every render)
+	MaxRegexInsts   = 256  // compiled program size of one token (matching cost is linear in it)
+	MaxRegexRunes   = 4096 // rune-range entries of one token's program: [\pL\pN]{20} is already ~31000
+	MaxURLLen       = 512
 	MinInterval     = 10
 	MaxInterval     = 86400
 )
@@ -53,11 +58,32 @@ func ValidGroupName(name string) string {
 		return "is a reserved policy name"
 	}
 	for _, r := range name {
-		if unicode.IsControl(r) {
-			return "must not contain control characters"
+		// Not just control characters: line/paragraph separators break the line-based formats (Surge, Loon,
+		// Quantumult X) and noncharacters such as U+FFFE make yaml.v3 reject the whole Clash file.
+		if subscription.UnsafeRune(r) {
+			return "must not contain control or invisible characters"
 		}
 	}
 	return ""
+}
+
+// regexTooComplex reports whether t is expensive to compile or match (ResolveGroups matches it against every
+// proxy name on every render): bounded repetitions and large Unicode classes such as [\pL\pN]{1000} expand to
+// programs with over a million rune ranges although the pattern is 14 bytes.
+func regexTooComplex(t string) bool {
+	re, err := syntax.Parse(t, syntax.Perl)
+	if err != nil {
+		return false // reported as invalid elsewhere
+	}
+	prog, err := syntax.Compile(re.Simplify())
+	if err != nil || len(prog.Inst) > MaxRegexInsts {
+		return true
+	}
+	runes := 0
+	for _, in := range prog.Inst {
+		runes += len(in.Rune)
+	}
+	return runes > MaxRegexRunes
 }
 
 // validateGroups checks a group list and returns the set of group names. Field names are prefixed with
@@ -83,6 +109,7 @@ func validateGroups(groups []subscription.PolicyGroup, prefix string, errs Field
 	if !names[subscription.GroupProxy] {
 		errs.add(prefix, `the "Proxy" group is required`)
 	}
+	regexes := 0 // across the whole group list
 	for i, g := range groups {
 		f := prefix + "[" + strconv.Itoa(i) + "]"
 		if !slices.Contains(groupTypes, g.Type) {
@@ -98,6 +125,13 @@ func validateGroups(groups []subscription.PolicyGroup, prefix string, errs Field
 		} else if g.URL != "" && !validHTTPURL(g.URL) {
 			errs.add(f+".url", "must be an http(s) URL")
 		}
+		if len(g.URL) > MaxURLLen {
+			errs.add(f+".url", fmt.Sprintf("must be at most %d bytes", MaxURLLen))
+		}
+		if len(g.Include) > MaxIncludeLen {
+			errs.add(f+".include", fmt.Sprintf("must be at most %d bytes", MaxIncludeLen))
+			continue
+		}
 		tokens := subscription.SplitInclude(g.Include)
 		if len(tokens) == 0 {
 			errs.add(f+".include", "is required")
@@ -110,8 +144,13 @@ func validateGroups(groups []subscription.PolicyGroup, prefix string, errs Field
 			case len(t) > MaxIncludeToken:
 				errs.add(f+".include", fmt.Sprintf("tokens must be at most %d bytes", MaxIncludeToken))
 			default:
+				if regexes++; regexes == MaxIncludeRegex+1 {
+					errs.add(f+".include", fmt.Sprintf("at most %d regular expressions across all groups", MaxIncludeRegex))
+				}
 				if _, err := regexp.Compile(t); err != nil {
 					errs.add(f+".include", fmt.Sprintf("%q is neither a group nor a valid regular expression", t))
+				} else if regexTooComplex(t) {
+					errs.add(f+".include", fmt.Sprintf("%q is too complex", t))
 				}
 			}
 		}

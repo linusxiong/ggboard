@@ -38,12 +38,17 @@ const (
 	CodeTTL         = 10 * time.Minute // lifetime of an email code
 	CodeCooldown    = 60 * time.Second // minimum delay between two codes for the same email
 	MaxCodeAttempts = 5                // wrong guesses before a code is discarded
+	// MaxCodeFailures wrong codes per email within CodeFailureWindow (whatever the code) lock the email's
+	// codes (429) until the window ends.
+	MaxCodeFailures   = 10
+	CodeFailureWindow = time.Hour
 )
 
 // KV key prefixes (a.KV).
 const (
 	kvCode        = "account:code:"          // account:code:<purpose>:<email> -> codeEntry
 	kvCodeCool    = "account:code_cooldown:" // account:code_cooldown:<email> -> true
+	kvCodeFail    = "account:code_fail:"     // account:code_fail:<email> -> int
 	kvLoginFail   = "account:login_fail:"    // account:login_fail:<email> -> int
 	kvRegisterIP  = "account:register_ip:"   // account:register_ip:<ip> -> int
 	codeFieldName = "email_code"
@@ -162,8 +167,15 @@ func (s *Service) ConsumeCode(purpose, email, code string) error {
 		return httpx.FieldError(codeFieldName, "is required")
 	}
 	key := codeKey(purpose, email)
+	failKey := kvCodeFail + email
 	codesMu.Lock()
 	defer codesMu.Unlock()
+	if v, _ := s.a.KV.Get(failKey); v != nil {
+		if n, _ := v.(int); n >= MaxCodeFailures {
+			wait, _ := s.a.KV.TTL(failKey)
+			return retryError(fmt.Sprintf("too many invalid verification codes, try again in %d minutes", waitMinutes(wait)), wait)
+		}
+	}
 	v, ok := s.a.KV.Get(key)
 	e, _ := v.(codeEntry)
 	if !ok || e.Code == "" {
@@ -175,6 +187,12 @@ func (s *Service) ConsumeCode(purpose, email, code string) error {
 		}
 		return nil
 	}
+	// Every new code resets the per-code budget, so the per-email budget bounds guessing over time (one code a
+	// minute would otherwise allow 5 guesses a minute, indefinitely).
+	s.a.KV.Update(failKey, CodeFailureWindow, true, func(old any, _ bool) any {
+		n, _ := old.(int)
+		return n + 1
+	})
 	e.Attempts++
 	ttl, live := s.a.KV.TTL(key)
 	if e.Attempts >= MaxCodeAttempts || !live || ttl <= 0 {
@@ -218,6 +236,52 @@ func (s *Service) CheckPasswordLock(email string) error {
 	}
 	wait, _ := s.a.KV.TTL(key)
 	return retryError(fmt.Sprintf("too many failed password attempts, try again in %d minutes", waitMinutes(wait)), wait)
+}
+
+// ReserveAttempt atomically takes one attempt from the failure counter at key (a.KV): it returns ok=false while
+// the counter is at or above limit, otherwise it increments the counter (a fixed window of length window starts
+// with the first increment) and returns release, which gives the attempt back. Callers reserve BEFORE verifying
+// a secret and keep the reservation when the secret is wrong: a check-then-record sequence lets N concurrent
+// requests all pass the check before any failure is recorded.
+func ReserveAttempt(a *app.App, key string, limit int, window time.Duration) (release func(), ok bool) {
+	ok = true
+	a.KV.Update(key, window, true, func(old any, _ bool) any {
+		n, _ := old.(int)
+		if n >= limit {
+			ok = false
+			return n
+		}
+		return n + 1
+	})
+	if !ok {
+		return func() {}, false
+	}
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			a.KV.Update(key, window, true, func(old any, _ bool) any {
+				n, _ := old.(int)
+				return max(0, n-1)
+			})
+		})
+	}, true
+}
+
+// ReservePasswordAttempt is the password lockout for email (password_limit_*): it reserves one attempt
+// (ReserveAttempt) or returns a *RetryError while the email is locked. Keep the reservation when the password
+// is wrong, call ClearPasswordFailures on success and release() when the password was never checked.
+func (s *Service) ReservePasswordAttempt(email string) (release func(), err error) {
+	st := s.a.Settings
+	if !st.Bool("password_limit_enable") {
+		return func() {}, nil
+	}
+	key := kvLoginFail + usersvc.NormalizeEmail(email)
+	release, ok := ReserveAttempt(s.a, key, st.Int("password_limit_count"), minutes(st.Int("password_limit_expire")))
+	if !ok {
+		wait, _ := s.a.KV.TTL(key)
+		return nil, retryError(fmt.Sprintf("too many failed password attempts, try again in %d minutes", waitMinutes(wait)), wait)
+	}
+	return release, nil
 }
 
 // RecordPasswordFailure counts a failed password attempt for email (fixed window of password_limit_expire

@@ -22,7 +22,7 @@ func NewEngine(a *app.App) *gin.Engine {
 		a.Log.Error("invalid server.trusted_proxies; trusting none", "err", err)
 		_ = e.SetTrustedProxies(nil)
 	}
-	e.Use(RequestID(a.Log), AccessLog(), SecurityHeaders())
+	e.Use(RequestID(a.Log), AccessLog(), SecurityHeaders(), trustedPeer(parsePrefixes(a.Cfg.Server.TrustedProxies)))
 	if mw := CORS(a.Cfg.Server.CORSOrigins); mw != nil {
 		e.Use(mw)
 	}

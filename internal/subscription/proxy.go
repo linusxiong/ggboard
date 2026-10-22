@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/linusxiong/ggboard/internal/model"
 )
@@ -447,6 +448,13 @@ func NodeProxies(u *model.User, nodes []AvailableNode, opt ProxyOptions) []Proxy
 
 // DisplayName normalizes a node name: optional emoji removal, control characters and separators that
 // break line-based client configs (",", "=") replaced, whitespace collapsed.
+// UnsafeRune reports runes that must never reach a generated config: control characters, line and paragraph
+// separators (they end a line in the line-based formats) and noncharacters such as U+FFFE (yaml.v3 rejects the
+// whole document). Format characters such as ZWJ stay allowed (emoji sequences use them).
+func UnsafeRune(r rune) bool {
+	return unicode.IsControl(r) || unicode.In(r, unicode.Zl, unicode.Zp, unicode.Noncharacter_Code_Point) || r == utf8.RuneError
+}
+
 func DisplayName(name string, stripEmoji bool) string {
 	var b strings.Builder
 	b.Grow(len(name))
@@ -459,7 +467,7 @@ func DisplayName(name string, stripEmoji bool) string {
 			r = '，'
 		case r == '=':
 			r = '＝'
-		case unicode.IsControl(r) || unicode.IsSpace(r):
+		case unicode.IsControl(r) || unicode.IsSpace(r) || UnsafeRune(r):
 			if !space && b.Len() > 0 {
 				b.WriteByte(' ')
 			}

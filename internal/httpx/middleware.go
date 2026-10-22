@@ -57,9 +57,18 @@ func RequestID(log *slog.Logger) gin.HandlerFunc {
 // Recovery converts panics into a JSON 500 and logs the stack.
 func Recovery() gin.HandlerFunc {
 	return gin.CustomRecoveryWithWriter(io.Discard, func(c *gin.Context, rec any) {
-		Logger(c).Error("panic recovered", "panic", rec, "path", c.Request.URL.Path, "stack", string(debug.Stack()))
+		Logger(c).Error("panic recovered", "panic", rec, "path", LogPath(c), "stack", string(debug.Stack()))
 		Fail(c, NewError(http.StatusInternalServerError, CodeInternal, "internal server error"))
 	})
+}
+
+// LogPath is the path to write to logs: the route pattern (e.g. /s/:token) so secrets carried in path params
+// never reach the log, or the literal path for unmatched requests (404s have no pattern and no params).
+func LogPath(c *gin.Context) string {
+	if p := c.FullPath(); p != "" {
+		return p
+	}
+	return c.Request.URL.Path
 }
 
 // AccessLog logs one line per request (path only: query strings may carry tokens).
@@ -72,15 +81,9 @@ func AccessLog() gin.HandlerFunc {
 		if status >= http.StatusInternalServerError {
 			level = slog.LevelError
 		}
-		// Log the route pattern (e.g. /s/:token) so secrets carried in path params never reach the log;
-		// unmatched requests (404) have no pattern and log their literal path.
-		path := c.FullPath()
-		if path == "" {
-			path = c.Request.URL.Path
-		}
 		Logger(c).Log(c.Request.Context(), level, "http",
 			"method", c.Request.Method,
-			"path", path,
+			"path", LogPath(c),
 			"status", status,
 			"latency", time.Since(start).String(),
 			"ip", c.ClientIP(),

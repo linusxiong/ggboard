@@ -67,7 +67,7 @@ type knowledgeInput struct {
 	Title    *string `json:"title" binding:"omitnil,max=255"`
 	Body     *string `json:"body"`
 	Show     *bool   `json:"show"`
-	Sort     *int    `json:"sort"`
+	Sort     *int    `json:"sort" binding:"omitnil,gte=-1000000,lte=1000000"`
 }
 
 func (in *knowledgeInput) updates(create bool) (map[string]any, error) {
@@ -84,7 +84,9 @@ func (in *knowledgeInput) updates(create bool) (map[string]any, error) {
 		}
 	}
 	// The body keeps its whitespace (markdown) but must not be blank.
-	if in.Body != nil && strings.TrimSpace(*in.Body) != "" {
+	if in.Body != nil && len(*in.Body) > contentMaxBytes {
+		e = e.WithField("body", errContentTooLong.Error())
+	} else if in.Body != nil && strings.TrimSpace(*in.Body) != "" {
 		m["body"] = *in.Body
 	} else if in.Body != nil || create {
 		e = e.WithField("body", errContentRequired.Error())

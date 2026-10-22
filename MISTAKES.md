@@ -416,3 +416,37 @@
 - **根因**：上一轮的 `ggboard serve` 没被 `pkill` 干净，新进程 `bind: address already in use` 退出，旧进程继续应答；没先看 `server.log`。
 - **修复**：`lsof -iTCP:<port> -sTCP:LISTEN` 确认监听进程并 kill，再启动；之后一切正常。
 - **规则**：启动服务后先 `head server.log` 看到 "listening" 再发请求；非 `/api` 路径的 200 可能只是 SPA 兜底，不能当作接口存在的证据。
+
+### 60. （后端评审）shell 包装层把 golangci-lint 的输出换成了一条无关的 ESLint 提示
+- **现象**：`golangci-lint run ./... > lint.txt 2>&1` 之后 `tail lint.txt` 显示 "The unix formatter is no longer part of core ESLint"，看起来像 lint 根本没跑，其实有 1 个 goimports 问题。
+- **根因**：本机 shell 包装层（rtk）对命令输出做过滤/改写（同错题 #9）。
+- **修复**：直接 `golangci-lint run ./... > file`，再用 `od -c`/`sed -n` 读文件原文；以退出码为准。
+- **规则**：质量门禁一律看退出码 + 重定向到文件的原始输出；输出内容和命令对不上时，先怀疑包装层。
+
+### 61. （后端评审）zsh 未加引号的 glob 第三次让 grep 整条没执行（重犯 #8、2026-10-22 #6）
+- **现象**：`grep -n ... internal/model/mail*.go` 和 `grep ... Dockerfile*` 报 `no matches found`，同一条命令里的其他 grep 也没跑。
+- **规则**：zsh 里任何含 `*` 的路径都先 `ls` 确认存在，或加引号交给工具展开；“no matches found” 说明命令没执行，不是“没有结果”。
+
+### 62. （后端评审）用 Python 普通字符串写替换脚本，`\pL` 变成 `\\pL` 后断言失败
+- **现象**：替换 `validate.go` 注释里的 `[\pL\pN]{1000}` 时，脚本里写成 `'\\\\pL'`，与文件内容对不上，`assert old in s` 失败（好在断言拦住了，没有写坏文件）。
+- **规则**：含反斜杠的源码片段一律用 `r'''…'''` 原始字符串；每个替换都 `assert s.count(old) == 1`。
+
+### 63. （后端评审）GORM 扫描进“内嵌未导出类型”的匿名结构体，字段全是零值
+- **现象**：`[]struct{ knowledgeRow; Body string }` 查询后 id/title/category 全为空，测试才发现。
+- **根因**：GORM 解析 schema 时忽略未导出的内嵌类型字段。
+- **修复**：内嵌导出类型（`KnowledgeSummary`）并显式列出其余字段。
+- **规则**：给 GORM 的扫描目标只用导出字段/导出内嵌类型；新查询必须有断言字段值的测试。
+
+### 64. （后端评审）凭直觉定阈值：用指令数限制正则成本，挡不住真正昂贵的模式
+- **现象**：`MaxRegexInsts = 2000` 放过了 `[\pL\pN]{1000}`（1002 条指令，但含 150 万个 rune 区间）。
+- **修复**：在 scratchpad 写小程序实测几种模式的指令数、rune 区间数和编译耗时，再定 256 指令 + 4096 区间两个上限。
+- **规则**：任何“成本上限”先实测代表性输入（正常值和攻击值），把测量结果写进常量注释。
+
+### 65. （后端评审）改缓存键方案前没查谁依赖旧的命名空间失效语义
+- **现象**：把规则档缓存改成每用户命名空间后，`TestStoredProfiles` 用 `InvalidateNamespace(engine.ProfileNamespace)` 清缓存失效。
+- **修复**：键同时带全局命名空间和每用户代数（`Key(ProfileNamespace, Key(perUserNS, ""))`），两种失效都生效。
+- **规则**：改缓存键/失效方式前先 `grep -rn "InvalidateNamespace(<ns>)\|<ns>"`，包括测试。
+
+### 66. （后端评审）“修复前必失败”验证时只 stash 了实现文件，测试引用了新常量导致整个包编译失败
+- **现象**：`git stash push <impl files>` 后 `go test` 报 build failed，不能证明测试在旧代码上失败。
+- **规则**：回归测试尽量只通过旧 API 观察行为（HTTP 请求、已有导出函数）；需要新常量时，用字面量写一份只依赖旧 API 的断言来做 stash 验证。

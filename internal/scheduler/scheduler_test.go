@@ -110,3 +110,32 @@ func TestOverlapSkipped(t *testing.T) {
 		t.Fatalf("runs = %d", runs.Load())
 	}
 }
+
+// Review 2026-10-22: Stop waited for cron's Stop (which waits for running jobs) before cancelling the jobs'
+// context, so a job blocking on its context hung shutdown forever and ignored Stop's deadline.
+func TestReviewStopCancelsRunningJobs(t *testing.T) {
+	s := New(logx.Discard(), time.UTC)
+	started := make(chan struct{})
+	if err := s.Register("block", "@every 1s", func(ctx context.Context) error {
+		close(started)
+		<-ctx.Done()
+		return ctx.Err()
+	}); err != nil {
+		t.Fatal(err)
+	}
+	s.Start()
+	select {
+	case <-started:
+	case <-time.After(3 * time.Second):
+		t.Fatal("job did not start")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	begin := time.Now()
+	if err := s.Stop(ctx); err != nil {
+		t.Fatalf("Stop = %v", err)
+	}
+	if d := time.Since(begin); d > time.Second {
+		t.Fatalf("Stop took %v", d)
+	}
+}

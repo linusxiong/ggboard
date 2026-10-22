@@ -180,7 +180,8 @@ func dquote(s string) string {
 			b.WriteString(`\r`)
 		case r == '\t':
 			b.WriteString(`\t`)
-		case r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f) || r == 0x2028 || r == 0x2029 || r == 0xfeff || r == utf8.RuneError:
+		case r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f) || r == 0x2028 || r == 0x2029 || r == 0xfeff ||
+			r == 0xfffe || r == 0xffff || r == utf8.RuneError: // outside YAML's printable set: escape
 			b.WriteString(`\u`)
 			h := strconv.FormatInt(int64(r), 16)
 			b.WriteString(strings.Repeat("0", 4-len(h)))

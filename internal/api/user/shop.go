@@ -215,14 +215,9 @@ func shopGetOrder(a *app.App) gin.HandlerFunc {
 	}
 }
 
-// shopRequestBase is scheme://host of the request (used when app_url is not configured).
-func shopRequestBase(c *gin.Context) string {
-	scheme := "http"
-	if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
-		scheme = "https"
-	}
-	return scheme + "://" + c.Request.Host
-}
+// shopRequestBase is scheme://host of the request (used when app_url is not configured; X-Forwarded-Proto
+// only from trusted proxies).
+func shopRequestBase(c *gin.Context) string { return httpx.RequestBase(c) }
 
 func shopCheckout(a *app.App) gin.HandlerFunc {
 	type req struct {

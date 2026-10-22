@@ -61,8 +61,11 @@ Rules: `stop_register` → 403; `email_whitelist_enable` (exact domain match, el
 a valid code sets `invite_user_id` and is consumed (`status=true`) when `invite_never_expire=false` (unknown codes are ignored unless forced);
 `try_out_plan_id` grants trial on register (plan/group/limits, `transfer_enable` = GB×1024³, `expired_at` = now + `try_out_hour` h, `next_reset_at`);
 password limit lockout (`password_limit_*`, per email, also counts wrong `old_password` on `/user/password`) → 429; register-by-ip limit → 429; duplicate email → 409.
-Login: wrong credentials 401, banned 403. Every 429 carries `Retry-After` (seconds). All passport routes: 30 requests/min per IP.
-Email codes: 6 digits, valid 10 min, single use, discarded after 5 wrong guesses; one `send-code` serves both register and forgot (the response is `true`
+Login: wrong credentials 401, banned 403. Every 429 carries `Retry-After` (seconds). All passport routes: 30 requests/min per IP
+(IPv6 clients are keyed by their /64, for every per-IP limit). Lockout counters are reserved before the password is checked, so
+concurrent requests cannot exceed `password_limit_count`.
+Email codes: 6 digits, valid 10 min, single use, discarded after 5 wrong guesses; 10 wrong codes per email per hour (whatever the
+code) → 429 until the hour ends; one `send-code` serves both register and forgot (the response is `true`
 whether or not the email is registered); 400 on `email_code` when missing or invalid. Captcha (when `captcha_provider != none`) is checked on
 register, login and send-code: 400 on `captcha`. `/forgot` with a valid code for an unregistered email → 400 on `email`.
 
@@ -124,7 +127,7 @@ Password-manager well-known URLs (root paths, not under `/api/v1`; explicit rout
 | POST | `/user/logout` | — | `true` (client discards; server no-op) |
 ### Rule profile
 | GET | `/user/rule-profile` | — | `RuleProfile` (defaults if none) + `customized`, `editable`, `effective` (see `docs/SUBSCRIPTION.md`) |
-| PUT | `/user/rule-profile` | `RuleProfile` (omitted parts filled from its template) | same view as GET; 400 field errors; 403 when `allow_user_rule_profile=false` |
+| PUT | `/user/rule-profile` | `RuleProfile` (omitted parts filled from its template) | same view as GET; 400 field errors; 403 when `allow_user_rule_profile=false`. Limits: group names without control, line-separator or noncharacter runes; `include` ≤ 2048 bytes; ≤ 32 regular-expression tokens across all groups, each compiling to ≤ 256 instructions and ≤ 4096 rune ranges; `url` ≤ 512 bytes; a custom `mirror` must be an `https://` prefix. PUT and `/user/subscription/preview`: 60 requests/min per user (burst 30) |
 | GET | `/user/rulesets/catalog` | — | same as guest catalog |
 ### Shop
 | GET | `/user/plans` | — | `[PublicPlan]` (show=true; includes current plan even if hidden, with `sell/renew` flags) |
@@ -134,7 +137,7 @@ Password-manager well-known URLs (root paths, not under `/api/v1`; explicit rout
 | GET | `/user/orders` | `page`,`page_size`,`status?` | `[Order]` (newest first) |
 | POST | `/user/orders` | `{plan_id*, period*, coupon_code?}` | 201 `{trade_no, status}` (status 3 when nothing was left to pay). 409 if a pending order exists (`errors.trade_no=[pending]`) or the plan is sold out; 403 plan change disabled; 400 `period`/`plan_id`/`coupon_code` |
 | GET | `/user/orders/:trade_no` | — | `Order` |
-| POST | `/user/orders/:trade_no/checkout` | `{payment_id?}` (omit when total 0 / balance covers) | `{type:"url"|"qrcode"|"html"|"paid", data:"..."}` (402 `payment_failed` when the gateway fails; 409 cancelled) |
+| POST | `/user/orders/:trade_no/checkout` | `{payment_id?}` (omit when total 0 / balance covers) | `{type:"url"|"qrcode"|"html"|"paid", data:"..."}` (402 `payment_failed` when the gateway fails; 409 cancelled, or past `created_at + order_timeout_minutes`: no new payment page for an order about to be cancelled) |
 | GET | `/user/orders/:trade_no/status` | — | `{status}` (poll while paying) |
 | POST | `/user/orders/:trade_no/cancel` | — | `true` (409 unless pending; balance and coupon use restored) |
 ### Invite & commission
@@ -200,7 +203,7 @@ a passkey (`mfasvc.AdminGate`, mounted after `RequireStaff`/`RequireAdmin`); `/u
 ## Client subscription 🔓 (token)
 `GET|HEAD /api/v1/client/subscribe?token=<token>[&flag=clash][&types=vmess,vless][&filter=HK,JP][&emoji=0][&list=1][&profile=standard][&source=blackmatrix7][&cats=openai,telegram][&final=Proxy][&mirror=1]`
 - Detects client from `flag` or `User-Agent` (see `docs/SUBSCRIPTION.md`). Headers: `subscription-userinfo`, `profile-update-interval`, `content-disposition`, `profile-web-page-url`, `ETag`.
-- Unknown/malformed token → 403 (no detail). Banned/expired/out-of-traffic users → 200 with info-only nodes when `show_info_to_server_enable`, else a config without proxies. Invalid overrides → 400. Rate limit 120/h per token (burst 30) → 429.
+- Unknown/malformed token → 403 (no detail). Banned/expired/out-of-traffic users → 200 with info-only nodes when `show_info_to_server_enable`, else a config without proxies. Invalid overrides → 400; `types`/`filter` with more than 64 entries → 400. Rate limit 120/h per existing token (burst 30) → 429; unknown or malformed tokens are charged to the client IP instead (60/h, burst 30, then 429), so a valid token is never limited by its IP's misses.
 - Also mounted at `GET|HEAD /s/:token` (short link) — same handler and rate-limit bucket; the token is redacted from access logs.
 
 ## Node APIs 🤖 — see `docs/NODE_PROTOCOLS.md`
@@ -250,8 +253,10 @@ and `token` blanked. Admin view = self view + `token`, `commission_type`, `remar
   `next_reset_at` is recomputed when `plan_id` or `expired_at` is present. 409: banning or demoting yourself, demoting the last admin,
   duplicate email. Sessions are invalidated immediately (password, ban, roles).
 - `DELETE` → 409 for yourself or the last admin. Cascade: orders, tickets + messages, stat_users, invite_codes, commission_logs earned
-  as inviter, rule_profiles; users and orders that reference the user as inviter get `invite_user_id = null`.
+  as inviter, rule_profiles, passkeys, user_mfa; users and orders that reference the user as inviter get `invite_user_id = null`.
 - `login-token` → `{url: app_url + "/login?token=<one-time, 5 min>"}`; the SPA posts the token to `/passport/login/token`.
+  Administrators and staff cannot be impersonated: 409 for such a target (the token skips the second factor), and a token
+  whose user was promoted after it was issued is refused with 401.
 - `generate`: emails are `<prefix><8 random [a-z0-9]>@<suffix>` (exactly `<prefix>@<suffix>` when `count` is 1 and a prefix is
   given). The whole batch shares `password`, or one random 12-character password when omitted (one argon2id hash per batch);
   `csv` = `email,password` rows. Taken single email → 409.
@@ -294,11 +299,11 @@ and `token` blanked. Admin view = self view + `token`, `commission_type`, `remar
 | POST | `/admin/tickets/:id/reply` | `{message*}` | `Ticket` (reopens a closed ticket, `reply_status=1`; e-mails the owner `ticket_reply`, at most once per ticket per 30 min — an owner reply re-arms it) |
 | POST | `/admin/tickets/:id/close` | — | `true` |
 | GET | `/admin/notices` | — | `[Notice]` all (hidden included), display order, unpaginated (`total` = count) |
-| POST | `/admin/notices` | `{title*, content*, img_url? (http(s) or ""), tags? (≤20 × ≤32 chars), show? (default true), sort?}` | 201 `Notice` |
+| POST | `/admin/notices` | `{title*, content* (≤ 65535 bytes), img_url? (http(s) or ""), tags? (≤20 × ≤32 chars), show? (default true), sort? (±1000000)}` | 201 `Notice` |
 | PATCH,DELETE | `/admin/notices/:id` | any POST field | `Notice` / `true` |
 | POST | `/admin/notices/sort` | `{ids}` (unique, all existing) | `true` (`sort` = position, 1-based) |
 | GET | `/admin/knowledge` | `language?`,`category?`,`keyword?` | `[{id,language,category,title,show,sort,created_at,updated_at}]` (no body), display order, unpaginated |
-| POST | `/admin/knowledge` | `{language* (≤5), category*, title*, body*, show? (default true), sort?}` | 201 `Knowledge` |
+| POST | `/admin/knowledge` | `{language* (≤5), category*, title*, body* (≤ 65535 bytes: a MySQL TEXT), show? (default true), sort? (±1000000)}` | 201 `Knowledge` |
 | GET,PATCH,DELETE | `/admin/knowledge/:id` | any POST field | `Knowledge` (raw body) / `Knowledge` / `true` |
 | POST | `/admin/knowledge/sort` | `{ids}` | `true` |
 ### Settings & system
@@ -324,9 +329,9 @@ and `token` blanked. Admin view = self view + `token`, `commission_type`, `remar
 - **subscribe**: `subscribe_url`:[]s (alternatives; empty → app_url), `plan_change_enable`:b=true, `reset_traffic_method`:i=0, `surplus_enable`:b=true, `show_info_to_server_enable`:b=true, `show_protocol_to_server_enable`:b=false, `default_remind_expire`:b=true, `default_remind_traffic`:b=true, `ruleset_default_template`:s="standard", `ruleset_default_source`:s="blackmatrix7", `ruleset_mirror`:s="" (e.g. `https://ghproxy.net/`), `subscribe_update_interval`:i=24(h), `allow_user_rule_profile`:b=true
 - **order**: `order_timeout_minutes`:i=30, `new_order_event_id`… (not implemented; omit)
 - **invite**: `invite_commission`:i=10(%), `invite_gen_limit`:i=5, `invite_never_expire`:b=true, `commission_first_time_enable`:b=true, `commission_auto_check_enable`:b=true, `commission_withdraw_limit`:i=100(unit currency), `commission_withdraw_method`:[]s=["USDT","Alipay"], `withdraw_close_enable`:b=false, `commission_distribution_enable`:b=false, `commission_distribution_l1`:i, `_l2`, `_l3`
-- **server**: `server_token`:s(secret, auto-generated 32 chars on first boot), `server_pull_interval`:i=60, `server_push_interval`:i=60, `server_white_list`:[]s (soga white_list), `device_limit_mode`:i=0 (0 strict,1 relaxed)
-- **email**: `email_driver`:s="log"|"smtp", `email_host`, `email_port`:i=465, `email_encryption`:s="ssl"|"tls"|"none", `email_username`, `email_password`(secret), `email_from_address`, `email_from_name`, `email_template`:s="default", `remind_mail_enable`:b=true
-- **frontend**: `frontend_accent`:s="#007AFF", `frontend_background_url`:s, `frontend_customer_service_url`:s, `frontend_footer_html`:s
+- **server**: `server_token`:s(secret, auto-generated 32 chars on first boot; at least 16 characters when set by an admin), `server_pull_interval`:i=60, `server_push_interval`:i=60, `server_white_list`:[]s (soga white_list), `device_limit_mode`:i=0 (0 strict,1 relaxed)
+- **email**: `email_driver`:s="log"|"smtp", `email_host`, `email_port`:i=465, `email_encryption`:s="ssl"|"tls"|"none", `email_username`, `email_password`(secret), `email_from_address`, `email_from_name`, `email_template`:s="default" (stored only: one built-in template set exists, the backend never reads it), `remind_mail_enable`:b=true
+- **frontend**: `frontend_accent`:s="#007AFF", `frontend_background_url`:s, `frontend_customer_service_url`:s, `frontend_footer_html`:s — stored only: no endpoint returns them yet (exposing them through `/guest/config` is an open item; `frontend_footer_html` must then be sanitized by the SPA)
 - **app**: `windows_download_url`, `windows_version`, `macos_download_url`, `macos_version`, `android_download_url`, `android_version`, `ios_download_url`, `ios_version`
 - **security**: `passkey_rp_id`:s="" (empty → host of `app_url`), `passkey_origins`:[]s (extra allowed origins; the `app_url` origin is always allowed), `admin_mfa_required`:b=false, `mfa_issuer`:s="" (empty → `app_name`)
 Secrets are returned to admin only and masked in logs.

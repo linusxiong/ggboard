@@ -118,18 +118,23 @@ func (s *Scheduler) Start() {
 	s.log.Info("scheduler started", "jobs", len(s.jobs))
 }
 
-// Stop stops scheduling, cancels running jobs' context and waits for them until ctx is done.
+// Stop stops scheduling, cancels running jobs' context and waits for them until ctx is done. The context is
+// cancelled first: cron's Stop only reports done after every running job returned, so waiting on it before
+// cancelling would hang shutdown (ignoring ctx) for as long as a job blocks on its context.
 func (s *Scheduler) Stop(ctx context.Context) error {
 	s.mu.Lock()
 	wasStarted := s.started
 	s.started = false
 	s.mu.Unlock()
-	if wasStarted {
-		<-s.cron.Stop().Done()
-	}
 	s.cancel()
 	done := make(chan struct{})
-	go func() { s.wg.Wait(); close(done) }()
+	go func() {
+		if wasStarted {
+			<-s.cron.Stop().Done() // no new runs after this, so wg.Wait cannot race a cron-triggered Add
+		}
+		s.wg.Wait()
+		close(done)
+	}()
 	select {
 	case <-done:
 		return nil

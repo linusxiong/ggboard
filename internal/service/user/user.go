@@ -65,17 +65,28 @@ func (s *Service) FindByID(ctx context.Context, id uint64) (*model.User, error) 
 	return s.first(ctx, "id = ?", id)
 }
 
-// FindByEmail loads a user by (normalized) email.
+// FindByEmail loads a user by (normalized) email. The stored value must match byte for byte: MySQL tables use
+// utf8mb4_unicode_ci, where 'bób@gmáil.com' = 'bob@gmail.com', which would let a look-alike address (whose
+// owner receives the reset code) resolve to someone else's account.
 func (s *Service) FindByEmail(ctx context.Context, email string) (*model.User, error) {
-	return s.first(ctx, "email = ?", NormalizeEmail(email))
+	email = NormalizeEmail(email)
+	u, err := s.first(ctx, "email = ?", email)
+	if err == nil && u.Email != email {
+		return nil, ErrNotFound
+	}
+	return u, err
 }
 
-// FindByToken loads a user by subscription token.
+// FindByToken loads a user by subscription token (exact match, also on MySQL's case-insensitive collation).
 func (s *Service) FindByToken(ctx context.Context, token string) (*model.User, error) {
 	if token == "" {
 		return nil, ErrNotFound
 	}
-	return s.first(ctx, "token = ?", token)
+	u, err := s.first(ctx, "token = ?", token)
+	if err == nil && u.Token != token {
+		return nil, ErrNotFound
+	}
+	return u, err
 }
 
 func (s *Service) first(ctx context.Context, query string, arg any) (*model.User, error) {
@@ -178,6 +189,7 @@ func (s *Service) SetPassword(ctx context.Context, u *model.User, password strin
 func (s *Service) Authenticate(ctx context.Context, email, password string) (*model.User, error) {
 	u, err := s.FindByEmail(ctx, email)
 	if errors.Is(err, ErrNotFound) {
+		auth.VerifyDummy(password) // same timing as a wrong password: no account-existence oracle
 		return nil, ErrInvalidCredentials
 	}
 	if err != nil {
@@ -188,10 +200,13 @@ func (s *Service) Authenticate(ctx context.Context, email, password string) (*mo
 	}
 	if auth.NeedsRehash(u.PasswordHash) {
 		if hash, herr := auth.HashPassword(password); herr == nil {
-			if err := s.a.DB.WithContext(ctx).Model(&model.User{}).Where("id = ?", u.ID).
-				UpdateColumn("password_hash", hash).Error; err != nil {
-				s.a.Log.Warn("user: password rehash failed", "user_id", u.ID, "err", err)
-			} else {
+			// Conditional on the hash just verified: a password change or reset committed meanwhile must not be
+			// overwritten with the hash of the old password.
+			res := s.a.DB.WithContext(ctx).Model(&model.User{}).Where("id = ? AND password_hash = ?", u.ID, u.PasswordHash).
+				UpdateColumn("password_hash", hash)
+			if res.Error != nil {
+				s.a.Log.Warn("user: password rehash failed", "user_id", u.ID, "err", res.Error)
+			} else if res.RowsAffected == 1 {
 				u.PasswordHash = hash
 			}
 		}
@@ -308,9 +323,10 @@ func (s *Service) AvailableUsersForGroups(ctx context.Context, groupIDs []uint64
 		parts[i] = strconv.FormatUint(id, 10)
 	}
 	key := s.a.Cache.Key(NodeUsersNamespace, strings.Join(parts, ","))
+	lctx := context.WithoutCancel(ctx) // singleflight: the load is shared by concurrent callers, so it must not fail because the first caller went away
 	return cache.GetOrLoad(s.a.Cache, key, NodeUsersTTL, func() ([]NodeUser, error) {
 		var rows []model.User
-		err := s.a.DB.WithContext(ctx).
+		err := s.a.DB.WithContext(lctx).
 			Select("id", "uuid", "speed_limit", "device_limit").
 			Where("group_id IN ?", ids).
 			Where("banned = ?", false).

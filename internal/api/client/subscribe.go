@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -35,27 +36,37 @@ func validToken(t string) bool {
 }
 
 // subscribe serves a subscription. Invalid tokens get a bare 403; the token never reaches the logs (the short
-// link's path is redacted before the access log runs).
-func subscribe(a *app.App, tokenOf func(*gin.Context) string, inPath bool) gin.HandlerFunc {
+// link's path is redacted before the access log runs, and every log line uses the route pattern).
+// Rate limits: existing tokens share a bucket per token (both routes); unknown and malformed tokens are charged
+// to a per-IP miss bucket (429 once it is empty). Valid tokens are never blocked by their IP's misses (NAT).
+func subscribe(a *app.App, lim *limits, tokenOf func(*gin.Context) string, inPath bool) gin.HandlerFunc {
 	users := usersvc.New(a)
 	return func(c *gin.Context) {
 		token := tokenOf(c)
-		self := selfURL(c)
+		self := selfURL(c, a.Settings.String("app_url"))
 		if inPath {
 			c.Request.URL.Path = "/s/[redacted]"
 			c.Request.URL.RawPath = ""
 		}
+		miss := func() {
+			if lim.miss.Check(c, "subscribe_miss", httpx.KeyByIP(c)) {
+				httpx.Fail(c, httpx.Forbidden("forbidden"))
+			}
+		}
 		if !validToken(token) {
-			httpx.Fail(c, httpx.Forbidden("forbidden"))
+			miss()
 			return
 		}
 		u, err := users.FindByToken(c.Request.Context(), token)
 		if errors.Is(err, usersvc.ErrNotFound) {
-			httpx.Fail(c, httpx.Forbidden("forbidden"))
+			miss()
 			return
 		}
 		if err != nil {
 			httpx.Fail(c, err)
+			return
+		}
+		if !lim.token.Check(c, "subscribe", u.Token) {
 			return
 		}
 		q := c.Request.URL.Query()
@@ -137,17 +148,17 @@ func requestHost(c *gin.Context) string {
 	return strings.ToLower(strings.Trim(host, "[]"))
 }
 
-// selfURL is the absolute URL of the request (Surge managed configs refresh from it).
-func selfURL(c *gin.Context) string {
-	scheme := "http"
-	if c.Request.TLS != nil {
-		scheme = "https"
-	}
-	if p := strings.ToLower(c.GetHeader("X-Forwarded-Proto")); p == "https" || p == "http" {
-		scheme = p
-	}
+// selfURL is the absolute URL of the request (Surge managed configs refresh from it). The scheme comes from TLS
+// or a trusted proxy's X-Forwarded-Proto; failing both, from app_url when the request is for app_url's host.
+func selfURL(c *gin.Context, appURL string) string {
 	if c.Request.Host == "" {
 		return ""
+	}
+	scheme := httpx.RequestScheme(c)
+	if scheme == "http" && c.Request.TLS == nil {
+		if u, err := url.Parse(appURL); err == nil && u.Scheme == "https" && strings.EqualFold(u.Host, c.Request.Host) {
+			scheme = "https"
+		}
 	}
 	return scheme + "://" + c.Request.Host + c.Request.URL.RequestURI()
 }

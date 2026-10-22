@@ -90,7 +90,13 @@ No Redis, no queue workers: an in-process cache (ristretto) and batched DB write
 - Payment notify: every gateway verifies signature; idempotent `paid()`; amount compared with order.
 - Admin config values that are secrets (SMTP password, payment configs, server_token) are never returned to non-admin; config endpoint returns them to admin only.
 - CORS: same-origin by default; `server.cors_origins` to widen.
-- Headers: `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options: DENY` on SPA, CSP on SPA (`default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'`).
+- Headers: `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options: DENY` on SPA, CSP on SPA (`default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'`;
+  `static.CSPFor`: with a captcha provider enabled, exactly that provider's script/frame (hCaptcha also connect/style) origins are added).
+- Per-IP rate limits key IPv6 clients by /64. `X-Forwarded-For`/`X-Real-IP`/`X-Forwarded-Proto` are honoured only from
+  `server.trusted_proxies` (`httpx.RequestScheme`/`RequestBase` for links built without `app_url`).
+- argon2id derivations run at most `NumCPU` (≥ 2) at a time; unknown emails at login still spend one derivation (no
+  timing oracle). Password/MFA/register-by-IP counters reserve an attempt before verifying (no check-then-act races).
+- Logs carry route patterns (`httpx.LogPath`), never raw paths of matched routes or query strings.
 
 ## Pluggability
 Every plugin point is a Go interface + a registry in `internal/plugin` (`Registry[T]` with `Register(name, v)`, `Get`, `Names`, `Each`).

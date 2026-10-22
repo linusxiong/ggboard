@@ -206,16 +206,17 @@ func (s *Service) verifyCode(ctx context.Context, row *model.UserMFA, code strin
 // checkCode verifies a second-factor code for an authenticated user (user lockout applies): 400 on "code"
 // when wrong, 429 after UserFailureLimit failures.
 func (s *Service) checkCode(ctx context.Context, row *model.UserMFA, code string) error {
-	if err := s.checkFailures(row.UserID); err != nil {
+	release, err := s.reserveFailure(row.UserID)
+	if err != nil {
 		return err
 	}
 	ok, err := s.verifyCode(ctx, row, code)
 	if err != nil {
+		release()
 		return err
 	}
 	if !ok {
-		s.recordFailure(row.UserID)
-		return errCodeField()
+		return errCodeField() // the reserved failure counts
 	}
 	s.clearFailures(row.UserID)
 	return nil

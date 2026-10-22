@@ -3,6 +3,7 @@ package subscription
 import (
 	"regexp"
 	"strings"
+	"sync"
 )
 
 // Policy group types.
@@ -118,10 +119,7 @@ func ResolveGroups(groups []PolicyGroup, proxies []Proxy) []ResolvedGroup {
 					add(Member{Name: tok, Kind: MemberGroup})
 					continue
 				}
-				re, err := regexp.Compile(tok)
-				if err != nil {
-					re = regexp.MustCompile(regexp.QuoteMeta(tok))
-				}
+				re := includeRegexp(tok)
 				for j := range proxies {
 					if !proxies[j].Info && re.MatchString(proxies[j].Name) {
 						add(Member{Name: proxies[j].Name})
@@ -134,6 +132,36 @@ func ResolveGroups(groups []PolicyGroup, proxies []Proxy) []ResolvedGroup {
 	breakCycles(out)
 	fillEmpty(out)
 	return out
+}
+
+// includeRegexps caches compiled include tokens: every subscription render resolves every group, and the
+// tokens of the default template and of saved profiles repeat across users. Bounded by clearing when full.
+var includeRegexps struct {
+	sync.Mutex
+	m map[string]*regexp.Regexp
+}
+
+const includeRegexpCacheSize = 4096
+
+// includeRegexp compiles tok as an unanchored RE2 expression (literally when it is not valid), cached.
+func includeRegexp(tok string) *regexp.Regexp {
+	includeRegexps.Lock()
+	re, ok := includeRegexps.m[tok]
+	includeRegexps.Unlock()
+	if ok {
+		return re
+	}
+	re, err := regexp.Compile(tok)
+	if err != nil {
+		re = regexp.MustCompile(regexp.QuoteMeta(tok))
+	}
+	includeRegexps.Lock()
+	if includeRegexps.m == nil || len(includeRegexps.m) >= includeRegexpCacheSize {
+		includeRegexps.m = make(map[string]*regexp.Regexp, 64)
+	}
+	includeRegexps.m[tok] = re
+	includeRegexps.Unlock()
+	return re
 }
 
 // reaches reports whether group from reaches group to through group members.

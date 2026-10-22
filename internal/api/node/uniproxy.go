@@ -11,7 +11,10 @@ import (
 
 // uniAuth authenticates XrayR/V2bX requests: query token, node_id, node_type (docs/NODE_PROTOCOLS.md §1.2).
 func (h *handler) uniAuth(c *gin.Context) {
-	if !h.tokenOK(c.Query("token")) {
+	if ok, limited := h.tokenCheck(c, c.Query("token")); limited {
+		httpx.Fail(c, httpx.RateLimited("too many invalid tokens, retry later"))
+		return
+	} else if !ok {
 		httpx.Fail(c, httpx.Forbidden("invalid token"))
 		return
 	}
