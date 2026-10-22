@@ -469,7 +469,7 @@
       "subscription_leak": "Subscription leak"
     },
     "subscribe_leak_action": {
-      "notify": "Notify admins only",
+      "notify": "Notify (email the user; Telegram to admins and the bound user)",
       "rotate": "Notify and rotate the link"
     }
   },

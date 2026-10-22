@@ -338,7 +338,7 @@ func (im *importer) importKnowledge() error {
 		body := r.str("body")
 		if strings.Contains(body, "<!--access start-->") {
 			access++
-			im.warn(scope, "article %q uses <!--access start--> blocks, which ggboard shows to every user", r.str("title"))
+			im.warn(scope, "article %q uses <!--access start--> blocks; ggboard hides them for users without an active plan", r.str("title"))
 		}
 		lang := strings.TrimSpace(r.str("language"))
 		if len(lang) > 5 {

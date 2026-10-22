@@ -1,7 +1,8 @@
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { Button } from '@heroui/react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronRight, RefreshCw } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, useRef } from 'react'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { DebouncedSearch } from '@/features/admin/orders/DebouncedSearch'
 import { SelectInput, SwitchInput } from '@/features/admin/settings/inputs/Controlled'
@@ -12,6 +13,9 @@ import { cx } from '@/lib/cn'
 import { errorMessage } from '@/lib/errors'
 import { formatLogTime } from './format'
 import { filterLogs, LOG_LEVELS, LOG_LIMITS, type LogLevelFilter, logsQuery } from './logs'
+
+/** Rows above this count are windowed with TanStack Virtual. */
+const VIRTUAL_THRESHOLD = 60
 
 const LEVEL_CLASS: Record<string, string> = {
   debug: 'text-label-secondary',
@@ -40,6 +44,19 @@ export function LogsViewer() {
     return list.sort((a, b) => Date.parse(b.time) - Date.parse(a.time))
   }, [logs.data, text])
   const onSearch = useCallback((v: string | undefined) => setText(v), [])
+  const scrollRef = useRef<HTMLDivElement>(null)
+  // Long log lists (up to 1000 rows) only render the visible window; rows measure themselves because
+  // expanded attrs change their height.
+  // Only long lists are virtualized; short ones keep the plain layout (also what jsdom tests see).
+  const virtual = rows.length > VIRTUAL_THRESHOLD
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual returns non-memoizable functions by design
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 36,
+    overscan: 12,
+    initialRect: { width: 960, height: 576 },
+  })
 
   const toggle = (id: string) =>
     setOpen((s) => {
@@ -93,7 +110,7 @@ export function LogsViewer() {
         </div>
       </div>
 
-      <div className="max-h-[36rem] overflow-auto" aria-busy={logs.isFetching}>
+      <div ref={scrollRef} className="max-h-[36rem] overflow-auto" aria-busy={logs.isFetching}>
         {logs.isError ? (
           <p className="p-5 text-subhead text-label-red">{errorMessage(logs.error)}</p>
         ) : logs.isPending ? (
@@ -101,14 +118,28 @@ export function LogsViewer() {
         ) : rows.length === 0 ? (
           <p className="p-5 text-subhead text-label-secondary">{t('logs.empty')}</p>
         ) : (
-          <ol aria-label={t('logs.title')} className="font-mono text-footnote">
-            {rows.map((e, i) => {
+          <ol
+            aria-label={t('logs.title')}
+            className={cx('font-mono text-footnote', virtual && 'relative')}
+            style={virtual ? { height: virtualizer.getTotalSize() } : undefined}
+          >
+            {(virtual
+              ? virtualizer.getVirtualItems().map((item) => ({ i: item.index, start: item.start }))
+              : rows.map((_, i) => ({ i, start: 0 }))
+            ).map(({ i, start }) => {
+              const e = rows[i]!
               const attrs = e.attrs && Object.keys(e.attrs).length ? e.attrs : null
               const id = `${e.time}|${e.msg}|${i}`
               const rowKey = `${e.time}|${e.msg}`
               const expanded = open.has(rowKey)
               return (
-                <li key={id} className="hairline-b px-5 py-1.5">
+                <li
+                  key={id}
+                  ref={virtual ? virtualizer.measureElement : undefined}
+                  data-index={i}
+                  className={cx('hairline-b px-5 py-1.5', virtual && 'absolute inset-x-0 top-0')}
+                  style={virtual ? { transform: `translateY(${start}px)` } : undefined}
+                >
                   <div className="flex items-start gap-3">
                     <time dateTime={e.time} className="shrink-0 text-label-secondary tabular">
                       {formatLogTime(e.time)}

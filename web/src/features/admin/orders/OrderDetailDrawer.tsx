@@ -147,7 +147,7 @@ export function OrderDetailDrawer({ orderId, preview, onClose }: OrderDetailDraw
                     if (v !== null && Number(v) !== order.commission_status)
                       void actions.setCommission(order, Number(v) as CommissionStatus)
                   }}
-                  options={COMMISSION_STATUSES.map((s) => ({
+                  options={COMMISSION_STATUSES.filter((s) => s !== 2).map((s) => ({
                     value: String(s),
                     label: t(`commission.${s}`),
                   }))}

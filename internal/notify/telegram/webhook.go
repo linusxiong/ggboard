@@ -104,7 +104,7 @@ func text(a *app.App, key string) string { return replies[notify.Locale(a)][key]
 //	/start <code>  bind the account that issued code (private chats)
 //	/unbind        unbind every account bound to this chat (private chats)
 //	/id            reply with the chat id (any chat: admins use it to fill telegram_admin_chat_ids)
-//	/help, other   short help (private chats only; groups get no reply)
+//	/help, other   short help (/help answers in any chat; other text is answered in private chats only)
 //
 // Commands addressed to another bot (/id@other_bot) and messages from bots are ignored.
 func HandleUpdate(ctx context.Context, a *app.App, up Update) *Reply {

@@ -217,7 +217,7 @@ func RemindTraffic(a *app.App, userID uint64, percent int64, used, total string)
 	return forUser(New(a, TypeRemindTraffic, body), userID, false)
 }
 
-// SubscriptionLeak is subscription_leak (administrators): user, distinct (client IPs that fetched the subscription
+// SubscriptionLeak is subscription_leak (administrators and the affected user): user, distinct (client IPs that fetched the subscription
 // within the detector's window). Its signature matches the subscription leak detector, so the integrator can
 // wire it with EmitSubscriptionLeak.
 func SubscriptionLeak(a *app.App, u *model.User, distinct int) Event {
@@ -226,7 +226,12 @@ func SubscriptionLeak(a *app.App, u *model.User, distinct int) Event {
 	if u != nil {
 		email = u.Email
 	}
-	return New(a, TypeSubscriptionLeak, body, F("user", email), F("distinct", strconv.Itoa(distinct)))
+	ev := New(a, TypeSubscriptionLeak, body, F("user", email), F("distinct", strconv.Itoa(distinct)))
+	if u != nil {
+		// The affected user hears about it too (Telegram when bound); admins always do.
+		ev = forUser(ev, u.ID, true)
+	}
+	return ev
 }
 
 // EmitSubscriptionLeak emits SubscriptionLeak; it has the shape of subscription.LeakHook

@@ -81,7 +81,7 @@ func TestBuildersZH(t *testing.T) {
 		t.Fatalf("remind_traffic = %+v", ev)
 	}
 	ev = notify.SubscriptionLeak(a, &model.User{ID: 5, Email: "leak@example.com"}, 12)
-	if f := fieldMap(ev); ev.Type != notify.TypeSubscriptionLeak || !ev.Admin || ev.UserID != nil || f["user"] != "leak@example.com" ||
+	if f := fieldMap(ev); ev.Type != notify.TypeSubscriptionLeak || !ev.Admin || ev.UserID == nil || *ev.UserID != 5 || f["user"] != "leak@example.com" ||
 		f["distinct"] != "12" || !strings.Contains(ev.Body, "12 个不同 IP") || ev.Title != "🚨 订阅疑似泄露" {
 		t.Fatalf("subscription_leak = %+v", ev)
 	}

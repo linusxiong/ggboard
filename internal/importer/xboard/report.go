@@ -228,7 +228,7 @@ func (r *Report) writeChecklist(w io.Writer) {
 	}
 	item("Settings: send a test mail (Admin → Settings → Mail), re-check captcha keys and re-set the dropped settings you need (theme, Telegram). Xboard's secure_path no longer applies: restrict /admin at the proxy if you relied on it.")
 	if r.AccessArticles > 0 {
-		item("Content: %d knowledge articles use <!--access start--> blocks that ggboard shows to everyone; edit them before publishing.", r.AccessArticles)
+		item("Content: %d knowledge articles use <!--access start--> blocks; ggboard hides them for users without an active plan (review the wording).", r.AccessArticles)
 	}
 	item("Keep the Xboard database as a read-only backup; the importer never modified it.")
 }

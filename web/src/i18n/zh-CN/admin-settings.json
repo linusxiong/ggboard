@@ -469,7 +469,7 @@
       "subscription_leak": "订阅泄露"
     },
     "subscribe_leak_action": {
-      "notify": "仅通知管理员",
+      "notify": "通知（邮件给用户，Telegram 给管理员与已绑定用户）",
       "rotate": "通知并重置订阅"
     }
   },
