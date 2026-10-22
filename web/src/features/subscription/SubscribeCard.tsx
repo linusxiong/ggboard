@@ -105,9 +105,7 @@ export function SubscribeCard({
           id="subscribe-qr"
           className="flex flex-col items-center gap-2 sm:flex-row sm:items-center sm:gap-4"
         >
-          <Suspense
-            fallback={<div className="size-[192px] animate-pulse rounded-[12px] bg-fill-quaternary" />}
-          >
+          <Suspense fallback={<div className="size-[192px] shimmer rounded-[12px] bg-fill-quaternary" />}>
             <QRCode value={url} size={192} label={t('link.qrLabel')} />
           </Suspense>
           <p className="max-w-xs text-footnote text-label-secondary">{t('link.qrHint')}</p>
@@ -116,7 +114,7 @@ export function SubscribeCard({
 
       <div className="flex flex-col gap-3">
         <h3 className="text-headline text-label">{t('import.title')}</h3>
-        <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,13.5rem),1fr))] gap-2">
           {IMPORT_CLIENTS.map((client) => (
             <li key={client.id}>
               <a
@@ -124,13 +122,15 @@ export function SubscribeCard({
                 className={buttonClass({
                   variant: 'secondary',
                   fullWidth: true,
-                  className: 'h-auto! flex-col! items-start! gap-0! py-2.5! text-start',
+                  className: 'h-auto! min-w-0 flex-col! items-start! gap-0! py-2.5! text-start',
                 })}
               >
-                <span className="text-subhead font-semibold">
+                <span className="max-w-full truncate text-subhead font-semibold">
                   {t('import.openIn', { client: client.name })}
                 </span>
-                <span className="text-caption font-normal text-label-secondary">{client.platforms}</span>
+                <span className="max-w-full truncate text-caption font-normal text-label-secondary">
+                  {client.platforms}
+                </span>
               </a>
             </li>
           ))}

@@ -116,7 +116,7 @@ export function TelegramCard() {
       ) : null}
 
       {status.isPending ? (
-        <div className="h-8 animate-pulse rounded-[10px] bg-fill-quaternary" aria-busy="true" />
+        <div className="h-8 shimmer rounded-[10px] bg-fill-quaternary" aria-busy="true" />
       ) : status.isError ? (
         <div role="alert" className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-footnote text-label-red">{errorMessage(status.error)}</p>
@@ -222,7 +222,7 @@ function BindDialog({
               <>
                 <p className="text-subhead text-label">{t('telegram.step1', { bot })}</p>
                 <Suspense
-                  fallback={<div className="size-[176px] animate-pulse rounded-[12px] bg-fill-quaternary" />}
+                  fallback={<div className="size-[176px] shimmer rounded-[12px] bg-fill-quaternary" />}
                 >
                   <QRCode value={code.deep_link} size={176} label={t('telegram.qrLabel')} />
                 </Suspense>

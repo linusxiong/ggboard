@@ -11,6 +11,7 @@ import { TicketPercent, X } from 'lucide-react'
 import { type FormEvent, type ReactNode, useState } from 'react'
 import { FormError } from '@/components/FormError'
 import { useT } from '@/i18n'
+import { cx } from '@/lib/cn'
 import { isApiError, userApi } from '@/lib/api'
 import { qk } from '@/lib/api/queries'
 import type { CouponCheck, Plan, PlanPeriod } from '@/lib/api/types'
@@ -55,6 +56,7 @@ export default function CheckoutSheet({ selection, isCurrent, onClose }: Checkou
     coupon,
     balance: user?.balance ?? 0,
   })
+  const hasDeductions = estimate.userDiscount + estimate.couponDiscount + estimate.balanceUsed > 0
 
   const check = useMutation({
     mutationFn: (value: string) => userApi.checkCoupon({ code: value, plan_id: plan.id, period }),
@@ -218,9 +220,12 @@ export default function CheckoutSheet({ selection, isCurrent, onClose }: Checkou
             ) : null}
 
             <dl className="flex flex-col gap-2 text-subhead" aria-label={t('checkout.breakdown')}>
-              <Line label={t('checkout.price')}>
-                <SiteMoney cents={estimate.price} />
-              </Line>
+              {/* The price is already in the summary above: repeat it only as the start of a breakdown. */}
+              {hasDeductions ? (
+                <Line label={t('checkout.price')}>
+                  <SiteMoney cents={estimate.price} />
+                </Line>
+              ) : null}
               {estimate.userDiscount > 0 ? (
                 <Line label={t('checkout.userDiscount', { percent: user?.discount ?? 0 })}>
                   −<SiteMoney cents={estimate.userDiscount} />
@@ -236,7 +241,12 @@ export default function CheckoutSheet({ selection, isCurrent, onClose }: Checkou
                   −<SiteMoney cents={estimate.balanceUsed} />
                 </Line>
               ) : null}
-              <div className="mt-1 flex items-baseline justify-between gap-4 border-t-[0.5px] border-hairline pt-3">
+              <div
+                className={cx(
+                  'flex items-baseline justify-between gap-4',
+                  hasDeductions && 'mt-1 border-t-[0.5px] border-hairline pt-3',
+                )}
+              >
                 <dt className="text-headline text-label">{t('checkout.payable')}</dt>
                 <dd className="text-title2 text-label">
                   <SiteMoney cents={estimate.payable} />

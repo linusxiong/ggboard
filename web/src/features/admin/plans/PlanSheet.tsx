@@ -1,9 +1,10 @@
-import { Button, Tabs } from '@heroui/react'
+import { Button } from '@heroui/react'
 import { useQuery } from '@tanstack/react-query'
 import { type ReactNode, useState } from 'react'
 import { FormError, useAppForm } from '@/components/form'
 import { submitError } from '@/components/form/submitError'
 import { Markdown } from '@/components/Markdown'
+import { SegmentedTabs } from '@/components/SegmentedControl'
 import { useT } from '@/i18n'
 import * as adminApi from '@/lib/api/admin'
 import { adminGroupsQuery, qk } from '@/lib/api/queries'
@@ -210,23 +211,20 @@ export function PlanSheet({ plan, isOpen, onOpenChange }: PlanSheetProps) {
         <Section title={t('sections.content')}>
           <form.Subscribe selector={(s) => s.values.content}>
             {(content) => (
-              <Tabs
-                selectedKey={contentTab}
-                onSelectionChange={(k) => setContentTab(k === 'preview' ? 'preview' : 'edit')}
+              <SegmentedTabs
+                value={contentTab}
+                onChange={(k) => setContentTab(k === 'preview' ? 'preview' : 'edit')}
+                className="flex flex-col gap-3"
               >
-                <Tabs.ListContainer>
-                  <Tabs.List aria-label={t('fields.content')}>
-                    <Tabs.Tab id="edit">
-                      {t('contentEdit')}
-                      <Tabs.Indicator />
-                    </Tabs.Tab>
-                    <Tabs.Tab id="preview">
-                      {t('contentPreview')}
-                      <Tabs.Indicator />
-                    </Tabs.Tab>
-                  </Tabs.List>
-                </Tabs.ListContainer>
-                <Tabs.Panel id="edit" className="pt-3">
+                <SegmentedTabs.List
+                  aria-label={t('fields.content')}
+                  size="sm"
+                  items={[
+                    { id: 'edit', label: t('contentEdit') },
+                    { id: 'preview', label: t('contentPreview') },
+                  ]}
+                />
+                <SegmentedTabs.Panel id="edit">
                   <form.AppField name="content">
                     {(f) => (
                       <f.TextAreaField
@@ -236,15 +234,15 @@ export function PlanSheet({ plan, isOpen, onOpenChange }: PlanSheetProps) {
                       />
                     )}
                   </form.AppField>
-                </Tabs.Panel>
-                <Tabs.Panel id="preview" className="pt-3">
+                </SegmentedTabs.Panel>
+                <SegmentedTabs.Panel id="preview">
                   {content.trim() ? (
                     <Markdown source={content} className="rounded-[12px] bg-fill-quaternary p-4" />
                   ) : (
                     <p className="text-subhead text-label-secondary">{t('contentEmpty')}</p>
                   )}
-                </Tabs.Panel>
-              </Tabs>
+                </SegmentedTabs.Panel>
+              </SegmentedTabs>
             )}
           </form.Subscribe>
         </Section>

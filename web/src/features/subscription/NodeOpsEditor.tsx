@@ -19,6 +19,7 @@ import { useMutation } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, Lock, Plus, Trash2 } from 'lucide-react'
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { FormError } from '@/components/FormError'
+import { SegmentedControl } from '@/components/SegmentedControl'
 import { confirm } from '@/components/feedback/confirm'
 import { useT } from '@/i18n'
 import { isApiError } from '@/lib/api/client'
@@ -27,7 +28,7 @@ import type { NodeOperations, RuleProfile, UserNode } from '@/lib/api/types'
 import { cx } from '@/lib/cn'
 import { errorMessage } from '@/lib/errors'
 import { toast } from '@/lib/toast'
-import { ChipSelect, SectionTitle, Segmented, Toggle } from './controls'
+import { ChipSelect, SectionTitle, Toggle } from './controls'
 import {
   applyNodeOps,
   compilePattern,
@@ -325,17 +326,17 @@ export function NodeOpsEditor({
               </TextField>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Segmented
+              <SegmentedControl
                 label={t('nodeOps.emoji')}
                 value={draft.emoji}
-                options={EMOJI_MODES.map((value) => ({ value, label: t(`nodeOps.emojiModes.${value}`) }))}
+                items={EMOJI_MODES.map((value) => ({ id: value, label: t(`nodeOps.emojiModes.${value}`) }))}
                 onChange={(emoji) => patch({ emoji })}
                 isDisabled={readOnly}
               />
-              <Segmented
+              <SegmentedControl
                 label={t('nodeOps.sort')}
                 value={draft.sort}
-                options={SORT_MODES.map((value) => ({ value, label: t(`nodeOps.sortModes.${value}`) }))}
+                items={SORT_MODES.map((value) => ({ id: value, label: t(`nodeOps.sortModes.${value}`) }))}
                 onChange={(sort) => patch({ sort })}
                 isDisabled={readOnly}
               />
@@ -690,7 +691,7 @@ function NodePreview({
         <p className="text-footnote text-label-secondary">{t('nodeOps.previewHint')}</p>
       </div>
       {!preview ? (
-        <div className="h-40 animate-pulse rounded-[10px] bg-fill-tertiary" aria-busy="true" />
+        <div className="h-40 shimmer rounded-[10px] bg-fill-tertiary" aria-busy="true" />
       ) : total === 0 ? (
         <p className="text-subhead text-label-secondary">{t('nodeOps.previewEmpty')}</p>
       ) : (

@@ -43,6 +43,7 @@ There is **no schema library** (no Zod): search params and form fields are valid
 | effects | `@/components/effects` (lazy BlurText, CountUp, GradientText, ShinyText, SpotlightCard + `WhenIdle`) | original code (see §11) |
 | i18n | `useT(ns)`, `loadNamespaces([...])`, `t(ns, key)` from `@/i18n` | dictionaries in `src/i18n/<locale>/<namespace>.json` |
 | Tokens | `src/styles/theme.css` (HIG tokens → HeroUI vars → Tailwind) | see §2 for utility names |
+| Segments / tabs | `SegmentedControl` (radiogroup: filters, mode switches) and `SegmentedTabs` (+ `.List`, `.Panel`: content tabs) from `@/components/SegmentedControl` | one iOS look everywhere; don't use HeroUI `Tabs`/`ToggleButtonGroup` for these (web/README.md) |
 
 ---
 

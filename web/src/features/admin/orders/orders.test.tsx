@@ -109,8 +109,9 @@ describe('OrderFilters', () => {
       />,
     )
 
-    await user.click(screen.getByRole('button', { name: /Status/ }))
-    await user.click(await screen.findByRole('option', { name: 'Completed' }))
+    // Status is the segmented quick filter (radio group).
+    expect(screen.getByRole('radiogroup', { name: 'Status' })).toBeInTheDocument()
+    await user.click(screen.getByRole('radio', { name: 'Completed' }))
     expect(onChange).toHaveBeenLastCalledWith({ status: 3 })
 
     await user.click(screen.getByRole('button', { name: /Plan/ }))

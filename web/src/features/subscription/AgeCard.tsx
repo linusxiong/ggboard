@@ -148,7 +148,7 @@ export function AgeCard({
           {t('age.unavailable')}
         </p>
       ) : query.isPending ? (
-        <div className="h-28 animate-pulse rounded-[12px] bg-fill-quaternary" aria-busy="true" />
+        <div className="h-28 shimmer rounded-[12px] bg-fill-quaternary" aria-busy="true" />
       ) : query.isError ? (
         <div role="alert" className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-subhead text-label-red">{errorMessage(query.error)}</p>

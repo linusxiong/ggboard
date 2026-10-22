@@ -121,49 +121,6 @@ export function SectionTitle({
   )
 }
 
-/** FE-S: iOS-style segmented control (single selection that never empties) with a visible label. */
-export function Segmented<K extends string>({
-  label,
-  value,
-  options,
-  onChange,
-  isDisabled,
-}: {
-  label: string
-  value: K
-  options: ReadonlyArray<{ value: K; label: string }>
-  onChange: (value: K) => void
-  isDisabled?: boolean
-}) {
-  const id = useId()
-  return (
-    <div className="flex min-w-0 flex-col gap-2">
-      <span id={id} className="text-subhead font-medium text-label">
-        {label}
-      </span>
-      <ToggleButtonGroup
-        aria-labelledby={id}
-        selectionMode="single"
-        disallowEmptySelection
-        selectedKeys={[value]}
-        onSelectionChange={(keys) => {
-          const next = [...keys][0]
-          if (next !== undefined && next !== value) onChange(String(next) as K)
-        }}
-        isDisabled={isDisabled}
-        size="sm"
-        className="max-w-full flex-wrap justify-start self-start"
-      >
-        {options.map((option) => (
-          <ToggleButton key={option.value} id={option.value}>
-            {option.label}
-          </ToggleButton>
-        ))}
-      </ToggleButtonGroup>
-    </div>
-  )
-}
-
 /** FE-S: multi-select chips (node types, regions); an empty selection means "all". */
 export function ChipSelect({
   label,

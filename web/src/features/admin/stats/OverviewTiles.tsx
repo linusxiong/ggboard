@@ -20,11 +20,11 @@ interface TileProps {
 /** KPI tile: label, proportional-figure value, optional hint and 7-day sparkline. */
 function Tile({ label, value, hint, trend, isLoading }: TileProps) {
   return (
-    <section className="surface-card flex min-h-[7.5rem] flex-col justify-between gap-2 p-5">
+    <section className="surface-card flex min-h-[7.5rem] flex-col gap-2 p-5">
       <h3 className="text-subhead font-medium text-label-secondary">{label}</h3>
-      <div className="flex items-end justify-between gap-3">
+      <div className="mt-1 flex items-end justify-between gap-3">
         {isLoading ? (
-          <span className="block h-8 w-24 animate-pulse rounded-md bg-fill-tertiary" aria-hidden="true" />
+          <span className="block h-8 w-24 shimmer rounded-md bg-fill-tertiary" aria-hidden="true" />
         ) : (
           <p className="text-title1 font-semibold tabular tracking-tight text-label">{value}</p>
         )}

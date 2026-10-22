@@ -163,7 +163,7 @@ function InvitePage() {
           </div>
           <SiteMoney cents={commission} className="text-large-title text-label" />
           <div className="mt-auto flex flex-wrap gap-2">
-            <Button variant="primary" isDisabled={commission <= 0} onPress={() => setDialog('transfer')}>
+            <Button variant="secondary" isDisabled={commission <= 0} onPress={() => setDialog('transfer')}>
               <ArrowRightLeft className="size-4" aria-hidden="true" />
               {t('wallet.transfer')}
             </Button>

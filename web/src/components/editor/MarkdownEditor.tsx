@@ -8,18 +8,10 @@
  * Keyboard: ⌘/Ctrl+B bold, ⌘/Ctrl+I italic, ⌘/Ctrl+K link, ⌘/Ctrl+Shift+P toggles the preview.
  * Strings come from the `admin-support` namespace (`editor.*`) — preload it, or pass `labels`.
  */
-import {
-  Button,
-  Description,
-  FieldError,
-  Label,
-  TextArea,
-  TextField,
-  ToggleButton,
-  ToggleButtonGroup,
-} from '@heroui/react'
+import { Button, Description, FieldError, Label, TextArea, TextField } from '@heroui/react'
 import { Bold, Code, Eye, Heading2, Italic, Link2, List, ListOrdered, PencilLine, Quote } from 'lucide-react'
 import { lazy, type ReactNode, Suspense, useLayoutEffect, useRef, useState } from 'react'
+import { SegmentedControl } from '@/components/SegmentedControl'
 import { useT } from '@/i18n'
 import { type EditResult, insertText, prefixLines, wrapSelection } from './markdownEdit'
 import { cx } from '@/lib/cn'
@@ -147,27 +139,16 @@ export function MarkdownEditor({
     >
       <div className="flex flex-wrap items-end justify-between gap-2">
         <Label>{label}</Label>
-        <ToggleButtonGroup
+        <SegmentedControl
           aria-label={t('editor.mode')}
           size="sm"
-          selectionMode="single"
-          disallowEmptySelection
-          selectedKeys={[mode]}
-          onSelectionChange={(keys) => {
-            const next = [...keys][0]
-            if (next === 'write' || next === 'preview') setMode(next)
-          }}
-        >
-          <ToggleButton id="write">
-            <PencilLine className="size-4" aria-hidden />
-            {t('editor.write')}
-          </ToggleButton>
-          <ToggleButton id="preview">
-            <ToggleButtonGroup.Separator />
-            <Eye className="size-4" aria-hidden />
-            {t('editor.preview')}
-          </ToggleButton>
-        </ToggleButtonGroup>
+          value={mode}
+          onChange={setMode}
+          items={[
+            { id: 'write', label: t('editor.write'), icon: <PencilLine /> },
+            { id: 'preview', label: t('editor.preview'), icon: <Eye /> },
+          ]}
+        />
       </div>
 
       {mode === 'write' ? (
@@ -220,7 +201,7 @@ export function MarkdownEditor({
           aria-live="polite"
         >
           {value.trim() ? (
-            <Suspense fallback={<div className="h-4 w-1/2 animate-pulse rounded bg-fill-tertiary" />}>
+            <Suspense fallback={<div className="h-4 w-1/2 shimmer rounded bg-fill-tertiary" />}>
               <Markdown source={value} />
             </Suspense>
           ) : (

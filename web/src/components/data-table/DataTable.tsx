@@ -130,9 +130,9 @@ export function DataTable<TData extends RowData>(props: DataTableProps<TData>) {
         {showSkeleton ? (
           Array.from({ length: 3 }, (_, i) => (
             <div key={i} className="surface-card flex h-28 flex-col gap-3 p-4" aria-hidden="true">
-              <span className="h-4 w-1/2 animate-pulse rounded-md bg-fill-tertiary" />
-              <span className="h-3 w-3/4 animate-pulse rounded-md bg-fill-quaternary" />
-              <span className="h-3 w-2/3 animate-pulse rounded-md bg-fill-quaternary" />
+              <span className="h-4 w-1/2 shimmer rounded-md bg-fill-tertiary" />
+              <span className="h-3 w-3/4 shimmer rounded-md bg-fill-quaternary" />
+              <span className="h-3 w-2/3 shimmer rounded-md bg-fill-quaternary" />
             </div>
           ))
         ) : rows.length === 0 ? (
@@ -237,7 +237,7 @@ export function DataTable<TData extends RowData>(props: DataTableProps<TData>) {
                     {[
                       ...headers.map((header) => (
                         <Table.Cell key={header.id}>
-                          <span className="block h-3.5 w-3/4 animate-pulse rounded-md bg-fill-tertiary" />
+                          <span className="block h-3.5 w-3/4 shimmer rounded-md bg-fill-tertiary" />
                         </Table.Cell>
                       )),
                       ...(rowActions ? [<Table.Cell key="__actions" />] : []),
@@ -293,15 +293,17 @@ export function TablePagination({
   const locale = useLocale()
   const from = (current - 1) * size + 1
   const to = Math.min(current * size, rowsTotal)
+  const summary = t('table.range', {
+    from: formatNumber(from, locale),
+    to: formatNumber(to, locale),
+    total: formatNumber(rowsTotal, locale),
+  })
+  // A single page needs no page controls: just the count.
+  if (count <= 1 && current <= 1)
+    return <p className="w-full px-2 py-1.5 text-footnote text-label-secondary">{summary}</p>
   return (
     <Pagination size="sm" aria-label={t('table.pagination')} className="w-full justify-between px-2 py-1">
-      <Pagination.Summary>
-        {t('table.range', {
-          from: formatNumber(from, locale),
-          to: formatNumber(to, locale),
-          total: formatNumber(rowsTotal, locale),
-        })}
-      </Pagination.Summary>
+      <Pagination.Summary>{summary}</Pagination.Summary>
       <Pagination.Content>
         <Pagination.Item>
           <Pagination.Previous

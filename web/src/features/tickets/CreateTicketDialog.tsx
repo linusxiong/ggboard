@@ -73,7 +73,7 @@ export default function CreateTicketDialog({ isOpen, onOpenChange }: CreateTicke
               void form.handleSubmit()
             }}
           >
-            <Modal.Body className="mt-2 flex flex-col gap-4">
+            <Modal.Body className="flex flex-col gap-4">
               {openTicket !== undefined ? (
                 <Alert status="warning">
                   <Alert.Indicator />

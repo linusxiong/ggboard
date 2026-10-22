@@ -1,7 +1,7 @@
-import { Tabs } from '@heroui/react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { PageShell } from '@/components/PageShell'
+import { SegmentedTabs } from '@/components/SegmentedControl'
 import { QueryStatus } from '@/features/dashboard/QueryStatus'
 import { AccountPanel } from '@/features/security/AccountPanel'
 import { ChangePasswordCard } from '@/features/security/ChangePasswordCard'
@@ -52,10 +52,9 @@ function ProfilePage() {
 
   return (
     <PageShell title={t('profile.title')} description={t('profile.subtitle')}>
-      <Tabs
-        selectedKey={tab}
-        onSelectionChange={(key) => {
-          const next = String(key)
+      <SegmentedTabs
+        value={tab}
+        onChange={(next) => {
           if (isTab(next) && next !== tab)
             void navigate({
               search: next === 'account' ? {} : { tab: next },
@@ -63,28 +62,23 @@ function ProfilePage() {
               resetScroll: false,
             })
         }}
+        className="flex flex-col gap-6"
       >
-        <Tabs.ListContainer>
-          <Tabs.List aria-label={t('profile.tabs')}>
-            {TABS.map((id) => (
-              <Tabs.Tab key={id} id={id}>
-                {t(`profile.tab.${id}`)}
-                <Tabs.Indicator />
-              </Tabs.Tab>
-            ))}
-          </Tabs.List>
-        </Tabs.ListContainer>
-        <Tabs.Panel id="account" className="flex flex-col gap-6 pt-6">
+        <SegmentedTabs.List
+          aria-label={t('profile.tabs')}
+          items={TABS.map((id) => ({ id, label: t(`profile.tab.${id}`) }))}
+        />
+        <SegmentedTabs.Panel id="account" className="flex flex-col gap-6">
           {user ? <AccountPanel user={user} /> : null}
-          {tab === 'account' ? <TelegramCard /> : null}
-        </Tabs.Panel>
-        <Tabs.Panel id="security" className="pt-6">
-          {tab === 'security' && user ? <SecurityPanel email={user.email} /> : null}
-        </Tabs.Panel>
-        <Tabs.Panel id="subscription" className="pt-6">
-          {tab === 'subscription' && user ? <SubscriptionPanel uuid={user.uuid} /> : null}
-        </Tabs.Panel>
-      </Tabs>
+          <TelegramCard />
+        </SegmentedTabs.Panel>
+        <SegmentedTabs.Panel id="security">
+          {user ? <SecurityPanel email={user.email} /> : null}
+        </SegmentedTabs.Panel>
+        <SegmentedTabs.Panel id="subscription">
+          {user ? <SubscriptionPanel uuid={user.uuid} /> : null}
+        </SegmentedTabs.Panel>
+      </SegmentedTabs>
     </PageShell>
   )
 }

@@ -322,8 +322,8 @@ function PaymentSection({ order, polling }: { order: Order; polling: OrderPollin
       <div className="flex flex-col gap-5">
         {methods.isPending ? (
           <div className="grid gap-2 sm:grid-cols-2" aria-busy="true">
-            <div className="h-[66px] animate-pulse rounded-[14px] bg-fill-quaternary" />
-            <div className="h-[66px] animate-pulse rounded-[14px] bg-fill-quaternary" />
+            <div className="h-[66px] shimmer rounded-[14px] bg-fill-quaternary" />
+            <div className="h-[66px] shimmer rounded-[14px] bg-fill-quaternary" />
           </div>
         ) : methods.isError ? (
           <FormError message={errorMessage(methods.error)} />

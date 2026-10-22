@@ -1,8 +1,9 @@
 /** `/admin/plans` — plans: inline show/sell/renew toggles, reorder, create/edit sheet, delete (409). */
 import { Button, Chip } from '@heroui/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { Package, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { EmptyState } from '@/components/EmptyState'
 import { createDataTableColumns, DataTable } from '@/components/data-table'
 import { confirm } from '@/components/feedback/confirm'
 import { PageShell } from '@/components/PageShell'
@@ -192,7 +193,7 @@ export function PlansPage() {
         isLoading={plans.isPending}
         isFetching={plans.isFetching && !plans.isPending}
         getRowId={(p) => String(p.id)}
-        emptyState={<p className="py-8 text-center text-subhead text-label-secondary">{t('empty')}</p>}
+        emptyState={<EmptyState compact icon={<Package />} title={t('empty')} />}
         rowActions={(p) => (
           <>
             <Button

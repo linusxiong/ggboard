@@ -33,7 +33,7 @@ function NoticesPage() {
       {query.isPending ? (
         <div className="flex flex-col gap-4" aria-busy="true">
           {Array.from({ length: 3 }, (_, i) => (
-            <div key={i} className="surface-card h-44 animate-pulse" />
+            <div key={i} className="surface-card h-44 shimmer" />
           ))}
         </div>
       ) : query.isError ? (

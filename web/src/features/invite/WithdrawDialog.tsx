@@ -136,7 +136,7 @@ export default function WithdrawDialog({ isOpen, onOpenChange, available }: With
                 void form.handleSubmit()
               }}
             >
-              <Modal.Body className="mt-2 flex flex-col gap-4">
+              <Modal.Body className="flex flex-col gap-4">
                 <p className="text-subhead text-label-secondary">
                   {t('withdraw.body', { available: money(available) })}
                 </p>

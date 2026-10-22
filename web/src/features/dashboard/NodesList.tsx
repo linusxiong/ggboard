@@ -35,7 +35,7 @@ export function NodesList({ nodes }: { nodes: readonly UserNode[] }) {
           {visible.map((node) => (
             <li
               key={node.id}
-              className="flex min-w-0 items-center gap-3 border-b-[0.5px] border-hairline py-3"
+              className="flex min-w-0 items-center gap-3 border-b-[0.5px] border-hairline py-3 last:border-b-0 sm:[&:nth-last-child(2):nth-child(odd)]:border-b-0"
             >
               <span
                 className={cx(

@@ -193,7 +193,7 @@ React Aria JS) — see "Performance".
 ## Shared components (`src/components`)
 
 `PageShell` (Large Title 34/700 + 15 px subtitle, 1120 px max width, 32 px between sections), `Section` (titled group +
-caption + card), `EmptyState` (ContentUnavailableView style), `LoadingPage`/`Spinner`, `ErrorBoundary`, `RouteError`,
+caption + card), `EmptyState` (ContentUnavailableView style — also for empty tables: `emptyState={<EmptyState compact icon={…} title={…} />}`), `SegmentedControl` / `SegmentedTabs` (below), `LoadingPage`/`Spinner`, `ErrorBoundary`, `RouteError`,
 `NotFound`, `StatCard` (symbol badge + label, large tabular value; numbers count up after idle), `TrafficBar` and
 `TrafficRing` (ARIA meters), `Money`/`Traffic`/`DateTime` (`Formatters.tsx`, Intl based; raw functions in `lib/format.ts`),
 `CopyButton` (+ `lib/clipboard.ts`), `QRCode` (lazy `qrcode`, SVG), `Markdown` (lazy `marked` + `dompurify`),
@@ -202,6 +202,39 @@ backend CSP must allow the provider when it is on; `LazyCaptcha` defers it), `Ar
 `AppShell`), `data-table/`, `form/`, `feedback/`, `layout/` (AppShell, AuthLayout, nav), `charts/` (SVG line/bar/sparkline),
 `editor/` (Markdown editor), `native/` (`NativeField`, `NativeButton`), `icons/inline.tsx`, `auth/EmailCodeButton`.
 `effects/` — ShinyText, GradientText, BlurText, SpotlightCard, CountUp (original CSS/rAF effects, GPL-3.0; always behind `WhenIdle`/`lazy`).
+
+## Segmented control and tabs (`@/components/SegmentedControl`)
+
+One iOS segmented control for **every** filter, mode switch and content tab — never HeroUI `Tabs` or a raw
+`ToggleButtonGroup` for this (they stretch to the container and use a different pill).
+
+```tsx
+import { SegmentedControl, SegmentedTabs } from '@/components/SegmentedControl'
+
+// Filter / mode switch → role=radiogroup (React Aria ToggleButtonGroup): one tab stop, ←/→/↑/↓ move AND select
+// (wrapping, disabled items skipped), Home/End. Keep the value in the URL where it filters a list.
+<SegmentedControl aria-label="订单状态" value={tab} onChange={(v) => navigate({ search: … })}
+  items={[{ id: 'all', label: '全部' }, { id: '0', label: '待支付', count: 2 }, { id: '1', label: '开通中' }]} />
+<SegmentedControl label="排序" size="sm" value={sort} onChange={setSort} items={…} />   // visible 13 px label
+
+// Real content tabs → role=tablist + tabpanel (React Aria Tabs, automatic activation). Same look.
+<SegmentedTabs value={tab} onChange={setTab}>
+  <SegmentedTabs.List aria-label="个人中心" items={[{ id: 'account', label: '账户' }, …]} />
+  <SegmentedTabs.Panel id="account">…</SegmentedTabs.Panel>   {/* shouldForceMount + data-[inert=true]:hidden ok */}
+</SegmentedTabs>
+```
+
+- Items: `{ id, label, textValue?, icon?, count?, countTone?: 'accent', adornment?, isDisabled? }` (`count` = capsule,
+  `accent` = tinted "needs attention"; `adornment` = status dot etc.). `size`: `md` 32 px segments (default), `sm` 28 px.
+- Look (`app.css` `.gg-segmented*`, tokens `--segment`, `--segment-track`, `--segment-divider`, `--segment-shadow`): hug
+  content (never stretched), 2 px inset track, 9 px radius, 13 px semibold labels, one white (dark `#636366`) pill that
+  slides to the selection (CSS transform, measured; reduced motion → jump), hairline dividers that fade next to the
+  pill / a hovered segment, pressed segment dims, pressed pill shrinks to 0.96. Too wide → it scrolls inside an
+  edge-faded container and keeps the selection in view.
+- Picks show at once even when the owner commits later (router search params): the control keeps the pick for up to
+  2 s while `value` is still the old one. `SegmentedTabs optimistic={false}` when the owner may refuse/confirm first or
+  renders only the committed panel (subscription profiles).
+- Tests: single selection = `getByRole('radio', { name })`; tabs = `getByRole('tab')`. No `getAnimations` stub needed.
 
 ## i18n
 
@@ -222,6 +255,7 @@ backend CSP must allow the provider when it is on; `LazyCaptcha` defers it), `Ar
 | fills / lines        | `bg-fill(-secondary/-tertiary/-quaternary)`, `border-hairline`, `hairline-t/-b`, `glass glass-border-b` (frosted bars)                                 |
 | type                 | `text-large-title`, `text-title1/2/3`, `text-headline`, `text-body`, `text-callout`, `text-subhead`, `text-footnote`, `text-caption`, `text-caption2`  |
 | radii / motion       | `rounded-card` 20 px, `rounded-button` 12 px, `rounded-input` 10 px, `ease-apple-out`, `animate-enter` (not on LCP elements)                           |
+| micro-interactions   | `pressable` (tappable cards/rows: 0.98 press), `shimmer` (skeleton placeholders), `--ease-spring` (sheets) — app.css only                              |
 | layout               | `max-w-page` (1120 px), `surface-card` (20 px radius, hairline + soft shadow), `inset-group` / `separated` (hairline rows; `[--separator-inset:20px]`) |
 | controls             | `--field-h` 44 → 38 px (≥ md), `--field-fs` 17 → 15 px, `field-affix(--start)` units, `bg-selection` (tinted pill), `--material-thick` (toasts)        |
 | HeroUI               | `bg-background`, `bg-surface`, `text-muted`, `bg-accent` (= `--tint` #006EF8, white text 4.58:1), `text-danger` … all mapped to the tokens above       |
@@ -234,7 +268,7 @@ all in the `gg-overrides` layer after HeroUI's `components` layer:
   36 px; pressed = 0.98 scale + dim; disabled 40 %; every `isPending`/`pending` button gets an inline spinner.
 - **Fields**: fill style (`--fill-tertiary`), 10 px radius, 2 px tint focus ring, placeholder `--label-tertiary`,
   invalid = red tint + ring; labels 13 px semibold, helper/error 13 px.
-- **Switches** iOS proportions + systemGreen; **tabs** segmented control; **menus/selects** 14 px popovers with grey
+- **Switches** iOS proportions + systemGreen; **segments/tabs** `SegmentedControl` / `SegmentedTabs` (above); **menus/selects** 14 px popovers with grey
   highlight; **tables** hairline rows, no zebra/dividers, sticky header inside a scroll view (`gg-table`), end-aligned
   numbers tabular; **dialogs** 20 px radius, Title3 headings, bottom sheets with a grabber on phones (`FormDrawer`:
   floating inspector on desktop, `Drawer.Handle` sheet on phones); **chips** capsules; **avatars** Contacts-style

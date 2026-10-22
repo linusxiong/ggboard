@@ -1,5 +1,5 @@
 /** User detail drawer: summary (stats, credentials, actions) and the full edit form (admins only). */
-import { Button, Chip, Tabs } from '@heroui/react'
+import { Button, Chip } from '@heroui/react'
 import { useQuery } from '@tanstack/react-query'
 import { Shuffle } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
@@ -7,6 +7,7 @@ import { CopyButton } from '@/components/CopyButton'
 import { FormError, useAppForm } from '@/components/form'
 import { submitError } from '@/components/form/submitError'
 import { TrafficBar } from '@/components/TrafficBar'
+import { SegmentedTabs } from '@/components/SegmentedControl'
 import { useT } from '@/i18n'
 import * as adminApi from '@/lib/api/admin'
 import { adminGroupsQuery, adminPlansQuery, adminUserQuery } from '@/lib/api/queries'
@@ -494,40 +495,33 @@ export function UserDrawer({
       ) : !user ? (
         <div className="flex flex-col gap-3" aria-busy="true">
           {Array.from({ length: 6 }, (_, i) => (
-            <span key={i} className="block h-10 animate-pulse rounded-[10px] bg-fill-tertiary" />
+            <span key={i} className="block h-10 shimmer rounded-[10px] bg-fill-tertiary" />
           ))}
         </div>
       ) : canEdit ? (
-        <Tabs
-          selectedKey={tab}
-          onSelectionChange={(k) => setTab(k === 'profile' || k === 'subscription' ? k : 'summary')}
+        <SegmentedTabs
+          value={tab}
+          onChange={(k) => setTab(k === 'profile' || k === 'subscription' ? k : 'summary')}
+          className="flex flex-col gap-5"
         >
-          <Tabs.ListContainer>
-            <Tabs.List aria-label={t('detail.tabs')}>
-              <Tabs.Tab id="summary">
-                {t('detail.summary')}
-                <Tabs.Indicator />
-              </Tabs.Tab>
-              <Tabs.Tab id="profile">
-                {t('detail.profile')}
-                <Tabs.Indicator />
-              </Tabs.Tab>
-              <Tabs.Tab id="subscription">
-                {t('subscription.tab')}
-                <Tabs.Indicator />
-              </Tabs.Tab>
-            </Tabs.List>
-          </Tabs.ListContainer>
-          <Tabs.Panel id="summary" shouldForceMount className="pt-4 data-[inert=true]:hidden">
+          <SegmentedTabs.List
+            aria-label={t('detail.tabs')}
+            items={[
+              { id: 'summary', label: t('detail.summary') },
+              { id: 'profile', label: t('detail.profile') },
+              { id: 'subscription', label: t('subscription.tab') },
+            ]}
+          />
+          <SegmentedTabs.Panel id="summary" shouldForceMount className="data-[inert=true]:hidden">
             <Summary user={user} canEdit onDeleted={onClose} />
-          </Tabs.Panel>
-          <Tabs.Panel id="profile" shouldForceMount className="pt-4 data-[inert=true]:hidden">
+          </SegmentedTabs.Panel>
+          <SegmentedTabs.Panel id="profile" shouldForceMount className="data-[inert=true]:hidden">
             <EditForm user={user} onSaved={() => setTab('profile')} />
-          </Tabs.Panel>
-          <Tabs.Panel id="subscription" className="pt-4">
+          </SegmentedTabs.Panel>
+          <SegmentedTabs.Panel id="subscription">
             {tab === 'subscription' ? <UserSubscriptionTab user={user} /> : null}
-          </Tabs.Panel>
-        </Tabs>
+          </SegmentedTabs.Panel>
+        </SegmentedTabs>
       ) : (
         <Summary user={user} canEdit={false} onDeleted={onClose} />
       )}

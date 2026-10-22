@@ -6,13 +6,13 @@
  * Servers without `GET /user/rule-profiles` (404) get the single-profile page: the default profile through
  * `/user/rule-profile`, no switcher, and no node operations unless the stored profile carries `nodes`.
  */
-import { Tabs } from '@heroui/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { FileCode2 } from 'lucide-react'
 import { lazy, type ReactNode, Suspense, useCallback, useRef, useState } from 'react'
 import { PageShell } from '@/components/PageShell'
 import { confirm } from '@/components/feedback/confirm'
+import { SegmentedTabs } from '@/components/SegmentedControl'
 import { QueryStatus } from '@/features/dashboard/QueryStatus'
 import { useT } from '@/i18n'
 import { guestConfigQuery, qk, subscriptionQuery, userCatalogQuery, userNodesQuery } from '@/lib/api/queries'
@@ -108,7 +108,7 @@ export function SubscriptionPage() {
   return (
     <PageShell title={t('title')} description={t('subtitle')}>
       {list.isPending ? (
-        <div className="h-10 animate-pulse rounded-[12px] bg-fill-quaternary" aria-busy="true" />
+        <div className="h-10 shimmer rounded-[12px] bg-fill-quaternary" aria-busy="true" />
       ) : null}
       {supportsProfiles ? (
         <ProfileTabs
@@ -189,28 +189,21 @@ function ProfileEditors({
   const onNodesDirty = useCallback((dirty: boolean) => onDirty('nodes', dirty), [onDirty])
 
   return (
-    <Tabs
-      variant="secondary"
-      selectedKey={tab}
-      onSelectionChange={(k) => {
+    <SegmentedTabs
+      value={tab}
+      onChange={(k) => {
         const next = EDITOR_TABS.find((x) => x === String(k)) ?? 'rules'
         setTab(next)
         setVisited((v) => (v.has(next) ? v : new Set([...v, next])))
       }}
       className="flex flex-col gap-4"
     >
-      <Tabs.ListContainer className="max-w-full">
-        <Tabs.List aria-label={t('editor.tabs', { name: profileName })}>
-          {EDITOR_TABS.map((id) => (
-            <Tabs.Tab key={id} id={id}>
-              {t(`editor.${id}`)}
-              <Tabs.Indicator />
-            </Tabs.Tab>
-          ))}
-        </Tabs.List>
-      </Tabs.ListContainer>
+      <SegmentedTabs.List
+        aria-label={t('editor.tabs', { name: profileName })}
+        items={EDITOR_TABS.map((id) => ({ id, label: t(`editor.${id}`) }))}
+      />
 
-      <Tabs.Panel id="rules" shouldForceMount className="p-0 data-[inert=true]:hidden">
+      <SegmentedTabs.Panel id="rules" shouldForceMount className="data-[inert=true]:hidden">
         <QueryStatus query={catalog} minHeight={640}>
           {(cat) => (
             <QueryStatus query={detail} minHeight={640}>
@@ -227,9 +220,9 @@ function ProfileEditors({
             </QueryStatus>
           )}
         </QueryStatus>
-      </Tabs.Panel>
+      </SegmentedTabs.Panel>
 
-      <Tabs.Panel id="nodes" shouldForceMount className="p-0 data-[inert=true]:hidden">
+      <SegmentedTabs.Panel id="nodes" shouldForceMount className="data-[inert=true]:hidden">
         {visited.has('nodes') ? (
           <QueryStatus query={detail} minHeight={640}>
             {(saved) =>
@@ -248,9 +241,9 @@ function ProfileEditors({
             }
           </QueryStatus>
         ) : null}
-      </Tabs.Panel>
+      </SegmentedTabs.Panel>
 
-      <Tabs.Panel id="preview" className="p-0">
+      <SegmentedTabs.Panel id="preview">
         {tab === 'preview' ? (
           <section className="surface-card flex flex-col gap-4 p-6" aria-labelledby="preview-title">
             <div className="flex min-w-0 items-center gap-3">
@@ -269,15 +262,15 @@ function ProfileEditors({
                 </p>
               </div>
             </div>
-            <Suspense fallback={<div className="h-48 animate-pulse rounded-[12px] bg-fill-quaternary" />}>
+            <Suspense fallback={<div className="h-48 shimmer rounded-[12px] bg-fill-quaternary" />}>
               <PreviewPanel
                 profile={active.is_default || !active.slug ? override || undefined : active.slug}
               />
             </Suspense>
           </section>
         ) : null}
-      </Tabs.Panel>
-    </Tabs>
+      </SegmentedTabs.Panel>
+    </SegmentedTabs>
   )
 }
 

@@ -97,7 +97,7 @@ export function AccessCard() {
           {t('access.recent')}
         </h3>
         {log.isPending ? (
-          <div className="h-24 animate-pulse rounded-[12px] bg-fill-quaternary" aria-busy="true" />
+          <div className="h-24 shimmer rounded-[12px] bg-fill-quaternary" aria-busy="true" />
         ) : log.isError ? (
           isMissing(log.error) ? (
             <p className="text-footnote text-label-secondary">{t('access.unavailable')}</p>

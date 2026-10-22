@@ -2,10 +2,11 @@
  * One plan in the shop grid: name, tags, limits, Markdown description, a segmented period picker
  * (only offered prices, with per-month equivalent and saving), "current plan" / "sold out" states.
  */
-import { Button, Chip, Radio, RadioGroup } from '@heroui/react'
+import { Button, Chip } from '@heroui/react'
 import { Gauge, MonitorSmartphone, Sparkles } from 'lucide-react'
 import { type ReactNode, useId, useState } from 'react'
 import { Markdown } from '@/components/Markdown'
+import { SegmentedControl } from '@/components/SegmentedControl'
 import { useT } from '@/i18n'
 import type { Plan, PlanPeriod } from '@/lib/api/types'
 import { cx } from '@/lib/cn'
@@ -100,28 +101,20 @@ export function PlanCard({ plan, isCurrent, onBuy }: PlanCardProps) {
       ) : null}
 
       {offers.length > 1 ? (
-        <RadioGroup
+        <SegmentedControl
           aria-label={t('card.period', { name: plan.name })}
-          value={offer?.period ?? null}
-          onChange={(value) => setPeriod(value as PlanPeriod)}
-          orientation="horizontal"
-          className="flex flex-row flex-wrap gap-2"
-        >
-          {offers.map(({ period: p, cents }) => (
-            <Radio key={p} value={p} className="group">
-              <Radio.Content
-                className={cx(
-                  'rounded-full bg-fill-tertiary px-3.5 py-1.5 text-subhead font-medium text-label transition-colors',
-                  'group-data-selected:bg-tint group-data-selected:text-white',
-                  'data-focus-visible:ring-2 data-focus-visible:ring-tint data-focus-visible:ring-offset-2',
-                )}
-              >
-                {t(`common:periods.${p}`)}
-                <span className="sr-only"> {money(cents)}</span>
-              </Radio.Content>
-            </Radio>
-          ))}
-        </RadioGroup>
+          size="sm"
+          value={offer?.period ?? offers[0]?.period ?? 'monthly'}
+          onChange={(value) => setPeriod(value)}
+          items={offers.map(({ period: p, cents }) => ({
+            id: p,
+            label: (
+              <>
+                {t(`common:periods.${p}`)} <span className="sr-only">{money(cents)}</span>
+              </>
+            ),
+          }))}
+        />
       ) : null}
 
       <ul className="flex flex-col gap-2 text-subhead text-label">

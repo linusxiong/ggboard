@@ -50,7 +50,7 @@ export function QueryStatus<T>({
     )
   }
   return (
-    <div aria-busy="true" className={cx('surface-card animate-pulse', className)} style={{ minHeight }}>
+    <div aria-busy="true" className={cx('surface-card shimmer', className)} style={{ minHeight }}>
       <span className="sr-only">{t('states.loading')}</span>
     </div>
   )

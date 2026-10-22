@@ -254,14 +254,12 @@ function EnableDialog({ email, appName, onClose }: { email: string; appName: str
           </p>
           <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
             {setup ? (
-              <Suspense
-                fallback={<div className="size-[168px] animate-pulse rounded-[12px] bg-fill-quaternary" />}
-              >
+              <Suspense fallback={<div className="size-[168px] shimmer rounded-[12px] bg-fill-quaternary" />}>
                 <QRCode value={setup.otpauth_url} size={168} label={t('totp.qrLabel')} className="shrink-0" />
               </Suspense>
             ) : (
               <div
-                className="size-[168px] shrink-0 animate-pulse rounded-[12px] bg-fill-quaternary"
+                className="size-[168px] shrink-0 shimmer rounded-[12px] bg-fill-quaternary"
                 aria-busy="true"
               />
             )}

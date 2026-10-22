@@ -1,8 +1,9 @@
 /** `/admin/groups` — server groups: inline create / rename, delete (409 when still in use). */
 import { Button, Input, Label, TextField } from '@heroui/react'
 import { useQuery } from '@tanstack/react-query'
-import { Check, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { Check, Layers, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { type FormEvent, useMemo, useState } from 'react'
+import { EmptyState } from '@/components/EmptyState'
 import { createDataTableColumns, DataTable } from '@/components/data-table'
 import { confirm } from '@/components/feedback/confirm'
 import { PageShell } from '@/components/PageShell'
@@ -121,7 +122,7 @@ export function GroupsPage() {
         isLoading={groups.isPending}
         isFetching={groups.isFetching && !groups.isPending}
         getRowId={(g) => String(g.id)}
-        emptyState={<p className="py-8 text-center text-subhead text-label-secondary">{t('groups.empty')}</p>}
+        emptyState={<EmptyState compact icon={<Layers />} title={t('groups.empty')} />}
         rowActions={(g) =>
           editing?.id === g.id ? (
             <>

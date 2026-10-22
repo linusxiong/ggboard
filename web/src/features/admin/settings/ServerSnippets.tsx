@@ -1,5 +1,6 @@
-import { Tabs } from '@heroui/react'
+import { useState } from 'react'
 import { CopyButton } from '@/components/CopyButton'
+import { SegmentedTabs } from '@/components/SegmentedControl'
 import { useT } from '@/i18n'
 import { buildSnippets } from './snippets'
 
@@ -21,6 +22,7 @@ export function ServerSnippets({ appUrl, token, revealed }: ServerSnippetsProps)
     { id: 'v2bx', label: 'V2bX' },
     { id: 'soga', label: 'soga' },
   ] as const
+  const [tab, setTab] = useState<(typeof tabs)[number]['id']>('xrayr')
   return (
     <section aria-labelledby="server-snippets" className="flex flex-col gap-3">
       <div>
@@ -29,34 +31,25 @@ export function ServerSnippets({ appUrl, token, revealed }: ServerSnippetsProps)
         </h3>
         <p className="mt-1 text-footnote text-label-secondary">{t('server.snippetsHint')}</p>
       </div>
-      <Tabs variant="secondary">
-        <Tabs.ListContainer>
-          <Tabs.List aria-label={t('server.snippetsTitle')}>
-            {tabs.map((tab) => (
-              <Tabs.Tab key={tab.id} id={tab.id}>
-                {tab.label}
-                <Tabs.Indicator />
-              </Tabs.Tab>
-            ))}
-          </Tabs.List>
-        </Tabs.ListContainer>
-        {tabs.map((tab) => (
-          <Tabs.Panel key={tab.id} id={tab.id} className="pt-3">
+      <SegmentedTabs value={tab} onChange={setTab} className="flex flex-col gap-3">
+        <SegmentedTabs.List aria-label={t('server.snippetsTitle')} size="sm" items={tabs} />
+        {tabs.map((item) => (
+          <SegmentedTabs.Panel key={item.id} id={item.id}>
             <div className="relative">
               {/* Focusable so keyboard users can scroll long lines (axe scrollable-region-focusable). */}
               <pre
                 tabIndex={0}
                 className="overflow-x-auto rounded-[12px] bg-fill-quaternary p-4 pe-12 font-mono text-footnote leading-5 text-label focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
               >
-                <code>{shown[tab.id]}</code>
+                <code>{shown[item.id]}</code>
               </pre>
               <div className="absolute end-2 top-2">
-                <CopyButton value={real[tab.id]} variant="ghost" />
+                <CopyButton value={real[item.id]} variant="ghost" />
               </div>
             </div>
-          </Tabs.Panel>
+          </SegmentedTabs.Panel>
         ))}
-      </Tabs>
+      </SegmentedTabs>
     </section>
   )
 }

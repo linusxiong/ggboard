@@ -1,10 +1,11 @@
-import { SearchField, ToggleButton, ToggleButtonGroup } from '@heroui/react'
+import { SearchField } from '@heroui/react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { BookOpen, ChevronLeft, FileText } from 'lucide-react'
 import { useState } from 'react'
 import { EmptyState } from '@/components/EmptyState'
 import { PageShell } from '@/components/PageShell'
+import { SegmentedControl } from '@/components/SegmentedControl'
 import { KnowledgeArticleView } from '@/features/content/KnowledgeArticleView'
 import { useDebouncedEffect } from '@/features/content/useDebounced'
 import { loadNamespaces, useLocale, useT } from '@/i18n'
@@ -67,24 +68,15 @@ function KnowledgePage() {
       description={t('knowledge.subtitle')}
       actions={
         locales.length > 1 ? (
-          <ToggleButtonGroup
+          <SegmentedControl
             aria-label={t('knowledge.language')}
-            selectionMode="single"
-            disallowEmptySelection
-            selectedKeys={[language]}
-            onSelectionChange={(keys) => {
-              const next = [...keys][0]
-              if (next !== undefined)
-                void navigate({ search: (prev) => ({ ...prev, language: String(next), id: undefined }) })
-            }}
             size="sm"
-          >
-            {locales.map((locale) => (
-              <ToggleButton key={locale} id={locale}>
-                {t(`core:locale.${locale}`)}
-              </ToggleButton>
-            ))}
-          </ToggleButtonGroup>
+            value={language}
+            onChange={(next) =>
+              void navigate({ search: (prev) => ({ ...prev, language: next, id: undefined }) })
+            }
+            items={locales.map((locale) => ({ id: locale, label: t(`core:locale.${locale}`) }))}
+          />
         ) : null
       }
     >
@@ -110,7 +102,7 @@ function KnowledgePage() {
           {index.isPending ? (
             <div className="surface-card flex flex-col gap-3 p-4" aria-busy="true">
               {Array.from({ length: 5 }, (_, i) => (
-                <div key={i} className="h-5 animate-pulse rounded bg-fill-tertiary" />
+                <div key={i} className="h-5 shimmer rounded bg-fill-tertiary" />
               ))}
             </div>
           ) : index.isError ? (
