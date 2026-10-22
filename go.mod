@@ -1,6 +1,6 @@
 module github.com/linusxiong/ggboard
 
-go 1.27.1
+go 1.27.3
 
 require (
 	github.com/dgraph-io/ristretto/v2 v2.4.2
