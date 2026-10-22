@@ -109,7 +109,7 @@ deploy/                 Dockerfile、compose、systemd、nginx 示例
   `web/package.json`、导航配置、i18n 公共词条）时，只做**追加**，并在汇报中明确列出。
 - 不要运行 `go mod tidy`（由集成者统一执行）；需要新依赖用 `go get <mod>@latest` 一次即可。
 - 不要修改他人目录下的测试以让自己的代码通过。
-- 路由集中在各 API 包的 `Register`，由 `internal/httpx/router.go` 统一调用。
+- 路由集中在各 API 包的 `Register`，由 `internal/router/router.go` 统一调用。
 
 ---
 
