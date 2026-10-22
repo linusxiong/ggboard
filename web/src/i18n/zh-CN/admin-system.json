@@ -1,0 +1,67 @@
+{
+  "title": "系统状态",
+  "description": "运行状态、定时任务、邮件队列、缓存与运行日志。每 30 秒自动刷新。",
+  "loadFailed": "系统状态加载失败",
+  "cards": {
+    "panel": "面板",
+    "version": "版本",
+    "go": "Go 版本",
+    "db": "数据库",
+    "uptime": "运行时间",
+    "startedAt": "启动于",
+    "jobs": "定时任务",
+    "jobsOk": "{n} 个，全部正常",
+    "jobsFailing": "{n} 个上次运行失败",
+    "online": "在线",
+    "onlineNodes": "在线节点",
+    "onlineUsers": "在线用户",
+    "mail": "邮件队列",
+    "mailDriver": "发信方式",
+    "mailPending": "待发送",
+    "mailSent": "已发送",
+    "mailFailed": "失败",
+    "cache": "缓存",
+    "cacheItems": "条目",
+    "cacheHitRatio": "命中率",
+    "cacheHits": "命中 / 未命中",
+    "runtime": "运行时",
+    "goroutines": "Goroutines",
+    "memAlloc": "已分配内存",
+    "memSys": "系统内存"
+  },
+  "scheduler": {
+    "title": "定时任务",
+    "name": "任务",
+    "spec": "计划",
+    "lastRun": "上次运行",
+    "nextRun": "下次运行",
+    "runs": "运行次数",
+    "failures": "失败 {n} 次",
+    "lastError": "上次结果",
+    "never": "尚未运行",
+    "running": "运行中",
+    "ok": "正常"
+  },
+  "logs": {
+    "title": "运行日志",
+    "level": "级别",
+    "levels": {
+      "all": "全部",
+      "debug": "Debug",
+      "info": "Info",
+      "warn": "Warn",
+      "error": "Error"
+    },
+    "limit": "条数",
+    "search": "搜索日志",
+    "searchPlaceholder": "消息或属性",
+    "auto": "每 10 秒自动刷新",
+    "empty": "没有日志。",
+    "attrs": "{n} 个属性",
+    "footer": "显示 {shown} / {total} 条（内存中仅保留最近 1000 条）"
+  },
+  "diagnostics": {
+    "copy": "复制诊断信息",
+    "copied": "诊断信息已复制，可粘贴到问题反馈中"
+  }
+}
