@@ -134,6 +134,7 @@ ggboard import xboard --dsn "mysql://user:pass@127.0.0.1:3306/xboard" --with-sta
 | [docs/PAYMENTS.md](docs/PAYMENTS.md) · [docs/PAYMENTS_GATEWAYS.md](docs/PAYMENTS_GATEWAYS.md) | 支付插件接口与各网关协议 |
 | [docs/NODE_PROTOCOLS.md](docs/NODE_PROTOCOLS.md) | XrayR / V2bX / soga 对接协议 |
 | [docs/BACKEND.md](docs/BACKEND.md) · [docs/FRONTEND.md](docs/FRONTEND.md) · [web/README.md](web/README.md) | 开发指南 |
+| [docs/E2E_2026-10-22.md](docs/E2E_2026-10-22.md) | 端到端集成测试记录：缺陷表与 Lighthouse 分数 |
 | [MISTAKES.md](MISTAKES.md) | 错题本：开发中踩过的坑 |
 
 ## 开发 / Development
@@ -142,8 +143,9 @@ ggboard import xboard --dsn "mysql://user:pass@127.0.0.1:3306/xboard" --with-sta
 make test                       # Go 单元测试（-race）
 make lint                       # golangci-lint
 pnpm -C web install && pnpm -C web dev      # 前端开发服务器，/api 代理到 :8080
-pnpm -C web typecheck && pnpm -C web lint && pnpm -C web test && pnpm -C web build
-pnpm -C web lh                  # Lighthouse（要求四项 100）
+pnpm -C web typecheck && pnpm -C web lint && pnpm -C web test && pnpm -C web build   # build 含公开页预渲染（需 Chrome）
+pnpm -C web lh                  # Lighthouse：桌面 + 移动端，要求四项 100
+make e2e                        # 冒烟 + 完整 API 端到端流程（scripts/e2e-full.sh，也可 BASE=… 为运行中的实例填充演示数据）
 ```
 
 ## 许可证 / License
