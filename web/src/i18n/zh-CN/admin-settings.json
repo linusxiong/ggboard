@@ -45,6 +45,10 @@
     "security": {
       "title": "安全",
       "hint": "安全相关选项。"
+    },
+    "telegram": {
+      "title": "Telegram",
+      "hint": "机器人通知与账户绑定。"
     }
   },
   "keys": {
@@ -85,68 +89,68 @@
       "hint": "关闭后用户的节点列表不显示主机与端口。"
     },
     "stop_register": {
-      "label": "停止注册",
-      "hint": "开启后新用户无法注册。"
+      "label": "开放注册",
+      "hint": "关闭后新用户无法注册，已有账户不受影响。"
     },
     "email_verify": {
-      "label": "注册需验证邮箱",
-      "hint": "注册时需要输入邮箱验证码。"
+      "label": "邮箱验证",
+      "hint": "注册时需要填写发送到邮箱的验证码。"
     },
     "email_whitelist_enable": {
       "label": "邮箱后缀白名单",
-      "hint": "只允许下方后缀的邮箱注册。"
+      "hint": "只允许下方列出的邮箱域名注册。"
     },
     "email_whitelist_suffix": {
       "label": "允许的邮箱后缀",
-      "hint": "例如 gmail.com、outlook.com。"
+      "hint": "按回车或逗号添加，可一次粘贴多个；会显示在注册页的邮箱输入框下方。"
     },
     "invite_force": {
-      "label": "强制邀请码注册",
-      "hint": "没有有效邀请码时不能注册。"
+      "label": "强制邀请码",
+      "hint": "没有有效邀请码时无法注册。"
     },
     "register_limit_by_ip_enable": {
-      "label": "限制同 IP 注册",
-      "hint": "在一段时间内限制同一 IP 的注册次数。"
+      "label": "IP 注册限制",
+      "hint": "在一段时间内限制同一 IP 可注册的账户数。"
     },
     "register_limit_count": {
-      "label": "同 IP 注册次数",
-      "hint": "时间窗口内允许的注册次数。"
+      "label": "注册次数上限",
+      "hint": "时间窗口内同一 IP 最多可注册的账户数。"
     },
     "register_limit_expire": {
-      "label": "注册限制窗口（分钟）",
+      "label": "时间窗口",
       "hint": ""
     },
     "password_limit_enable": {
       "label": "密码错误锁定",
-      "hint": "多次输错密码后暂时禁止登录。"
+      "hint": "连续输错密码后暂时禁止该账户登录。"
     },
     "password_limit_count": {
       "label": "允许错误次数",
       "hint": ""
     },
     "password_limit_expire": {
-      "label": "锁定时长（分钟）",
+      "label": "锁定时长",
       "hint": ""
     },
     "try_out_plan_id": {
-      "label": "注册试用套餐",
+      "label": "试用套餐",
       "hint": "新用户注册后自动获得的套餐。"
     },
     "try_out_hour": {
-      "label": "试用时长（小时）",
+      "label": "试用时长",
       "hint": ""
     },
     "captcha_provider": {
-      "label": "人机验证",
-      "hint": "用于注册、登录与发送验证码。"
+      "label": "验证码服务",
+      "hint": "用于注册、登录与发送邮箱验证码。"
     },
     "captcha_site_key": {
-      "label": "站点密钥（Site key）",
-      "hint": ""
+      "label": "Site Key",
+      "hint": "公开密钥，会下发给浏览器。"
     },
     "captcha_secret": {
-      "label": "服务端密钥（Secret）",
-      "hint": ""
+      "label": "Secret Key",
+      "hint": "服务端密钥，仅保存在服务器。"
     },
     "subscribe_url": {
       "label": "订阅地址",
@@ -195,7 +199,7 @@
       "direct": "直连 GitHub"
     },
     "subscribe_update_interval": {
-      "label": "订阅更新间隔（小时）",
+      "label": "订阅更新间隔",
       "hint": "客户端自动更新订阅的建议间隔。"
     },
     "allow_user_rule_profile": {
@@ -203,11 +207,11 @@
       "hint": "关闭后所有用户使用默认模板。"
     },
     "order_timeout_minutes": {
-      "label": "订单超时（分钟）",
+      "label": "订单超时",
       "hint": "超时未支付的订单会被自动取消。"
     },
     "invite_commission": {
-      "label": "邀请佣金比例（%）",
+      "label": "邀请佣金比例",
       "hint": "被邀请人付款后，邀请人获得的佣金比例。"
     },
     "invite_gen_limit": {
@@ -243,15 +247,15 @@
       "hint": "按层级分配佣金。"
     },
     "commission_distribution_l1": {
-      "label": "一级比例（%）",
+      "label": "一级比例",
       "hint": ""
     },
     "commission_distribution_l2": {
-      "label": "二级比例（%）",
+      "label": "二级比例",
       "hint": ""
     },
     "commission_distribution_l3": {
-      "label": "三级比例（%）",
+      "label": "三级比例",
       "hint": ""
     },
     "server_token": {
@@ -259,11 +263,11 @@
       "hint": "节点后端（XrayR / V2bX / soga）连接面板使用的密钥。"
     },
     "server_pull_interval": {
-      "label": "拉取间隔（秒）",
+      "label": "拉取间隔",
       "hint": "节点拉取用户列表与配置的间隔。"
     },
     "server_push_interval": {
-      "label": "上报间隔（秒）",
+      "label": "上报间隔",
       "hint": "节点上报流量与在线状态的间隔。"
     },
     "server_white_list": {
@@ -378,6 +382,46 @@
     "mfa_issuer": {
       "label": "验证器显示名称",
       "hint": "身份验证器 App 中显示的发行方名称，留空则使用站点名称。"
+    },
+    "subscribe_age_optional": {
+      "label": "允许临时关闭加密",
+      "hint": "用户启用 age 加密后，订阅链接加上 ?age=0 仍可获取明文。"
+    },
+    "subscribe_age_strict": {
+      "label": "严格加密",
+      "hint": "用户启用加密后，拒绝不支持 age 的客户端格式（返回 406），而不是退回明文。"
+    },
+    "subscribe_leak_max_ips": {
+      "label": "泄露检测阈值",
+      "hint": "24 小时内同一订阅被超过这个数量的不同 IP（IPv6 按 /64）拉取时触发；0 表示关闭。"
+    },
+    "subscribe_leak_action": {
+      "label": "触发后",
+      "hint": ""
+    },
+    "telegram_bot_token": {
+      "label": "Bot Token",
+      "hint": "从 @BotFather 获取；留空则停用 Telegram 通知。"
+    },
+    "telegram_webhook_secret": {
+      "label": "Webhook 密钥",
+      "hint": "Webhook 地址的一部分，至少 16 位；更换后需要重新设置 Webhook。"
+    },
+    "telegram_admin_chat_ids": {
+      "label": "管理员 Chat ID",
+      "hint": "接收管理通知的会话：用户或群组 ID（群组为负数），或 @频道名。按回车添加。"
+    },
+    "telegram_events": {
+      "label": "通知事件",
+      "hint": "选中的事件会推送到上面的管理员会话。"
+    },
+    "telegram_user_notify": {
+      "label": "用户通知",
+      "hint": "已绑定 Telegram 的用户可收到到期、流量等提醒。"
+    },
+    "telegram_discuss_link": {
+      "label": "交流群链接",
+      "hint": "展示给用户的 Telegram 群组链接（可选）。"
     }
   },
   "enums": {
@@ -413,6 +457,20 @@
     "default_locale": {
       "zh-CN": "简体中文",
       "en": "English"
+    },
+    "telegram_events": {
+      "order_new": "新订单",
+      "order_paid": "订单支付",
+      "order_cancel": "订单取消",
+      "admin_login": "管理员登录",
+      "ticket_new": "新工单",
+      "ticket_reply": "工单回复",
+      "withdraw": "提现申请",
+      "subscription_leak": "订阅泄露"
+    },
+    "subscribe_leak_action": {
+      "notify": "仅通知管理员",
+      "rotate": "通知并重置订阅"
     }
   },
   "validation": {
@@ -426,7 +484,10 @@
     "save": "保存",
     "discard": "放弃更改",
     "saved": "“{group}”已保存",
-    "nothing": "没有需要保存的更改"
+    "nothing": "没有需要保存的更改",
+    "clean": "所有更改已保存",
+    "dirty": "有未保存的更改",
+    "shortcut": "⌘S 保存"
   },
   "server": {
     "regenerate": "重新生成密钥",
@@ -458,7 +519,9 @@
     "hide": "隐藏",
     "empty": "暂无",
     "addTo": "添加到 {label}",
-    "addPlaceholder": "输入后按回车添加"
+    "addPlaceholder": "输入后按回车或逗号添加",
+    "remove": "移除 {item}",
+    "add": "添加"
   },
   "urlList": {
     "empty": "未配置，使用站点地址。",
@@ -550,5 +613,158 @@
       "addToJson": "写入覆盖 JSON",
       "added": "已写入 JSON，记得保存覆盖"
     }
-  }
+  },
+  "units": {
+    "minutes": "分钟",
+    "hours": "小时",
+    "seconds": "秒",
+    "times": "次",
+    "percent": "%",
+    "codes": "个",
+    "ips": "个 IP"
+  },
+  "enumHints": {
+    "captcha_provider": {
+      "none": "不启用人机验证。",
+      "turnstile": "Cloudflare 出品，免费、无图片挑战。",
+      "recaptcha": "Google reCAPTCHA v2/v3。",
+      "hcaptcha": "注重隐私的图片验证。"
+    },
+    "subscribe_leak_action": {
+      "notify": "发送提醒，不影响用户的订阅。",
+      "rotate": "重置该用户的订阅令牌，旧链接立即失效。"
+    }
+  },
+  "sections": {
+    "site": {
+      "identity": {
+        "title": "站点信息",
+        "caption": "名称、描述与访问地址。"
+      },
+      "region": {
+        "title": "语言与货币",
+        "caption": "新访客、邮件与价格显示。"
+      },
+      "privacy": {
+        "title": "节点信息",
+        "caption": "用户能看到的节点细节。"
+      }
+    },
+    "register": {
+      "signup": {
+        "title": "注册",
+        "caption": "谁可以注册，以及注册时需要什么。"
+      },
+      "trial": {
+        "title": "试用",
+        "caption": "新用户注册后自动赠送的套餐。"
+      },
+      "protection": {
+        "title": "防滥用",
+        "caption": "限制批量注册与暴力破解。"
+      },
+      "captcha": {
+        "title": "人机验证",
+        "caption": "注册、登录与发送验证码时校验。"
+      }
+    },
+    "subscribe": {
+      "links": {
+        "title": "订阅地址",
+        "caption": "客户端拉取订阅使用的域名与更新频率。"
+      },
+      "plans": {
+        "title": "套餐变更",
+        "caption": "更换套餐与流量重置。"
+      },
+      "content": {
+        "title": "订阅内容与提醒",
+        "caption": "订阅里显示的信息与新用户的默认提醒。"
+      },
+      "rules": {
+        "title": "分流规则",
+        "caption": "默认模板、规则来源与下载镜像。"
+      },
+      "protection": {
+        "title": "防泄露",
+        "caption": "加密订阅与异常拉取检测。"
+      }
+    },
+    "invite": {
+      "codes": {
+        "title": "邀请码"
+      },
+      "commission": {
+        "title": "佣金"
+      },
+      "withdraw": {
+        "title": "提现"
+      },
+      "distribution": {
+        "title": "多级分销"
+      }
+    },
+    "server": {
+      "auth": {
+        "title": "认证",
+        "caption": "节点后端连接面板使用的密钥。"
+      },
+      "sync": {
+        "title": "同步",
+        "caption": "拉取与上报的频率、设备限制与白名单。"
+      }
+    },
+    "email": {
+      "delivery": {
+        "title": "发送方式",
+        "caption": "选择 SMTP 后填写服务器信息。"
+      },
+      "sender": {
+        "title": "发件人"
+      },
+      "reminders": {
+        "title": "提醒邮件"
+      }
+    },
+    "other": {
+      "title": "更多"
+    },
+    "telegram": {
+      "bot": {
+        "title": "机器人",
+        "caption": "Bot 凭据与 Webhook。"
+      },
+      "admins": {
+        "title": "管理员通知",
+        "caption": "把选定的事件推送到管理员会话。"
+      },
+      "users": {
+        "title": "用户",
+        "caption": "绑定后的个人提醒与社群入口。"
+      }
+    }
+  },
+  "register": {
+    "smtpHint": "验证码通过邮件发送，请先在「邮件」中配置 SMTP 并发送测试邮件确认可用。",
+    "logWarning": "当前发信方式为「仅记录日志」，验证码不会真正发出。",
+    "openEmail": "邮件设置",
+    "domainInvalid": "请输入域名，例如 gmail.com"
+  },
+  "telegram": {
+    "title": "连接测试",
+    "caption": "先保存设置，再发送测试消息或把 Webhook 指向本站。",
+    "test": "发送测试消息",
+    "webhook": "设置 Webhook",
+    "done": "操作完成",
+    "unsaved": "Telegram 设置有未保存的更改，请先保存再测试。",
+    "chatInvalid": "请输入数字 Chat ID 或 @用户名",
+    "regenerateSecret": "重新生成密钥",
+    "regenerateSecretTitle": "重新生成 Webhook 密钥？",
+    "regenerateSecretHint": "保存后旧的 Webhook 地址失效，需要再点一次「设置 Webhook」。",
+    "sentSummary": "已发送 {sent} 条，失败 {failed} 条",
+    "webhookOk": "Webhook 已设置：{url}",
+    "webhookFailed": "设置失败：{description}",
+    "chatFailed": "{chat}：{error}"
+  },
+  "nav": "设置分组"
 }

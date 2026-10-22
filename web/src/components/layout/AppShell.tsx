@@ -9,6 +9,7 @@ import { type QueryClient, QueryClientProvider, useQuery, useQueryClient } from 
 import { Link, Outlet, useNavigate } from '@tanstack/react-router'
 import { Ellipsis, LogOut, PanelLeftClose, PanelLeftOpen, Shield, UserRound } from 'lucide-react'
 import { Suspense, useEffect } from 'react'
+import '@/styles/app.css'
 import { AriaProviders } from '@/components/AriaProviders'
 import { ConfirmHost } from '@/components/feedback/ConfirmHost'
 import { LoadingPage } from '@/components/LoadingPage'
@@ -22,7 +23,7 @@ import { cx } from '@/lib/cn'
 import { toast } from '@/lib/toast'
 import { isAdmin, isStaff, useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
-import type { NavItem } from './nav'
+import { NAV_SECTIONS, type NavItem, type NavSection } from './nav'
 
 interface AppShellProps {
   area: 'user' | 'admin'
@@ -58,6 +59,8 @@ function Shell({ area, items }: Omit<AppShellProps, 'queryClient'>) {
   const visible = area === 'admin' && !isAdmin(user) ? items.filter((i) => i.staff) : items
   const primary = visible.filter((i) => i.primary).slice(0, 4)
   const more = visible.filter((i) => !primary.includes(i))
+  const home = area === 'admin' ? '/admin/dashboard' : '/dashboard'
+  const sections = groupBySection(visible)
 
   return (
     <div className="min-h-dvh md:flex">
@@ -71,78 +74,111 @@ function Shell({ area, items }: Omit<AppShellProps, 'queryClient'>) {
       {/* ---------------------------------------------------------------- sidebar */}
       <aside
         className={cx(
-          'sticky top-0 hidden h-dvh shrink-0 flex-col border-e-[0.5px] border-hairline bg-elevated md:flex',
-          'transition-[width] duration-200 ease-out',
-          collapsed ? 'w-[76px]' : 'w-64',
+          'sticky top-0 hidden h-dvh shrink-0 flex-col bg-elevated shadow-[inset_-0.5px_0_0_var(--hairline)] md:flex',
+          'transition-[width] duration-200 ease-apple-out',
+          collapsed ? 'w-[72px]' : 'w-[248px]',
         )}
       >
-        <div className={cx('flex h-14 items-center', collapsed ? 'justify-center' : 'px-5')}>
-          <Link to={area === 'admin' ? '/admin/dashboard' : '/dashboard'} className="rounded-[10px]">
+        <div
+          className={cx(
+            'flex h-14 shrink-0 items-center gap-2',
+            collapsed ? 'flex-col justify-center px-2' : 'justify-between ps-5 pe-3',
+          )}
+        >
+          <Link to={home} className="rounded-[10px]" title={collapsed ? t('core:appName') : undefined}>
             <Logo withText={!collapsed} text={t('core:appName')} />
           </Link>
+          {collapsed ? null : (
+            <Button
+              isIconOnly
+              size="sm"
+              variant="ghost"
+              aria-label={t('collapseSidebar')}
+              onPress={toggleSidebar}
+              className="text-label-secondary"
+            >
+              <PanelLeftClose className="size-5" aria-hidden="true" />
+            </Button>
+          )}
         </div>
-        <nav aria-label={t('mainNavigation')} className="flex-1 overflow-y-auto px-3 py-2">
-          <ul className="flex flex-col gap-0.5">
-            {visible.map((item) => (
-              <li key={item.to}>
-                <SidebarLink item={item} label={t(item.label)} collapsed={collapsed} />
-              </li>
-            ))}
-          </ul>
+        {collapsed ? (
+          <div className="flex justify-center pb-1">
+            <Button
+              isIconOnly
+              size="sm"
+              variant="ghost"
+              aria-label={t('expandSidebar')}
+              onPress={toggleSidebar}
+              className="text-label-secondary"
+            >
+              <PanelLeftOpen className="size-5" aria-hidden="true" />
+            </Button>
+          </div>
+        ) : null}
+        <nav aria-label={t('mainNavigation')} className="no-scrollbar flex-1 overflow-y-auto px-3 pt-1 pb-4">
+          {sections.map(({ section, items: sectionItems }) => (
+            <div key={section ?? 'main'} className="flex flex-col">
+              {section ? (
+                collapsed ? (
+                  <div className="mx-3 my-2.5 h-px bg-hairline" aria-hidden="true" />
+                ) : (
+                  <div
+                    id={`nav-section-${section}`}
+                    className="px-3 pt-5 pb-1.5 text-caption font-semibold text-label-secondary"
+                  >
+                    {t(`sections.${section}`)}
+                  </div>
+                )
+              ) : null}
+              <ul
+                className="flex flex-col gap-0.5"
+                aria-labelledby={section && !collapsed ? `nav-section-${section}` : undefined}
+                aria-label={section && collapsed ? t(`sections.${section}`) : undefined}
+              >
+                {sectionItems.map((item) => (
+                  <li key={item.to}>
+                    <SidebarLink item={item} label={t(item.label)} collapsed={collapsed} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </nav>
-        <div className={cx('flex items-center gap-1 p-3', collapsed ? 'flex-col' : 'justify-between')}>
-          {isStaff(user) ? (
+        {isStaff(user) ? (
+          <div className="shrink-0 p-3 shadow-[inset_0_0.5px_0_var(--hairline)]">
             <Link
               to={area === 'admin' ? '/dashboard' : '/admin/dashboard'}
               className={cx(
-                'flex items-center gap-2 rounded-[10px] px-3 py-2 text-footnote text-label-secondary hover:bg-fill-quaternary',
-                collapsed && 'justify-center px-2',
+                'flex h-9 items-center gap-3 rounded-[10px] px-3 text-subhead text-label-secondary transition-colors hover:bg-fill-quaternary hover:text-label',
+                collapsed && 'justify-center px-0',
               )}
               title={collapsed ? (area === 'admin' ? t('userPanel') : t('adminPanel')) : undefined}
             >
               {area === 'admin' ? (
-                <UserRound className="size-4" aria-hidden="true" />
+                <UserRound className="size-5 shrink-0" aria-hidden="true" />
               ) : (
-                <Shield className="size-4" aria-hidden="true" />
+                <Shield className="size-5 shrink-0" aria-hidden="true" />
               )}
-              <span className={collapsed ? 'sr-only' : undefined}>
+              <span className={collapsed ? 'sr-only' : 'truncate'}>
                 {area === 'admin' ? t('userPanel') : t('adminPanel')}
               </span>
             </Link>
-          ) : (
-            <span />
-          )}
-          <Button
-            isIconOnly
-            size="sm"
-            variant="ghost"
-            aria-label={collapsed ? t('expandSidebar') : t('collapseSidebar')}
-            onPress={toggleSidebar}
-          >
-            {collapsed ? (
-              <PanelLeftOpen className="size-[18px]" aria-hidden="true" />
-            ) : (
-              <PanelLeftClose className="size-[18px]" aria-hidden="true" />
-            )}
-          </Button>
-        </div>
+          </div>
+        ) : null}
       </aside>
 
       {/* ---------------------------------------------------------------- content */}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="glass glass-border-b sticky top-0 z-30 flex h-14 items-center justify-between gap-3 px-4 sm:px-6">
-          <div className="flex min-w-0 items-center gap-2">
-            <Link
-              to={area === 'admin' ? '/admin/dashboard' : '/dashboard'}
-              className="rounded-[10px] md:hidden"
-            >
+          <div className="flex min-w-0 items-center gap-2.5">
+            <Link to={home} className="rounded-[10px] md:hidden">
               <Logo text={t('core:appName')} />
             </Link>
-            <span className="truncate text-headline text-label">
+            <span className="truncate text-headline text-label md:text-subhead md:font-semibold md:text-label-secondary">
               {area === 'admin' ? t('adminPanel') : t('userPanel')}
             </span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5">
             <LocaleToggle compact />
             <ThemeToggle />
             <UserMenu area={area} />
@@ -152,7 +188,7 @@ function Shell({ area, items }: Omit<AppShellProps, 'queryClient'>) {
         <main
           id="main"
           tabIndex={-1}
-          className="flex-1 px-4 pt-6 pb-28 outline-none sm:px-6 md:pb-12 lg:px-10"
+          className="flex-1 px-4 pt-6 pb-[calc(6rem+env(safe-area-inset-bottom))] outline-none sm:px-6 md:pt-8 md:pb-16"
         >
           <Suspense fallback={<LoadingPage />}>
             <Outlet />
@@ -163,29 +199,30 @@ function Shell({ area, items }: Omit<AppShellProps, 'queryClient'>) {
       {/* ---------------------------------------------------------------- mobile tab bar */}
       <nav
         aria-label={t('mainNavigation')}
+        data-tabbar=""
         className="glass glass-border-t pb-safe fixed inset-x-0 bottom-0 z-30 md:hidden"
       >
-        <ul className="mx-auto flex max-w-lg items-stretch justify-around px-2">
+        <ul className="mx-auto flex h-[50px] max-w-lg items-stretch justify-around px-1">
           {primary.map((item) => (
-            <li key={item.to} className="flex-1">
+            <li key={item.to} className="flex flex-1">
               <TabLink item={item} label={t(item.label)} />
             </li>
           ))}
           {more.length > 0 ? (
-            <li className="flex-1">
+            <li className="flex flex-1">
               <Dropdown>
                 <Button
                   variant="ghost"
-                  className="h-auto w-full flex-col gap-0.5 rounded-none py-2 text-caption2 font-normal text-label-secondary"
+                  className="h-full w-full flex-col gap-0.5 rounded-none px-0 pt-1 text-[0.625rem] leading-3 font-medium text-label-secondary [&_svg]:m-0"
                 >
                   <Ellipsis className="size-6" aria-hidden="true" />
                   <span>{t('more')}</span>
                 </Button>
-                <Dropdown.Popover placement="top end">
+                <Dropdown.Popover placement="top end" className="min-w-52">
                   <Dropdown.Menu aria-label={t('more')}>
                     {more.map((item) => (
                       <Dropdown.Item key={item.to} id={item.to} href={item.to} textValue={t(item.label)}>
-                        <item.icon className="size-4 text-label-secondary" aria-hidden="true" />
+                        <item.icon className="size-5 text-label-secondary" aria-hidden="true" />
                         <Label>{t(item.label)}</Label>
                       </Dropdown.Item>
                     ))}
@@ -202,6 +239,18 @@ function Shell({ area, items }: Omit<AppShellProps, 'queryClient'>) {
   )
 }
 
+/** Splits nav items into sidebar sections (items without a section come first, ungrouped). */
+function groupBySection(items: readonly NavItem[]) {
+  const out: Array<{ section: NavSection | undefined; items: NavItem[] }> = []
+  const loose = items.filter((i) => !i.section)
+  if (loose.length) out.push({ section: undefined, items: loose })
+  for (const section of NAV_SECTIONS) {
+    const inSection = items.filter((i) => i.section === section)
+    if (inSection.length) out.push({ section, items: inSection })
+  }
+  return out
+}
+
 function SidebarLink({ item, label, collapsed }: { item: NavItem; label: string; collapsed: boolean }) {
   const Icon = item.icon
   return (
@@ -209,13 +258,13 @@ function SidebarLink({ item, label, collapsed }: { item: NavItem; label: string;
       to={item.to}
       title={collapsed ? label : undefined}
       className={cx(
-        'group flex items-center gap-3 rounded-[10px] px-3 py-2 text-subhead text-label transition-colors',
-        'hover:bg-fill-quaternary data-[status=active]:bg-fill-tertiary data-[status=active]:font-semibold',
-        collapsed && 'justify-center px-2',
+        'group flex h-9 items-center gap-3 rounded-[10px] px-3 text-subhead text-label transition-colors duration-150',
+        'hover:bg-fill-quaternary data-[status=active]:bg-selection data-[status=active]:font-semibold data-[status=active]:text-label-blue-soft',
+        collapsed && 'justify-center px-0',
       )}
     >
       <Icon
-        className="size-[18px] shrink-0 text-label-secondary group-data-[status=active]:text-system-blue"
+        className="size-5 shrink-0 text-label-secondary group-data-[status=active]:text-label-blue-soft"
         aria-hidden="true"
       />
       <span className={collapsed ? 'sr-only' : 'truncate'}>{label}</span>
@@ -228,7 +277,7 @@ function TabLink({ item, label }: { item: NavItem; label: string }) {
   return (
     <Link
       to={item.to}
-      className="flex flex-col items-center gap-0.5 py-2 text-caption2 text-label-secondary data-[status=active]:text-label-blue"
+      className="flex flex-1 flex-col items-center justify-center gap-0.5 pt-1 text-[0.625rem] leading-3 font-medium text-label-secondary data-[status=active]:text-label-blue"
     >
       <Icon className="size-6" aria-hidden="true" />
       <span>{label}</span>

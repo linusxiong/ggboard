@@ -218,7 +218,12 @@ try {
           })
           for (const v of violations) add('axe', v)
         }
-        const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+        // With mobile emulation, overflowing content widens the *layout* viewport (innerWidth > device width),
+        // so compare against the emulated width too (MISTAKES #124).
+        const overflow = await page.evaluate(
+          (w) => Math.max(document.documentElement.scrollWidth, window.innerWidth) - w,
+          v.width,
+        )
         if (overflow > 1) add('overflow-x', `${overflow}px`)
         const title = await page.title()
         if (!title || (title === 'GG Bond' && p !== '/')) add('title', JSON.stringify(title))

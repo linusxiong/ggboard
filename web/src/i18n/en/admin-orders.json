@@ -149,7 +149,7 @@
       "count": "Quantity",
       "type": "Type",
       "amount": "Amount off",
-      "percent": "Percent off (%)",
+      "percent": "Percent off",
       "value": "Discount",
       "usage": "Used / limit",
       "validity": "Validity",

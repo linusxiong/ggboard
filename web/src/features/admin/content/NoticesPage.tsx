@@ -83,7 +83,7 @@ export function NoticesPage() {
           />
         </div>
       ) : (
-        <ul aria-label={t('notices.title')} className="inset-group">
+        <ul aria-label={t('notices.title')} className="inset-group shadow-card">
           {items.map((n, i) => (
             <li key={n.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
               <SortButtons

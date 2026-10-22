@@ -11,10 +11,12 @@ interface AuthLayoutProps {
   children: ReactNode
   /** Links under the card ("No account? Create one"). */
   footer?: ReactNode
+  /** Large symbol above the title (status cards such as "sign-ups are closed"). */
+  icon?: ReactNode
 }
 
 /** Centered card layout for login / register / forgot password. */
-export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProps) {
+export function AuthLayout({ title, subtitle, children, footer, icon }: AuthLayoutProps) {
   const t = useT('core')
   useEffect(() => {
     document.title = `${title} · ${t('appName')}`
@@ -43,7 +45,15 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
       >
         <div className="w-full max-w-[420px]">
           <div className="surface-card px-6 py-8 sm:px-8">
-            <div className="mb-6 text-center">
+            <div className="mb-6 flex flex-col items-center text-center">
+              {icon ? (
+                <span
+                  className="mb-4 flex size-16 items-center justify-center rounded-full bg-fill-tertiary text-label-secondary [&_svg]:size-8"
+                  aria-hidden="true"
+                >
+                  {icon}
+                </span>
+              ) : null}
               <h1 className="text-title1 text-label">{title}</h1>
               {subtitle ? <p className="mt-2 text-subhead text-label-secondary">{subtitle}</p> : null}
             </div>

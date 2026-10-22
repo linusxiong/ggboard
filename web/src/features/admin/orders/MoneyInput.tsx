@@ -8,24 +8,36 @@ interface MoneyInputProps {
   value: number | null
   onChange: (cents: number | null) => void
   currency: string
+  /** Site currency symbol (`currency_symbol`); derived from `currency` when omitted. */
+  symbol?: string
   name?: string
   description?: ReactNode
   error?: string
   isRequired?: boolean
   isDisabled?: boolean
   minValue?: number
+  placeholder?: string
   className?: string
 }
 
-/** Currency amount entered in units (12.50) and stored as integer cents (1250). */
-export function MoneyInput({ value, onChange, currency, minValue = 0, ...rest }: MoneyInputProps) {
-  let formatOptions: Intl.NumberFormatOptions
+/** Narrow currency symbol for an ISO code (`CNY` → `¥`), or the code itself. */
+function symbolOf(currency: string): string {
   try {
-    new Intl.NumberFormat(undefined, { style: 'currency', currency })
-    formatOptions = { style: 'currency', currency, currencyDisplay: 'narrowSymbol' }
+    return (
+      new Intl.NumberFormat(undefined, { style: 'currency', currency, currencyDisplay: 'narrowSymbol' })
+        .formatToParts(0)
+        .find((p) => p.type === 'currency')?.value ?? currency
+    )
   } catch {
-    formatOptions = { minimumFractionDigits: 0, maximumFractionDigits: 2 }
+    return currency
   }
+}
+
+/**
+ * Currency amount entered as decimal units (`15` → `¥ 15.00`) and stored as integer cents (1500).
+ * The symbol is an adornment, so typing never fights the formatter.
+ */
+export function MoneyInput({ value, onChange, currency, symbol, minValue = 0, ...rest }: MoneyInputProps) {
   return (
     <NumberInput
       {...rest}
@@ -33,8 +45,8 @@ export function MoneyInput({ value, onChange, currency, minValue = 0, ...rest }:
       onChange={(units) => onChange(unitsToCents(units))}
       minValue={minValue}
       step={0.01}
-      steppers={false}
-      formatOptions={formatOptions}
+      prefix={symbol || symbolOf(currency)}
+      formatOptions={{ minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false }}
     />
   )
 }

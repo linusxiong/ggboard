@@ -162,7 +162,7 @@ export function KnowledgePage({ filters, onFiltersChange }: KnowledgePageProps) 
           />
         </div>
       ) : (
-        <ul aria-label={t('knowledge.title')} className="inset-group">
+        <ul aria-label={t('knowledge.title')} className="inset-group shadow-card">
           {visible.map((k, i) => (
             <li key={k.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
               <SortButtons

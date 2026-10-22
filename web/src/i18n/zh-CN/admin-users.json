@@ -213,5 +213,8 @@
     "ageOff": "未开启",
     "publicKey": "公钥",
     "tokenTag": "Token 标识"
+  },
+  "units": {
+    "devices": "台"
   }
 }

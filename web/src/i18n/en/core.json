@@ -1,7 +1,9 @@
 {
   "appName": "GG Bond",
   "a11y": {
-    "skipToContent": "Skip to main content"
+    "skipToContent": "Skip to main content",
+    "dismiss": "Dismiss notification",
+    "notifications": "Notifications"
   },
   "theme": {
     "label": "Appearance",

@@ -49,24 +49,25 @@
     "groupPlaceholder": "选择权限组",
     "groupHint": "购买后用户获得该权限组下的节点",
     "tags": "标签",
-    "tagsPlaceholder": "推荐, 热门",
-    "tagsHint": "用逗号分隔",
+    "tagsPlaceholder": "推荐、热门…",
+    "tagsHint": "按回车或逗号添加",
     "show": "显示",
     "showHint": "在商店中展示",
     "sell": "销售",
     "sellHint": "允许新购",
     "renew": "续费",
     "renewHint": "允许已有用户续费",
-    "transfer": "流量（GB）",
+    "transfer": "流量",
     "transferHint": "每个周期可用流量",
     "resetMethod": "流量重置方式",
-    "speedLimit": "限速（Mbps）",
-    "deviceLimit": "设备数限制",
+    "speedLimit": "限速",
+    "deviceLimit": "设备数",
     "capacityLimit": "最大用户数",
     "capacityHint": "留空表示不限制同时持有此套餐的用户数",
     "unlimitedHint": "留空表示不限",
     "content": "介绍（Markdown）",
-    "contentHint": "支持 Markdown，显示在商店套餐卡片中"
+    "contentHint": "支持 Markdown，显示在商店套餐卡片中",
+    "tagRemove": "移除标签 {item}"
   },
   "reset": {
     "follow": "跟随系统设置",
@@ -78,5 +79,10 @@
   },
   "errors": {
     "required": "请填写{field}"
-  }
+  },
+  "units": {
+    "devices": "台",
+    "users": "人"
+  },
+  "priceOff": "不提供"
 }

@@ -170,7 +170,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 function EditForm({ user, onSaved }: { user: AdminUser; onSaved: (user: AdminUser) => void }) {
   const t = useT(['admin-users', 'common'])
-  const { currency } = useSite()
+  const { currency, symbol } = useSite()
   const plans = useQuery(adminPlansQuery())
   const groups = useQuery(adminGroupsQuery())
   const [formError, setFormError] = useState<string>()
@@ -200,7 +200,8 @@ function EditForm({ user, onSaved }: { user: AdminUser; onSaved: (user: AdminUse
       }
     },
   })
-  const money = { style: 'currency', currency } as const
+  // Decimal currency units with the symbol as an adornment (never cents).
+  const money = { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false } as const
   const gb = { maximumFractionDigits: 2 } as const
   const planOptions = [
     { value: NONE, label: t('detail.noPlan') },
@@ -261,7 +262,6 @@ function EditForm({ user, onSaved }: { user: AdminUser; onSaved: (user: AdminUse
               label={t('fields.inviter')}
               minValue={1}
               step={1}
-              steppers={false}
               formatOptions={{ useGrouping: false }}
               description={
                 user.invite_user_email
@@ -290,6 +290,7 @@ function EditForm({ user, onSaved }: { user: AdminUser; onSaved: (user: AdminUse
                 label={t('fields.transfer')}
                 minValue={0}
                 step={1}
+                unit="GB"
                 formatOptions={gb}
                 description={t('fields.gbHint')}
               />
@@ -305,10 +306,20 @@ function EditForm({ user, onSaved }: { user: AdminUser; onSaved: (user: AdminUse
             )}
           </form.AppField>
           <form.AppField name="u">
-            {(f) => <f.NumberField label={t('fields.upload')} minValue={0} step={1} formatOptions={gb} />}
+            {(f) => (
+              <f.NumberField label={t('fields.upload')} minValue={0} step={1} unit="GB" formatOptions={gb} />
+            )}
           </form.AppField>
           <form.AppField name="d">
-            {(f) => <f.NumberField label={t('fields.download')} minValue={0} step={1} formatOptions={gb} />}
+            {(f) => (
+              <f.NumberField
+                label={t('fields.download')}
+                minValue={0}
+                step={1}
+                unit="GB"
+                formatOptions={gb}
+              />
+            )}
           </form.AppField>
           <form.AppField name="speed_limit">
             {(f) => (
@@ -316,6 +327,8 @@ function EditForm({ user, onSaved }: { user: AdminUser; onSaved: (user: AdminUse
                 label={t('fields.speedLimit')}
                 minValue={0}
                 step={1}
+                unit="Mbps"
+                placeholder={t('common:values.unlimited')}
                 description={t('fields.unlimitedHint')}
               />
             )}
@@ -326,6 +339,8 @@ function EditForm({ user, onSaved }: { user: AdminUser; onSaved: (user: AdminUse
                 label={t('fields.deviceLimit')}
                 minValue={0}
                 step={1}
+                unit={t('units.devices')}
+                placeholder={t('common:values.unlimited')}
                 description={t('fields.unlimitedHint')}
               />
             )}
@@ -337,7 +352,12 @@ function EditForm({ user, onSaved }: { user: AdminUser; onSaved: (user: AdminUse
         <div className="grid gap-4 sm:grid-cols-2">
           <form.AppField name="balance">
             {(f) => (
-              <f.NumberField label={t('fields.balance')} step={0.01} formatOptions={money} steppers={false} />
+              <f.NumberField
+                label={t('fields.balance')}
+                step={0.01}
+                prefix={symbol ?? currency}
+                formatOptions={money}
+              />
             )}
           </form.AppField>
           <form.AppField name="commission_balance">
@@ -346,8 +366,8 @@ function EditForm({ user, onSaved }: { user: AdminUser; onSaved: (user: AdminUse
                 label={t('fields.commissionBalance')}
                 minValue={0}
                 step={0.01}
+                prefix={symbol ?? currency}
                 formatOptions={money}
-                steppers={false}
               />
             )}
           </form.AppField>
@@ -369,6 +389,7 @@ function EditForm({ user, onSaved }: { user: AdminUser; onSaved: (user: AdminUse
                 minValue={0}
                 maxValue={100}
                 step={1}
+                unit="%"
                 description={t('fields.followSystemHint')}
               />
             )}
@@ -380,6 +401,7 @@ function EditForm({ user, onSaved }: { user: AdminUser; onSaved: (user: AdminUse
                 minValue={0}
                 maxValue={100}
                 step={1}
+                unit="%"
                 description={t('fields.discountHint')}
               />
             )}

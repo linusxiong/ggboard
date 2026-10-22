@@ -174,6 +174,7 @@ function CouponFormDialogInner({
                           minValue={1}
                           maxValue={100}
                           step={1}
+                          unit="%"
                           isRequired
                           description={t('coupons.percentHint')}
                           error={err(f.state.meta)}

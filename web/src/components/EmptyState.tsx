@@ -13,7 +13,10 @@ interface EmptyStateProps {
   compact?: boolean
 }
 
-/** Friendly empty/placeholder state (also used for "coming soon" pages). */
+/**
+ * Empty / placeholder state in the style of Apple's ContentUnavailableView: a large secondary
+ * symbol, a title, a short explanation and an optional action.
+ */
 export function EmptyState({
   title,
   description,
@@ -26,22 +29,22 @@ export function EmptyState({
     <div
       className={cx(
         'flex flex-col items-center justify-center text-center',
-        compact ? 'gap-2 px-4 py-8' : 'gap-3 px-6 py-16',
+        compact ? 'gap-1.5 px-4 py-10' : 'gap-2 px-6 py-16',
         className,
       )}
     >
       <div
         className={cx(
-          'flex items-center justify-center rounded-full bg-fill-tertiary text-label-secondary',
-          compact ? 'size-10' : 'size-14',
+          'mb-1 flex items-center justify-center text-system-gray [&_svg]:stroke-[1.5]',
+          compact ? '[&_svg]:size-8' : '[&_svg]:size-11',
         )}
         aria-hidden="true"
       >
-        {icon ?? <Inbox className={compact ? 'size-5' : 'size-7'} strokeWidth={1.75} />}
+        {icon ?? <Inbox />}
       </div>
-      <p className={cx('text-label', compact ? 'text-subhead font-semibold' : 'text-headline')}>{title}</p>
+      <p className={cx('text-label', compact ? 'text-headline' : 'text-title3')}>{title}</p>
       {description ? <p className="max-w-sm text-subhead text-label-secondary">{description}</p> : null}
-      {action ? <div className="mt-2">{action}</div> : null}
+      {action ? <div className={compact ? 'mt-2' : 'mt-3'}>{action}</div> : null}
     </div>
   )
 }

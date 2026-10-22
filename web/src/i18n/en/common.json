@@ -50,7 +50,9 @@
   "traffic": {
     "used": "{used} of {total} used",
     "remaining": "{value} left",
-    "label": "Traffic usage"
+    "label": "Traffic usage",
+    "usedLabel": "used",
+    "ofTotal": "of {total}"
   },
   "periods": {
     "monthly": "Monthly",

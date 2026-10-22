@@ -176,7 +176,7 @@ describe('SettingsPage', () => {
     expect(within(panel).getByRole('switch', { name: 'Show node addresses to users' })).toBeChecked()
     expect(within(panel).getByRole('textbox', { name: 'Update interval (hours)' })).toHaveValue('3')
     expect(within(panel).getByLabelText('Secret key')).toHaveAttribute('type', 'password')
-    expect(within(panel).getByRole('grid', { name: 'Allowed email domains' })).toBeInTheDocument()
+    expect(within(panel).getByRole('group', { name: 'Allowed email domains' })).toBeInTheDocument()
     expect(within(panel).getByText('example.com')).toBeInTheDocument()
     expect(within(panel).getByRole('textbox', { name: 'custom_json' })).toHaveValue('{\n  "a": 1\n}')
     expect(within(panel).getByRole('textbox', { name: 'big_counter' })).toHaveValue('7')
@@ -206,5 +206,223 @@ describe('SettingsPage', () => {
     await user.click(within(panel).getByRole('button', { name: 'Save' }))
     expect(await within(panel).findByText('too many')).toBeInTheDocument()
     expect(putBodies[0]).toEqual({ subscribe_update_interval: 99 })
+  })
+})
+
+describe('SettingsPage → 注册与登录', () => {
+  const registerGroups: SettingGroupMeta[] = [
+    {
+      name: 'register',
+      keys: [
+        { key: 'stop_register', type: 'bool', default: false },
+        { key: 'email_verify', type: 'bool', default: false },
+        { key: 'email_whitelist_enable', type: 'bool', default: false },
+        { key: 'email_whitelist_suffix', type: 'strings', default: [] },
+        { key: 'invite_force', type: 'bool', default: false },
+        { key: 'try_out_plan_id', type: 'int', default: 0, min: 0 },
+        { key: 'try_out_hour', type: 'int', default: 0, min: 0 },
+      ],
+    },
+    {
+      name: 'email',
+      keys: [{ key: 'email_driver', type: 'string', default: 'log', options: ['log', 'smtp'] }],
+    },
+  ]
+  const registerResponse: AdminSettingsResponse = {
+    register: {
+      stop_register: false,
+      email_verify: false,
+      email_whitelist_enable: false,
+      email_whitelist_suffix: [],
+      invite_force: false,
+      try_out_plan_id: 0,
+      try_out_hour: 0,
+    },
+    email: { email_driver: 'log' },
+    groups: registerGroups,
+  }
+  let putBodies: unknown[] = []
+
+  beforeAll(async () => {
+    useUiStore.setState({ locale: 'en' })
+    await loadNamespaces(['admin-settings', 'common', 'core'], 'en')
+  })
+  beforeEach(() => {
+    putBodies = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>((input, init) => {
+        const url = urlOf(input)
+        if (url.includes('/admin/settings') && (init?.method ?? 'GET') === 'PUT') {
+          putBodies.push(JSON.parse(bodyOf(init)))
+          return Promise.resolve(json(true))
+        }
+        if (url.includes('/admin/settings')) return Promise.resolve(json(registerResponse))
+        if (url.includes('/admin/rulesets'))
+          return Promise.resolve(
+            json({ builtin: { sources: {}, categories: [], templates: [] }, custom: {} }),
+          )
+        if (url.includes('/admin/plans')) return Promise.resolve(json([]))
+        return Promise.resolve(json({ code: 'not_found', message: 'nope' }, 404))
+      }),
+    )
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('shows "Allow sign-ups" as the inverse of stop_register, reveals dependents, warns about SMTP', async () => {
+    const user = userEvent.setup()
+    const onGroupChange = vi.fn()
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={qc}>
+        <SettingsPage group="register" onGroupChange={onGroupChange} />
+      </QueryClientProvider>,
+    )
+    const panel = await screen.findByRole('form', { name: 'Sign-up & sign-in' })
+    // Sections in order, the positive switch on while stop_register is false.
+    expect(
+      within(panel)
+        .getAllByRole('heading', { level: 3 })
+        .map((h) => h.textContent),
+    ).toEqual(['Sign-up', 'Trial'])
+    const open = within(panel).getByRole('switch', { name: 'Allow sign-ups' })
+    expect(open).toBeChecked()
+
+    // Dependents stay hidden until their switch is on.
+    expect(within(panel).queryByRole('group', { name: 'Allowed email domains' })).not.toBeInTheDocument()
+    await user.click(within(panel).getByRole('switch', { name: 'Email domain allow-list' }))
+    const domains = within(panel).getByRole('textbox', { name: 'Allowed email domains' })
+    await user.type(domains, '@Gmail.com, not-a-domain{Enter}')
+    expect(within(panel).getByText('Enter a domain, e.g. gmail.com')).toBeInTheDocument()
+    await user.clear(domains)
+    await user.click(within(panel).getByRole('button', { name: 'Add icloud.com' }))
+
+    // Email verification: the note warns that delivery is "log only" and links to the Email group.
+    await user.click(within(panel).getByRole('switch', { name: 'Email verification' }))
+    expect(within(panel).getByRole('note')).toHaveTextContent('log only')
+    await user.click(within(panel).getByRole('button', { name: 'Email settings' }))
+    expect(onGroupChange).toHaveBeenCalledWith('email')
+
+    await user.click(open)
+    await user.click(within(panel).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(putBodies).toHaveLength(1))
+    expect(putBodies[0]).toEqual({
+      stop_register: true,
+      email_verify: true,
+      email_whitelist_enable: true,
+      email_whitelist_suffix: ['gmail.com', 'icloud.com'],
+    })
+  })
+})
+
+describe('SettingsPage → Telegram', () => {
+  const EVENTS = [
+    'order_new',
+    'order_paid',
+    'order_cancel',
+    'admin_login',
+    'ticket_new',
+    'ticket_reply',
+    'withdraw',
+    'subscription_leak',
+  ]
+  const telegram: AdminSettingsResponse = {
+    telegram: {
+      telegram_bot_token: '123:abc',
+      telegram_admin_chat_ids: ['123'],
+      telegram_events: ['order_paid'],
+      telegram_user_notify: true,
+      telegram_discuss_link: '',
+      telegram_webhook_secret: 'x'.repeat(32),
+    },
+    groups: [
+      {
+        name: 'telegram',
+        keys: [
+          { key: 'telegram_bot_token', type: 'string', default: '', secret: true },
+          { key: 'telegram_admin_chat_ids', type: 'strings', default: [] },
+          { key: 'telegram_events', type: 'strings', default: [], options: EVENTS },
+          { key: 'telegram_user_notify', type: 'bool', default: true },
+          { key: 'telegram_discuss_link', type: 'string', default: '' },
+          { key: 'telegram_webhook_secret', type: 'string', default: '', secret: true },
+        ],
+      },
+    ],
+  }
+  let calls: Array<{ url: string; body?: Record<string, unknown> }> = []
+
+  beforeAll(async () => {
+    useUiStore.setState({ locale: 'en' })
+    await loadNamespaces(['admin-settings', 'common', 'core'], 'en')
+  })
+  beforeEach(() => {
+    calls = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>((input, init) => {
+        const url = urlOf(input)
+        const method = init?.method ?? 'GET'
+        calls.push({
+          url,
+          body: bodyOf(init) ? (JSON.parse(bodyOf(init)) as Record<string, unknown>) : undefined,
+        })
+        if (url.includes('/telegram/test'))
+          return Promise.resolve(
+            json({
+              sent: 1,
+              failed: 1,
+              results: [
+                { chat_id: '123', ok: true },
+                { chat_id: '-100', ok: false, error: 'chat not found' },
+              ],
+            }),
+          )
+        if (url.includes('/admin/settings') && method === 'PUT') return Promise.resolve(json(true))
+        if (url.includes('/admin/settings')) return Promise.resolve(json(telegram))
+        if (url.includes('/admin/rulesets'))
+          return Promise.resolve(
+            json({ builtin: { sources: {}, categories: [], templates: [] }, custom: {} }),
+          )
+        if (url.includes('/admin/plans')) return Promise.resolve(json([]))
+        return Promise.resolve(json({ code: 'not_found', message: 'nope' }, 404))
+      }),
+    )
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('renders events as toggle chips, validates chat ids and shows the test report', async () => {
+    const user = userEvent.setup()
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={qc}>
+        <SettingsPage group="telegram" onGroupChange={() => undefined} />
+      </QueryClientProvider>,
+    )
+    const panel = await screen.findByRole('form', { name: 'Telegram' })
+    const events = within(panel).getByRole('group', { name: 'Events' })
+    expect(within(events).getAllByRole('button')).toHaveLength(EVENTS.length)
+    expect(within(events).getByRole('button', { name: 'Order paid' })).toHaveAttribute('aria-pressed', 'true')
+
+    // Test action (no unsaved edits yet): summary + per-chat failure.
+    await user.click(within(panel).getByRole('button', { name: 'Send test message' }))
+    expect(await within(panel).findByText('Sent 1, failed 1')).toBeInTheDocument()
+    expect(within(panel).getByText('-100: chat not found')).toBeInTheDocument()
+
+    await user.click(within(events).getByRole('button', { name: 'New ticket' }))
+    const chats = within(panel).getByRole('textbox', { name: 'Admin chat IDs' })
+    await user.type(chats, 'not a chat{Enter}')
+    expect(within(panel).getByText('Enter a numeric chat ID or an @username')).toBeInTheDocument()
+    await user.clear(chats)
+    await user.type(chats, '-100456{Enter}@ops_team{Enter}')
+    // Actions are disabled while there are unsaved edits.
+    expect(within(panel).getByRole('button', { name: 'Send test message' })).toBeDisabled()
+
+    await user.click(within(panel).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(calls.some((c) => c.body && 'telegram_events' in c.body)).toBe(true))
+    const put = calls.find((c) => c.body && 'telegram_events' in c.body)!.body
+    expect(put).toEqual({
+      telegram_admin_chat_ids: ['123', '-100456', '@ops_team'],
+      telegram_events: ['order_paid', 'ticket_new'],
+    })
   })
 })

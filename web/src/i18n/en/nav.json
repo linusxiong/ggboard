@@ -37,5 +37,10 @@
     "rulesets": "Rule sets",
     "system": "System"
   },
-  "more": "More"
+  "more": "More",
+  "sections": {
+    "ops": "Operations",
+    "content": "Content",
+    "system": "System"
+  }
 }

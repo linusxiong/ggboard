@@ -213,5 +213,8 @@
     "ageOff": "Off",
     "publicKey": "Public key",
     "tokenTag": "Token tag"
+  },
+  "units": {
+    "devices": "devices"
   }
 }

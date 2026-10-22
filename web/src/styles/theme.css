@@ -62,10 +62,14 @@
   --text-caption2--letter-spacing: 0.006em;
 
   /* Radii */
-  --radius-card: 18px;
-  --radius-card-lg: 20px;
+  --radius-card: 20px;
+  --radius-card-lg: 24px;
   --radius-button: 12px;
   --radius-input: 10px;
+  --radius-inner: 12px;
+
+  /* Page content width (1120 px) → `max-w-page` */
+  --container-page: 70rem;
 
   /* Motion: short, ease-out (200–300ms) */
   --ease-apple: cubic-bezier(0.25, 0.1, 0.25, 1);
@@ -129,6 +133,8 @@
   --color-hairline-opaque: var(--hairline-opaque);
   --color-tint: var(--tint);
   --color-glass: var(--glass-bg);
+  --color-selection: var(--selection-tint);
+  --color-overlay-surface: var(--overlay);
 }
 
 /* `dark:` variant: forced theme wins, otherwise follow the OS (overrides HeroUI's variant,
@@ -205,14 +211,25 @@
 
   --glass-bg: rgb(249 249 251 / 0.72);
   --glass-border: rgb(60 60 67 / 0.12);
-  --card-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 4px 16px -8px rgb(0 0 0 / 0.08);
-  --float-shadow: 0 10px 40px -12px rgb(0 0 0 / 0.22), 0 2px 6px rgb(0 0 0 / 0.06);
+  /* Cards: hairline + a very soft shadow. */
+  --card-border: rgb(60 60 67 / 0.12);
+  --card-shadow:
+    0 0 0 0.5px var(--card-border), 0 1px 2px rgb(0 0 0 / 0.03), 0 6px 16px -10px rgb(0 0 0 / 0.1);
+  --float-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.06), 0 12px 40px -12px rgb(0 0 0 / 0.24), 0 2px 6px rgb(0 0 0 / 0.05);
+  /* Thick material (toasts, popovers over content) */
+  --material-thick: rgb(255 255 255 / 0.84);
+  --material-border: rgb(0 0 0 / 0.08);
+  --toast-shadow: 0 10px 30px -10px rgb(0 0 0 / 0.25), 0 2px 6px rgb(0 0 0 / 0.06);
+  /* Sidebar selection pill (tinted) */
+  --selection-tint: rgb(0 110 248 / 0.12);
 
   /* ---- HeroUI theme variables → Apple ---- */
   --radius: 0.5rem;
   --field-radius: 10px;
   --border-width: 0.5px;
   --field-border-width: 0px;
+  --disabled-opacity: 0.4;
 
   --background: var(--bg-grouped);
   --foreground: var(--label);
@@ -243,8 +260,10 @@
   --link: var(--label-blue);
   --backdrop: rgb(0 0 0 / 0.4);
   --field-background: var(--fill-tertiary);
+  --field-hover: var(--fill-secondary);
+  --field-focus: var(--fill-tertiary);
   --field-foreground: var(--label);
-  --field-placeholder: var(--label-secondary);
+  --field-placeholder: var(--label-tertiary);
   --field-border: transparent;
   --accent-soft-foreground: var(--label-blue-soft);
   --success-soft-foreground: var(--label-green-soft);
@@ -304,8 +323,13 @@
     --tint: #076ef4;
     --glass-bg: rgb(28 28 30 / 0.72);
     --glass-border: rgb(84 84 88 / 0.4);
-    --card-shadow: 0 0 0 0.5px rgb(84 84 88 / 0.45);
+    --card-border: rgb(84 84 88 / 0.45);
+    --card-shadow: 0 0 0 0.5px var(--card-border);
     --float-shadow: 0 0 0 0.5px rgb(84 84 88 / 0.6), 0 16px 48px -12px rgb(0 0 0 / 0.7);
+    --material-thick: rgb(44 44 46 / 0.84);
+    --material-border: rgb(255 255 255 / 0.1);
+    --toast-shadow: 0 12px 36px -10px rgb(0 0 0 / 0.6);
+    --selection-tint: rgb(10 132 255 / 0.2);
     --overlay: #2c2c2e;
     --segment: #636366;
     --danger: #e61b23;
@@ -360,8 +384,13 @@
   --tint: #076ef4;
   --glass-bg: rgb(28 28 30 / 0.72);
   --glass-border: rgb(84 84 88 / 0.4);
-  --card-shadow: 0 0 0 0.5px rgb(84 84 88 / 0.45);
+  --card-border: rgb(84 84 88 / 0.45);
+  --card-shadow: 0 0 0 0.5px var(--card-border);
   --float-shadow: 0 0 0 0.5px rgb(84 84 88 / 0.6), 0 16px 48px -12px rgb(0 0 0 / 0.7);
+  --material-thick: rgb(44 44 46 / 0.84);
+  --material-border: rgb(255 255 255 / 0.1);
+  --toast-shadow: 0 12px 36px -10px rgb(0 0 0 / 0.6);
+  --selection-tint: rgb(10 132 255 / 0.2);
   --overlay: #2c2c2e;
   --segment: #636366;
   --danger: #e61b23;
@@ -370,6 +399,20 @@
 
 :root[data-theme='light'] {
   color-scheme: light;
+}
+
+/* ------------------------------------------------------------------ Control metrics */
+/* Touch first (44 pt targets, 17 pt text so iOS never zooms); denser on pointer-sized screens. */
+:root {
+  --field-h: 44px;
+  --field-fs: 1.0625rem;
+  --field-px: 12px;
+}
+@media (min-width: 768px) {
+  :root {
+    --field-h: 38px;
+    --field-fs: 0.9375rem;
+  }
 }
 
 /* ------------------------------------------------------------------ Base */
@@ -402,6 +445,17 @@
     background-color: color-mix(in srgb, var(--sys-blue) 28%, transparent);
   }
 
+  /* Grid items may shrink below their content (default `min-width: auto` lets a wide chart or a
+     scrolling chip strip widen an implicit single column → horizontal overflow on phones). */
+  :where(.grid) > * {
+    min-width: 0;
+  }
+
+  /* SF Symbols weight: lucide icons at 1.75 (CSS beats the `stroke-width` presentation attribute). */
+  svg.lucide {
+    stroke-width: 1.75;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *,
     ::before,
@@ -414,26 +468,269 @@
   }
 }
 
-/* ------------------------------------------------------------------ HeroUI component tweaks */
+@keyframes gg-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ------------------------------------------------------------------ HeroUI skin (global part)
+ * Buttons and text fields are also used by the public pages (native elements with HeroUI classes),
+ * so their skin lives here; everything else is in `app.css` (loaded with the signed-in shells).
+ * `gg-overrides` sits after HeroUI's `components` layer, so these win regardless of specificity. */
 @layer gg-overrides {
+  /* ---- Buttons: primary (filled tint) · secondary (grey fill) · tertiary (plain tint) · danger (red).
+     44 / 38 px tall, 17 / 15 px semibold; pressed = 0.98 scale + dim; disabled 40 %. */
   .button {
-    border-radius: var(--radius-button);
+    --btn-h: 44px;
+    --btn-px: 18px;
+    --btn-fs: 1.0625rem;
+    --btn-radius: var(--radius-button);
+    height: var(--btn-h);
+    padding-inline: var(--btn-px);
+    border-radius: var(--btn-radius);
+    font-size: var(--btn-fs);
+    line-height: 1.25;
     font-weight: 600;
     letter-spacing: -0.01em;
+    gap: 6px;
+    transition:
+      transform 160ms var(--ease-apple-out),
+      opacity 160ms var(--ease-apple-out),
+      background-color 160ms var(--ease-apple-out),
+      box-shadow 160ms var(--ease-apple-out);
   }
-  .card {
-    border-radius: var(--radius-card);
+  @media (min-width: 768px) {
+    .button {
+      --btn-h: 38px;
+      --btn-px: 16px;
+      --btn-fs: 0.9375rem;
+    }
+  }
+  .button--sm {
+    --btn-h: 36px;
+    --btn-px: 14px;
+    --btn-fs: 0.9375rem;
+    --btn-radius: 10px;
+  }
+  @media (min-width: 768px) {
+    .button--sm {
+      --btn-h: 32px;
+      --btn-px: 12px;
+      --btn-fs: 0.8125rem;
+      --btn-radius: 9px;
+    }
+  }
+  .button--lg {
+    --btn-h: 50px;
+    --btn-px: 22px;
+    --btn-fs: 1.0625rem;
+    --btn-radius: 14px;
+  }
+  @media (min-width: 768px) {
+    .button--lg {
+      --btn-h: 44px;
+      --btn-px: 20px;
+      --btn-radius: 12px;
+    }
+  }
+  .button.button--icon-only {
+    --btn-h: 36px;
+    width: var(--btn-h);
+    padding: 0;
+    --btn-radius: 10px;
+  }
+  .button.button--icon-only.button--sm {
+    --btn-h: 32px;
+    --btn-radius: 9px;
+  }
+  .button.button--icon-only.button--lg {
+    --btn-h: 44px;
+    --btn-radius: 12px;
+  }
+  .button:active,
+  .button[data-pressed='true'] {
+    transform: scale(0.98);
+    opacity: 0.82;
+  }
+  .button:disabled,
+  .button[aria-disabled='true'],
+  .button[data-disabled='true'] {
+    opacity: var(--disabled-opacity);
+  }
+  .button[data-pending='true'] {
+    cursor: progress;
+  }
+  /* Every pending button gets a spinner, unless the caller renders its own. */
+  .button[data-pending='true']:not(:has(.spinner, [data-slot='spinner']))::before {
+    content: '';
+    flex: none;
+    width: 1em;
+    height: 1em;
+    border-radius: 999px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    animation: gg-spin 700ms linear infinite;
+  }
+  .button--secondary {
+    --button-bg: var(--fill-secondary);
+    --button-bg-hover: var(--fill);
+    --button-bg-pressed: var(--fill);
+    --button-fg: var(--label);
+  }
+  .button--tertiary {
+    --button-bg: transparent;
+    --button-bg-hover: var(--fill-quaternary);
+    --button-bg-pressed: var(--fill-tertiary);
+    --button-fg: var(--label-blue);
+  }
+  .button--ghost {
+    --button-bg: transparent;
+    --button-bg-hover: var(--fill-tertiary);
+    --button-bg-pressed: var(--fill-secondary);
+    --button-fg: var(--label);
+  }
+  .button--outline {
+    --button-bg: transparent;
+    --button-bg-hover: var(--fill-quaternary);
+    --button-fg: var(--label);
+    border: 0.5px solid var(--hairline);
+  }
+
+  /* ---- Text fields: HIG fill style, 10 px radius, 44 / 38 px, 2 px focus ring. */
+  .textfield,
+  .number-field,
+  .select,
+  .tag-group,
+  .combo-box,
+  .date-field,
+  .date-picker,
+  .time-field,
+  .search-field,
+  .gg-field {
+    gap: 6px;
   }
   .input,
-  .textarea {
+  .textarea,
+  .input-group,
+  .number-field__group,
+  .select__trigger,
+  .gg-field__control {
     border-radius: var(--radius-input);
+    border-width: 0;
+    font-size: var(--field-fs);
+    letter-spacing: -0.01em;
   }
-  /* Error text uses the text-safe red (HeroUI uses the fill color). */
-  .field-error,
-  .error-message {
-    color: var(--label-red);
+  .input,
+  .input-group,
+  .number-field__group,
+  .select__trigger {
+    min-height: var(--field-h);
+  }
+  .input {
+    height: var(--field-h);
+    padding-block: 0;
+    padding-inline: var(--field-px);
+  }
+  .textarea {
+    padding: 10px var(--field-px);
+    line-height: 1.45;
+  }
+  .input-group__input,
+  .number-field__input {
+    height: var(--field-h);
+    padding-block: 0;
+    padding-inline: var(--field-px);
+    font-size: var(--field-fs);
+  }
+  .select__trigger {
+    align-items: center;
+    padding-block: 0;
+    padding-inline-start: var(--field-px);
+  }
+  .number-field__group {
+    display: flex;
+    align-items: center;
+  }
+  .number-field__input {
+    flex: 1;
+    min-width: 0;
+  }
+  /* Unit / currency adornments (GB, Mbps, ¥, 天) inside a field. */
+  .field-affix {
+    flex: none;
+    color: var(--label-secondary);
+    font-size: var(--field-fs);
+    white-space: nowrap;
+    user-select: none;
+    padding-inline-end: var(--field-px);
+  }
+  .field-affix--start {
+    padding-inline: var(--field-px) 0;
+  }
+  .field-affix--start + input {
+    padding-inline-start: 6px;
+  }
+  .input::placeholder,
+  .textarea::placeholder,
+  .input-group__input::placeholder,
+  .number-field__input::placeholder {
+    color: var(--field-placeholder);
+  }
+  .input[data-invalid='true'],
+  .textarea[data-invalid='true'],
+  .input-group[data-invalid='true'],
+  .number-field__group[data-invalid='true'],
+  [data-invalid='true'] > .select__trigger,
+  .select[data-invalid='true'] .select__trigger {
+    background-color: color-mix(in srgb, var(--sys-red) 7%, var(--field-background));
+  }
+
+  /* Labels 13 px semibold above the control; helper and error text 13 px. */
+  :where(
+      .textfield,
+      .number-field,
+      .select,
+      .tag-group,
+      .combo-box,
+      .date-field,
+      .date-picker,
+      .time-field,
+      .search-field,
+      .radio-group,
+      .checkbox-group,
+      .gg-field
+    )
+    > .label {
+    font-size: 0.8125rem;
+    line-height: 1.125rem;
+    font-weight: 600;
+    letter-spacing: -0.006em;
+    color: var(--label-secondary);
+  }
+  /* Apple keeps the label neutral on errors; the message carries the state. */
+  [data-invalid='true'] > .label,
+  [aria-invalid='true'] > .label {
+    color: var(--label-secondary);
   }
   .label::after {
     color: var(--label-red);
+  }
+  .description {
+    font-size: 0.8125rem;
+    line-height: 1.125rem;
+    color: var(--label-secondary);
+    padding-inline: 2px;
+  }
+  .field-error,
+  .error-message {
+    font-size: 0.8125rem;
+    line-height: 1.125rem;
+    color: var(--label-red);
+    padding-inline: 2px;
+  }
+
+  .card {
+    border-radius: var(--radius-card);
   }
 }

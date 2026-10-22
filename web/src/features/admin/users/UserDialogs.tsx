@@ -96,7 +96,7 @@ export function CreateUserDialog({
   onCreated,
 }: DialogProps & { onCreated: (id: number) => void }) {
   const t = useT(['admin-users', 'common'])
-  const { currency } = useSite()
+  const { currency, symbol } = useSite()
   const { plans, planOptions, groupOptions } = usePlanGroupOptions()
   const [formError, setFormError] = useState<string>()
   const create = useAdminMutation({
@@ -197,6 +197,7 @@ export function CreateUserDialog({
               label={t('fields.transfer')}
               minValue={0}
               step={1}
+              unit="GB"
               formatOptions={{ maximumFractionDigits: 2 }}
             />
           )}
@@ -216,6 +217,8 @@ export function CreateUserDialog({
               label={t('fields.speedLimit')}
               minValue={0}
               step={1}
+              unit="Mbps"
+              placeholder={t('common:values.unlimited')}
               description={t('fields.unlimitedHint')}
             />
           )}
@@ -226,6 +229,8 @@ export function CreateUserDialog({
               label={t('fields.deviceLimit')}
               minValue={0}
               step={1}
+              unit={t('units.devices')}
+              placeholder={t('common:values.unlimited')}
               description={t('fields.unlimitedHint')}
             />
           )}
@@ -235,8 +240,8 @@ export function CreateUserDialog({
             <f.NumberField
               label={t('fields.balance')}
               step={0.01}
-              formatOptions={{ style: 'currency', currency }}
-              steppers={false}
+              prefix={symbol ?? currency}
+              formatOptions={{ minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false }}
             />
           )}
         </form.AppField>

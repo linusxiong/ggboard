@@ -18,9 +18,16 @@ export const GROUP_ORDER = [
   'frontend',
   'app',
   'security',
+  'telegram',
 ] as const
 
-const KNOWN_SECRETS = new Set(['captcha_secret', 'email_password', 'server_token'])
+const KNOWN_SECRETS = new Set([
+  'captcha_secret',
+  'email_password',
+  'server_token',
+  'telegram_bot_token',
+  'telegram_webhook_secret',
+])
 const KNOWN_OPTIONS: Record<string, string[]> = {
   default_locale: ['zh-CN', 'en'],
   captcha_provider: ['none', 'turnstile', 'recaptcha', 'hcaptcha'],

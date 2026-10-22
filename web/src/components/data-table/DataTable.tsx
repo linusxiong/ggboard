@@ -54,8 +54,9 @@ const subscribeMd = (cb: () => void) => {
 }
 const isDesktop = () => window.matchMedia?.(MD).matches ?? true
 
+/** Numbers (end-aligned columns) use tabular figures so digits line up. */
 const alignClass = (meta: DataTableColumnMeta | undefined) =>
-  meta?.align === 'end' ? 'text-end' : meta?.align === 'center' ? 'text-center' : undefined
+  meta?.align === 'end' ? 'text-end tabular' : meta?.align === 'center' ? 'text-center' : undefined
 
 export function DataTable<TData extends RowData>(props: DataTableProps<TData>) {
   const {
@@ -127,7 +128,13 @@ export function DataTable<TData extends RowData>(props: DataTableProps<TData>) {
     return (
       <div className={cx('flex flex-col gap-3', className)}>
         {showSkeleton ? (
-          Array.from({ length: 3 }, (_, i) => <div key={i} className="surface-card h-28 animate-pulse" />)
+          Array.from({ length: 3 }, (_, i) => (
+            <div key={i} className="surface-card flex h-28 flex-col gap-3 p-4" aria-hidden="true">
+              <span className="h-4 w-1/2 animate-pulse rounded-md bg-fill-tertiary" />
+              <span className="h-3 w-3/4 animate-pulse rounded-md bg-fill-quaternary" />
+              <span className="h-3 w-2/3 animate-pulse rounded-md bg-fill-quaternary" />
+            </div>
+          ))
         ) : rows.length === 0 ? (
           <div className="surface-card">{empty}</div>
         ) : (
@@ -178,7 +185,7 @@ export function DataTable<TData extends RowData>(props: DataTableProps<TData>) {
 
   // ------------------------------------------------------------- desktop table
   return (
-    <Table variant="secondary" className={cx('surface-card overflow-hidden', className)}>
+    <Table variant="secondary" className={cx('gg-table surface-card overflow-hidden', className)}>
       <Table.ScrollContainer>
         <Table.Content
           aria-label={props['aria-label']}
@@ -230,7 +237,7 @@ export function DataTable<TData extends RowData>(props: DataTableProps<TData>) {
                     {[
                       ...headers.map((header) => (
                         <Table.Cell key={header.id}>
-                          <span className="block h-4 w-3/4 animate-pulse rounded bg-fill-tertiary" />
+                          <span className="block h-3.5 w-3/4 animate-pulse rounded-md bg-fill-tertiary" />
                         </Table.Cell>
                       )),
                       ...(rowActions ? [<Table.Cell key="__actions" />] : []),

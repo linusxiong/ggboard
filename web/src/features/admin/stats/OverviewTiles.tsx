@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { Sparkline } from '@/components/charts'
+import { Section } from '@/components/Section'
 import { useT } from '@/i18n'
 import { adminSeriesQuery } from '@/lib/api/queries'
 import type { AdminOverview, StatsMetric } from '@/lib/api/types'
@@ -20,12 +21,12 @@ interface TileProps {
 function Tile({ label, value, hint, trend, isLoading }: TileProps) {
   return (
     <section className="surface-card flex min-h-[7.5rem] flex-col justify-between gap-2 p-5">
-      <h3 className="text-subhead text-label-secondary">{label}</h3>
+      <h3 className="text-subhead font-medium text-label-secondary">{label}</h3>
       <div className="flex items-end justify-between gap-3">
         {isLoading ? (
-          <span className="block h-7 w-24 animate-pulse rounded bg-fill-tertiary" aria-hidden="true" />
+          <span className="block h-8 w-24 animate-pulse rounded-md bg-fill-tertiary" aria-hidden="true" />
         ) : (
-          <p className="text-title2 text-label">{value}</p>
+          <p className="text-title1 font-semibold tabular tracking-tight text-label">{value}</p>
         )}
         {trend}
       </div>
@@ -62,10 +63,9 @@ function Trend({
 
 function Group({ title, children, className }: { title: string; children: ReactNode; className?: string }) {
   return (
-    <section className="flex flex-col gap-3">
-      <h2 className="text-title3 text-label">{title}</h2>
-      <div className={cx('grid gap-3 sm:grid-cols-2', className)}>{children}</div>
-    </section>
+    <Section title={title} card={false}>
+      <div className={cx('grid gap-4 sm:grid-cols-2', className)}>{children}</div>
+    </Section>
   )
 }
 
@@ -73,7 +73,7 @@ export function OverviewTiles({ data, fmt }: { data: AdminOverview | undefined; 
   const t = useT('admin-stats')
   const loading = !data
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <Group title={t('sections.today')} className="lg:grid-cols-4">
         <Tile
           label={t('tiles.income')}

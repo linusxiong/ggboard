@@ -89,9 +89,7 @@ export function PNumber({
     >
       <Label>{label}</Label>
       <NumberField.Group>
-        <NumberField.DecrementButton />
         <NumberField.Input className="w-full" />
-        <NumberField.IncrementButton />
       </NumberField.Group>
       {description && !error ? <Description>{description}</Description> : null}
       <FieldError>{error}</FieldError>
