@@ -7,6 +7,7 @@ import { AccountPanel } from '@/features/security/AccountPanel'
 import { ChangePasswordCard } from '@/features/security/ChangePasswordCard'
 import { PasskeysCard } from '@/features/security/PasskeysCard'
 import { securityQuery } from '@/features/security/api'
+import { TelegramCard } from '@/features/security/TelegramCard'
 import { TwoFactorCard } from '@/features/security/TwoFactorCard'
 import { SubscriptionInfoCard } from '@/features/subscription/SubscriptionInfoCard'
 import { loadNamespaces, useT } from '@/i18n'
@@ -73,8 +74,9 @@ function ProfilePage() {
             ))}
           </Tabs.List>
         </Tabs.ListContainer>
-        <Tabs.Panel id="account" className="pt-6">
+        <Tabs.Panel id="account" className="flex flex-col gap-6 pt-6">
           {user ? <AccountPanel user={user} /> : null}
+          {tab === 'account' ? <TelegramCard /> : null}
         </Tabs.Panel>
         <Tabs.Panel id="security" className="pt-6">
           {tab === 'security' && user ? <SecurityPanel email={user.email} /> : null}

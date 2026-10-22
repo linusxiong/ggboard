@@ -843,3 +843,52 @@ Vitest 缓存 `import.meta.glob` 结果 67 / 72 / 77 / 85；`useLiteForm` 抢焦
 - **根因**：mysql 客户端在容器里默认用 latin1 输出。
 - **修复**：所有查询加 `--default-character-set=utf8mb4`；比对脚本改用 `JSON_ARRAYAGG` 输出 JSON 再解析。
 - **规则**：读含中文的库先确认客户端字符集；`??` 先怀疑客户端，不要先怀疑数据。
+
+### 115. （FE-S 订阅前端）把 Modal 直接放在 HeroUI `<Tabs>` 里（Tabs.Panel 之外），点弹窗内任意位置弹窗就关闭
+
+- **现象**：订阅配置的“新建配置”弹窗一点名称输入框就关闭，什么请求都没发；同一套 Modal 写法在 TwoFactorCard 里正常。
+- **根因**：弹窗组件作为 `<Tabs>` 的直接子元素渲染（在 `Tabs.ListContainer` 与 `Tabs.Panel` 之外）。弹窗是 portal，但 React 事件仍沿组件树冒泡到 Tabs，被当成弹窗外的交互，`onOpenChange(false)` 触发。放在 `Tabs.Panel` 内部的弹窗（FE-1 的 2FA 弹窗）不受影响。
+- **修复**：`ProfileTabs` 返回 `<>{<Tabs>…</Tabs>}{dialog}</>`，弹窗放到 Tabs 外面。
+- **规则**：Modal/Drawer 不要作为 HeroUI/RAC 复合组件（Tabs、Menu、ListBox 等）的直接子元素渲染；在浏览器里实际点一次弹窗内的输入框再提交。
+
+### 116. （FE-S）在 jsdom 里点击 HeroUI Tabs 抛 `element.getAnimations is not a function`
+
+- **现象**：路由级测试一切换标签页就出现 4 个 Uncaught Exception，断言随后全部失败。
+- **根因**：React Aria 的 `SharedElementTransition`（Tabs.Indicator 的过渡）调用 Web Animations API，jsdom 没有实现；此前的测试都直接用 `?tab=` 打开页面，从没点过标签。
+- **修复**：在新测试文件顶部补 `Element.prototype.getAnimations = () => []`（不改共享的 setup.ts）。
+- **规则**：测试里要切换 Tabs/动画指示器时先补 `getAnimations`；集成者可以把它挪进 `src/test/setup.ts`。
+
+### 117. （FE-S）单选 `ToggleButtonGroup` 的按钮角色是 `radio`，多选才是 `button`
+
+- **现象**：`getByRole('button', { name: '自动添加' })` 找不到分段控件的选项。
+- **根因**：RAC `ToggleButtonGroup selectionMode="single"` 渲染 `radiogroup` + `radio`；`multiple` 才是带 `aria-pressed` 的按钮。
+- **修复**：分段控件按 `radio` 查询，类型/地区多选芯片按 `button` 查询。
+- **规则**：写查询前先看组件的 ARIA 角色（或 `screen.logTestingPlaygroundURL()`），不要按外观猜。
+
+### 118. （FE-S）删除标签后 HeroUI `Tabs.ListContainer` 的滚动阴影状态过期，残留 “›” 滚动按钮
+
+- **现象**：删除一个订阅配置后，只剩一个标签，右侧仍显示滚动箭头。
+- **根因**：ListContainer 的 scroll-shadow 状态（`data-right-scroll`）在子项减少时没有重新计算；我自己加的 `overflow-x-auto` 也与它内置的滚动容器重复。
+- **修复**：去掉自加的 overflow 类；`<Tabs.ListContainer key={profiles.map(tabKey).join('|')}>` 在列表变化时重建。另外 `Tabs.Panel` 默认 8px 内边距会让卡片与标签栏错位，面板加 `p-0`。
+- **规则**：动态增删标签时检查滚动箭头；HeroUI 组件自带的滚动/内边距先看计算样式再叠加类名。
+
+### 119. （FE-S）i18n 一致性测试要求复数键在每个语言都存在
+
+- **现象**：英文用了 `matches_one` / `matches_other`，中文只写了 `matches`，`has the same keys in every locale` 失败。
+- **根因**：键集合按完整路径逐一比较，复数后缀也是键的一部分。
+- **修复**：中文同样写 `_one` / `_other`（内容相同），与 dashboard.json 的做法一致。
+- **规则**：新增带 `{count}` 的英文复数键时，中文同步写两个后缀键。
+
+### 120. （FE-S）按“冻结契约”先写了实现，后端完成后形状不同，三处返工
+
+- **现象**：按契约实现了“无密钥 → GET age 404”“改名 = PUT 整个档案 + name”“`subscribe_age_optional=false` = 功能不可用”，后端最终是：无密钥返回 200 + null 字段；改名走 `PATCH /user/rule-profiles/:slug {name}`（PUT 拒绝未知字段）；optional 只决定 `?age=0` 是否给明文。节点处理的顺序（去重在重命名之前、按协议+地址+端口去重）与地区识别（行优先级而非出现位置、47 个地区）也与我的猜测不同。
+- **根因**：契约对这些细节没有写死，我按直觉补全，没有在开工中途去看后端分支的文档草稿。
+- **修复**：读后端 worktree 的 docs（只读）与协调者消息后，统一按后端实现：age 视图兼容 404 与 null 两种形状；改名用 PATCH；节点预览完全移植后端的流水线、Go `regexp.Expand` 替换规则与地区表；mock 与测试同步。
+- **规则**：契约留白处（错误码、可选字段、改名/删除这类辅助操作、算法顺序）不要自行补全后埋头实现；先在汇报里列为假设，并在中途主动对照后端分支的文档或测试。
+
+### 121. （FE-S）用 Write 工具写入的 `\u2028\u2029` 转义变成了真实的行分隔符，Prettier 报正则未闭合
+
+- **现象**：`nodeOps.ts` 中 `/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g` 落盘后被拆成两行，Prettier/TS 报 “Unterminated regular expression literal”。
+- **根因**：写文件时 `\u2028` / `\u2029` 被当成真实字符写入，而它们在 JS 源码里是行终止符；同一行里的 `\u0000` 等转义保持不变，所以肉眼不易察觉。
+- **修复**：用 Python 把文件里的 U+2028/U+2029 替换回 `\u2028`/`\u2029` 转义；用脚本检查 src 下没有残留。
+- **规则**：源码里需要 U+2028/2029 时写成 `\u{2028}` 或在写入后 `grep` 校验；Prettier 报奇怪的语法错误时先看是否有不可见字符。

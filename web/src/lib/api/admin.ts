@@ -345,3 +345,17 @@ export const systemStatusFull = (signal?: AbortSignal) =>
 /** `GET /admin/system/logs?level=&limit=` */
 export const systemLogEntries = (query: AdminLogQuery = {}, signal?: AbortSignal) =>
   api.get<AdminLogEntry[]>('/admin/system/logs', query, o(signal))
+
+// ---- FE-S ---- user drawer → subscription tab
+import type { AgeKey, SubscriptionAccess } from './types'
+
+/** `GET /admin/users/:id/subscription/age` (`private_key` always null). */
+export const userAgeKey = (id: ID, signal?: AbortSignal) =>
+  api.get<AgeKey>(`/admin/users/${id}/subscription/age`, undefined, o(signal))
+
+/** `GET /admin/users/:id/subscription/access-log` (unmasked IPs). */
+export const userSubscriptionAccessLog = (id: ID, signal?: AbortSignal) =>
+  api.get<SubscriptionAccess[]>(`/admin/users/${id}/subscription/access-log`, undefined, o(signal))
+
+/** `POST /admin/users/:id/subscription/age/reset` — new key pair, switch kept (404 without a key). */
+export const resetUserAgeKey = (id: ID) => api.post<AgeKey>(`/admin/users/${id}/subscription/age/reset`)

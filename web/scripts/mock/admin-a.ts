@@ -12,6 +12,7 @@
 import { readFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import path from 'node:path'
+import { handleFeSAdmin } from './fe-s.ts'
 
 const PORT = Number(process.env.MOCK_PORT ?? 8091)
 const fixtures = path.resolve(import.meta.dirname, '..', 'fixtures')
@@ -605,6 +606,8 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     const user = find(users, rid)
     if (!user) return fail(res, 404, 'not_found', '用户不存在')
     const action = seg[3]
+    // FE-S: subscription access log / age reset (scripts/mock/fe-s.ts).
+    if (action === 'subscription' && handleFeSAdmin(method, seg.slice(4), res)) return
     if (method === 'GET' && !action)
       return ok(res, { ...user, stats: { orders_total: 128800, commission_total: 2300 } })
     if (method === 'PATCH') {
@@ -771,13 +774,11 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       const count = nodeView(node).status.online
       return ok(
         res,
-        users
-          .slice(0, Math.min(count, 12))
-          .map((u, i) => ({
-            user_id: u.id,
-            email: u.email,
-            ips: i % 3 === 0 ? ['203.0.113.7', '2001:db8::1'] : [`198.51.100.${i + 1}`],
-          })),
+        users.slice(0, Math.min(count, 12)).map((u, i) => ({
+          user_id: u.id,
+          email: u.email,
+          ips: i % 3 === 0 ? ['203.0.113.7', '2001:db8::1'] : [`198.51.100.${i + 1}`],
+        })),
       )
     }
   }

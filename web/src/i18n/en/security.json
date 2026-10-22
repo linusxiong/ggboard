@@ -116,5 +116,33 @@
   },
   "mfaRequired": {
     "toast": "The admin area requires two-factor authentication or a passkey. Set one up first."
+  },
+  "telegram": {
+    "title": "Telegram",
+    "hint": "Bind Telegram to get expiry, traffic and subscription alerts there.",
+    "bound": "Bound",
+    "unbound": "Not bound",
+    "boundAs": "Bound to {name}",
+    "boundNoName": "A Telegram account is bound",
+    "bind": "Bind Telegram",
+    "unbind": "Unbind",
+    "unbindTitle": "Unbind Telegram?",
+    "unbindHint": "You will no longer get alerts on Telegram. You can bind again at any time.",
+    "unbindConfirm": "Unbind",
+    "unbindDone": "Telegram unbound",
+    "discuss": "Join the discussion group",
+    "bindTitle": "Bind Telegram",
+    "step1": "Use the button below, or scan the QR code with your phone, to open {bot} in Telegram.",
+    "step2": "Tap Start and the bot finishes binding automatically.",
+    "manual": "Or send this to {bot} in Telegram:",
+    "open": "Open in Telegram",
+    "qrLabel": "Telegram binding QR code",
+    "waiting": "Waiting for Telegram…",
+    "success": "Telegram bound",
+    "newCode": "Get a new code",
+    "codeError": "Could not get a binding code.",
+    "expires": "The code is valid for 10 minutes; getting a new one revokes the old one.",
+    "disabled": "The administrator has not enabled Telegram yet.",
+    "unavailable": "Telegram cannot be reached right now. Try \"Get a new code\" again in a moment."
   }
 }

@@ -116,5 +116,33 @@
   },
   "mfaRequired": {
     "toast": "管理后台要求开启两步验证或通行密钥，请先完成设置。"
+  },
+  "telegram": {
+    "title": "Telegram",
+    "hint": "绑定后可以通过 Telegram 接收到期、流量和订阅异常提醒。",
+    "bound": "已绑定",
+    "unbound": "未绑定",
+    "boundAs": "已绑定 {name}",
+    "boundNoName": "已绑定 Telegram 账号",
+    "bind": "绑定 Telegram",
+    "unbind": "解除绑定",
+    "unbindTitle": "解除 Telegram 绑定？",
+    "unbindHint": "解除后不再通过 Telegram 收到提醒，可以随时重新绑定。",
+    "unbindConfirm": "解除绑定",
+    "unbindDone": "已解除 Telegram 绑定",
+    "discuss": "加入讨论群",
+    "bindTitle": "绑定 Telegram",
+    "step1": "点击下方按钮，或用手机扫描二维码，在 Telegram 中打开 {bot}。",
+    "step2": "点击「开始」（Start），机器人会自动完成绑定。",
+    "manual": "也可以在 Telegram 中向 {bot} 发送：",
+    "open": "在 Telegram 中打开",
+    "qrLabel": "Telegram 绑定二维码",
+    "waiting": "正在等待 Telegram 确认…",
+    "success": "Telegram 绑定成功",
+    "newCode": "重新获取绑定码",
+    "codeError": "获取绑定码失败。",
+    "expires": "绑定码 10 分钟内有效，重新获取后旧码失效。",
+    "disabled": "管理员尚未启用 Telegram。",
+    "unavailable": "暂时无法连接 Telegram，请稍后点击“重新获取绑定码”重试。"
   }
 }

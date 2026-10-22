@@ -1,17 +1,16 @@
 /**
- * Subscription link: copy, QR (lazy), one-click import deep links, copy-only clients, "use a template without
- * saving" (adds `profile=` to the link) and the reset action.
+ * Subscription link: copy, QR (lazy), one-click import deep links, copy-only clients and "use a template without
+ * saving" (adds `profile=` to the link). FE-S: one card per subscription profile; reset/rotate live in AccessCard.
  */
 import { Button } from '@heroui/react'
 import { QrCode } from 'lucide-react'
-import { lazy, Suspense, useState } from 'react'
+import { lazy, type ReactNode, Suspense, useState } from 'react'
 import { CopyButton } from '@/components/CopyButton'
 import { useLocale, useT } from '@/i18n'
 import type { RulesetCatalog } from '@/lib/api/types'
 import { buttonClass } from '@/lib/button'
 import { OptionSelect } from './controls'
 import { COPY_ONLY_CLIENTS, IMPORT_CLIENTS, importLink } from './importLinks'
-import { ResetSubscription } from './ResetSubscription'
 import { localized } from './ruleProfile'
 
 const QRCode = lazy(() => import('@/components/QRCode').then((m) => ({ default: m.QRCode })))
@@ -26,6 +25,7 @@ export function SubscribeCard({
   override,
   onOverride,
   allowOverride,
+  actions,
 }: {
   /** Subscription URL including the override query (when chosen). */
   url: string
@@ -34,6 +34,8 @@ export function SubscribeCard({
   override: string
   onOverride: (template: string) => void
   allowOverride: boolean
+  /** FE-S: header actions (the reset moved to the security card). */
+  actions?: ReactNode
 }) {
   const t = useT(['subscription', 'common'])
   const locale = useLocale()
@@ -55,7 +57,7 @@ export function SubscribeCard({
           </h2>
           <p className="mt-1 text-subhead text-label-secondary">{t('link.subtitle')}</p>
         </div>
-        <ResetSubscription size="sm" />
+        {actions}
       </div>
 
       <div className="flex flex-col gap-2">
