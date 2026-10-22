@@ -60,6 +60,7 @@ Target schema: `docs/DATA_MODEL.md` (`internal/model`). Notation: `ts(x)` = `tim
 | `v2_server` exists and no `v2_server_<proto>` table exists | **upstream** flavor |
 | any of `v2_server_{shadowsocks,vmess,trojan,vless,hysteria}` exists and `v2_server` does not | **legacy** flavor |
 | both kinds exist | fatal: "half-applied 2025_01_05 server migration, finish it in Xboard first" |
+| neither kind exists | fatal: "not an Xboard database" |
 | other `v2_server_*` tables (not `v2_server_group`, `v2_server_route`, `v2_server_log`, `v2_server_stat`, `v2_server_machine*`) | ignored, W |
 | `v2_plan.prices` | prices are a JSON map in **currency units**. Without it, read the 8 `*_price` columns, which are in **cents** |
 | `v2_plan.sell`, `.device_limit`, `.tags`; `v2_user.device_limit`; `v2_notice.sort` | read when present, otherwise use the defaults below |
@@ -76,7 +77,8 @@ Run each column probe independently of the flavor. Forks cherry-pick migrations.
   + `json_encode` produces `{"0":"1","2":"3"}`: take values in key order); a bare scalar `3` / `"3"`; non-JSON text split
   on `,`, `\n` and `|`. Non-numeric or ≤ 0 elements are dropped with W; duplicates removed, order kept.
 - **`parseStringList(raw) []string`**: the same shapes, for `tags`, `match`, `email_whitelist_suffix`, etc. Trim each item
-  and drop empty ones.
+  and drop empty ones (and repeats). Plain text splits on newlines when it has any, else on `,`; `|` never splits
+  strings, because route rules contain regex alternations such as `regexp:(a|b)\.example\.com`.
 - **`cents(v)`**: `int64(math.Round(v*100))`. Decimal strings such as `"19.99"` give 1999.
 - **`nz(v)`**: 0 or NULL becomes `nil`. Used for Xboard columns where "0 = unlimited".
 
@@ -87,6 +89,11 @@ settings → server_groups → plans → node_routes → nodes (two passes: inse
 → notices → knowledge → stats, stat_nodes, stat_users (only with `--with-stats`) → sequence reset (§3.3).
 Reference checks run against in-memory sets of imported ids. The target has no DB-level FKs
 (`DisableForeignKeyConstraintWhenMigrating`).
+
+Implementation notes: settings are translated right after plans, because `try_out_plan_id` is checked against the
+imported plans. Every node id and user id is known before the first insert (nodes are read completely, and a
+pre-pass over `v2_user` resolves email collisions), so `parent_id` and `invite_user_id` are resolved in memory and
+each table is inserted in one pass. The result is the same as the two passes above.
 
 ### 3.2 IDs
 - **Kept ids**: every table except `nodes` and `stat_*` is inserted with the source `id`. Upstream nodes keep `v2_server.id`.
@@ -121,7 +128,8 @@ Reference checks run against in-memory sets of imported ids. The target has no D
 - **No upsert-by-id mode**. Rows deleted in Xboard would linger, and node remaps are not stable between runs. To refresh,
   re-run with `--force`.
 - **`--dry-run`**: performs every read and write (so unique constraints are exercised), then rolls back. Its summary is
-  identical to a real run.
+  identical to a real run. It skips only two things: the PostgreSQL sequence reset (§3.3; `setval` is not
+  transactional and would survive the rollback) and the reload of the running settings snapshot.
 
 ## 4. Table mappings
 ### 4.1 server_groups ← `v2_server_group` (L = U)
@@ -206,7 +214,7 @@ kept, because L lets users buy it for free; W.
 | vmess | `network` = network. `kcp`, `quic` and `domainsocket` are kept with `show=false`, W.<br>`network_settings` = JSON(`networkSettings`), verbatim (already Xray style).<br>`tls` = tls (0/1).<br>`tls_settings` = `{server_name: tlsSettings.serverName ?? tlsSettings.server_name, allow_insecure: flexBool(tlsSettings.allowInsecure ?? .allow_insecure)}`. L stores **camelCase** keys here.<br>`rules`, `ruleSettings` and `dnsSettings` are dropped (W if non-empty). |
 | trojan | `network` = network ?? `"tcp"`.<br>`network_settings` = JSON(`networkSettings`). The column name is camelCase.<br>`server_name` = server_name.<br>`allow_insecure` = `flexBool(allow_insecure)`. |
 | vless | `network` = network, with `splithttp` renamed to `xhttp`. Unsupported values are handled as for vmess.<br>`network_settings` = JSON(network_settings).<br>`tls` = `flexInt(tls)`: 0, 1, or 2 (2 = reality).<br>`flow` = flow ?? `""`.<br>`encryption` = `"none"`.<br>`tls_settings` = `{server_name, allow_insecure: allow_insecure ?? allowInsecure, public_key, private_key, short_id, server_port}`. When tls=2, also set `dest` = `server_name:server_port` (port defaults to `"443"`) and `fingerprint` = `"chrome"`. |
-| hysteria | `version` = `flexInt(version)`. NULL or 0 → 1, W (1 is the column default and the only pre-2023-09 version).<br>`up_mbps`, `down_mbps` = up_mbps, down_mbps.<br>`server_name` = server_name.<br>`allow_insecure` = insecure.<br>`alpn`: v1 maps `{0:"hysteria",1:"http/1.1",2:"h2",3:"h3"}[alpn]`; v2 uses `"h3"`.<br>`obfs` = is_obfs ? `"salamander"` : `"plain"`.<br>`obfs_password` = is_obfs ? K16 : `""`. In v1, a non-plain obfs means `obfs_password` *is* the obfs string (`docs/NODE_PROTOCOLS.md` §2.1.5). |
+| hysteria | `version` = `flexInt(version)`. NULL or 0 → 1, W (1 is the column default and the only pre-2023-09 version). The 2023-09-29 migration declares the column `NOT NULL DEFAULT 1`, so NULL only appears as a missing column in old forks.<br>`up_mbps`, `down_mbps` = up_mbps, down_mbps.<br>`server_name` = server_name.<br>`allow_insecure` = insecure.<br>`alpn`: v1 maps `{0:"hysteria",1:"http/1.1",2:"h2",3:"h3"}[alpn]`; v2 uses `"h3"`.<br>`obfs` = is_obfs ? `"salamander"` : `"plain"`.<br>`obfs_password` = is_obfs ? K16 : `""`. In v1, a non-plain obfs means `obfs_password` *is* the obfs string (`docs/NODE_PROTOCOLS.md` §2.1.5). |
 
 **protocol_settings from U `protocol_settings` JSON**. Every key that is not listed here is dropped. `multiplex`, `utls`,
 `ech` and `encryption` produce W only when `enabled`/`open` is true.
@@ -228,8 +236,8 @@ kept, because L lets users buy it for free; W.
 | id | id | keep |
 | email | email | `lower(trim())`. Collisions: §5. U lower-cases emails on write; L does not |
 | password_hash | password, password_algo, password_salt | §4.5.1 |
-| uuid | uuid | verbatim (Xboard `guid(true)`, 36 chars). Empty or duplicate → new UUIDv4 for the higher id, W ("re-import subscription") |
-| token | token | verbatim (32 hex). Empty or duplicate → new token for the higher id, W ("old subscription URL dies") |
+| uuid | uuid | verbatim (Xboard `guid(true)`, 36 chars). Empty, longer than 36 or duplicate → new UUIDv4 for the higher id, W ("re-import subscription"). uuid and token are credentials: warnings never print them |
+| token | token | verbatim (32 hex). Empty, longer than 32 or duplicate → new token for the higher id, W ("old subscription URL dies") |
 | plan_id | plan_id | plan not imported → NULL, W |
 | group_id | group_id | group not imported → NULL, W |
 | transfer_enable, u, d | same (bytes, bigint) | verbatim; a negative u/d → 0, W |
@@ -258,11 +266,13 @@ Xboard's `Helper::multiPasswordVerify` works like this. U added `sha256salt`.
 
 | `password_algo` (trimmed) | Xboard verify | stored `password_hash` |
 |---|---|---|
-| NULL, `""`, unknown | PHP `password_verify` | verbatim if it starts with `$2` (bcrypt `$2y$`, which our bcrypt verifier accepts). Otherwise `!xb-unusable`, W ("user must reset password") |
+| NULL, `""`, unknown | PHP `password_verify` | verbatim if it starts with `$2` (bcrypt `$2y$`, which our bcrypt verifier accepts) or `$argon2id$` (PHP `PASSWORD_ARGON2ID`, same PHC string as ours). Otherwise `!xb-unusable`, W ("user must reset password") |
 | `md5` | `md5(pw)` | `xb$md5$$<hash>` |
 | `sha256` | `sha256(pw)` | `xb$sha256$$<hash>` |
 | `md5salt` | `md5(pw . salt)` | `xb$md5salt$<salt>$<hash>` |
 | `sha256salt` | `sha256(pw . salt)` | `xb$sha256salt$<salt>$<hash>` |
+
+A stored hash that is not hex of the algorithm's length (32 for md5, 64 for sha256) is `!xb-unusable`, W.
 
 **Format** `xb$<algo>$<salt>$<hexhash>`. Parse: strip `xb$`; `algo` = text up to the next `$`; `hash` = text after the
 **last** `$` (hex, so no `$`); `salt` = everything in between (may be empty, may contain `$`).
@@ -295,6 +305,7 @@ period purchases because expiry = purchase + N months; §8 asks for the wording 
 `status` = `flexBool` (true means consumed).
 
 `code` has no unique constraint in Xboard (8 random characters). On a duplicate, keep the lowest id and skip the rest, W.
+Duplicates are compared case-insensitively, because a MySQL target's unique index uses a case-insensitive collation.
 
 ### 4.7 commission_logs ← `v2_commission_log` (all rows; these are not orders)
 `id`, `invite_user_id`, `user_id`, `trade_no` (char(36)), `order_amount`, `get_amount` (cents), `created_at` = `ts()`.
@@ -305,8 +316,8 @@ A row whose `invite_user_id` is not an imported user is still imported, with W. 
 | ours | source | conversion |
 |---|---|---|
 | id, name | same | |
-| code | code (string(255), **not unique** in Xboard) | longer than 64 characters, or a duplicate (keep the lowest id) → skip, W |
-| type, value | type (1 fixed cents, 2 percent), value | verbatim |
+| code | code (string(255), **not unique** in Xboard) | longer than 64 characters, or a duplicate (keep the lowest id; compared case-insensitively, see §4.6) → skip, W |
+| type, value | type (1 fixed cents, 2 percent), value | verbatim; a type other than 1 or 2 → skip, W |
 | show | show | `flexBool` |
 | limit_use | limit_use | verbatim. In Xboard this is the **remaining** count, decremented on every use. We count usage from orders, which start empty, so the remaining count is correct |
 | limit_use_with_user | limit_use_with_user | verbatim. Per-user history is lost with the orders, W once if any coupon sets it |
@@ -320,7 +331,7 @@ A row whose `invite_user_id` is not an imported user is still imported, with W. 
 | ours | source | conversion |
 |---|---|---|
 | id | id | keep |
-| uuid | uuid (8 random mixed-case chars, from `randomChar(8)`) | verbatim. Keeping it keeps the notify path suffix |
+| uuid | uuid (8 random mixed-case chars, from `randomChar(8)`) | verbatim. Keeping it keeps the notify path suffix. Empty or a case-insensitive duplicate → new random uuid, W |
 | gateway | payment (class name) | table below |
 | name | name | verbatim |
 | icon | icon | NULL → `""` |
@@ -340,15 +351,16 @@ U only: if `v2_plugins` has a row for the gateway's plugin `code` (`epay`, `alip
 |---|---|---|---|
 | `EPay` | `epay` | `url` (rtrim `/`), `pid`, `key`, `type` (a value not in `alipay/wxpay/qqpay/""` is kept, W) | works. The notify URL is sent with each order |
 | `EpusdtPay` | `epusdt` | `epusdt_pay_url`→`api_url`, `epusdt_pay_apitoken`→`api_token`, `currency_types`→`currency_type` (empty → `usdt.trc20`) | works |
-| `AlipayF2F` | `alipay_f2f` | `app_id`, `private_key`, `public_key`→`alipay_public_key`, `sandbox`=`false`. `product_name` dropped, W | works |
-| `StripeALLInOne` (also old `StripeAlipay`, `StripeWepay`, `StripeCredit`, `StripeCheckout`) | `stripe` | `stripe_sk_live`→`secret_key`, `stripe_pk_live`→`publishable_key` (else `""`), `stripe_webhook_key`→`webhook_secret`, `currency`→`currency` (upper-cased). `payment_method`: `cards`/`card`→`card`, `alipay`, `wechat_pay`, else `auto`. For the old classes the class name implies it: Alipay → alipay, Wepay → wechat_pay, Credit/Checkout → card. `description` dropped | **`enabled=false`**, W: point the webhook at the new URL and subscribe it to `checkout.session.completed`. Xboard converted CNY amounts to `currency` at a live exchange rate. We charge the order amount in `settings.currency`, so W when the two differ |
-| `Coinbase` | `coinbase` | `coinbase_api_key`→`api_key`, `coinbase_webhook_key`→`webhook_secret`. `coinbase_url` dropped | enabled as in source; W: update the webhook URL |
+| `AlipayF2F` | `alipay_f2f` | `app_id`, `private_key`, `public_key`→`alipay_public_key`, `sandbox`=`"0"` (a `0`/`1` select, PAYMENTS_GATEWAYS.md §4). `product_name` dropped, W | works |
+| `StripeALLInOne` (also old `StripeAlipay`, `StripeWepay`, `StripeCredit`, `StripeCheckout`) | `stripe` | `stripe_sk_live`→`secret_key`, `stripe_webhook_key`→`webhook_secret`, `currency`→`currency` (**lower-cased**, ISO 4217 as Stripe expects). `payment_method`→`payment_methods`: `cards`/`card`→`card`, `alipay`, `wechat_pay`, else `auto`. For the old classes the class name implies it: Alipay → alipay, Wepay → wechat_pay, Credit/Checkout → card. `description` dropped. No `publishable_key`: hosted Checkout does not use it (PAYMENTS_GATEWAYS.md §0.2) | **`enabled=false`**, W: point the webhook at the new URL and subscribe it to `checkout.session.completed` and `checkout.session.async_payment_succeeded`. Xboard converted CNY amounts to `currency` at a live exchange rate. We charge the order amount in `settings.currency`, so W when the two differ: set `exchange_rate` |
+| `Coinbase` | `coinbase` | none: Coinbase Commerce closed on 2026-03-31 and its API key / webhook key do not work with Coinbase Business (PAYMENTS_GATEWAYS.md §0.1). Config `{}` | **`enabled=false`**, W: create a CDP API key and a webhook, fill `api_key_name`, `api_key_secret`, `webhook_secret`, then enable |
 | `BTCPay` | `btcpay` | `btcpay_url`→`server_url` (rtrim `/`), `btcpay_storeId`→`store_id`, `btcpay_api_key`→`api_key`, `btcpay_webhook_key`→`webhook_secret` | enabled as in source; W: update the webhook URL |
 | anything else (`CoinPayments`, `MGate`, third-party plugins) | `lower(name)` | verbatim | **`enabled=false`**, W: "gateway not available in ggboard; kept for reference" |
 
 **Notify URL**: Xboard uses `/api/v1/guest/payment/notify/<ClassName>/<uuid>` and ggboard uses `…/notify/<gateway>/<uuid>`.
 Because the uuid is kept, URLs registered once in a gateway dashboard (Stripe, Coinbase, BTCPay) differ only in that one
-path segment (§8 proposes an alias). The user's live install has 3 EPay rows, all of which import as enabled with no action
+path segment (§8 proposes an alias). The warnings and the checklist print the new URL, built from the payment's
+`notify_domain`, else `app_url`. The user's live install has 3 EPay rows, all of which import as enabled with no action
 needed.
 
 ### 4.10 tickets ← `v2_ticket`, ticket_messages ← `v2_ticket_message`
@@ -423,7 +435,7 @@ fixed at `/s/:token`).
 |---|---|---|
 | stats | `v2_stat` | the count/total columns map one to one. `transfer_used_total` (varchar) → int64. The record_at unique index is missing on sqlite: on duplicates, the highest id wins |
 | stat_nodes | `v2_stat_server` | `node_id`:<br>L: `nodeMap[(normType(server_type), server_id)]`.<br>U: the `v2_server` row with that `id` and type, else the one with that `code` and type.<br>No match → drop (counted). Then sum u/d per (node_id, date) |
-| stat_users | `v2_stat_user` | `node_id = 0`; Xboard records no server. Aggregate per (user_id, date). Drop users that were not imported |
+| stat_users | `v2_stat_user` | `node_id = 0`; Xboard records no server. (A fork whose `v2_stat_user` has `server_id` [+ `server_type`] maps it like stat_nodes; unmapped → 0.) Aggregate per (user_id, node_id, date). Drop users that were not imported |
 
 **stat_users aggregation**. We store **charged** bytes, as `users.u/d` do (*assumption, §8*). L rows hold raw bytes per
 `server_rate` (charged = `u·rate`); U rows are already charged (its job multiplies by the rate). `rate` = `Σcharged / Σraw`
@@ -458,6 +470,7 @@ rounded to 2 decimals; for U, raw = `charged/rate`, skipping rate 0; nothing der
 | `u+d` overflow | none possible: bigint → int64 on both sides |
 | invalid JSON in any JSON column | the parser's fallback applies; otherwise empty value + W, never a fatal error |
 | unknown `server_type` in stats | `v2ray→vmess`, `hysteria2→hysteria`; others dropped (counted) |
+| value longer than the ggboard column | Xboard `string()` is varchar(255); some of our columns are shorter (names 191, port 32). PostgreSQL and strict MySQL reject over-long values, so names are truncated and URLs (`icon`, `img_url`, `notify_domain`) dropped, W |
 
 ## 6. CLI
 ```
@@ -466,8 +479,13 @@ ggboard import xboard --dsn "mysql://xboard:secret@tcp(127.0.0.1:3306)/xboard?pa
 ```
 - The target DB comes from the normal ggboard config (`database.driver` / `database.dsn`).
 - This spec supersedes the `--skip-users` placeholder in `ARCHITECTURE.md`. Partial imports would break references.
-- Exit codes: 0 success (warnings allowed; dry run too), 1 fatal (nothing written), 2 usage error. Warnings go to stdout
-  and are mirrored to slog at WARN. Secrets are never printed.
+- Exit codes: 0 success (warnings allowed; dry run too), 1 fatal (nothing written) or usage error (the foundation's
+  `cli.Run` maps every command error to 1; usage errors wrap `xboardimport.ErrUsage`). Warnings go to stdout and are
+  mirrored to slog at WARN. Secrets are never printed.
+- `--driver mysql|postgres|sqlite` lets `--dsn` be a raw driver DSN without a scheme. The MySQL URL form
+  `mysql://user:pass@host:3306/db` is accepted besides the go-sql-driver form.
+- The summary ends with the post-import checklist of §7, filled with this run's specifics (renumbered nodes, `code`
+  nodes, webhook URLs, disabled payments, unusable hashes, access-block articles, a missing `app_url`).
 
 Summary format:
 ```
@@ -538,23 +556,28 @@ next: docs/IMPORT_XBOARD.md §7 post-import checklist
 
 | file | contents |
 |---|---|
-| `legacy_schema.sql` | SQLite DDL transcribed from the 33 L migrations. Booleans are `INTEGER`. **No** `v2_stat_user` / `v2_stat` unique indexes on sqlite, matching the migrations |
+| `legacy_schema.sql` | SQLite DDL transcribed from the 33 L migrations. Booleans are `INTEGER`, `bigInteger()` columns `BIGINT` (SQLite does not care; PostgreSQL rejects 100 GiB in an `integer` when the suite loads the seed there). **No** `v2_stat_user` / `v2_stat` unique indexes on sqlite, matching the migrations |
 | `upstream_schema.sql` | the result of running all U migrations: `v2_server`, `prices` JSON, `next_reset_at`, gift-card tables, `v2_subscribe_templates`, `v2_plugins`, `v2_server_machine`, `surplus_credit`, `last_reply_user_id` |
 | `legacy_seed.sql`, `upstream_seed.sql` | fake data on `example.com` |
 
-To check the transcription, `make xboard-fixtures` (manual, needs Docker) runs `php artisan migrate --database=sqlite` in
-both reference checkouts and diffs `.schema`.
+To check the transcription manually, run `php artisan migrate --database=sqlite` in both reference checkouts and diff
+`.schema` (there is no make target).
 
-The helper `newSource(t, flavor) string` builds a temp sqlite file from schema + seed and returns `sqlite://…`. The target
-is `testutil.NewTestApp(t)` (in-memory sqlite). A build-tagged `integration` suite repeats the core cases against MySQL
-8 and PostgreSQL 16 via docker compose, loading the same seed with driver-adjusted DDL.
+The helper `newSource(t, flavor, extraSQL...) string` builds a temp sqlite file from schema + seed and returns
+`sqlite://…`. The target is `testutil.NewTestApp(t)` (a private sqlite file). The build-tagged `integration` suite
+(`integration_test.go`) runs against servers given by `GGBOARD_IT_POSTGRES_DSN` / `GGBOARD_IT_MYSQL_DSN` (each test
+creates and drops its own database; the file header has the `docker run` lines for PostgreSQL 16 and MySQL 8.4):
+- sources: the same seed loaded into PostgreSQL / MySQL with driver-adjusted DDL (real `boolean` and `timestamp`
+  columns on PostgreSQL, `tinyint(1)` on MySQL) must produce a target dump identical to the SQLite-source import;
+- targets: the SQLite fixtures imported into PostgreSQL / MySQL targets (dry run, real run, next id = max+1, `--force`).
 
 **Seed must include**:
 - L nodes: shadowsocks `2022-blake3-aes-128-gcm` with `created_at=1700000000`, its child (`parent_id`), one with `obfs=http`;
   vmess with **id 1** (collides with ss #1) plus a child of it, `tlsSettings` in camelCase; vless reality (tls=2); trojan
-  with `networkSettings`; hysteria v1 (alpn 3, is_obfs 1) and one with `version` NULL; `group_id` values `["1","2"]`, `[1]`,
-  `{"0":"1","2":"3"}`, `"1,2"`, NULL; routes whose `match` is a JSON object / newline-separated. L plan with
-  `month_price=1000, onetime_price=0`.
+  with `networkSettings`; hysteria v1 (alpn 3, is_obfs 1) and one with `version` 0 (the column is `NOT NULL DEFAULT 1`;
+  the robustness test drops the column to cover old forks); `group_id` values `["1","2"]`, `[1]`, `{"0":"1","2":"3"}`,
+  `1,2`, `"1,2"`, `""` (L `group_id` is NOT NULL; the NULL case is U's `group_ids`); routes whose `match` is a JSON
+  object / newline-separated. L plan with `month_price=1000, onetime_price=0`.
 - U: `v2_server` rows of every type incl. socks; `code` ≠ id; `enabled=0`; `prices` `{"monthly":9.99,"yearly":"99.9",
   "onetime":0}`; a `v2_plugins` row `epay` with `is_enabled=0`.
 - Users: bcrypt `$2y$`, md5, sha256, md5salt (salt `abc$12`), sha256salt (U), unknown algo with a non-bcrypt hash;
