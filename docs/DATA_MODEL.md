@@ -1,11 +1,12 @@
 # Data model (GORM, `internal/model`)
 
 `model.All()` lists every table; `db.Migrate` auto-migrates them on every start (`ggboard migrate` runs only that step).
-There are no custom migrations or hand-written indexes: every index below comes from a GORM tag.
+Every index below comes from a GORM tag. Schema changes AutoMigrate cannot do (a changed primary key) run as idempotent
+steps around it in `internal/db/upgrade.go`; the only one so far is the `rule_profiles` upgrade below.
 
 Conventions:
 
-- Table names are plain plural snake_case (no `v2_` prefix). The exceptions are `knowledge` and `user_mfa`, which set `TableName()`.
+- Table names are plain plural snake_case (no `v2_` prefix). The exceptions are `knowledge`, `user_mfa` and `subscription_access`, which set `TableName()`.
 - `id` is a `uint64` auto-increment primary key. `created_at`/`updated_at` are `time.Time`, managed by GORM.
 - Money is integer **cents** (`int64`). Traffic is **bytes** (`int64`); the only exception is `plans.transfer_enable`, which is in GB.
 - `varchar(N)` means a Go `string` with `size:N` (VARCHAR on PostgreSQL/MySQL, TEXT affinity on SQLite).
@@ -308,7 +309,52 @@ ticket_messages: `id, ticket_id uint64 idx, user_id uint64, message text not nul
 
 ## rule_profiles
 
-`user_id uint64 PK (no auto-increment), data json (docs/SUBSCRIPTION.md), updated_at`.
+A user's named rule profiles (at most 10, exactly one default; docs/SUBSCRIPTION.md "Multiple profiles").
+
+| column | type | notes |
+|---|---|---|
+| id | uint64 PK | |
+| user_id | uint64 not null | first column of the unique index below, which also serves lookups by user |
+| slug | varchar(32) not null | `^[a-z0-9][a-z0-9_-]{0,31}$`; unique per user: `idx_rule_profiles_user_slug (user_id, slug)` |
+| name | varchar(64) not null | |
+| is_default | bool | the profile used without `?profile=`; when no row is flagged, the oldest row is the default |
+| data | json | complete `RuleProfile` document, or `null` while the profile follows the admin's default template |
+| created_at, updated_at | time | |
+
+Upgrade from the first release (`user_id` primary key, one row per user): `db.Migrate` renames the old table to
+`rule_profiles_v1` before AutoMigrate (detected by the missing `id` column), creates the new table, copies every row as
+`slug = "default"`, `name = "默认"`, `is_default = true` (same `data`, `created_at = updated_at` = the old `updated_at`;
+users that already have a `default` row keep it) and drops `rule_profiles_v1`. An interrupted upgrade finishes on the next
+start; when both tables exist with the old schema, migration stops with an error instead of guessing. Tested on SQLite
+and (integration tag) PostgreSQL 16 and MySQL 8.4.
+
+## subscription_keys
+
+One row per user who created an age key (docs/SUBSCRIPTION.md "Encrypted subscriptions (age)").
+
+| column | type | notes |
+|---|---|---|
+| user_id | uint64 PK (no auto-increment) | |
+| public_key | varchar(128) not null | age X25519 recipient `age1…` |
+| private_key_enc | text not null | `v1.` + base64url(nonce ‖ AES-256-GCM ciphertext) of the `AGE-SECRET-KEY-1…` identity. Key = HKDF-SHA256(`jwt.secret`, info `ggboard/subscription/age-identity/v1`), AAD = `ggboard:age:<user id>` |
+| enabled | bool | encrypt supported formats |
+| created_at | time | creation of the current key pair (regeneration resets it) |
+
+## subscription_access
+
+Access log of successful subscription fetches (docs/SUBSCRIPTION.md "Access log and leak detection"). Written in batches
+every 10 s; `subscription_access_prune` keeps the newest 100 rows per user and nothing older than 30 days.
+
+| column | type | notes |
+|---|---|---|
+| id | uint64 PK | |
+| user_id | uint64 not null | `idx_subscription_access_user_at (user_id, at)` |
+| ip | varchar(45) | client IP (IPv4-mapped addresses stored as IPv4) |
+| ip_bucket | varchar(64) | the IPv4 address, or the IPv6 /64 prefix (`2001:db8:1:2::/64`); leak detection counts distinct buckets |
+| token_tag | varchar(16) | first 8 hex digits of SHA-256 of the token used; a rotated token starts a new leak window |
+| client | varchar(64) | first product token of the User-Agent (`clash-verge/v2.2.3`), `unknown` when empty |
+| format | varchar(16) | rendered format (`clash-meta`, `v2ray`, …) |
+| at | time idx | |
 
 ## user_mfa
 
@@ -362,3 +408,5 @@ Kept in `app.KV` (a TTL map that never evicts early) or `app.Online`:
   `version` per effective node. This drives the three-state node status (docs/NODE_PROTOCOLS.md §5.1).
 - Alive IPs per user and node, with TTL `max(300 s, 2 × server_push_interval)` (docs/NODE_PROTOCOLS.md §5.2).
 - Buffered traffic (`app.Traffic`), flushed to `users`, `stat_users` and `stat_nodes` every 10 s and on shutdown.
+- Buffered subscription access rows (at most 10 000), flushed to `subscription_access` every 10 s (not on shutdown); the
+  leak-detection markers "bucket already counted for this token" and "token already alerted" (24 h each).

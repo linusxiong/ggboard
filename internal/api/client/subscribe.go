@@ -16,6 +16,7 @@ import (
 	"github.com/linusxiong/ggboard/internal/model"
 	usersvc "github.com/linusxiong/ggboard/internal/service/user"
 	"github.com/linusxiong/ggboard/internal/subscription/engine"
+	"github.com/linusxiong/ggboard/internal/subscription/guard"
 )
 
 // maxTokenLen bounds tokens before they reach the database (ours are 32 hex characters; imported ones are
@@ -78,15 +79,60 @@ func subscribe(a *app.App, lim *limits, tokenOf func(*gin.Context) string, inPat
 			httpx.Fail(c, err)
 			return
 		}
+		key, err := guard.LoadKey(c.Request.Context(), a, u.ID)
+		if err != nil {
+			httpx.Fail(c, err)
+			return
+		}
+		encrypt := false
+		switch guard.Decide(a.Settings, key, res.Format, q.Get("age")) {
+		case guard.RejectFormat:
+			httpx.Logger(c).Info("subscription refused: format cannot be age-encrypted", "user_id", u.ID, "format", res.Format)
+			httpx.Fail(c, httpx.NewError(http.StatusNotAcceptable, "not_acceptable",
+				"this subscription is age-encrypted and the "+res.Format+" format cannot be; use a client that decrypts age "+
+					"(mihomo 1.19.27+ proxy-providers with age-secret-key, Clash Party, FlClash) and add your age secret key"))
+			return
+		case guard.ServeAge:
+			encrypt = true
+			// The ciphertext differs on every request; the ETag names the plaintext and the key instead.
+			res.ETag += "-age-" + guard.KeyTag(key.PublicKey)
+		}
 		SetHeaders(c.Writer.Header(), a, u, res)
+		guard.Record(a, guard.Access{UserID: u.ID, Token: u.Token, IP: c.ClientIP(), UserAgent: ua, Format: res.Format})
 		httpx.Logger(c).Info("subscription served", "user_id", u.ID, "format", res.Format,
-			"client", truncate(ua, 80), "proxies", res.Proxies)
-		if inm := c.GetHeader("If-None-Match"); inm != "" && strings.Contains(inm, res.ETag) {
+			"client", truncate(ua, 80), "proxies", res.Proxies, "encrypted", encrypt)
+		if ETagMatches(c.GetHeader("If-None-Match"), res.ETag) {
 			c.Status(http.StatusNotModified)
 			return
 		}
-		c.Data(http.StatusOK, res.ContentType, res.Body)
+		body, ct := res.Body, res.ContentType
+		if encrypt {
+			if body, err = guard.Encrypt(body, key.PublicKey); err != nil {
+				httpx.Fail(c, err)
+				return
+			}
+			ct = guard.ContentTypeAge
+			c.Header(guard.EncryptionHeader, "age")
+		}
+		c.Data(http.StatusOK, ct, body)
 	}
+}
+
+// ETagMatches reports whether the If-None-Match header value names etag (quoted, bare or weak, in a list,
+// or "*"). Tags are compared whole: an encrypted body's tag "<sha1>-age-<key>" must not match the plaintext
+// "<sha1>" or the other way round.
+func ETagMatches(inm, etag string) bool {
+	for _, t := range strings.Split(inm, ",") {
+		t = strings.TrimSpace(t)
+		if t == "*" {
+			return true
+		}
+		t = strings.Trim(strings.TrimPrefix(t, "W/"), `"`)
+		if t != "" && t == etag {
+			return true
+		}
+	}
+	return false
 }
 
 // SetHeaders writes the subscription response headers of docs/SUBSCRIPTION.md.

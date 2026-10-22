@@ -16,6 +16,7 @@ type RuleProfile struct {
 	GeoIPCNDirect bool            `json:"geoip_cn_direct"` // append GEOIP,CN,DIRECT
 	Mirror        string          `json:"mirror"`          // "" direct | "default" settings.ruleset_mirror | custom prefix
 	DNS           string          `json:"dns"`             // default | fakeip | none
+	Nodes         NodeOps         `json:"nodes"`           // node operations (filters, renames, emoji, sort, dedupe, limit)
 }
 
 // PolicyGroup is one proxy group shown in the client.

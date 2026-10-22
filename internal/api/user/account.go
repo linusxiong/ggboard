@@ -139,6 +139,9 @@ type Subscription struct {
 	ResetDay       *int             `json:"reset_day"`
 	DeviceLimit    *int             `json:"device_limit"`
 	SpeedLimit     *int             `json:"speed_limit"`
+	// Profiles are the user's rule profiles with their subscription links (subscribe_url + &profile=<slug>;
+	// the default profile's link is subscribe_url itself).
+	Profiles []SubscriptionProfile `json:"profiles"`
 }
 
 func getSubscription(a *app.App) gin.HandlerFunc {
@@ -155,8 +158,15 @@ func getSubscription(a *app.App) gin.HandlerFunc {
 		}
 		users := usersvc.New(a)
 		view := account.ToUserView(u, plan) // UTC timestamps
+		subURL := users.SubscribeURL(u)
+		profiles, err := subscriptionProfiles(c, a, u.ID, subURL)
+		if err != nil {
+			httpx.Fail(c, err)
+			return
+		}
 		httpx.OK(c, Subscription{
-			SubscribeURL:   users.SubscribeURL(u),
+			Profiles:       profiles,
+			SubscribeURL:   subURL,
 			Token:          u.Token,
 			Plan:           view.Plan,
 			TransferEnable: u.TransferEnable,

@@ -31,5 +31,7 @@ func All() []any {
 		&RuleProfile{},
 		&UserMFA{},
 		&Passkey{},
+		&SubscriptionKey{},
+		&SubscriptionAccess{},
 	}
 }

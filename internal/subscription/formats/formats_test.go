@@ -88,6 +88,13 @@ func TestGolden(t *testing.T) {
 		{file: "shadowrocket.txt", format: subscription.FormatShadowrocket, profile: standard},
 		{file: "v2ray.txt", format: subscription.FormatV2ray, profile: standard},
 		{file: "ssr.txt", format: subscription.FormatSSR, profile: standard},
+		{file: "v2ray-nodeops.txt", format: subscription.FormatV2ray, profile: standard, mutate: func(in *engine.Input) {
+			in.Proxies = subscription.ApplyNodeOps(in.Proxies, subscription.NodeOps{
+				Regions: []string{"HK", "JP", "US"}, Exclude: []string{"Relay"}, Emoji: subscription.EmojiAdd,
+				Rename: []subscription.RenameRule{{Match: "(?i)hysteria2?", Replace: "HY"}, {Match: `^(\S+) (\S+) `, Replace: "${1} ${2} · "}},
+				Sort:   subscription.SortRegion, Dedupe: true, Suffix: " ✈",
+			}.Normalized())
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.file, func(t *testing.T) {

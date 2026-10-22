@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,13 +16,15 @@ import (
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/auth"
 	"github.com/linusxiong/ggboard/internal/httpx"
+	"github.com/linusxiong/ggboard/internal/model"
 	"github.com/linusxiong/ggboard/internal/subscription"
 	"github.com/linusxiong/ggboard/internal/subscription/engine"
 	"github.com/linusxiong/ggboard/internal/subscription/rulesets"
 )
 
-// registerRuleProfile mounts GET/PUT /user/rule-profile, GET /user/rulesets/catalog, GET /user/subscription/preview.
-// Owner: BE-D subscription.
+// registerRuleProfile mounts GET/PUT /user/rule-profile (alias of the default profile), the multi-profile
+// routes /user/rule-profiles[/:slug[/default]], GET /user/rulesets/catalog and GET /user/subscription/preview.
+// Owner: BE-D subscription (multi-profile routes: BE-S).
 func registerRuleProfile(g *gin.RouterGroup, a *app.App) {
 	// Saving and previewing render whole configs (rule-set plans, group resolution over every node): 60 per
 	// minute per user, like the subscription endpoint's burst, keeps one account from monopolising the CPU.
@@ -30,42 +34,82 @@ func registerRuleProfile(g *gin.RouterGroup, a *app.App) {
 		}
 		return httpx.KeyByIP(c)
 	})
-	g.GET("/rule-profile", getRuleProfile(a))
-	g.PUT("/rule-profile", limit, putRuleProfile(a))
+	g.GET("/rule-profile", getRuleProfile(a, ""))
+	g.PUT("/rule-profile", limit, putRuleProfile(a, ""))
 	g.GET("/rulesets/catalog", func(c *gin.Context) { httpx.OK(c, rulesets.PublicView(rulesets.Current(a.Settings), a.Settings)) })
 	g.GET("/subscription/preview", limit, previewSubscription(a))
+	registerRuleProfiles(g, a, limit) // user/ruleprofiles.go (BE-S)
 }
 
-// ruleProfileView is the RuleProfile (stored, or the default template when none) plus whether it is stored,
-// whether users may edit it and the effective profile subscriptions use (the forced default template when
-// customization is disabled).
+// ruleProfileView is the RuleProfile (stored, or the default template when the profile follows the defaults)
+// plus whether it is stored, whether users may edit it, the effective profile subscriptions use (the forced
+// default template when customization is disabled) and which named profile it is.
 type ruleProfileView struct {
 	subscription.RuleProfile
 	Customized bool                     `json:"customized"`
 	Editable   bool                     `json:"editable"`
 	Effective  subscription.RuleProfile `json:"effective"`
+	ID         uint64                   `json:"id"`
+	Slug       string                   `json:"slug"`
+	Name       string                   `json:"name"`
+	IsDefault  bool                     `json:"is_default"`
 }
 
-func profileView(c *gin.Context, a *app.App, cat *subscription.Catalog) (ruleProfileView, error) {
+// profileView builds the view of the profile with slug ("" = the default profile; created when the user has
+// none, so every view names a real profile).
+func profileView(c *gin.Context, a *app.App, cat *subscription.Catalog, slug string) (ruleProfileView, error) {
+	ctx := c.Request.Context()
 	u := auth.CurrentUser(c)
-	def := rulesets.DefaultsFrom(a.Settings)
-	stored, err := engine.StoredProfile(c.Request.Context(), a, cat, u.ID)
+	if err := engine.EnsureDefault(ctx, a, u.ID); err != nil {
+		return ruleProfileView{}, err
+	}
+	row, stored, err := engine.StoredProfileSlug(ctx, a, cat, u.ID, slug)
+	if err != nil {
+		return ruleProfileView{}, profileErr(err)
+	}
+	if row == nil {
+		return ruleProfileView{}, httpx.NotFound("rule profile not found")
+	}
+	rows, err := engine.LoadProfiles(ctx, a, u.ID)
 	if err != nil {
 		return ruleProfileView{}, err
 	}
-	v := ruleProfileView{Editable: a.Settings.Bool("allow_user_rule_profile"), Customized: stored != nil}
+	def := engine.DefaultOf(rows)
+	v := ruleProfileView{Editable: a.Settings.Bool("allow_user_rule_profile"), Customized: stored != nil,
+		ID: row.ID, Slug: row.Slug, Name: row.Name, IsDefault: def != nil && def.ID == row.ID}
 	if stored != nil {
 		v.RuleProfile = *stored
 	} else {
-		v.RuleProfile = rulesets.DefaultProfile(cat, def)
+		v.RuleProfile = rulesets.DefaultProfile(cat, rulesets.DefaultsFrom(a.Settings))
 	}
-	v.Effective, err = engine.EffectiveProfile(c.Request.Context(), a, cat, u, rulesets.Overrides{})
+	v.Effective, err = engine.EffectiveProfile(ctx, a, cat, u, rulesets.Overrides{Template: row.Slug})
 	return v, err
 }
 
-func getRuleProfile(a *app.App) gin.HandlerFunc {
+// profileErr maps profile store errors to API errors.
+func profileErr(err error) error {
+	switch {
+	case errors.Is(err, engine.ErrProfileNotFound):
+		return httpx.NotFound("rule profile not found")
+	case errors.Is(err, engine.ErrProfileLimit):
+		return httpx.Conflict(fmt.Sprintf("at most %d rule profiles", model.MaxRuleProfiles))
+	case errors.Is(err, engine.ErrSlugTaken):
+		e := httpx.Conflict("slug already used by another profile")
+		e.Errors = map[string][]string{"slug": {"already used by another profile"}}
+		return e
+	case errors.Is(err, engine.ErrDefaultProfile):
+		return httpx.Conflict("the default profile cannot be deleted")
+	}
+	return err
+}
+
+func getRuleProfile(a *app.App, fixedSlug string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		v, err := profileView(c, a, rulesets.Current(a.Settings))
+		slug := fixedSlug
+		if p := c.Param("slug"); p != "" {
+			slug = p
+		}
+		v, err := profileView(c, a, rulesets.Current(a.Settings), slug)
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -74,11 +118,15 @@ func getRuleProfile(a *app.App) gin.HandlerFunc {
 	}
 }
 
-func putRuleProfile(a *app.App) gin.HandlerFunc {
+func putRuleProfile(a *app.App, fixedSlug string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !a.Settings.Bool("allow_user_rule_profile") {
 			httpx.Fail(c, httpx.Forbidden("rule profile customization is disabled"))
 			return
+		}
+		slug := fixedSlug
+		if p := c.Param("slug"); p != "" {
+			slug = p
 		}
 		raw, err := c.GetRawData()
 		if err != nil {
@@ -95,6 +143,19 @@ func putRuleProfile(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
+		u := auth.CurrentUser(c)
+		var present map[string]json.RawMessage
+		if json.Unmarshal(raw, &present) == nil && present["nodes"] == nil {
+			// Clients that do not know node operations (older SPA builds) must not wipe them.
+			_, stored, err := engine.StoredProfileSlug(c.Request.Context(), a, cat, u.ID, slug)
+			if err != nil {
+				httpx.Fail(c, profileErr(err))
+				return
+			}
+			if stored != nil {
+				p.Nodes = stored.Nodes
+			}
+		}
 		if err := rulesets.ValidateProfile(cat, p); err != nil {
 			httpx.Fail(c, err)
 			return
@@ -104,13 +165,12 @@ func putRuleProfile(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		u := auth.CurrentUser(c)
-		if err := engine.SaveProfile(c.Request.Context(), a, u.ID, data); err != nil {
-			httpx.Fail(c, err)
+		if err := engine.SaveProfileSlug(c.Request.Context(), a, u.ID, slug, data); err != nil {
+			httpx.Fail(c, profileErr(err))
 			return
 		}
-		httpx.Logger(c).Info("rule profile updated", "user_id", u.ID, "template", p.Template)
-		v, err := profileView(c, a, cat)
+		httpx.Logger(c).Info("rule profile updated", "user_id", u.ID, "slug", slug, "template", p.Template)
+		v, err := profileView(c, a, cat, slug)
 		if err != nil {
 			httpx.Fail(c, err)
 			return

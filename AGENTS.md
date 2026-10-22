@@ -177,7 +177,7 @@ deploy/                 Dockerfile、compose、systemd、nginx 示例
 | 规则集来源 | `internal/subscription/rulesets/catalog.json` | blackmatrix7, Loyalsoldier, MetaCubeX, ACL4SSR, SagerNet(sing-geosite/geoip), DustinWin |
 | 验证码 | `internal/captcha/captcha.go`（`captcha.Register`） | none, turnstile, recaptcha, hcaptcha |
 | 数据导入 | `internal/cli`（`cli.Register` 注册子命令） | `import xboard`（legacy 分表 / upstream 统一表） |
-| 定时任务 | `internal/app/app.go`（`app.RegisterJob`，见 `docs/ARCHITECTURE.md`） | online_cleanup, traffic_flush（`internal/app`）；order_timeout, commission_settle（`service/order`）；traffic_reset, expire_remind, traffic_remind, stats_daily（`service/maintenance`） |
+| 定时任务 | `internal/app/app.go`（`app.RegisterJob`，见 `docs/ARCHITECTURE.md`） | online_cleanup, traffic_flush（`internal/app`）；order_timeout, commission_settle（`service/order`）；traffic_reset, expire_remind, traffic_remind, stats_daily（`service/maintenance`）；subscription_access_flush, subscription_access_prune（`subscription/guard`） |
 | 邮件驱动 | `internal/mail/mailer.go`（`mail.FromSettings` 按 `email_driver` 选择，非 registry） | smtp, log |
 | 节点对接协议 | `internal/api/node/`（同一包内两组路由，非 registry） | xrayr(UniProxy, V2bX 超集), soga-v1 |
 

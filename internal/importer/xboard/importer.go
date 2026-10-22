@@ -103,6 +103,10 @@ var targetTables = []struct {
 	{"ticket_messages", &model.TicketMessage{}},
 	{"tickets", &model.Ticket{}},
 	{"rule_profiles", &model.RuleProfile{}},
+	// Keyed by user id like the second factors below: a leftover age key would encrypt the subscription of
+	// the imported user that receives the same id.
+	{"subscription_keys", &model.SubscriptionKey{}},
+	{"subscription_access", &model.SubscriptionAccess{}},
 	// Second factors are keyed by user id: --force re-creates users with Xboard's ids, so a leftover passkey
 	// would sign in as the imported user that receives the same id.
 	{"passkeys", &model.Passkey{}},

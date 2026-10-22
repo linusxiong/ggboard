@@ -91,6 +91,7 @@ func FromTemplate(c *subscription.Catalog, t subscription.Template, def Defaults
 		GeoIPCNDirect: t.GeoIPCNDirect,
 		Mirror:        MirrorDefault,
 		DNS:           subscription.DNSDefault,
+		Nodes:         subscription.NodeOps{}.Normalized(),
 	}
 }
 
@@ -148,6 +149,7 @@ func DecodeProfile(c *subscription.Catalog, raw []byte, def Defaults) (subscript
 	if p.DNS == "" {
 		p.DNS = base.DNS
 	}
+	p.Nodes = p.Nodes.Normalized()
 	return p, nil
 }
 
@@ -178,6 +180,7 @@ func ValidateProfile(c *subscription.Catalog, p subscription.RuleProfile) error 
 	if !slices.Contains(dnsModes, p.DNS) {
 		errs.add("dns", "must be one of: "+strings.Join(dnsModes, ", "))
 	}
+	validateNodeOps(p.Nodes, errs)
 	return errs.err()
 }
 
@@ -215,7 +218,7 @@ func ResolveProfile(c *subscription.Catalog, stored *subscription.RuleProfile, d
 		}
 		p = FromTemplate(c, t, def)
 		if stored != nil {
-			p.Source, p.Mirror, p.DNS = stored.Source, stored.Mirror, stored.DNS
+			p.Source, p.Mirror, p.DNS, p.Nodes = stored.Source, stored.Mirror, stored.DNS, stored.Nodes
 		}
 	case stored != nil:
 		p = *stored
