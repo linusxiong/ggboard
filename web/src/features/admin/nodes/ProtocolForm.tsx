@@ -529,8 +529,18 @@ function TuicFields() {
     <>
       <Section title={tp('sections.basics')}>
         <Grid>
-          <PSelect path="congestion_control" label={tp('congestion')} options={opts(TUIC_CONGESTION)} fallback="bbr" />
-          <PSelect path="udp_relay_mode" label={tp('udpRelay')} options={opts(TUIC_UDP_RELAY)} fallback="native" />
+          <PSelect
+            path="congestion_control"
+            label={tp('congestion')}
+            options={opts(TUIC_CONGESTION)}
+            fallback="bbr"
+          />
+          <PSelect
+            path="udp_relay_mode"
+            label={tp('udpRelay')}
+            options={opts(TUIC_UDP_RELAY)}
+            fallback="native"
+          />
         </Grid>
         <PSwitch path="zero_rtt_handshake" label={tp('zeroRtt')} />
       </Section>

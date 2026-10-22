@@ -219,7 +219,8 @@ function AddDialog({ onClose }: { onClose: () => void }) {
         else if (err.status === 401 || err.fieldError('credential') || err.fieldError('challenge_id'))
           setError(t('passkeys.verifyFailed'))
         // 400 without field errors from `begin`: the site has no WebAuthn RP (app_url is not a domain).
-        else if (err.status === 400 && Object.keys(err.errors).length === 0) setError(t('passkeys.notConfigured'))
+        else if (err.status === 400 && Object.keys(err.errors).length === 0)
+          setError(t('passkeys.notConfigured'))
         else setError(mapError(err).form ?? mapError(err).name)
       } else if (kind === 'cancelled') setNotice(t('passkeys.cancelled'))
       else if (kind === 'duplicate') setError(t('passkeys.duplicate'))

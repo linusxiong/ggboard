@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/prerender.mjs",
     "preview": "vite preview",
     "preview:mock": "vite preview --mode lighthouse",
     "typecheck": "node scripts/gen-routes.mjs && tsc -b",
@@ -19,9 +19,11 @@
     "format:check": "prettier --check .",
     "test": "node scripts/gen-routes.mjs && vitest run",
     "test:watch": "vitest",
-    "lh": "vite build && lhci autorun --config=./lighthouserc.cjs",
-    "lh:mobile": "vite build && LH_PRESET=mobile lhci autorun --config=./lighthouserc.cjs",
-    "routes": "node scripts/gen-routes.mjs"
+    "lh": "pnpm build && pnpm run lh:desktop && pnpm run lh:mobile",
+    "lh:mobile": "LH_PRESET=mobile lhci autorun --config=./lighthouserc.cjs",
+    "routes": "node scripts/gen-routes.mjs",
+    "lh:desktop": "LH_PRESET=desktop lhci autorun --config=./lighthouserc.cjs",
+    "ui:smoke": "node scripts/ui-smoke.mjs"
   },
   "dependencies": {
     "@heroui/react": "3.2.6",

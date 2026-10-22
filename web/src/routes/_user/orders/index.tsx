@@ -9,7 +9,7 @@ import { PageShell } from '@/components/PageShell'
 import { orderColumns } from '@/features/orders/columns'
 import { isOrderStatus, ORDER_FILTERS, ORDER_STATUS_KEY } from '@/features/orders/status'
 import { loadNamespaces, useT } from '@/i18n'
-import { guestConfigQuery, ordersQuery } from '@/lib/api/queries'
+import { ordersQuery } from '@/lib/api/queries'
 import type { OrderStatus } from '@/lib/api/types'
 import { buttonClass } from '@/lib/button'
 import { errorMessage } from '@/lib/errors'
@@ -30,11 +30,14 @@ export const Route = createFileRoute('/_user/orders/')({
       ...(search.status !== undefined && search.status !== '' && isOrderStatus(status) ? { status } : {}),
     }
   },
-  loader: ({ context }) =>
-    Promise.all([
+  // Loaders stay in the entry chunk (only components are split): import the query factories lazily.
+  loader: async ({ context }) => {
+    const q = await import('@/lib/api/queries')
+    return Promise.all([
       loadNamespaces(['orders', 'common']),
-      context.queryClient.query({ ...guestConfigQuery(), staleTime: 'static' }).catch(() => null),
-    ]),
+      context.queryClient.query({ ...q.guestConfigQuery(), staleTime: 'static' }).catch(() => null),
+    ])
+  },
   component: OrdersPage,
 })
 

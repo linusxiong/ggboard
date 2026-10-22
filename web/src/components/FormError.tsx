@@ -10,7 +10,7 @@ export function FormError({
   return (
     <p
       role="alert"
-      className={className ?? 'rounded-[10px] bg-danger-soft px-3 py-2 text-footnote text-label-red'}
+      className={className ?? 'rounded-[10px] bg-danger-soft px-3 py-2 text-footnote text-label-red-soft'}
     >
       {message}
     </p>

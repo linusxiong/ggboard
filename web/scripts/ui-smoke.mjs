@@ -16,12 +16,32 @@ import path from 'node:path'
 import puppeteer from 'puppeteer-core'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:18090'
-const CHROME =
-  process.env.CHROME_PATH ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-const ADMIN = { email: process.env.ADMIN_EMAIL ?? 'admin@example.com', password: process.env.ADMIN_PASSWORD ?? 'Passw0rd!!' }
-const USER = { email: process.env.USER_EMAIL ?? 'user@example.com', password: process.env.USER_PASSWORD ?? 'Passw0rd!!' }
+const CHROME = process.env.CHROME_PATH ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+const ADMIN = {
+  email: process.env.ADMIN_EMAIL ?? 'admin@example.com',
+  password: process.env.ADMIN_PASSWORD ?? 'Passw0rd!!',
+}
+const USER = {
+  email: process.env.USER_EMAIL ?? 'user@example.com',
+  password: process.env.USER_PASSWORD ?? 'Passw0rd!!',
+}
 const args = new Set(process.argv.slice(2))
 const quick = args.has('--quick')
+// --axe: run axe-core (the engine behind Lighthouse accessibility; resolved from the lighthouse dependency
+// tree) on every page and report violations.
+const axeSource = args.has('--axe')
+  ? fs.readFileSync(
+      path.join(
+        path.dirname(fs.realpathSync(path.join(import.meta.dirname, '..', 'node_modules', '.pnpm'))),
+        '.pnpm',
+        fs
+          .readdirSync(path.join(import.meta.dirname, '..', 'node_modules', '.pnpm'))
+          .find((d) => d.startsWith('axe-core@')),
+        'node_modules/axe-core/axe.min.js',
+      ),
+      'utf8',
+    )
+  : null
 const only = [...args].find((a) => a.startsWith('--only='))?.slice(7)
 
 async function api(method, p, body, token) {
@@ -103,7 +123,11 @@ const LEAK_SCRIPT = () => {
     const t = n.textContent.trim()
     if (!t || n.parentElement?.closest('script,style,pre,code,textarea,[data-allow-raw]')) continue
     const host = /^[\w-]+(\.[\w-]+)*\.(com|org|net|io|top|cc|cn|dev|app)$/.test(t) || /^go\d/.test(t)
-    if ((key.test(t) && !host && !t.includes('@')) || (placeholder.test(t) && !t.includes('://') && !/ · /.test(t))) out.push(t)
+    if (
+      (key.test(t) && !host && !t.includes('@')) ||
+      (placeholder.test(t) && !t.includes('://') && !/ · /.test(t))
+    )
+      out.push(t)
   }
   // a form label that is still the raw setting / field key ("passkey_rp_id")
   for (const l of document.querySelectorAll('label,[data-slot=label]')) {
@@ -133,13 +157,25 @@ try {
     for (const v of variants) {
       const ctx = await browser.createBrowserContext()
       const page = await ctx.newPage()
-      await page.setViewport({ width: v.width, height: v.width < 768 ? 812 : 900, isMobile: v.width < 768, hasTouch: v.width < 768 })
+      await page.setViewport({
+        width: v.width,
+        height: v.width < 768 ? 812 : 900,
+        isMobile: v.width < 768,
+        hasTouch: v.width < 768,
+      })
       await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: v.theme }])
       const sess = role === 'admin' ? admin : role === 'user' ? user : null
       await page.evaluateOnNewDocument(
         (s, locale) => {
-          localStorage.setItem('gg-ui', JSON.stringify({ state: { theme: 'system', locale, sidebarCollapsed: false }, version: 1 }))
-          if (s) localStorage.setItem('gg-auth', JSON.stringify({ state: { token: s.token, user: s.user }, version: 1 }))
+          localStorage.setItem(
+            'gg-ui',
+            JSON.stringify({ state: { theme: 'system', locale, sidebarCollapsed: false }, version: 1 }),
+          )
+          if (s)
+            localStorage.setItem(
+              'gg-auth',
+              JSON.stringify({ state: { token: s.token, user: s.user }, version: 1 }),
+            )
         },
         sess,
         v.locale,
@@ -151,24 +187,41 @@ try {
       })
       page.on('pageerror', (e) => add('pageerror', String(e).slice(0, 300)))
       page.on('requestfailed', (r) => {
-        if (!r.failure()?.errorText.includes('ERR_ABORTED')) add('requestfailed', `${r.url()} ${r.failure()?.errorText}`)
+        if (!r.failure()?.errorText.includes('ERR_ABORTED'))
+          add('requestfailed', `${r.url()} ${r.failure()?.errorText}`)
       })
       page.on('response', (r) => {
         const u = r.url()
-        if (r.status() >= 400 && !(current === '/nope-404' && !u.includes('/api/'))) add(`http ${r.status()}`, u.replace(BASE, ''))
+        if (r.status() >= 400 && !(current === '/nope-404' && !u.includes('/api/')))
+          add(`http ${r.status()}`, u.replace(BASE, ''))
       })
       for (const p of list) {
         current = p
-        await page.goto(BASE + p, { waitUntil: 'networkidle0', timeout: 30000 }).catch((e) => add('goto', String(e)))
+        await page
+          .goto(BASE + p, { waitUntil: 'networkidle0', timeout: 30000 })
+          .catch((e) => add('goto', String(e)))
         await new Promise((r) => setTimeout(r, 400))
         const landed = new URL(page.url()).pathname
-        if (landed !== new URL(BASE + p).pathname) add('redirect', `→ ${landed}`)
+        const expected = p === '/admin' ? '/admin/dashboard' : new URL(BASE + p).pathname
+        if (landed !== expected) add('redirect', `→ ${landed}`)
         const leaks = await page.evaluate(LEAK_SCRIPT)
         if (leaks.length) add('i18n', leaks.join(' | '))
+        if (axeSource) {
+          await page.evaluate(axeSource)
+          const violations = await page.evaluate(async () => {
+            const r = await window.axe.run(document, { resultTypes: ['violations'] })
+            return r.violations.map((v) => {
+              const n = v.nodes[0]
+              const why = (n?.any?.[0] ?? n?.all?.[0] ?? n?.none?.[0])?.message ?? ''
+              return `${v.id}(${v.nodes.length}): ${n?.html?.slice(0, 140)} — ${why.slice(0, 160)}`
+            })
+          })
+          for (const v of violations) add('axe', v)
+        }
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
         if (overflow > 1) add('overflow-x', `${overflow}px`)
         const title = await page.title()
-        if (!title || title === 'GG Bond' && p !== '/') add('title', JSON.stringify(title))
+        if (!title || (title === 'GG Bond' && p !== '/')) add('title', JSON.stringify(title))
         if (shotsDir) {
           const name = `${role}${p.replace(/[/?=]+/g, '_')}-${v.locale}-${v.theme}-${v.width}.png`
           fs.mkdirSync(shotsDir, { recursive: true })
@@ -191,6 +244,8 @@ for (const f of findings) {
   grouped.set(k, g)
 }
 for (const g of grouped.values())
-  console.log(`[${g.kind}] ${g.role} ${g.page} :: ${g.detail}  (${g.variants.length === variants.length ? 'all' : g.variants.join(',')})`)
+  console.log(
+    `[${g.kind}] ${g.role} ${g.page} :: ${g.detail}  (${g.variants.length === variants.length ? 'all' : g.variants.join(',')})`,
+  )
 console.log(`${grouped.size} distinct findings`)
 process.exit(grouped.size ? 1 : 0)

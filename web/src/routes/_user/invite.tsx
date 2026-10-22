@@ -13,8 +13,8 @@ import { InviteLinkCard } from '@/features/invite/InviteLinkCard'
 import { useFormatMoney } from '@/features/shop/site'
 import { SiteMoney } from '@/features/shop/SiteMoney'
 import { loadNamespaces, type TFunction, useT } from '@/i18n'
-import { userApi } from '@/lib/api'
-import { commissionsQuery, guestConfigQuery, inviteQuery, qk } from '@/lib/api/queries'
+import * as userApi from '@/lib/api/user'
+import { commissionsQuery, inviteQuery, qk } from '@/lib/api/queries'
 import type { CommissionLog } from '@/lib/api/types'
 import { errorMessage } from '@/lib/errors'
 import { toast } from '@/lib/toast'
@@ -30,12 +30,15 @@ export const Route = createFileRoute('/_user/invite')({
     const page = Number(search.page)
     return Number.isInteger(page) && page > 1 ? { page } : {}
   },
-  loader: ({ context }) =>
-    Promise.all([
+  // Loaders stay in the entry chunk (only components are split): import the query factories lazily.
+  loader: async ({ context }) => {
+    const q = await import('@/lib/api/queries')
+    return Promise.all([
       loadNamespaces(['invite', 'common']),
-      context.queryClient.query({ ...inviteQuery(), staleTime: 'static' }),
-      context.queryClient.query({ ...guestConfigQuery(), staleTime: 'static' }).catch(() => null),
-    ]),
+      context.queryClient.query({ ...q.inviteQuery(), staleTime: 'static' }),
+      context.queryClient.query({ ...q.guestConfigQuery(), staleTime: 'static' }).catch(() => null),
+    ])
+  },
   component: InvitePage,
 })
 

@@ -8,8 +8,13 @@ with `AGENTS.md`, `MISTAKES.md` and `docs/FRONTEND.md` (verified library cheat s
 pnpm install
 pnpm dev                 # http://localhost:5173, /api → http://localhost:8080 (GGBOARD_API=… to override)
 pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm lh   # quality gates — all must pass
-pnpm preview:mock        # serve dist/ with fixture API (demo login: any email/password)
-pnpm lh:mobile           # Lighthouse with mobile emulation (informational, see "Performance")
+pnpm build               # vite build + scripts/prerender.mjs (public routes; needs Chrome, else skipped)
+pnpm preview:mock        # serve dist/ like the Go server, with fixture API (demo login: any email/password)
+pnpm lh                  # build, then Lighthouse desktop AND mobile on /, /login, /register, /forgot (asserts 100s)
+LH_BASE=http://127.0.0.1:18090 pnpm lh:mobile           # same against a running Go binary
+LH_BASE=… LH_TARGET=auth pnpm lh:desktop                 # signed-in /dashboard, /subscription (LH_USER/LH_PASSWORD)
+BASE=http://127.0.0.1:18090 pnpm ui:smoke --axe          # crawl every page: console/network errors, i18n leaks, overflow, axe
+BASE=http://127.0.0.1:18090 node scripts/screenshots.mjs # README screenshots → ../docs/screenshots
 pnpm format              # prettier
 ```
 
@@ -179,7 +184,9 @@ No hex colors in components. Dark mode follows the OS; `useUiStore().setTheme('l
 
 ## Performance rules (AGENTS §6)
 
-- **First-load budget: ≤ 120 KB gzip JS** for landing/login. Current: landing ≈ 109 KB, login ≈ 111 KB (incl. dictionaries).
+- **First-load budget: ≤ 120 KB gzip JS** for landing/login. Current (2026-10-22): entry graph 111.8 KB; with route chunk,
+  dictionaries and boot module landing ≈ 121 KB, login ≈ 122 KB, register/forgot ≈ 120 KB. The public pages are
+  prerendered, so this JS no longer gates their first paint (it loads after it).
   Fixed cost: React 19 (67 KB) + TanStack Router (26 KB). Check with `pnpm build` (sum the chunks a page loads).
 - Public pages use native elements with HeroUI CSS classes (`NativeButton`, `NativeField`, `buttonClass`, inline icons in
   `components/icons/inline.tsx`) and no React Query; HeroUI React components, React Aria, lucide and React Query load with
@@ -190,16 +197,27 @@ No hex colors in components. Dark mode follows the OS; `useUiStore().setTheme('l
   animations after idle (`useAnimationsReady`, `WhenIdle`). Give async content a fixed-size placeholder (CLS 0).
 - Vendor groups (`vite.config.ts` → `rolldownOptions.output.codeSplitting.groups`): `react`, `tanstack`, `tanstack-query`,
   `heroui` (entries-aware), plus app groups. **No new dependency without need** — check the bundle impact.
-- Lighthouse: `pnpm lh` (desktop preset) asserts 100/100/100/100 on `/`, `/login`, `/register` (served like the Go server:
-  brotli + immutable assets, fixture API). Mobile emulation (`pnpm lh:mobile`) scores 94–95 performance with
-  a11y/BP/SEO 100: an SPA's FCP/LCP on simulated slow 4G is bound by the framework JS; reaching 100 there needs
-  prerendered HTML for the public routes (future work).
+- Lighthouse: `pnpm lh` asserts 100/100/100/100 on `/`, `/login`, `/register`, `/forgot` with the desktop AND the mobile
+  preset (served like the Go server: prerendered pages, brotli + immutable assets, fixture API).
+- Prerendering (`scripts/prerender.mjs`, part of `pnpm build`): headless Chrome renders each public route once
+  (`window.__GG_PRERENDER__`: main.tsx waits for the route and hands over the first committed markup) and writes
+  `dist/<route>/index.html`; the plain shell becomes `dist/spa.html` (deep links). Snapshot pages load only CSS and
+  `assets/boot-*.js`, which imports the app after the snapshot's LCP entry — Lighthouse's simulation counts every
+  request started before the first paint, and React replacing nodes before Chrome reports them moves LCP to the swap.
+  The client never hydrates (a client snapshot has client `useId`s): it renders the complete route in its first commit
+  (`router.load()` first), carries typed values over (`lib/snapshot.ts`) and replaces the snapshot in one frame.
+  Rules: keep the first commit of a public route free of Suspense fallbacks and data that differs from a fresh install
+  (the fixture `scripts/fixtures/guest-config.json` = backend defaults); anything visible in the first phone viewport
+  must be in the route chunk (a lazily revealed block becomes a later LCP candidate — hence `-landing/Features.tsx`).
+- Route loaders and route-option code stay in the entry chunk: import query factories / API modules lazily there and
+  never import the `@/lib/api` barrel in a route file (the code splitter leaves a bare import behind → React Query in
+  every page). Check `grep -o 'import"./[^"]*"' dist/assets/index-*.js` after adding a loader.
 
 ## Assumptions about the backend
 
 - Admin "login as" URL is `/login?token=<one-time token>` (handled by the login page → `POST /passport/login/token`).
 - Invite links: `/register?code=<invite code>`. Payment return: `/orders/<trade_no>` (route exists).
-- Static server: SPA fallback to `index.html` (no-cache), `.br`/`.gz` + `immutable` for `/assets/*`.
+- Static server: `<path>/index.html` (prerendered) when present, else SPA fallback to `spa.html` → `index.html` (no-cache); `.br`/`.gz` + `immutable` for `/assets/*`.
 
 ## Tooling notes
 

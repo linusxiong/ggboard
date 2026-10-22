@@ -91,6 +91,36 @@ function serveAsset(distDir: string, req: IncomingMessage, res: ServerResponse):
   return true
 }
 
+/**
+ * HTML like internal/static: `/login` → dist/login/index.html (prerendered snapshot, scripts/prerender.mjs),
+ * `/` → dist/index.html, any other SPA path → dist/spa.html (the plain shell) when present. While
+ * prerendering (`GG_PRERENDER_SHELL_ONLY=1`) every path gets the plain shell.
+ */
+function serveHtml(distDir: string, req: IncomingMessage, res: ServerResponse): boolean {
+  const pathname = decodeURIComponent(new URL(req.url ?? '/', 'http://localhost').pathname)
+  if (pathname.startsWith('/api/') || pathname.startsWith('/assets/') || path.extname(pathname)) return false
+  const clean = pathname.replace(/\/+$/, '')
+  const candidates =
+    process.env.GG_PRERENDER_SHELL_ONLY === '1'
+      ? ['spa.html', 'index.html']
+      : clean === ''
+        ? ['index.html']
+        : [`${clean.slice(1)}/index.html`, 'spa.html', 'index.html']
+  for (const rel of candidates) {
+    const file = path.join(distDir, rel)
+    if (!file.startsWith(distDir) || !existsSync(file)) continue
+    const br = /\bbr\b/.test(String(req.headers['accept-encoding'] ?? '')) && existsSync(`${file}.br`)
+    res.statusCode = 200
+    res.setHeader('Content-Type', MIME['.html'] ?? 'text/html')
+    res.setHeader('Cache-Control', 'no-cache')
+    res.setHeader('Vary', 'Accept-Encoding')
+    if (br) res.setHeader('Content-Encoding', 'br')
+    res.end(readFileSync(br ? `${file}.br` : file))
+    return true
+  }
+  return false
+}
+
 export function productionPreview(): Plugin {
   return {
     name: 'ggboard:production-preview',
@@ -100,6 +130,7 @@ export function productionPreview(): Plugin {
       server.middlewares.use((req, res, next) => {
         if (mock && mockApi(req, res)) return
         if (serveAsset(distDir, req, res)) return
+        if (serveHtml(distDir, req, res)) return
         if (req.url && !req.url.startsWith('/assets/') && !path.extname(req.url.split('?')[0] ?? '')) {
           res.setHeader('Cache-Control', 'no-cache')
         }

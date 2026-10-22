@@ -13,6 +13,7 @@ export default function NotFoundPage() {
   }, [t])
   return (
     <main id="main" className="flex min-h-[70dvh] items-center justify-center px-4">
+      <h1 className="sr-only">{`404 · ${t('states.notFound')}`}</h1>
       <EmptyState
         icon={<Compass className="size-7" strokeWidth={1.75} />}
         title={<span className="text-title2">{t('states.notFound')}</span>}

@@ -69,7 +69,7 @@ function CustomEditorInner({ custom, catalog }: CustomEditorProps) {
     <div className="flex flex-col gap-4">
       <div className="surface-card flex flex-col gap-3 p-5">
         <div>
-          <h3 className="text-headline text-label">{t('rulesets.customTitle')}</h3>
+          <h2 className="text-headline text-label">{t('rulesets.customTitle')}</h2>
           <p className="mt-1 text-subhead text-label-secondary">{t('rulesets.customHint')}</p>
         </div>
         <TextAreaInput

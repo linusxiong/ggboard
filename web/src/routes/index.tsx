@@ -8,6 +8,7 @@ import { useCssVar } from '@/hooks/useCssVar'
 import { loadNamespaces, useT } from '@/i18n'
 import { getGuestConfig, getGuestPlans, withDeadline } from '@/lib/publicData'
 import { buttonClass } from '@/lib/button'
+import { Features } from './-landing/Features'
 import { useAuthStore } from '@/stores/auth'
 
 export const Route = createFileRoute('/')({
@@ -71,8 +72,9 @@ function LandingPage() {
 
       <main id="main" className="flex-1">
         <Hero signedIn={signedIn} />
-        {/* Reserved height keeps the footer from jumping while the sections chunk loads (CLS 0). */}
-        <Suspense fallback={<div className="min-h-[1400px]" aria-hidden="true" />}>
+        <Features />
+        {/* Reserved height keeps the footer from jumping while the plans chunk loads (CLS 0). */}
+        <Suspense fallback={<div className="min-h-[880px]" aria-hidden="true" />}>
           <LandingSections signedIn={signedIn} currency={config?.currency} symbol={config?.currency_symbol} />
         </Suspense>
       </main>

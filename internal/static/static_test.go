@@ -160,3 +160,53 @@ func TestMountWithFrontendDir(t *testing.T) {
 		t.Fatalf("embedded dist: %v", err)
 	}
 }
+
+// web/scripts/prerender.mjs writes the landing snapshot to index.html, the public routes to <route>/index.html
+// and keeps the plain shell as spa.html: deep links get the shell, never the landing snapshot.
+func TestPrerenderedRoutesAndShellFallback(t *testing.T) {
+	fsys := dist()
+	fsys["index.html"] = &fstest.MapFile{Data: []byte("<!doctype html><title>LANDING</title>")}
+	fsys["index.html.br"] = &fstest.MapFile{Data: []byte("BR-LANDING")}
+	fsys["login/index.html"] = &fstest.MapFile{Data: []byte("<!doctype html><title>LOGIN</title>")}
+	fsys["login/index.html.br"] = &fstest.MapFile{Data: []byte("BR-LOGIN")}
+	fsys["register/index.html"] = &fstest.MapFile{Data: []byte("<!doctype html><title>REGISTER</title>")}
+	fsys["spa.html"] = &fstest.MapFile{Data: []byte("<!doctype html><title>SHELL</title>")}
+	e := router(t, fsys)
+
+	cases := []struct{ path, accept, body string }{
+		{"/", "", "<!doctype html><title>LANDING</title>"},
+		{"/", "br", "BR-LANDING"},
+		{"/login", "", "<!doctype html><title>LOGIN</title>"},
+		{"/login", "gzip, br", "BR-LOGIN"},
+		{"/login/", "", "<!doctype html><title>LOGIN</title>"},
+		{"/login?redirect=%2Fdashboard", "", "<!doctype html><title>LOGIN</title>"},
+		{"/register", "br", "<!doctype html><title>REGISTER</title>"}, // no .br sibling → identity
+		{"/dashboard", "", "<!doctype html><title>SHELL</title>"},
+		{"/admin/nodes", "br", "<!doctype html><title>SHELL</title>"},
+		{"/login/extra", "", "<!doctype html><title>SHELL</title>"},
+	}
+	for _, tc := range cases {
+		r := get(t, e, tc.path, tc.accept)
+		if r.code != http.StatusOK || r.body != tc.body {
+			t.Errorf("GET %s (%s) = %d %q", tc.path, tc.accept, r.code, r.body)
+			continue
+		}
+		if r.h.Get("Cache-Control") != static.CacheNoCache || r.h.Get("Content-Security-Policy") != static.CSP ||
+			!strings.HasPrefix(r.h.Get("Content-Type"), "text/html") {
+			t.Errorf("GET %s headers = %v", tc.path, r.h)
+		}
+	}
+	// API paths never fall back to HTML; missing assets stay 404.
+	if r := get(t, e, "/api/v1/nope", ""); r.code != http.StatusNotFound || strings.Contains(r.body, "<title>") {
+		t.Fatalf("api = %d %q", r.code, r.body)
+	}
+	if r := get(t, e, "/assets/missing-AbCd.js", ""); r.code != http.StatusNotFound {
+		t.Fatalf("asset = %d", r.code)
+	}
+	// Without spa.html (prerender skipped) every SPA path gets index.html, as before.
+	delete(fsys, "spa.html")
+	e = router(t, fsys)
+	if r := get(t, e, "/dashboard", ""); r.code != http.StatusOK || r.body != "<!doctype html><title>LANDING</title>" {
+		t.Fatalf("fallback without shell = %d %q", r.code, r.body)
+	}
+}

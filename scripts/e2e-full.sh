@@ -532,4 +532,22 @@ code="$(curl -sS -o /dev/null -w '%{http_code}' "$BASE/.well-known/passkey-endpo
 [[ "$code" == 200 ]] || fail "passkey-endpoints → $code"
 ok "SPA routes, no-cache HTML, /api 404, well-known"
 
+# Prerendered public routes (web/scripts/prerender.mjs), when the embedded dist has them.
+login_html="$(curl -sS "$BASE/login")"
+if grep -q 'name="gg-preload"' <<<"$login_html"; then
+	grep -q '<form method="post"' <<<"$login_html" || fail "/login snapshot form is not inert"
+	grep -q '<button type="submit" disabled=""' <<<"$login_html" || fail "/login snapshot submit is not disabled"
+	grep -q 'src="/assets/boot-' <<<"$login_html" || fail "/login has no boot module"
+	! grep -q 'rel="modulepreload"' <<<"$login_html" || fail "/login snapshot must not modulepreload the app"
+	for p in / /register /forgot; do
+		curl -sS "$BASE$p" | grep -q '<div id="root"><' || fail "$p is not prerendered"
+	done
+	for p in /dashboard /admin/nodes /login/extra; do
+		curl -sS "$BASE$p" | grep -q '<div id="root"></div>' || fail "$p must get the plain shell (spa.html)"
+	done
+	ok "prerendered /, /login, /register, /forgot (inert forms, boot module); deep links get the plain shell"
+else
+	echo "  -- embedded dist is not prerendered: prerender checks skipped"
+fi
+
 echo "e2e-full OK ($PASS groups passed) — user $USER_EMAIL / $USER_PASSWORD, admin $ADMIN_EMAIL"

@@ -41,8 +41,11 @@ describe('import deep links', () => {
     expect(bare).toEqual({ server_remote: [list] })
     const plain = 'https://panel.example.com/api/v1/client/subscribe?token=t0k'
     expect(
-      (JSON.parse(decodeURIComponent(importLink('quantumultx', plain).slice(prefix.length))) as { server_remote: string[] })
-        .server_remote[0],
+      (
+        JSON.parse(decodeURIComponent(importLink('quantumultx', plain).slice(prefix.length))) as {
+          server_remote: string[]
+        }
+      ).server_remote[0],
     ).toBe(`${plain}&flag=quantumultx&list=1`)
   })
 

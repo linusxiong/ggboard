@@ -108,6 +108,10 @@
   --color-label-green: var(--label-green);
   --color-label-orange: var(--label-orange);
   --color-label-red: var(--label-red);
+  --color-label-blue-soft: var(--label-blue-soft);
+  --color-label-green-soft: var(--label-green-soft);
+  --color-label-orange-soft: var(--label-orange-soft);
+  --color-label-red-soft: var(--label-red-soft);
 
   --color-canvas: var(--bg-grouped);
   --color-elevated: var(--bg-grouped-secondary);
@@ -180,6 +184,12 @@
   --label-green: #1e7434;
   --label-orange: #c93400;
   --label-red: #d70015;
+  /* Text on soft tints (HeroUI *-soft surfaces = 15–20% of the tint over a card or the canvas): the plain
+     label tints drop to 3.0–4.3:1 there, these keep >= 4.6:1 up to the 20% hover mix. */
+  --label-blue-soft: #0058b8;
+  --label-green-soft: #1d7233;
+  --label-orange-soft: #ba3000;
+  --label-red-soft: #ae0011;
 
   --fill: rgb(120 120 128 / 0.2);
   --fill-secondary: rgb(120 120 128 / 0.16);
@@ -236,10 +246,10 @@
   --field-foreground: var(--label);
   --field-placeholder: var(--label-secondary);
   --field-border: transparent;
-  --accent-soft-foreground: var(--label-blue);
-  --success-soft-foreground: var(--label-green);
-  --warning-soft-foreground: var(--label-orange);
-  --danger-soft-foreground: var(--label-red);
+  --accent-soft-foreground: var(--label-blue-soft);
+  --success-soft-foreground: var(--label-green-soft);
+  --warning-soft-foreground: var(--label-orange-soft);
+  --danger-soft-foreground: var(--label-red-soft);
   --surface-shadow: var(--card-shadow);
   --overlay-shadow: var(--float-shadow);
   --field-shadow: none;
@@ -281,6 +291,10 @@
     --label-green: #30d158;
     --label-orange: #ff9f0a;
     --label-red: #ff6961;
+    --label-blue-soft: #5facff;
+    --label-green-soft: #30d158;
+    --label-orange-soft: #ffa00d;
+    --label-red-soft: #ff817b;
     --fill: rgb(120 120 128 / 0.36);
     --fill-secondary: rgb(120 120 128 / 0.32);
     --fill-tertiary: rgb(118 118 128 / 0.24);
@@ -333,6 +347,10 @@
   --label-green: #30d158;
   --label-orange: #ff9f0a;
   --label-red: #ff6961;
+  --label-blue-soft: #5facff;
+  --label-green-soft: #30d158;
+  --label-orange-soft: #ffa00d;
+  --label-red-soft: #ff817b;
   --fill: rgb(120 120 128 / 0.36);
   --fill-secondary: rgb(120 120 128 / 0.32);
   --fill-tertiary: rgb(118 118 128 / 0.24);

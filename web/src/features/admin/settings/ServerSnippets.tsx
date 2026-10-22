@@ -43,7 +43,11 @@ export function ServerSnippets({ appUrl, token, revealed }: ServerSnippetsProps)
         {tabs.map((tab) => (
           <Tabs.Panel key={tab.id} id={tab.id} className="pt-3">
             <div className="relative">
-              <pre className="overflow-x-auto rounded-[12px] bg-fill-quaternary p-4 pe-12 font-mono text-footnote leading-5 text-label">
+              {/* Focusable so keyboard users can scroll long lines (axe scrollable-region-focusable). */}
+              <pre
+                tabIndex={0}
+                className="overflow-x-auto rounded-[12px] bg-fill-quaternary p-4 pe-12 font-mono text-footnote leading-5 text-label focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
+              >
                 <code>{shown[tab.id]}</code>
               </pre>
               <div className="absolute end-2 top-2">

@@ -10,7 +10,7 @@ import { parseTicketId } from '@/features/tickets/meta'
 import { ReplyBox } from '@/features/tickets/ReplyBox'
 import { TicketThread } from '@/features/tickets/TicketThread'
 import { loadNamespaces, useT } from '@/i18n'
-import { userApi } from '@/lib/api'
+import * as userApi from '@/lib/api/user'
 import { qk, ticketQuery } from '@/lib/api/queries'
 import { buttonClass } from '@/lib/button'
 import { errorMessage } from '@/lib/errors'
@@ -20,11 +20,12 @@ import { toast } from '@/lib/toast'
 const REFRESH_MS = 20_000
 
 export const Route = createFileRoute('/_user/tickets/$id')({
-  loader: ({ context, params }) =>
-    Promise.all([
-      loadNamespaces(['tickets', 'common']),
-      context.queryClient.query(ticketQuery(parseTicketId(params.id))),
-    ]),
+  // Loaders stay in the entry chunk (only components are split): import the query factories lazily.
+  loader: async ({ context, params }) => {
+    const id = parseTicketId(params.id)
+    const q = await import('@/lib/api/queries')
+    return Promise.all([loadNamespaces(['tickets', 'common']), context.queryClient.query(q.ticketQuery(id))])
+  },
   component: TicketDetailPage,
 })
 

@@ -102,11 +102,22 @@ See `AGENTS.md` §7 for the table.
 - `web/` builds to `web/dist` (Vite). The Go build embeds `web/dist` via `internal/static` (`//go:embed all:dist`, copied by `make web`).
 - Assets are served with `Cache-Control: public, max-age=31536000, immutable` (hashed names), `index.html` with `no-cache`.
 - Brotli/gzip precompressed files served when `Accept-Encoding` allows (`vite-plugin-compression2` emits `.br`/`.gz`).
-- `GET /` and unknown paths fall back to `index.html` (SPA). `/api/*` never falls back.
+- Public routes are prerendered at build time (`web/scripts/prerender.mjs`, run by `pnpm build` when a Chrome/Chromium
+  binary is available — the Docker web stage installs Chromium): `/` → `index.html`, `/login` → `login/index.html`,
+  `/register`, `/forgot`. `internal/static` serves `<path>/index.html` when present and falls back to `spa.html` (the
+  plain shell) for every other SPA path, else `index.html`; HTML is always `no-cache` + CSP. `/api/*` never falls back.
+- A snapshot page paints before any JS: it loads only CSS plus a tiny `assets/boot-*.js`, which starts the app after the
+  first paint has been reported; the app waits for the matched route and replaces the snapshot with an identical tree
+  in one commit (no hydration — see `web/src/main.tsx`). Snapshot forms are inert (`method="post"`, submit disabled)
+  until then, and typed values are carried over.
 
 ## Testing
 - Unit tests next to code. API tests use `testutil.NewTestApp(t)` → private SQLite file in `t.TempDir()` (WAL, so concurrency behaves
   like production; an in-memory DB with one connection deadlocks on legitimate nested reads), default settings, in-memory mailbox;
   `testutil.NewRouterWith(t, app, pkg.Register)` builds the engine; `testutil.Login(t, app, user)` returns a JWT. See `docs/BACKEND.md`.
 - `make test` runs `go test ./... -race`; `make e2e` builds the frontend, starts the server on a random port and runs the smoke script in `scripts/e2e.sh`.
-- Frontend: `vitest` for utils/stores; Lighthouse via `@lhci/cli` against `vite preview` (see `web/lighthouserc.cjs`).
+- `make e2e` = `scripts/e2e.sh` (smoke) + `scripts/e2e-full.sh` (API flows: register/login/order/paid/push/subscribe in
+  every format/rule profile/ticket/MFA/admin CRUD, prerendered delivery). `BASE=… scripts/e2e-full.sh` seeds a running server.
+- Frontend: `vitest` for utils/stores; Lighthouse via `@lhci/cli` (`pnpm lh`: desktop + mobile presets, see
+  `web/lighthouserc.cjs`; `LH_BASE=` for the Go binary, `LH_TARGET=auth` for signed-in pages); `pnpm ui:smoke` crawls
+  every page of a running server for console errors, failed requests, i18n leaks, overflow and axe violations.

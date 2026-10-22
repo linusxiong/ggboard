@@ -8,18 +8,21 @@ import type { CheckoutSelection } from '@/features/shop/CheckoutSheet'
 import { PlanCard } from '@/features/shop/PlanCard'
 import { ResetTrafficCard } from '@/features/shop/ResetTrafficCard'
 import { loadNamespaces, useT } from '@/i18n'
-import { guestConfigQuery, userPlansQuery } from '@/lib/api/queries'
+import { userPlansQuery } from '@/lib/api/queries'
 import { useAuthStore } from '@/stores/auth'
 
 const CheckoutSheet = lazy(() => import('@/features/shop/CheckoutSheet'))
 
 export const Route = createFileRoute('/_user/shop')({
-  loader: ({ context }) =>
-    Promise.all([
+  // Loaders stay in the entry chunk (only components are split): import the query factories lazily.
+  loader: async ({ context }) => {
+    const q = await import('@/lib/api/queries')
+    return Promise.all([
       loadNamespaces(['shop', 'common']),
-      context.queryClient.query({ ...userPlansQuery(), staleTime: 'static' }),
-      context.queryClient.query({ ...guestConfigQuery(), staleTime: 'static' }).catch(() => null),
-    ]),
+      context.queryClient.query({ ...q.userPlansQuery(), staleTime: 'static' }),
+      context.queryClient.query({ ...q.guestConfigQuery(), staleTime: 'static' }).catch(() => null),
+    ])
+  },
   component: ShopPage,
 })
 

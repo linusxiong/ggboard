@@ -541,3 +541,65 @@
 - **根因**：空表单提交后，`requestAnimationFrame` 才去找 `[aria-invalid="true"]` 并聚焦。如果在这一帧内用户已经开始在邮箱框输入，邮箱框的错误先被清掉，于是“第一个无效字段”变成了密码框。CPU 越忙，这个竞态越容易出现，真实用户快速输入时也可能遇到。
 - **修复**：记录提交时的 `document.activeElement`，rAF 回调中如果焦点已经变化就不再抢焦点（`src/hooks/useLiteForm.ts`，最小改动）。
 - **规则**：异步（rAF、setTimeout、await 之后）移动焦点前，先确认焦点仍在原位置。测试只在并行时失败，要先打印实际 DOM 状态再下结论，不要直接加大超时。
+
+### 1. （E2E 集成）FE-1 #1 的坑被后来的功能路由原样重犯，React Query 又进了公开页首屏
+- **现象**：合并全部前端分支后，落地页入口静态 JS 从约 109 KB 涨到 124 KB gzip（超 120 KB 预算），
+  `dist/index.html` 多了 `tanstack-query` 与 `queries` 两个 modulepreload；构建日志里一直有 `INEFFECTIVE_DYNAMIC_IMPORT`。
+- **根因**：两处叠加。① shop / invite / orders / orders/$tradeNo / tickets/$id 的 `loader` 直接调用顶层静态导入的
+  query 工厂（`userPlansQuery()` 等），loader 留在入口 chunk；② invite、tickets/$id 从 `@/lib/api` 桶文件导入
+  `userApi`——TanStack 代码分割器把只给组件用的绑定挪走后，**入口里留下一条裸 `import "@/lib/api"`**，桶文件连带
+  `admin.ts`、`queries.ts` 与 React Query 一起被求值。
+- **修复**：loader 内 `const q = await import('@/lib/api/queries')`；路由文件直接导入 `@/lib/api/user`；
+  vite.config 新增低优先级 `queries` 分组，防止被提升进入口。入口回到 111.8 KB。
+- **规则**：路由文件里除 `component` 外的代码只能用入口已有或零依赖模块，**永远不要在路由文件导入桶文件**。
+  每次合并后执行 `grep -o 'import"./[^"]*"' dist/assets/index-*.js`（裸导入）并按页面统计首屏 JS。
+
+### 2. （E2E 集成）预渲染后移动端 LCP 没有变化：React 替换节点、Lantern 统计首绘前的请求
+- **现象**：公开页加了预渲染快照，移动端 Lighthouse 仍是 91–95；本地观测 FCP 36 ms，但 LCP 56 ms，
+  模拟 FCP 恒为 1951 ms。
+- **根因**：① Chrome 还没报告快照那一帧的 LCP 候选，React（createRoot）就把节点换掉了，LCP 落到替换后的同尺寸元素上；
+  ② Lantern 的悲观图把“观测 FCP 之前**开始**的所有请求”算进 FCP/LCP，Vite 注入的 modulepreload 在 HTML 解析时就全部开始了；
+  ③ 落地页 Features 区块是懒加载的，手机首屏里它比 hero 文本大，成为 392 ms 的新 LCP。
+- **修复**：快照页只保留 CSS 与一个 `assets/boot-*.js`，收到第一条 LCP（Safari：FCP+50 ms）后才加载应用；
+  应用先 `router.load()` 再一次性提交完整页面；Features 改为路由内静态组件。移动端四页 100。
+- **规则**：预渲染不等于首屏快：用 `PerformanceObserver('largest-contentful-paint')` 确认 LCP 时间点等于 FCP，
+  并看 Lighthouse `network-requests` 里哪些请求开始于观测 FCP 之前。手机首屏可见的内容不得懒加载。
+  客户端快照不能 `hydrateRoot`（客户端 `useId` 与水合格式不同，属性不匹配在生产环境静默保留，会让
+  `aria-describedby` 指向不存在的 id）。
+
+### 3. （E2E 集成）IP 形式的 `app_url` 让通行密钥接口 500
+- **现象**：`app_url=http://127.0.0.1:18090` 时 `POST /user/security/passkeys/begin` 返回 500，`/guest/config` 却报告
+  `passkey_enabled: true`，前端显示可点的“添加通行密钥”。
+- **根因**：RP ID 直接取 `app_url` 的主机名，go-webauthn 在配置校验阶段拒绝 IP（"must be a domain and not an IP"），
+  被包装成 `httpx.Internal`。
+- **修复**：IP 形式的 RP ID 视为“未配置”（400 + `passkey_enabled=false`），并加测试；前端按 `passkey_enabled` 禁用入口并本地化提示。
+- **规则**：第三方库的配置校验错误属于“功能不可用”，不是 500；派生配置（RP ID、回调域名）要覆盖 IP、localhost、带端口三种输入。
+
+### 4. （E2E 集成）类型声明合并掩盖了“公开 catalog”与“完整 catalog”的形状差异
+- **现象**：用户端分流规则里每个来源都显示“覆盖 0 / 32 个分类”，回退来源提示从不出现；单测全绿。
+- **根因**：公开 catalog 的分类是 `sources: [...]`（契约 docs/SUBSCRIPTION.md），前端类型却写成完整 catalog 的
+  `rules: {source: ref}`；单测读取的是仓库里的完整 `catalog.json`，所以永远测不到真实接口返回的形状。
+- **修复**：`categorySources()` 兼容两种形状，类型补上 `sources?`/`clients?`，新增“公开形状”测试。
+- **规则**：前端单测的夹具必须来自**接口返回**（或按契约构造），不能直接读后端的内部数据文件；
+  同名类型出现两套形状时拆成两个类型名，不要靠声明合并。
+
+### 5. （E2E 集成）对比度只在纯色背景上验证过，soft 色块上的文字不达标
+- **现象**：axe/Lighthouse 报 color-contrast：`bg-accent-soft` 上的 `text-label-blue` 4.25:1，`danger-soft`
+  按钮 4.09:1（hover 3.69:1），暗色模式同样 3.9:1。
+- **根因**：`--label-*` 是按白底与 #F2F2F7 校验的；HeroUI 的 soft 背景是 15%（hover 20%）的着色叠加，没人按叠加后的颜色算。
+- **修复**：新增 `--label-{blue,green,orange,red}-soft`（浅色 / 深色各一套，覆盖 20% hover 仍 ≥ 4.6:1），
+  HeroUI `*-soft-foreground` 指向它们。
+- **规则**：改任何前景色或 soft/tint 背景时，按“背景色 × 透明度叠加到卡片与画布”计算最差对比度；
+  `pnpm ui:smoke --axe` 两种主题都要跑。
+
+### 6. （E2E 集成）先 `queryClient.clear()` 再离开页面，退出登录多出一个 401
+- **现象**：在个人中心退出登录，控制台出现 `GET /user/me 401`。
+- **根因**：`clear()` 时 profile 页的 `useQuery(meQuery())` 仍挂载，缓存被清空后立即无 token 重新请求。
+- **修复**：先 `navigate('/login')`（卸载外壳），再 `clear()`。
+- **规则**：清缓存、换会话之类的全局操作放在离开受保护区域之后；检查控制台是否出现“登出后的请求”。
+
+### 7. （E2E 集成）lhci 的 `puppeteerScript` 相对路径按 cwd 解析
+- **现象**：`puppeteerScript: path.join(__dirname, …)` 报 `Cannot find module '<cwd>/<abs path>'`。
+- **根因**：lhci 把该值与 `process.cwd()` 拼接，不识别绝对路径。
+- **修复**：写成 `'./scripts/lh-login.cjs'`，从 `web/` 运行。
+- **规则**：lhci 配置里的文件路径一律写相对 `web/` 的路径，并实际跑一次对应模式。
