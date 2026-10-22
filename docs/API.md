@@ -25,7 +25,7 @@ Ticket {"id","user_id","subject","level","status","reply_status","created_at","u
 ## Guest 🔓 (`/guest`)
 | method | path | req | res |
 |---|---|---|---|
-| GET | `/guest/config` | — | `{app_name, app_description, app_url, logo, tos_url, currency, currency_symbol, register_enabled, email_verify, email_whitelist_suffix[], invite_force, captcha:{provider:"none|turnstile|recaptcha|hcaptcha", site_key}, downloads:{windows:{url,version},macos:{...},android:{...},ios:{...}}, locales:["zh-CN","en"]}` |
+| GET | `/guest/config` | — | `{app_name, app_description, app_url, logo, tos_url, currency, currency_symbol, register_enabled, email_verify, email_whitelist_suffix[], invite_force, captcha:{provider:"none|turnstile|recaptcha|hcaptcha", site_key}, downloads:{windows:{url,version},macos:{...},android:{...},ios:{...}}, locales:["zh-CN","en"]}` — `email_whitelist_suffix` is `[]` unless `email_whitelist_enable`; the captcha secret is never returned |
 | GET | `/guest/plans` | — | `[Plan]` where show=true & sell=true (prices only; no capacity leak) |
 | ANY | `/guest/payment/notify/:gateway/:uuid` | gateway-specific | gateway-specific body (plugin returns it) |
 | GET | `/guest/payment/return/:trade_no` | — | 302 → `/orders/:trade_no` |
@@ -39,8 +39,14 @@ Ticket {"id","user_id","subject","level","status","reply_status","created_at","u
 | POST | `/passport/forgot` | `{email*, email_code*, password*}` | `true` |
 | POST | `/passport/email/send-code` | `{email*, captcha?}` | `true` (60s cooldown per email, 10/h per IP) |
 | POST | `/passport/login/token` | `{token*}` one-time login token (from admin "login as") | `{token, user}` |
-Rules: `stop_register` → 403; `email_whitelist_enable`; `invite_force` requires valid invite code; `try_out_plan_id` grants trial on register;
-password limit lockout (`password_limit_*`); register-by-ip limit.
+Rules: `stop_register` → 403; `email_whitelist_enable` (exact domain match, else 400 on `email`); `invite_force` requires valid invite code (400 on `invite_code`);
+a valid code sets `invite_user_id` and is consumed (`status=true`) when `invite_never_expire=false` (unknown codes are ignored unless forced);
+`try_out_plan_id` grants trial on register (plan/group/limits, `transfer_enable` = GB×1024³, `expired_at` = now + `try_out_hour` h, `next_reset_at`);
+password limit lockout (`password_limit_*`, per email, also counts wrong `old_password` on `/user/password`) → 429; register-by-ip limit → 429; duplicate email → 409.
+Login: wrong credentials 401, banned 403. Every 429 carries `Retry-After` (seconds). All passport routes: 30 requests/min per IP.
+Email codes: 6 digits, valid 10 min, single use, discarded after 5 wrong guesses; one `send-code` serves both register and forgot (the response is `true`
+whether or not the email is registered); 400 on `email_code` when missing or invalid. Captcha (when `captcha_provider != none`) is checked on
+register, login and send-code: 400 on `captcha`. `/forgot` with a valid code for an unregistered email → 400 on `email`.
 
 ## User 🔑 (`/user`)
 ### Account
@@ -48,12 +54,12 @@ password limit lockout (`password_limit_*`); register-by-ip limit.
 |---|---|---|---|
 | GET | `/user/me` | — | `User` |
 | PATCH | `/user/me` | `{remind_expire?, remind_traffic?}` | `User` |
-| POST | `/user/password` | `{old_password*, new_password*}` | `true` (bumps password_version) |
-| GET | `/user/stats` | — | `{pending_orders, open_tickets, notices_count, invite_count, commission_pending}` |
-| GET | `/user/subscription` | — | `{subscribe_url, token, plan, transfer_enable, u, d, expired_at, next_reset_at, reset_day, device_limit, speed_limit}` |
-| POST | `/user/subscription/reset` | — | `{subscribe_url, token}` (new uuid + token) |
+| POST | `/user/password` | `{old_password*, new_password*(min 8)}` | `true` (bumps password_version; wrong `old_password` → 400) |
+| GET | `/user/stats` | — | `{pending_orders, open_tickets, notices_count, invite_count, commission_pending}` (`commission_pending` = Σ `commission_balance` of paid orders — status processing/completed/discounted — invited by me with `commission_status` pending/processing) |
+| GET | `/user/subscription` | — | `{subscribe_url, token, plan, transfer_enable, u, d, expired_at, next_reset_at, reset_day, device_limit, speed_limit}` (`plan` is `{id,name}` or null) |
+| POST | `/user/subscription/reset` | — | `{subscribe_url, token, auth_token}` (new uuid + token; the reset bumps password_version, so `auth_token` is the caller's new session JWT) |
 | GET | `/user/subscription/preview?client=clash&...` | same query as client subscribe | `text/plain` body of generated config |
-| GET | `/user/traffic-logs` | `page`, `page_size` | `[{record_at, node_id, node_name, rate, u, d}]` |
+| GET | `/user/traffic-logs` | `page`, `page_size` | `[{record_at:"YYYY-MM-DD", node_id, node_name, rate, u, d}]` newest first; `node_name` is null for unknown/deleted nodes |
 | GET | `/user/nodes` | — | `[{id,name,type,tags,rate,host,port,is_online,sort}]` (host/port only when `show_info_to_user`=true; default true) |
 | POST | `/user/logout` | — | `true` (client discards; server no-op) |
 ### Rule profile

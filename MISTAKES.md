@@ -192,3 +192,22 @@
 - **根因**：jsdom 的 DOMException 不继承 Error，`err instanceof Error ? err.name : ''` 拿不到 `TimeoutError`。
 - **修复**：改为按结构读取 `name`（`'name' in err`）。
 - **规则**：判断 fetch/abort 的错误类型时，按 `name` 判断，不要依赖 `instanceof Error`。
+
+## 2026-10-22
+
+### 1. （BE-A 认证）测试预期和自己设计的计数规则对不上
+- **现象**：`TestChangePassword` 先输错一次旧密码，再改密成功，然后只再输错一次，就预期下一次请求返回 429。实际返回 200。
+- **根因**：`ChangePassword` 成功后会调用 `ClearPasswordFailures` 清零失败计数（这是有意设计）。写测试时忘了这一点，把改密前的那次失败也算了进去。
+- **修复**：改密成功后重新输错 `password_limit_count` 次，再断言 429 和 `Retry-After`。
+- **规则**：测试计数、限流、锁定这类有状态逻辑之前，先列出哪些操作会让计数增加、哪些会清零，按这张表写断言。
+
+### 2. （BE-A 认证）slog 直接记录指针字段，日志里只有内存地址
+- **现象**：`Info("user registered", "invite_user_id", u.InviteUserID)` 中的 `*uint64` 被 slog 打印成 `0xc000…`。
+- **根因**：slog 对指针不会解引用，按 `%v` 输出地址。
+- **修复**：先解引用到局部变量（nil 记为 0）再记录。
+- **规则**：可空模型字段（`*uint64`、`*time.Time`）写日志前先解引用，或改用布尔 / 零值。
+
+### 3. （BE-A 认证）在 Markdown 表格单元格里写了 `|`
+- **现象**：给 docs/API.md 的表格加上 `plan:{id,name}|null`、`node_name|null` 后，GFM 会在 `|` 处拆分单元格，即使 `|` 在反引号里也一样。
+- **修复**：改成文字说明，例如“`plan` is `{id,name}` or null”。
+- **规则**：表格单元格内不写裸 `|`，确实需要时用 `\|` 转义。改完契约文档后要预览表格。已有的 `"none|turnstile|…"` 也有同样的问题，留给文档负责人统一处理。
