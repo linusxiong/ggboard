@@ -17,7 +17,7 @@ upstream projects' own published examples, which confirms the algorithms.
 
 ## 0. Contract notes (errors and gaps in `PAYMENTS.md`)
 
-`PAYMENTS.md` was **not** edited. The integrator should fold these points into it.
+These points have been folded into `PAYMENTS.md` (2026-10-22, BE-C); the list is kept as the rationale.
 
 1. **The `coinbase` row is obsolete.** Coinbase merged Commerce into **Coinbase Business**. After the
    transition deadline of **2026-03-31** the Commerce dashboard closed and new charges can't be created (Coinbase
@@ -701,3 +701,16 @@ BTCPay-Sig: sha256=f1a2d817b438106a73e851ffee748de61af0666fb1038809ca63cbdc4d7fe
 - **`Notify`:** paid; every no-op event → `(nil, resp, nil)`; bad signature → `err`; stale timestamp (Stripe,
   Coinbase); foreign `payment_uuid`/`storeId`/`app_id`/`pid` → ack without a result.
 - **Alipay:** generate an RSA-2048 key in the test; cover PKCS#1/PKCS#8 × PEM/bare-base64 parsing.
+
+## 9. Implementation notes (ggboard, 2026-10-22)
+- **Epusdt** sends only the vector's fields (+ `fiat` for non-CNY sites); `name`/`timeout` are not sent because legacy
+  epusdt verifies a signature over its own fixed field set.
+- **Stripe** `payment_methods=auto` sends `payment_method_options[wechat_pay][client]=web` and retries once without it
+  when Stripe answers 400 about `wechat_pay`. `NotifyResult.Amount` is reported only for a 1:1 rate in a two-decimal
+  currency (otherwise 0, so the caller skips the amount check). `customer_email` is not sent.
+- **Coinbase** reports `Amount` only when `exchange_rate` is empty or 1.
+- **BTCPay** reports `Amount = cents(invoice.amount)` (invoices are created in the site currency); `server_url` must
+  be https.
+- **EPay/Epusdt** accept `http://` base URLs with a WARN; every other gateway requires https.
+- Gateway structs expose test hooks (`Client`, `Endpoint`/`BaseURL`/`BackendURL`, `Now`, Stripe `Tolerance`); the
+  registered instances use the defaults.
