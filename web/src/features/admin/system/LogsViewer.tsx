@@ -1,7 +1,8 @@
-import { Button, ToggleButton, ToggleButtonGroup } from '@heroui/react'
+import { Button } from '@heroui/react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronRight, RefreshCw } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
+import { SegmentedControl } from '@/components/SegmentedControl'
 import { DebouncedSearch } from '@/features/admin/orders/DebouncedSearch'
 import { SelectInput, SwitchInput } from '@/features/admin/settings/inputs/Controlled'
 import { useT } from '@/i18n'
@@ -66,29 +67,12 @@ export function LogsViewer() {
           </Button>
         </div>
         <div className="flex flex-wrap items-end gap-4">
-          <div className="flex flex-col gap-1">
-            <span id="log-level-label" className="text-subhead font-medium text-label">
-              {t('logs.level')}
-            </span>
-            <ToggleButtonGroup
-              aria-labelledby="log-level-label"
-              size="sm"
-              selectionMode="single"
-              disallowEmptySelection
-              selectedKeys={[level]}
-              onSelectionChange={(keys) => {
-                const next = [...keys][0] as LogLevelFilter | undefined
-                if (next) setLevel(next)
-              }}
-            >
-              {LOG_LEVELS.map((l, i) => (
-                <ToggleButton key={l} id={l}>
-                  {i > 0 ? <ToggleButtonGroup.Separator /> : null}
-                  {t(`logs.levels.${l}`)}
-                </ToggleButton>
-              ))}
-            </ToggleButtonGroup>
-          </div>
+          <SegmentedControl
+            label={t('logs.level')}
+            value={level}
+            onChange={setLevel}
+            items={LOG_LEVELS.map((l) => ({ id: l, label: t(`logs.levels.${l}`) }))}
+          />
           <SelectInput
             label={t('logs.limit')}
             name="log_limit"

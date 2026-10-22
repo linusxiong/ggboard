@@ -1,6 +1,7 @@
 import { Button } from '@heroui/react'
 import { RotateCcw } from 'lucide-react'
 import { useCallback } from 'react'
+import { SegmentedControl } from '@/components/SegmentedControl'
 import { SelectInput, TextInput } from '@/features/admin/settings/inputs/Controlled'
 import { useT } from '@/i18n'
 import type { AdminPlan, CommissionStatus, OrderStatus, Payment } from '@/lib/api/types'
@@ -29,7 +30,38 @@ export function OrderFilters({ value, onChange, plans, payments }: OrderFiltersP
 
   const allOption = { value: ALL, label: t('filters.all') }
   return (
-    <section aria-label={t('filters.title')} className="surface-card flex flex-col gap-3 p-4">
+    <section aria-label={t('filters.title')} className="surface-card flex flex-col gap-4 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <SegmentedControl
+          aria-label={t('filters.status')}
+          value={value.status === undefined ? ALL : String(value.status)}
+          onChange={(v) => onChange({ status: v === ALL ? undefined : (Number(v) as OrderStatus) })}
+          items={[
+            { id: ALL, label: t('filters.all') },
+            ...ORDER_STATUSES.map((s) => ({ id: String(s), label: t(`status.${s}`) })),
+          ]}
+        />
+        <Button
+          size="sm"
+          variant="tertiary"
+          isDisabled={active === 0}
+          onPress={() =>
+            onChange({
+              trade_no: undefined,
+              q: undefined,
+              status: undefined,
+              commission_status: undefined,
+              plan_id: undefined,
+              payment_id: undefined,
+              date_from: undefined,
+              date_to: undefined,
+            })
+          }
+        >
+          <RotateCcw className="size-4" aria-hidden />
+          {active > 0 ? t('filters.resetCount', { n: active }) : t('filters.reset')}
+        </Button>
+      </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <DebouncedSearch
           label={t('filters.tradeNo')}
@@ -43,15 +75,6 @@ export function OrderFilters({ value, onChange, plans, payments }: OrderFiltersP
           value={value.q}
           onCommit={commitQ}
           placeholder={t('filters.userPlaceholder')}
-        />
-        <SelectInput
-          label={t('filters.status')}
-          name="status"
-          value={value.status === undefined ? ALL : String(value.status)}
-          onChange={(v) =>
-            onChange({ status: v === null || v === ALL ? undefined : (Number(v) as OrderStatus) })
-          }
-          options={[allOption, ...ORDER_STATUSES.map((s) => ({ value: String(s), label: t(`status.${s}`) }))]}
         />
         <SelectInput
           label={t('filters.commission')}
@@ -95,28 +118,6 @@ export function OrderFilters({ value, onChange, plans, payments }: OrderFiltersP
           value={value.date_to ?? ''}
           onChange={(v) => onChange({ date_to: optDate(v) })}
         />
-      </div>
-      <div className="flex justify-end">
-        <Button
-          size="sm"
-          variant="tertiary"
-          isDisabled={active === 0}
-          onPress={() =>
-            onChange({
-              trade_no: undefined,
-              q: undefined,
-              status: undefined,
-              commission_status: undefined,
-              plan_id: undefined,
-              payment_id: undefined,
-              date_from: undefined,
-              date_to: undefined,
-            })
-          }
-        >
-          <RotateCcw className="size-4" aria-hidden />
-          {active > 0 ? t('filters.resetCount', { n: active }) : t('filters.reset')}
-        </Button>
       </div>
     </section>
   )

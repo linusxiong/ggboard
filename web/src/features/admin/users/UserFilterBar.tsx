@@ -2,6 +2,7 @@
 import { Button, Input, Label, ListBox, SearchField, Select, TextField } from '@heroui/react'
 import { useQuery } from '@tanstack/react-query'
 import { type FormEvent, type Key, useState } from 'react'
+import { SegmentedControl } from '@/components/SegmentedControl'
 import { useT } from '@/i18n'
 import { adminGroupsQuery, adminPlansQuery } from '@/lib/api/queries'
 import { activeFilterCount, type UserSearch } from './filters'
@@ -88,7 +89,42 @@ export function UserFilterBar({
   const total = activeFilterCount(search)
 
   return (
-    <div className="surface-card flex flex-col gap-3 p-4">
+    <div className="surface-card flex flex-col gap-4 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <SegmentedControl
+          aria-label={t('filters.status')}
+          value={search.banned === undefined ? ALL : search.banned ? 'banned' : 'normal'}
+          onChange={(v) => onChange({ banned: v === ALL ? undefined : v === 'banned' })}
+          items={[
+            { id: ALL, label: t('filters.anyStatus') },
+            { id: 'normal', label: t('filters.normal') },
+            { id: 'banned', label: t('filters.banned') },
+          ]}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="tertiary"
+            aria-expanded={showAdvanced}
+            onPress={() => setShowAdvanced((v) => !v)}
+          >
+            {advancedCount ? t('filters.advancedCount', { count: advancedCount }) : t('filters.advanced')}
+          </Button>
+          {total ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              onPress={() => {
+                setEmail('')
+                setDraft({ id: '', uuid: '', token: '', invite_user_id: '', remarks: '' })
+                onReset()
+              }}
+            >
+              {t('filters.reset', { count: total })}
+            </Button>
+          ) : null}
+        </div>
+      </div>
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
         <SearchField
           value={email}
@@ -126,16 +162,6 @@ export function UserFilterBar({
           onChange={(v) => onChange({ group_id: v ? Number(v) : undefined })}
         />
         <QuickSelect
-          label={t('filters.status')}
-          value={search.banned === undefined ? undefined : search.banned ? 'banned' : 'normal'}
-          options={[
-            all(t('filters.anyStatus')),
-            { value: 'normal', label: t('filters.normal') },
-            { value: 'banned', label: t('filters.banned') },
-          ]}
-          onChange={(v) => onChange({ banned: v === undefined ? undefined : v === 'banned' })}
-        />
-        <QuickSelect
           label={t('filters.role')}
           value={search.role}
           options={[
@@ -153,29 +179,6 @@ export function UserFilterBar({
           ]}
           onChange={(v) => onChange({ expired: v as UserSearch['expired'] })}
         />
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          size="sm"
-          variant="tertiary"
-          aria-expanded={showAdvanced}
-          onPress={() => setShowAdvanced((v) => !v)}
-        >
-          {advancedCount ? t('filters.advancedCount', { count: advancedCount }) : t('filters.advanced')}
-        </Button>
-        {total ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            onPress={() => {
-              setEmail('')
-              setDraft({ id: '', uuid: '', token: '', invite_user_id: '', remarks: '' })
-              onReset()
-            }}
-          >
-            {t('filters.reset', { count: total })}
-          </Button>
-        ) : null}
       </div>
       {showAdvanced ? (
         <form onSubmit={applyAdvanced} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6 lg:items-end">

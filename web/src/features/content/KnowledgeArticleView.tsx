@@ -16,9 +16,9 @@ const KnowledgeMarkdown = lazy(() => import('./KnowledgeMarkdown'))
 function BodySkeleton() {
   return (
     <div className="flex flex-col gap-2" aria-busy="true">
-      <div className="h-4 w-3/4 animate-pulse rounded bg-fill-tertiary" />
-      <div className="h-4 w-full animate-pulse rounded bg-fill-tertiary" />
-      <div className="h-4 w-5/6 animate-pulse rounded bg-fill-tertiary" />
+      <div className="h-4 w-3/4 shimmer rounded bg-fill-tertiary" />
+      <div className="h-4 w-full shimmer rounded bg-fill-tertiary" />
+      <div className="h-4 w-5/6 shimmer rounded bg-fill-tertiary" />
     </div>
   )
 }
@@ -30,7 +30,7 @@ export function KnowledgeArticleView({ id }: { id: ID }) {
   if (article.isPending) {
     return (
       <article className="flex flex-col gap-4" aria-busy="true">
-        <div className="h-7 w-1/2 animate-pulse rounded bg-fill-tertiary" />
+        <div className="h-7 w-1/2 shimmer rounded bg-fill-tertiary" />
         <BodySkeleton />
       </article>
     )

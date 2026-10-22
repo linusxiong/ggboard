@@ -2,8 +2,9 @@
 import { Button, Chip, Dropdown, Label, ListBox, SearchField, Select } from '@heroui/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
-import { BarChart3, Copy, Ellipsis, Eye, EyeOff, Pencil, Plus, Trash2, Users } from 'lucide-react'
+import { BarChart3, Copy, Ellipsis, Eye, EyeOff, Pencil, Plus, Server, Trash2, Users } from 'lucide-react'
 import { type Key, useMemo, useState } from 'react'
+import { EmptyState } from '@/components/EmptyState'
 import { createDataTableColumns, DataTable } from '@/components/data-table'
 import { confirm } from '@/components/feedback/confirm'
 import { PageShell } from '@/components/PageShell'
@@ -163,7 +164,7 @@ export function NodesPage() {
         col.display({
           id: 'order',
           header: () => <span className="sr-only">{t('nodes.columns.order')}</span>,
-          meta: { hideOnMobile: true, className: 'w-12' },
+          meta: { hideOnMobile: true, className: 'w-20' },
           cell: (c) => {
             const index = allIds.indexOf(c.row.original.id)
             return (
@@ -175,7 +176,6 @@ export function NodesPage() {
                 onMove={(dir) => reorderMutate(moveId(allIds, c.row.original.id, dir))}
                 upLabel={(name) => t('nodes.moveUp', { name })}
                 downLabel={(name) => t('nodes.moveDown', { name })}
-                vertical
               />
             )
           },
@@ -241,7 +241,10 @@ export function NodesPage() {
             const address = `${c.row.original.host}:${c.row.original.port}`
             return (
               <span className="flex flex-col whitespace-nowrap">
-                <span className="block max-w-36 truncate font-mono text-footnote text-label" title={address}>
+                <span
+                  className="block max-w-48 truncate font-mono text-footnote text-label md:max-w-36 xl:max-w-60"
+                  title={address}
+                >
                   {address}
                 </span>
                 <span className="text-caption text-label-secondary">
@@ -422,9 +425,7 @@ export function NodesPage() {
         isFetching={nodes.isFetching && !nodes.isPending}
         getRowId={(n) => String(n.id)}
         emptyState={
-          <p className="py-8 text-center text-subhead text-label-secondary">
-            {filtered ? t('nodes.noMatch') : t('nodes.empty')}
-          </p>
+          <EmptyState compact icon={<Server />} title={filtered ? t('nodes.noMatch') : t('nodes.empty')} />
         }
         rowActions={(n) => (
           <Dropdown>

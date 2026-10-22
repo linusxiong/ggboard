@@ -3,23 +3,14 @@
  * profile", and a menu for the active one (rename / duplicate / set default / delete). The active profile's
  * content is rendered in the tab panel by the page.
  */
-import {
-  Button,
-  Description,
-  Dropdown,
-  FieldError,
-  Input,
-  Label,
-  Modal,
-  Tabs,
-  TextField,
-} from '@heroui/react'
+import { Button, Description, Dropdown, FieldError, Input, Label, Modal, TextField } from '@heroui/react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Copy, Ellipsis, PenLine, Plus, Star, Trash2 } from 'lucide-react'
 import { type FormEvent, type ReactNode, useState } from 'react'
 import { FormError } from '@/components/FormError'
 import { confirm } from '@/components/feedback/confirm'
 import { ModalClose } from '@/components/feedback/ModalClose'
+import { SegmentedTabs } from '@/components/SegmentedControl'
 import { useT } from '@/i18n'
 import { isApiError } from '@/lib/api/client'
 import { qk } from '@/lib/api/queries'
@@ -115,32 +106,32 @@ export function ProfileTabs({ profiles, active, reserved, canManage, onSelect, c
 
   return (
     <>
-      <Tabs
-        selectedKey={tabKey(active)}
-        onSelectionChange={(key) => {
-          const next = profiles.find((p) => tabKey(p) === String(key))
+      <SegmentedTabs
+        optimistic={false}
+        value={tabKey(active)}
+        onChange={(key) => {
+          const next = profiles.find((p) => tabKey(p) === key)
           if (next && next !== active) onSelect(next)
         }}
         className="flex flex-col gap-4"
       >
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            {/* Keyed by the profile list: HeroUI's scroll-shadow state goes stale when tabs are removed. */}
-            <Tabs.ListContainer key={profiles.map(tabKey).join('|')} className="min-w-0 max-w-full">
-              <Tabs.List aria-label={t('profiles.tabs')}>
-                {profiles.map((p) => (
-                  <Tabs.Tab key={tabKey(p)} id={tabKey(p)}>
-                    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                      {p.is_default ? (
-                        <Star className="size-3.5 fill-current" aria-label={t('profiles.defaultBadge')} />
-                      ) : null}
-                      {label(p)}
-                    </span>
-                    <Tabs.Indicator />
-                  </Tabs.Tab>
-                ))}
-              </Tabs.List>
-            </Tabs.ListContainer>
+            <SegmentedTabs.List
+              aria-label={t('profiles.tabs')}
+              className="min-w-0"
+              items={profiles.map((p) => ({
+                id: tabKey(p),
+                label: (
+                  <>
+                    {p.is_default ? (
+                      <Star className="size-3.5 fill-current" aria-label={t('profiles.defaultBadge')} />
+                    ) : null}
+                    {label(p)}
+                  </>
+                ),
+              }))}
+            />
             {canManage ? (
               <div className="flex items-center gap-2">
                 <Button
@@ -192,10 +183,10 @@ export function ProfileTabs({ profiles, active, reserved, canManage, onSelect, c
           ) : null}
         </div>
 
-        <Tabs.Panel id={tabKey(active)} className="flex flex-col gap-6 p-0">
+        <SegmentedTabs.Panel id={tabKey(active)} className="flex flex-col gap-6">
           {children}
-        </Tabs.Panel>
-      </Tabs>
+        </SegmentedTabs.Panel>
+      </SegmentedTabs>
       {/* Outside <Tabs>: React events from the portal would otherwise bubble into the tab list's handlers. */}
       {dialog ? (
         <ProfileDialog
@@ -311,7 +302,7 @@ function ProfileDialog({
             <Modal.Heading>{title}</Modal.Heading>
           </Modal.Header>
           <form noValidate onSubmit={(e) => void submit(e)} className="contents">
-            <Modal.Body className="mt-2 flex flex-col gap-4">
+            <Modal.Body className="flex flex-col gap-4">
               <FormError message={formError} />
               <TextField
                 name="profile-name"

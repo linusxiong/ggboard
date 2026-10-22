@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { Download, Eye, Mail, Plus, UsersRound } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { EmptyState } from '@/components/EmptyState'
 import { createDataTableColumns, DataTable } from '@/components/data-table'
 import { PageShell } from '@/components/PageShell'
 import { useT } from '@/i18n'
@@ -200,17 +201,22 @@ export function UsersPage() {
       actions={
         canEdit ? (
           <>
-            <Button variant="secondary" onPress={() => setDialog('mail')}>
+            <Button variant="secondary" className="max-sm:px-3.5" onPress={() => setDialog('mail')}>
               <Mail className="size-4" aria-hidden="true" />
-              {t('toolbar.mail')}
+              <span className="max-sm:sr-only">{t('toolbar.mail')}</span>
             </Button>
-            <Button variant="secondary" isPending={exporting} onPress={() => void exportCsv()}>
+            <Button
+              variant="secondary"
+              className="max-sm:px-3.5"
+              isPending={exporting}
+              onPress={() => void exportCsv()}
+            >
               <Download className="size-4" aria-hidden="true" />
-              {t('toolbar.export')}
+              <span className="max-sm:sr-only">{t('toolbar.export')}</span>
             </Button>
-            <Button variant="secondary" onPress={() => setDialog('generate')}>
+            <Button variant="secondary" className="max-sm:px-3.5" onPress={() => setDialog('generate')}>
               <UsersRound className="size-4" aria-hidden="true" />
-              {t('toolbar.generate')}
+              <span className="max-sm:sr-only">{t('toolbar.generate')}</span>
             </Button>
             <Button onPress={() => setDialog('create')}>
               <Plus className="size-4" aria-hidden="true" />
@@ -243,7 +249,7 @@ export function UsersPage() {
         isLoading={users.isPending}
         isFetching={users.isFetching && !users.isPending}
         getRowId={(u) => String(u.id)}
-        emptyState={<p className="py-8 text-center text-subhead text-label-secondary">{t('empty')}</p>}
+        emptyState={<EmptyState compact icon={<UsersRound />} title={t('empty')} />}
         rowActions={(u) => (
           <>
             <Button

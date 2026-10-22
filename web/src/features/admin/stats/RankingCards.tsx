@@ -1,8 +1,10 @@
 import { Label, ListBox, Select } from '@heroui/react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
+import { ChartNoAxesColumn } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { createDataTableColumns, DataTable } from '@/components/data-table'
+import { EmptyState } from '@/components/EmptyState'
 import { useT } from '@/i18n'
 import type { NodeRanking, UserRanking } from '@/lib/api/types'
 import { localDate } from '../shared/datetime'
@@ -132,14 +134,14 @@ export function RankingCards({ fmt }: { fmt: Formatters }) {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h2 className="text-title3 text-label">{t('sections.ranking')}</h2>
         <div className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1 text-footnote text-label-secondary">
+          <label className="flex flex-col gap-1.5 text-[0.8125rem] leading-[1.125rem] font-semibold text-label-secondary">
             {t('rankingDate')}
             <input
               type="date"
               value={date}
               max={today}
               onChange={(e) => setDate(e.target.value || today)}
-              className="h-9 rounded-input border-[0.5px] border-hairline bg-elevated px-3 text-subhead text-label"
+              className="h-[var(--field-h)] rounded-input bg-fill-tertiary px-3 text-[length:var(--field-fs)] font-normal text-label transition-colors outline-none hover:bg-fill-secondary focus-visible:ring-2 focus-visible:ring-focus"
             />
           </label>
           <Select
@@ -148,7 +150,7 @@ export function RankingCards({ fmt }: { fmt: Formatters }) {
             onChange={(k) => k !== null && setLimit(String(k) as (typeof LIMITS)[number])}
             className="w-28"
           >
-            <Label className="text-footnote text-label-secondary">{t('limit')}</Label>
+            <Label>{t('limit')}</Label>
             <Select.Trigger>
               <Select.Value />
               <Select.Indicator />
@@ -176,7 +178,7 @@ export function RankingCards({ fmt }: { fmt: Formatters }) {
             isLoading={nodes.isPending}
             isFetching={nodes.isFetching && !nodes.isPending}
             getRowId={(r) => String(r.node_id)}
-            emptyState={<p className="py-8 text-center text-subhead text-label-secondary">{t('empty')}</p>}
+            emptyState={<EmptyState compact icon={<ChartNoAxesColumn />} title={t('empty')} />}
           />
         </div>
         <div className="flex flex-col gap-2">
@@ -188,7 +190,7 @@ export function RankingCards({ fmt }: { fmt: Formatters }) {
             isLoading={users.isPending}
             isFetching={users.isFetching && !users.isPending}
             getRowId={(r) => String(r.user_id)}
-            emptyState={<p className="py-8 text-center text-subhead text-label-secondary">{t('empty')}</p>}
+            emptyState={<EmptyState compact icon={<ChartNoAxesColumn />} title={t('empty')} />}
           />
         </div>
       </div>

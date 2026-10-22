@@ -55,7 +55,7 @@ export function QRCode({ value, size = 192, label, className }: QRCodeProps) {
       dangerouslySetInnerHTML={svg ? { __html: svg } : undefined}
     >
       {svg ? undefined : (
-        <div className={cx('size-full', failed ? 'bg-fill-tertiary' : 'animate-pulse bg-fill-quaternary')} />
+        <div className={cx('size-full', failed ? 'bg-fill-tertiary' : 'shimmer bg-fill-quaternary')} />
       )}
     </div>
   )

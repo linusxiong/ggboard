@@ -1,4 +1,4 @@
-import { Button, Tabs } from '@heroui/react'
+import { Button } from '@heroui/react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { LifeBuoy, Plus } from 'lucide-react'
@@ -7,6 +7,7 @@ import { createDataTableColumns, DataTable } from '@/components/data-table'
 import { EmptyState } from '@/components/EmptyState'
 import { DateTime } from '@/components/Formatters'
 import { PageShell } from '@/components/PageShell'
+import { SegmentedControl } from '@/components/SegmentedControl'
 import { TicketLevelChip, TicketStatusChip } from '@/features/tickets/labels'
 import { loadNamespaces, type TFunction, useT } from '@/i18n'
 import { ticketsQuery } from '@/lib/api/queries'
@@ -145,29 +146,17 @@ function TicketsPage() {
         </Button>
       }
     >
-      <Tabs
-        selectedKey={tab}
-        onSelectionChange={(key) => {
-          const value = String(key)
-          void navigate({ search: value === 'all' ? {} : { status: Number(value) as TicketStatus } })
-        }}
-      >
-        <Tabs.ListContainer>
-          <Tabs.List aria-label={t('list.filter')}>
-            {FILTERS.map((id) => (
-              <Tabs.Tab key={id} id={id}>
-                {t(`filter.${id}`)}
-                <Tabs.Indicator />
-              </Tabs.Tab>
-            ))}
-          </Tabs.List>
-        </Tabs.ListContainer>
-        {FILTERS.map((id) => (
-          <Tabs.Panel key={id} id={id} className="pt-4">
-            {table}
-          </Tabs.Panel>
-        ))}
-      </Tabs>
+      <div className="flex flex-col gap-4">
+        <SegmentedControl
+          aria-label={t('list.filter')}
+          value={tab}
+          onChange={(value) =>
+            void navigate({ search: value === 'all' ? {} : { status: Number(value) as TicketStatus } })
+          }
+          items={FILTERS.map((id) => ({ id, label: t(`filter.${id}`) }))}
+        />
+        {table}
+      </div>
 
       {dialogOpen ? (
         <Suspense fallback={null}>

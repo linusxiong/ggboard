@@ -142,7 +142,7 @@ function DashboardPage() {
               {t('traffic.error')}
             </p>
           ) : (
-            <div className="h-[180px] animate-pulse rounded-[12px] bg-fill-quaternary" aria-busy="true" />
+            <div className="h-[180px] shimmer rounded-[12px] bg-fill-quaternary" aria-busy="true" />
           )}
         </section>
         <div className="lg:col-span-2">

@@ -1,8 +1,9 @@
 /** `/admin/routes` — node routes (XrayR routes / soga audit rules). */
 import { Button, Chip } from '@heroui/react'
 import { useQuery } from '@tanstack/react-query'
-import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Route, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { EmptyState } from '@/components/EmptyState'
 import { createDataTableColumns, DataTable } from '@/components/data-table'
 import { confirm } from '@/components/feedback/confirm'
 import { PageShell } from '@/components/PageShell'
@@ -99,7 +100,7 @@ export function RoutesPage() {
         isLoading={routes.isPending}
         isFetching={routes.isFetching && !routes.isPending}
         getRowId={(r) => String(r.id)}
-        emptyState={<p className="py-8 text-center text-subhead text-label-secondary">{t('routes.empty')}</p>}
+        emptyState={<EmptyState compact icon={<Route />} title={t('routes.empty')} />}
         rowActions={(r) => (
           <>
             <Button

@@ -3,6 +3,64 @@
  * Same layer as theme.css' global part (`gg-overrides`, after HeroUI's `components`). Colors are
  * tokens only. Order: surfaces → controls → collections → overlays → feedback.
  */
+/* Signed-in-only tokens (light / OS dark / forced dark — keep the dark blocks in sync). Segmented control: grey
+   track, white pill (dark #636366 = --segment), hairline dividers. Skeleton shimmer highlight. */
+:root {
+  --segment-track: var(--fill-tertiary);
+  --segment-divider: rgb(60 60 67 / 0.22);
+  --segment-shadow: 0 3px 8px rgb(0 0 0 / 0.12), 0 3px 1px rgb(0 0 0 / 0.04), 0 0 0 0.5px rgb(0 0 0 / 0.04);
+  --shimmer-highlight: rgb(255 255 255 / 0.6);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --segment-track: var(--fill-secondary);
+    --segment-divider: rgb(235 235 245 / 0.18);
+    --segment-shadow: 0 3px 8px rgb(0 0 0 / 0.28), 0 0 0 0.5px rgb(0 0 0 / 0.12);
+    --shimmer-highlight: rgb(255 255 255 / 0.07);
+  }
+}
+:root[data-theme='dark'] {
+  --segment-track: var(--fill-secondary);
+  --segment-divider: rgb(235 235 245 / 0.18);
+  --segment-shadow: 0 3px 8px rgb(0 0 0 / 0.28), 0 0 0 0.5px rgb(0 0 0 / 0.12);
+  --shimmer-highlight: rgb(255 255 255 / 0.07);
+}
+
+/* Sheet spring (signed-in app only). */
+/* A gently damped spring (ζ 0.86, 0.4 s response, 0.5 % overshoot) for sheets and drawers; browsers without
+   `linear()` keep the ease-out curve (`var(--ease-spring, …)` at the use site). */
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --ease-spring: linear(
+      0,
+      0.044,
+      0.147,
+      0.275,
+      0.407,
+      0.53,
+      0.638,
+      0.729,
+      0.803,
+      0.861,
+      0.905,
+      0.938,
+      0.962,
+      0.979,
+      0.99,
+      0.997,
+      1.001,
+      1.004,
+      1.005,
+      1.005,
+      1.005,
+      1.004,
+      1.004,
+      1.003,
+      1
+    );
+  }
+}
+
 @layer gg-overrides {
   /* ------------------------------------------------------------------ surfaces */
   .card {
@@ -159,26 +217,199 @@
     padding-inline: 0;
   }
 
-  /* ------------------------------------------------------------------ tabs (segmented control) */
-  .tabs__list {
-    border-radius: 9px;
-    background-color: var(--fill-tertiary);
+  /* ------------------------------------------------------------------ segmented control
+     `<SegmentedControl>` / `<SegmentedTabs>` (components/SegmentedControl.tsx): hug-content grey track, 2 px
+     inset, 9 px radius; 32 / 28 px segments, 13 px semibold; one sliding white (dark #636366) pill; hairline
+     dividers that fade next to the pill; edge-faded horizontal scrolling when it does not fit. */
+  .gg-segmented-label {
+    font-size: 0.8125rem;
+    line-height: 1.125rem;
+    font-weight: 600;
+    letter-spacing: -0.006em;
+    color: var(--label-secondary);
+  }
+  .gg-segmented-scroll {
+    display: flex;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    /* Room for the pill shadow and the focus ring without changing the layout. */
+    padding-block: 4px;
+    margin-block: -4px;
+    --fade-start: 0px;
+    --fade-end: 0px;
+  }
+  .gg-segmented-scroll::-webkit-scrollbar {
+    display: none;
+  }
+  .gg-segmented-scroll[data-fade-start] {
+    --fade-start: 28px;
+  }
+  .gg-segmented-scroll[data-fade-end] {
+    --fade-end: 28px;
+  }
+  .gg-segmented-scroll[data-fade-start],
+  .gg-segmented-scroll[data-fade-end] {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent,
+      black var(--fade-start),
+      black calc(100% - var(--fade-end)),
+      transparent
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      black var(--fade-start),
+      black calc(100% - var(--fade-end)),
+      transparent
+    );
+  }
+  .gg-segmented {
+    --seg-h: 32px;
+    --seg-px: 14px;
+    --seg-divider-h: 16px;
+    position: relative;
+    isolation: isolate;
+    display: inline-flex;
+    flex: none;
     padding: 2px;
+    border-radius: 9px;
+    background-color: var(--segment-track);
   }
-  .tabs__tab {
-    min-height: 30px;
+  .gg-segmented[data-size='sm'] {
+    --seg-h: 28px;
+    --seg-px: 11px;
+    --seg-divider-h: 14px;
+  }
+  .gg-segmented[data-disabled] {
+    opacity: var(--disabled-opacity);
+  }
+  .gg-segmented__list {
+    display: flex;
+    align-items: stretch;
+  }
+  .gg-segmented__item {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: var(--seg-h);
+    min-width: 40px;
+    padding-inline: var(--seg-px);
     border-radius: 7px;
-    font-size: var(--text-subhead);
-    font-weight: 500;
+    font-size: 0.8125rem;
+    line-height: 1;
+    font-weight: 600;
+    letter-spacing: -0.006em;
+    white-space: nowrap;
     color: var(--label);
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      opacity 160ms var(--ease-apple-out),
+      background-color 160ms var(--ease-apple-out);
   }
-  .tabs__indicator {
+  .gg-segmented__item:focus-visible,
+  .gg-segmented__item[data-focus-visible] {
+    outline: 2px solid var(--focus);
+    outline-offset: 0;
+  }
+  /* Hairline dividers between segments; hidden next to the pill and next to a hovered segment. */
+  .gg-segmented__item + .gg-segmented__item::before {
+    content: '';
+    position: absolute;
+    inset-inline-start: -0.5px;
+    top: 50%;
+    width: 1px;
+    height: var(--seg-divider-h);
+    margin-top: calc(var(--seg-divider-h) / -2);
+    border-radius: 1px;
+    background-color: var(--segment-divider);
+    transition: opacity 200ms var(--ease-apple-out);
+  }
+  .gg-segmented__item[data-selected]::before,
+  .gg-segmented__item[data-selected] + .gg-segmented__item::before,
+  .gg-segmented__item[data-hovered]::before,
+  .gg-segmented__item[data-hovered] + .gg-segmented__item::before {
+    opacity: 0;
+  }
+  .gg-segmented__item[data-hovered]:not([data-selected], [data-disabled]) {
+    background-color: color-mix(in srgb, var(--segment) 45%, transparent);
+  }
+  .gg-segmented__item[data-pressed]:not([data-selected]) {
+    opacity: 0.6;
+  }
+  .gg-segmented:not([data-disabled]) .gg-segmented__item[data-disabled] {
+    opacity: var(--disabled-opacity);
+    cursor: default;
+  }
+  .gg-segmented__icon {
+    display: inline-flex;
+    flex: none;
+  }
+  .gg-segmented__icon svg {
+    width: 15px;
+    height: 15px;
+  }
+  .gg-segmented__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .gg-segmented__count {
+    display: inline-grid;
+    place-items: center;
+    min-width: 18px;
+    height: 18px;
+    padding-inline: 5px;
+    border-radius: 999px;
+    background-color: var(--fill-secondary);
+    color: var(--label);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0;
+  }
+  .gg-segmented__count[data-tone='accent'] {
+    background-color: var(--tint);
+    color: var(--tint-foreground);
+  }
+  /* The pill: measured onto the selected segment (`--seg-x`/`--seg-w`), slides once placed. */
+  .gg-segmented__pill {
+    position: absolute;
+    z-index: 0;
+    top: 2px;
+    bottom: 2px;
+    left: 0;
+    width: var(--seg-w, 0px);
     border-radius: 7px;
     background-color: var(--segment);
-    box-shadow:
-      0 3px 8px rgb(0 0 0 / 0.12),
-      0 3px 1px rgb(0 0 0 / 0.04),
-      0 0 0 0.5px rgb(0 0 0 / 0.04);
+    box-shadow: var(--segment-shadow);
+    transform: translateX(var(--seg-x, 0px)) scale(var(--seg-scale, 1));
+    pointer-events: none;
+  }
+  .gg-segmented__pill[data-hidden] {
+    opacity: 0;
+  }
+  .gg-segmented__pill[data-ready] {
+    transition:
+      transform 280ms var(--ease-apple-out),
+      width 280ms var(--ease-apple-out),
+      opacity 160ms var(--ease-apple-out);
+  }
+  .gg-segmented:has(.gg-segmented__item[data-selected][data-pressed]) .gg-segmented__pill {
+    --seg-scale: 0.96;
+  }
+  /* Tab panels: keep the default focus ring readable on cards. */
+  .gg-tab-panel:focus-visible {
+    border-radius: var(--radius-card);
   }
 
   /* ------------------------------------------------------------------ chips, tags, badges */
@@ -298,6 +529,7 @@
   }
   .modal__heading,
   .alert-dialog__heading {
+    overflow-wrap: anywhere;
     font-size: var(--text-title3);
     line-height: var(--text-title3--line-height);
     font-weight: 600;
@@ -313,6 +545,17 @@
   .modal__footer,
   .alert-dialog__footer {
     gap: 8px;
+  }
+  /* Title → content: 12 px, also when a <form> sits between header and body (MISTAKES #74 — HeroUI's spacing
+     is a sibling selector). */
+  .modal__header + .modal__body,
+  .modal__header + form > .modal__body:first-child,
+  .alert-dialog__header + .alert-dialog__body,
+  .alert-dialog__header + form > .alert-dialog__body:first-child {
+    margin-top: 0.75rem;
+  }
+  .modal__header + form > .modal__footer:first-child {
+    margin-top: 1.25rem;
   }
   .modal__close-trigger,
   .drawer__close-trigger {
@@ -348,7 +591,7 @@
       background-color: var(--label-tertiary);
     }
     .modal__container[data-entering='true'] {
-      animation: gg-sheet-up 320ms var(--ease-apple-out) both;
+      animation: gg-sheet-up 500ms var(--ease-spring, var(--ease-apple-out)) both;
     }
   }
   @keyframes gg-sheet-up {
@@ -360,8 +603,10 @@
     }
   }
 
-  /* Drawers: floating inspector panel on desktop, bottom sheet (handle) on phones. */
+  /* Drawers: floating inspector panel on desktop, bottom sheet (handle) on phones; spring in, ease out. */
   .drawer__dialog {
+    --drawer-enter-duration: 500ms;
+    --drawer-enter-ease: var(--ease-spring, cubic-bezier(0.32, 0.72, 0, 1));
     padding: 0;
     background-color: var(--overlay);
     box-shadow: var(--float-shadow);
@@ -399,6 +644,7 @@
     padding: 20px 64px 12px 24px;
   }
   .drawer__heading {
+    overflow-wrap: anywhere;
     font-size: var(--text-title3);
     line-height: var(--text-title3--line-height);
     font-weight: 600;
@@ -610,5 +856,42 @@
   .gg-chip-toggle:disabled {
     opacity: var(--disabled-opacity);
     cursor: default;
+  }
+}
+
+/* ------------------------------------------------------------------ micro-interaction utilities
+   Plain classes in the `utilities` layer (signed-in app only, so the public pages don't ship them).
+   `pressable`: tappable cards and rows — 0.98 press scale (none under reduced motion); replaces `transition-colors`.
+   `shimmer`: loading placeholder — a soft highlight sweeps across the fill; reduced motion → static. */
+@layer utilities {
+  .pressable {
+    transition-property: transform, background-color, border-color, color, opacity;
+    transition-duration: 160ms;
+    transition-timing-function: var(--ease-apple-out);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .pressable:active {
+      transform: scale(0.98);
+    }
+  }
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background-image: linear-gradient(90deg, transparent, var(--shimmer-highlight), transparent);
+    animation: gg-shimmer 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    pointer-events: none;
+  }
+}
+
+@keyframes gg-shimmer {
+  to {
+    transform: translateX(100%);
   }
 }

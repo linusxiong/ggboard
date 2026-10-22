@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { byteUnit, LineChart } from '@/components/charts'
+import { SegmentedControl } from '@/components/SegmentedControl'
 import { useT } from '@/i18n'
 import { adminSeriesQuery } from '@/lib/api/queries'
 import type { StatsMetric, StatsRange } from '@/lib/api/types'
 import { DASHBOARD_REFRESH } from '../shared/queries'
-import { Segmented } from '../shared/Segmented'
 import type { Formatters } from '../shared/useFormatters'
 
 const METRICS: readonly StatsMetric[] = ['income', 'orders', 'registers', 'traffic']
@@ -37,17 +37,19 @@ export function TrendCard({ fmt }: { fmt: Formatters }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-title3 text-label">{t('sections.trend')}</h2>
         <div className="flex flex-wrap items-center gap-2">
-          <Segmented
+          <SegmentedControl
             aria-label={t('metricLabel')}
+            size="sm"
             value={metric}
             onChange={setMetric}
-            options={METRICS.map((m) => ({ value: m, label: t(`metrics.${m}`) }))}
+            items={METRICS.map((m) => ({ id: m, label: t(`metrics.${m}`) }))}
           />
-          <Segmented
+          <SegmentedControl
             aria-label={t('rangeLabel')}
+            size="sm"
             value={range}
             onChange={setRange}
-            options={RANGES.map((r) => ({ value: r, label: t(`ranges.${r}`) }))}
+            items={RANGES.map((r) => ({ id: r, label: t(`ranges.${r}`) }))}
           />
         </div>
       </div>

@@ -1,7 +1,8 @@
-import { Chip, ToggleButton, ToggleButtonGroup } from '@heroui/react'
+import { Chip } from '@heroui/react'
 import { type KeyboardEvent, useRef } from 'react'
 import { TablePagination } from '@/components/data-table/DataTable'
 import { DateTime } from '@/components/Formatters'
+import { SegmentedControl } from '@/components/SegmentedControl'
 import { DebouncedSearch } from '@/features/admin/orders/DebouncedSearch'
 import { useT } from '@/i18n'
 import type { AdminTicket, ID, Page } from '@/lib/api/types'
@@ -58,30 +59,19 @@ export function TicketList({
       className={cx('surface-card flex min-h-0 flex-col', className)}
     >
       <div className="flex flex-col gap-3 p-3 hairline-b">
-        <ToggleButtonGroup
+        <SegmentedControl
           aria-label={t('tickets.viewLabel')}
           size="sm"
-          fullWidth
-          selectionMode="single"
-          disallowEmptySelection
-          selectedKeys={[search.view]}
-          onSelectionChange={(keys) => {
-            const view = [...keys][0] as TicketView | undefined
-            if (view && view !== search.view) onSearchChange({ view, page: 1 })
-          }}
-        >
-          {TICKET_VIEWS.map((v, i) => (
-            <ToggleButton key={v} id={v}>
-              {i > 0 ? <ToggleButtonGroup.Separator /> : null}
-              {t(`tickets.views.${v}`)}
-              {v === 'awaiting' && awaitingCount ? (
-                <span className="ms-1 rounded-full bg-accent px-1.5 text-caption2 text-accent-foreground tabular">
-                  {awaitingCount}
-                </span>
-              ) : null}
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
+          value={search.view}
+          onChange={(view: TicketView) => onSearchChange({ view, page: 1 })}
+          items={TICKET_VIEWS.map((v) => ({
+            id: v,
+            label: t(`tickets.views.${v}`),
+            ...(v === 'awaiting' && awaitingCount
+              ? { count: awaitingCount, countTone: 'accent' as const }
+              : {}),
+          }))}
+        />
         <DebouncedSearch
           label={t('tickets.search')}
           hideLabel
@@ -94,7 +84,7 @@ export function TicketList({
       {isLoading && !data ? (
         <div className="flex flex-col gap-2 p-3" aria-busy="true">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="h-16 animate-pulse rounded-[12px] bg-fill-tertiary" />
+            <div key={i} className="h-16 shimmer rounded-[12px] bg-fill-tertiary" />
           ))}
         </div>
       ) : data && data.items.length === 0 ? (
@@ -117,7 +107,7 @@ export function TicketList({
                   aria-current={active ? 'true' : undefined}
                   onClick={() => select(ticket.id)}
                   className={cx(
-                    'flex w-full flex-col gap-1 rounded-[12px] px-3 py-2.5 text-start outline-none transition-colors',
+                    'pressable flex w-full flex-col gap-1 rounded-[12px] px-3 py-2.5 text-start outline-none',
                     'focus-visible:ring-2 focus-visible:ring-focus',
                     active ? 'bg-fill-secondary' : 'hover:bg-fill-quaternary',
                   )}

@@ -1,7 +1,8 @@
-import { Alert, Chip, Skeleton, Tabs } from '@heroui/react'
+import { Alert, Skeleton } from '@heroui/react'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { PageShell } from '@/components/PageShell'
+import { SegmentedTabs } from '@/components/SegmentedControl'
 import { useLocale, useT } from '@/i18n'
 import { adminApi } from '@/lib/api'
 import type { RulesetCatalogFull } from '@/lib/api/types'
@@ -58,47 +59,48 @@ export function RulesetsPage({ tab, onTabChange }: RulesetsPageProps) {
           <Skeleton className="h-96 w-full rounded-card" />
         </div>
       ) : (
-        <Tabs selectedKey={tab} onSelectionChange={(k) => onTabChange(String(k) as RulesetTab)}>
-          <Tabs.ListContainer>
-            <Tabs.List aria-label={t('rulesets.title')}>
-              {RULESET_TABS.map((id) => (
-                <Tabs.Tab key={id} id={id} className="gap-1.5 whitespace-nowrap">
-                  {t(`rulesets.tabs.${id}`)}
-                  {counts[id] !== null ? (
-                    <span className="text-caption tabular text-label-secondary">{counts[id]}</span>
-                  ) : Object.values(customIds).some((s) => s.size > 0) ? (
-                    <Chip size="sm" variant="soft" color="warning">
-                      {t('rulesets.active')}
-                    </Chip>
-                  ) : null}
-                  <Tabs.Indicator />
-                </Tabs.Tab>
-              ))}
-            </Tabs.List>
-          </Tabs.ListContainer>
-          {meta(q.data?.builtin) ? (
-            <p className="mt-3 text-footnote text-label-secondary">{meta(q.data?.builtin)}</p>
-          ) : null}
-          <Tabs.Panel id="sources" className="pt-4">
+        <SegmentedTabs value={tab} onChange={onTabChange} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <SegmentedTabs.List
+              aria-label={t('rulesets.title')}
+              items={RULESET_TABS.map((id) => ({
+                id,
+                label: t(`rulesets.tabs.${id}`),
+                count: counts[id],
+                adornment:
+                  counts[id] === null && Object.values(customIds).some((ids) => ids.size > 0) ? (
+                    <span
+                      role="img"
+                      aria-label={t('rulesets.active')}
+                      className="size-2 rounded-full bg-system-orange"
+                    />
+                  ) : undefined,
+              }))}
+            />
+            {meta(q.data?.builtin) ? (
+              <p className="px-1 text-footnote text-label-secondary">{meta(q.data?.builtin)}</p>
+            ) : null}
+          </div>
+          <SegmentedTabs.Panel id="sources">
             <SourcesView sources={catalog.sources} customIds={customIds.sources} locale={locale} />
-          </Tabs.Panel>
-          <Tabs.Panel id="categories" className="pt-4">
+          </SegmentedTabs.Panel>
+          <SegmentedTabs.Panel id="categories">
             <CategoriesView
               categories={catalog.categories}
               customIds={customIds.categories}
               locale={locale}
             />
-          </Tabs.Panel>
-          <Tabs.Panel id="templates" className="pt-4">
+          </SegmentedTabs.Panel>
+          <SegmentedTabs.Panel id="templates">
             <TemplatesView templates={catalog.templates} customIds={customIds.templates} locale={locale} />
-          </Tabs.Panel>
-          <Tabs.Panel id="mirrors" className="pt-4">
+          </SegmentedTabs.Panel>
+          <SegmentedTabs.Panel id="mirrors">
             <MirrorsView mirrors={catalog.mirrors ?? []} customIds={customIds.mirrors} locale={locale} />
-          </Tabs.Panel>
-          <Tabs.Panel id="custom" className="pt-4">
+          </SegmentedTabs.Panel>
+          <SegmentedTabs.Panel id="custom">
             <CustomEditor custom={custom} catalog={catalog} />
-          </Tabs.Panel>
-        </Tabs>
+          </SegmentedTabs.Panel>
+        </SegmentedTabs>
       )}
     </PageShell>
   )

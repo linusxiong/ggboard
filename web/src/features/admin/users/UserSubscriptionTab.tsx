@@ -93,7 +93,7 @@ export function UserSubscriptionTab({ user }: { user: AdminUser }) {
         {log.isPending ? (
           <div className="flex flex-col gap-2" aria-busy="true">
             {Array.from({ length: 3 }, (_, i) => (
-              <span key={i} className="block h-12 animate-pulse rounded-[10px] bg-fill-tertiary" />
+              <span key={i} className="block h-12 shimmer rounded-[10px] bg-fill-tertiary" />
             ))}
           </div>
         ) : log.isError ? (

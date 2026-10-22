@@ -184,7 +184,7 @@ export function RuleBuilder({
               <label
                 key={tpl.id}
                 className={cx(
-                  'flex cursor-pointer flex-col gap-1 rounded-[14px] border p-4 transition-colors',
+                  'pressable flex cursor-pointer flex-col gap-1 rounded-[14px] border p-4',
                   'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-focus',
                   selected ? 'border-tint bg-accent-soft' : 'border-hairline hover:bg-fill-quaternary',
                   readOnly && 'cursor-default opacity-70',

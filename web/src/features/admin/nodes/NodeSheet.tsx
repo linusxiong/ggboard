@@ -3,12 +3,13 @@
  * integration snippets. Validation errors (client or server `errors` keyed by JSON path) are
  * shown inline; the sheet switches to the tab that holds the first error.
  */
-import { Button, Chip, Tabs } from '@heroui/react'
+import { Button, Chip } from '@heroui/react'
 import { useQuery } from '@tanstack/react-query'
 import { useCallback, useMemo, useState } from 'react'
 import { FormError, useAppForm } from '@/components/form'
 import { applyServerErrors } from '@/components/form'
 import { submitError } from '@/components/form/submitError'
+import { SegmentedTabs } from '@/components/SegmentedControl'
 import { useT } from '@/i18n'
 import * as adminApi from '@/lib/api/admin'
 import { ApiError, isApiError } from '@/lib/api/client'
@@ -136,7 +137,7 @@ export function NodeSheet({ node, nodes, isOpen, onOpenChange }: NodeSheetProps)
     [routes.data, t],
   )
 
-  const panelClass = 'pt-4 data-[inert=true]:hidden'
+  const panelClass = 'data-[inert=true]:hidden'
 
   return (
     <FormDrawer
@@ -192,25 +193,24 @@ export function NodeSheet({ node, nodes, isOpen, onOpenChange }: NodeSheetProps)
           }
         </form.Subscribe>
 
-        <Tabs selectedKey={tab} onSelectionChange={(k) => selectTab(String(k) as Tab)}>
-          <Tabs.ListContainer>
-            <Tabs.List aria-label={t('nodes.sections')}>
-              {(['basic', 'protocol', 'json', 'integration'] as const).map((id) => (
-                <Tabs.Tab key={id} id={id}>
-                  {t(`nodes.tabs.${id}`)}
-                  {id === 'protocol' && Object.keys(psErrors).length ? (
-                    <span
-                      className="ms-1 inline-block size-2 rounded-full bg-system-red"
-                      aria-label={t('nodes.hasErrors')}
-                    />
-                  ) : null}
-                  <Tabs.Indicator />
-                </Tabs.Tab>
-              ))}
-            </Tabs.List>
-          </Tabs.ListContainer>
+        <SegmentedTabs value={tab} onChange={selectTab} className="flex flex-col gap-4">
+          <SegmentedTabs.List
+            aria-label={t('nodes.sections')}
+            items={(['basic', 'protocol', 'json', 'integration'] as const).map((id) => ({
+              id,
+              label: t(`nodes.tabs.${id}`),
+              adornment:
+                id === 'protocol' && Object.keys(psErrors).length ? (
+                  <span
+                    role="img"
+                    className="inline-block size-2 rounded-full bg-system-red"
+                    aria-label={t('nodes.hasErrors')}
+                  />
+                ) : undefined,
+            }))}
+          />
 
-          <Tabs.Panel id="basic" shouldForceMount className={panelClass}>
+          <SegmentedTabs.Panel id="basic" shouldForceMount className={panelClass}>
             <div className="flex flex-col gap-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <form.AppField
@@ -351,9 +351,9 @@ export function NodeSheet({ node, nodes, isOpen, onOpenChange }: NodeSheetProps)
                 </form.AppField>
               </div>
             </div>
-          </Tabs.Panel>
+          </SegmentedTabs.Panel>
 
-          <Tabs.Panel id="protocol" shouldForceMount className={panelClass}>
+          <SegmentedTabs.Panel id="protocol" shouldForceMount className={panelClass}>
             <form.Subscribe selector={(s) => s.values.type}>
               {(type) => (
                 <form.Field name="protocol_settings">
@@ -369,9 +369,9 @@ export function NodeSheet({ node, nodes, isOpen, onOpenChange }: NodeSheetProps)
                 </form.Field>
               )}
             </form.Subscribe>
-          </Tabs.Panel>
+          </SegmentedTabs.Panel>
 
-          <Tabs.Panel id="json" shouldForceMount className={panelClass}>
+          <SegmentedTabs.Panel id="json" shouldForceMount className={panelClass}>
             <form.Field name="protocol_settings">
               {(field) => (
                 <RawJsonEditor
@@ -385,9 +385,9 @@ export function NodeSheet({ node, nodes, isOpen, onOpenChange }: NodeSheetProps)
                 />
               )}
             </form.Field>
-          </Tabs.Panel>
+          </SegmentedTabs.Panel>
 
-          <Tabs.Panel id="integration" shouldForceMount className={panelClass}>
+          <SegmentedTabs.Panel id="integration" shouldForceMount className={panelClass}>
             <form.Subscribe
               selector={(s) =>
                 [s.values.type, s.values.protocol_settings.version, s.values.parent_id] as const
@@ -402,8 +402,8 @@ export function NodeSheet({ node, nodes, isOpen, onOpenChange }: NodeSheetProps)
                 />
               )}
             </form.Subscribe>
-          </Tabs.Panel>
-        </Tabs>
+          </SegmentedTabs.Panel>
+        </SegmentedTabs>
       </div>
     </FormDrawer>
   )
