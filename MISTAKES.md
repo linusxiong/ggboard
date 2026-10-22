@@ -371,3 +371,42 @@
 - **根因**：前端基础 agent 后来加了 `web/.pnpmfile.cjs`（给 typescript-eslint 单独提供 TypeScript 6），而 Dockerfile 只 `COPY` 了 `package.json`、`pnpm-lock.yaml`、`pnpm-workspace.yaml`。
 - **修复**：`COPY` 时一并复制 `.pnpmfile.cjs`（以及将来可能出现的 `.npmrc`）。
 - **规则**：凡是影响 pnpm 解析的文件（`.pnpmfile.cjs`、`.npmrc`、`pnpm-workspace.yaml`）都必须进入 Docker 的依赖安装层；改了任何一个就本地跑一次 `docker build`。
+
+## 2026-10-22
+
+### 1. （订阅）契约里的客户端能力表没有核对官方文档
+- **现象**：`docs/SUBSCRIPTION.md` 写 Surge 支持 VLESS、Loon 支持 TUIC、Stash 不支持 anytls/mieru、sing-box 按 1.11 schema 输出。
+  核对后：Surge 手册（2026-10）的协议页里根本没有 VLESS；Loon 节点文档没有 TUIC；Stash 文档已列出 anytls 与 mieru；
+  sing-box 最新稳定版是 1.14.3，旧 DNS server 格式（`address`）与 block/dns 特殊出站已被移除，anytls 出站从 1.12 才有。
+- **根因**：能力表凭印象和 Xboard 旧代码写成，没有逐个客户端查文档。
+- **修复**：按官方文档实现各格式的 `Supports`/`SupportsProxy`，sing-box 统一输出 1.12+ schema（typed DNS、rule action），
+  契约表格改为实际渲染范围；Stash 仍按契约不下发 anytls/mieru（兼容旧版本，已在汇报中说明）。
+- **规则**：写订阅格式前，每个客户端都要打开它的官方手册确认协议、字段名和最低版本；表格里的每一项都要能指到出处。
+
+### 2. （订阅）Surge 手册旧链接 404
+- **现象**：`https://manual.nssurge.com/policy/proxy.html` 返回 404。
+- **根因**：手册已拆成按协议的页面：`policies/shadowsocks.html`、`policies/vmess.html`、`policies/trojan.html`、`policies/hysteria2.html`、
+  `policies/tuic.html`、`policies/anytls.html`，TLS 公共参数在 `policies/tls.html`。
+- **规则**：官方文档链接 404 时先搜同站新路径，不要回退到第三方转述。
+
+### 3. （订阅）sing-box hysteria2 的 `server_ports` 与 `server_port` 互斥
+- **现象**：端口跳跃节点同时写 `server_port` 和 `server_ports` 会被 sing-box 拒绝（文档：Conflicts with `server_port`）。
+- **修复**：有端口跳跃时只输出 `server_ports`（`"20000:30000"`，冒号分隔）和 `hop_interval`。
+- **规则**：同一能力在不同客户端的写法差异很大：mihomo `ports: 20000-30000`、Stash 逗号列表、Surge `port-hopping=a-b;c`、
+  Loon `server-ports="a:b"`、sing-box `["a:b"]`；每种都要按各自文档写测试。
+
+### 4. （订阅）短链接 `/s/:token` 的 token 会进访问日志
+- **现象**：基础设施的 AccessLog 记录 `c.Request.URL.Path`，查询串里的 token 被去掉了，但路径里的 token 没有。
+- **修复**：`/s/:token` 处理器在读取参数后把 `c.Request.URL.Path` 改写成 `/s/[redacted]`（AccessLog 在 `c.Next()` 之后才读路径），
+  测试断言日志环形缓冲里不出现 token。
+- **规则**：凡是路径参数携带凭据的路由，都要检查访问日志、panic 日志里有没有它；更好的做法是 AccessLog 记录 `c.FullPath()`（交集成者评估）。
+
+### 5. （订阅）用 map 指针做缓存键，GC 后地址可能被复用
+- **现象**：`rulesets.Current` 想用设置值（map）的指针判断 `rulesets_custom` 是否变化；缓存只保存了指针值时，旧 map 被回收后新 map
+  可能分配在同一地址，导致命中过期的合并结果。
+- **修复**：缓存条目同时持有设置值本身（保持可达，地址不会被复用），再比较指针。
+- **规则**：用指针身份做缓存键时，必须让缓存持有该对象的引用；否则改用内容哈希或版本号。
+
+### 6. zsh 下 `grep --include=*.go` 又一次没加引号（重犯第 8 条）
+- **现象**：`grep -rn "_health" --include=*.go internal` 报 `no matches found`，命令没有执行。
+- **规则**：重申：zsh 中所有含 `*` 的参数一律加引号（`--include='*.go'`）；看到 “no matches found” 先怀疑 shell 而不是代码。

@@ -43,6 +43,9 @@ Ticket {"id","user_id","subject","level","status","reply_status","last_reply_use
 | GET | `/guest/payment/return/:trade_no` | — | 302 → `<app_url>/orders/:trade_no` (gateway query parameters dropped) |
 | GET | `/guest/rulesets/catalog` | — | catalog (see `docs/SUBSCRIPTION.md`) |
 
+| GET | `/guest/payment/return/:trade_no` | — | 302 → `/orders/:trade_no` |
+| GET | `/guest/rulesets/catalog` | — | public catalog `{sources, categories, templates, mirrors, clients, defaults, editable}` (see `docs/SUBSCRIPTION.md`; no URL templates) |
+
 ## Passport 🔓 (`/passport`) — rate limited
 | method | path | req | res |
 |---|---|---|---|
@@ -107,14 +110,21 @@ Password-manager well-known URLs (root paths, not under `/api/v1`; explicit rout
 | POST | `/user/subscription/reset` | — | `{subscribe_url, token, auth_token}` (new uuid + token; the reset bumps password_version, so `auth_token` is the caller's new session JWT) |
 | GET | `/user/subscription/preview?client=clash&...` | same query as client subscribe | `text/plain` body of generated config |
 | GET | `/user/traffic-logs` | `page`, `page_size` | `[{record_at:"YYYY-MM-DD", node_id, node_name, rate, u, d}]` newest first; `node_name` is null for unknown/deleted nodes |
+
+| POST | `/user/password` | `{old_password*, new_password*}` | `true` (bumps password_version) |
+| GET | `/user/stats` | — | `{pending_orders, open_tickets, notices_count, invite_count, commission_pending}` |
+| GET | `/user/subscription` | — | `{subscribe_url, token, plan, transfer_enable, u, d, expired_at, next_reset_at, reset_day, device_limit, speed_limit}` |
+| POST | `/user/subscription/reset` | — | `{subscribe_url, token}` (new uuid + token) |
+| GET | `/user/subscription/preview?client=clash-meta&...` | same query as client subscribe (`client` = format or client name, default `clash-meta`) | `text/plain` body of generated config (base64 formats decoded), header `X-Subscription-Format` |
+| GET | `/user/traffic-logs` | `page`, `page_size` | `[{record_at, node_id, node_name, rate, u, d}]` |
 | GET | `/user/nodes` | — | `[{id,name,type,tags,rate,host,port,is_online,sort}]` (host/port only when `show_info_to_user`=true; default true) |
 
 | GET | `/user/traffic-logs` | `page`, `page_size` | `[{record_at, node_id, node_name, rate, u, d}]` |
 | GET | `/user/nodes` | — | `[{id,name,type,tags,rate,host,port,is_online,sort}]` (show=true nodes of the user's group, by sort, id; host/port only when `show_info_to_user`=true, default true; `[]` when the user is banned, expired or out of traffic, like Xboard) |
 | POST | `/user/logout` | — | `true` (client discards; server no-op) |
 ### Rule profile
-| GET | `/user/rule-profile` | — | `RuleProfile` (defaults if none) |
-| PUT | `/user/rule-profile` | `RuleProfile` | `RuleProfile` |
+| GET | `/user/rule-profile` | — | `RuleProfile` (defaults if none) + `customized`, `editable`, `effective` (see `docs/SUBSCRIPTION.md`) |
+| PUT | `/user/rule-profile` | `RuleProfile` (omitted parts filled from its template) | same view as GET; 400 field errors; 403 when `allow_user_rule_profile=false` |
 | GET | `/user/rulesets/catalog` | — | same as guest catalog |
 ### Shop
 | GET | `/user/plans` | — | `[PublicPlan]` (show=true; includes current plan even if hidden, with `sell/renew` flags) |
@@ -188,10 +198,10 @@ Admin enforcement: with `admin_mfa_required` on, `/admin/*` answers 403 `mfa_set
 a passkey (`mfasvc.AdminGate`, mounted after `RequireStaff`/`RequireAdmin`); `/user/security` stays reachable to enrol.
 
 ## Client subscription 🔓 (token)
-`GET /api/v1/client/subscribe?token=<token>[&flag=clash][&types=vmess,vless][&filter=HK,JP][&profile=standard][&source=blackmatrix7][&cats=openai,telegram][&mirror=1]`
+`GET|HEAD /api/v1/client/subscribe?token=<token>[&flag=clash][&types=vmess,vless][&filter=HK,JP][&emoji=0][&list=1][&profile=standard][&source=blackmatrix7][&cats=openai,telegram][&final=Proxy][&mirror=1]`
 - Detects client from `flag` or `User-Agent` (see `docs/SUBSCRIPTION.md`). Headers: `subscription-userinfo`, `profile-update-interval`, `content-disposition`, `profile-web-page-url`, `ETag`.
-- Invalid/banned/expired-with-no-traffic → still 200 with info-only nodes when `show_info_to_server_enable`, else empty.
-- Also mounted at `GET /s/:token` (short link) — same handler.
+- Unknown/malformed token → 403 (no detail). Banned/expired/out-of-traffic users → 200 with info-only nodes when `show_info_to_server_enable`, else a config without proxies. Invalid overrides → 400. Rate limit 120/h per token (burst 30) → 429.
+- Also mounted at `GET|HEAD /s/:token` (short link) — same handler and rate-limit bucket; the token is redacted from access logs.
 
 ## Node APIs 🤖 — see `docs/NODE_PROTOCOLS.md`
 - XrayR/V2bX: `GET /server/UniProxy/config`, `GET /server/UniProxy/user`, `POST /server/UniProxy/push`, `POST /server/UniProxy/alive`, `GET /server/UniProxy/alivelist` (query `token`, `node_id`, `node_type`).
@@ -299,6 +309,14 @@ and `token` blanked. Admin view = self view + `token`, `commission_type`, `remar
 | PUT | `/admin/rulesets` | `{custom:{sources?,categories?,templates?}}` (merged over builtin) | `true` |
 | GET | `/admin/system/status` | — | `{version, go_version, uptime (s), db_driver, started_at, scheduler:[{name,spec,running,last_run,last_duration,last_error,next_run,runs,failures}], mail:{pending,sent,failed,driver}, mail_queue (= mail.pending), cache:{items,max_items,hits,misses,hit_ratio}, online:{nodes,users}, goroutines, memory:{alloc,sys}}` |
 | GET | `/admin/system/logs?level=&limit=` | — | `[{time,level,msg,attrs}]` newest first (in-memory ring buffer, last 1000); `level` debug (default) / info / warn / error = minimum level; `limit` 1..1000 (default 200) |
+
+| GET | `/admin/settings` | — | `{"<group>": {"<key>": value}}` all groups |
+| PUT | `/admin/settings` | `{"<key>": value, ...}` | `true` |
+| POST | `/admin/settings/mail/test` | `{email*}` | `true` |
+| GET | `/admin/rulesets` | — | `{builtin: catalog, custom: {...}, effective: merged catalog}` |
+| PUT | `/admin/rulesets` | `{custom:{sources?,categories?,templates?,mirrors?} \| null}` (merged over builtin by id; validated; `null` resets) | `true` |
+| GET | `/admin/system/status` | — | `{version, go_version, uptime, db_driver, started_at, scheduler:[{name,spec,last_run,last_error}], mail_queue, cache}` |
+| GET | `/admin/system/logs?level=&limit=` | — | `[{time,level,msg,attrs}]` (in-memory ring buffer, last 1000) |
 
 ### Settings keys (group → key: type = default)
 - **site**: `app_name`:s="GG Bond", `app_description`:s, `app_url`:s, `logo`:s, `tos_url`:s, `currency`:s="CNY", `currency_symbol`:s="¥", `default_locale`:s="zh-CN", `show_info_to_user`:b=true

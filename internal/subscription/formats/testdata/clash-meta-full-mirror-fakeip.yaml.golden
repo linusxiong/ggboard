@@ -1,0 +1,889 @@
+mixed-port: 7890
+allow-lan: false
+mode: rule
+log-level: info
+unified-delay: true
+tcp-concurrent: true
+geox-url:
+  geoip: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geoip.dat"
+  geosite: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/geosite.dat"
+  mmdb: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/country.mmdb"
+  asn: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/release/GeoLite2-ASN.mmdb"
+dns:
+  enable: true
+  ipv6: false
+  enhanced-mode: fake-ip
+  fake-ip-range: "198.18.0.1/16"
+  fake-ip-filter:
+    - "*.lan"
+    - "*.local"
+    - "+.msftconnecttest.com"
+    - "+.msftncsi.com"
+    - localhost.ptlink.com
+    - "+.ntp.org"
+    - "time.*.com"
+    - "+.stun.*.*"
+  default-nameserver:
+    - "223.5.5.5"
+    - "119.29.29.29"
+  nameserver:
+    - "https://dns.alidns.com/dns-query"
+    - "https://doh.pub/dns-query"
+  proxy-server-nameserver:
+    - "https://dns.alidns.com/dns-query"
+    - "https://doh.pub/dns-query"
+proxies:
+  - name: "剩余流量：97 GB"
+    type: ss
+    server: "127.0.0.1"
+    port: 1080
+    cipher: aes-128-gcm
+    password: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+  - name: "套餐到期：2027-01-01"
+    type: ss
+    server: "127.0.0.1"
+    port: 1080
+    cipher: aes-128-gcm
+    password: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+  - name: "距离下次重置剩余：10 天"
+    type: ss
+    server: "127.0.0.1"
+    port: 1080
+    cipher: aes-128-gcm
+    password: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+  - name: "🇭🇰 HK VMess WS"
+    type: vmess
+    server: hk1.example.com
+    port: 443
+    uuid: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    alterId: 0
+    cipher: auto
+    udp: true
+    tls: true
+    servername: hk1.example.com
+    network: ws
+    ws-opts:
+      path: /ws
+      headers:
+        Host: cdn.example.com
+  - name: "JP VMess TCP"
+    type: vmess
+    server: "192.0.2.10"
+    port: 10086
+    uuid: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    alterId: 0
+    cipher: auto
+    udp: true
+  - name: "🇺🇸 US VLESS Reality"
+    type: vless
+    server: us1.example.com
+    port: 443
+    uuid: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+    flow: xtls-rprx-vision
+    tls: true
+    servername: www.example.org
+    client-fingerprint: chrome
+    reality-opts:
+      public-key: PUBLIC_KEY_BASE64URL
+      short-id: "0123abcd"
+    network: tcp
+  - name: "SG VLESS XHTTP"
+    type: vless
+    server: sg1.example.com
+    port: 443
+    uuid: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+    tls: true
+    servername: sg1.example.com
+    network: xhttp
+    xhttp-opts:
+      path: /xh
+      host: x.example.com
+      mode: auto
+  - name: "TW VLESS WS"
+    type: vless
+    server: tw1.example.com
+    port: 443
+    uuid: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+    tls: true
+    servername: tw1.example.com
+    skip-cert-verify: true
+    network: ws
+    ws-opts:
+      path: /vl
+      headers:
+        Host: tw1.example.com
+  - name: "KR VLESS gRPC"
+    type: vless
+    server: kr1.example.com
+    port: 443
+    uuid: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+    tls: true
+    servername: kr1.example.com
+    network: grpc
+    grpc-opts:
+      grpc-service-name: vless-grpc
+  - name: "HK SS obfs"
+    type: ss
+    server: ss.example.com
+    port: 8388
+    cipher: aes-128-gcm
+    password: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+    plugin: obfs
+    plugin-opts:
+      mode: http
+      host: www.example.net
+  - name: "JP SS2022， Premium"
+    type: ss
+    server: ss2022.example.com
+    port: 8389
+    cipher: "2022-blake3-aes-128-gcm"
+    password: "YjVkODdhNWRlMWEzNWIyMg==:M2IxYjZmNWUtN2MyYS00ZA=="
+    udp: true
+  - name: "SS2022 ChaCha"
+    type: ss
+    server: ss2022c.example.com
+    port: 8390
+    cipher: "2022-blake3-chacha20-poly1305"
+    password: "YjVkODdhNWRlMWEzNWIyMmQwMjM0NThjNDYyMGVjYWE=:M2IxYjZmNWUtN2MyYS00ZDhlLTlmMTAtMmEzYjRjNWQ="
+    udp: true
+  - name: "HK SSR"
+    type: ssr
+    server: ssr.example.com
+    port: 8443
+    cipher: chacha20-ietf
+    password: ssr-node-pass
+    obfs: http_simple
+    protocol: auth_chain_a
+    obfs-param: www.example.net
+    protocol-param: "7:3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+  - name: "US Trojan"
+    type: trojan
+    server: t1.example.com
+    port: 443
+    password: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+    sni: t1.example.com
+  - name: "US Trojan WS"
+    type: trojan
+    server: t2.example.com
+    port: 443
+    password: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+    sni: t2.example.com
+    network: ws
+    ws-opts:
+      path: /tj
+      headers:
+        Host: t2.example.com
+  - name: "US Trojan gRPC"
+    type: trojan
+    server: t3.example.com
+    port: 443
+    password: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+    sni: t3.example.com
+    skip-cert-verify: true
+    network: grpc
+    grpc-opts:
+      grpc-service-name: trojan-grpc
+  - name: "HK Hysteria1"
+    type: hysteria
+    server: hy1.example.com
+    port: 36712
+    auth-str: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    up: "200 Mbps"
+    down: "1000 Mbps"
+    protocol: udp
+    obfs: obfs-pass-123
+    sni: hy1.example.com
+  - name: "JP Hysteria2 Hop"
+    type: hysteria2
+    server: hy2.example.com
+    port: 20000
+    ports: "20000-30000"
+    hop-interval: 30
+    password: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    up: "100 Mbps"
+    down: "500 Mbps"
+    obfs: salamander
+    obfs-password: obfs-pass-456
+    sni: hy2.example.com
+  - name: "SG Hysteria2"
+    type: hysteria2
+    server: "198.51.100.20"
+    port: 8443
+    password: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    sni: hy2s.example.com
+    skip-cert-verify: true
+  - name: "US TUIC"
+    type: tuic
+    server: tuic.example.com
+    port: 8443
+    uuid: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    password: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    alpn:
+      - h3
+    sni: tuic.example.com
+    congestion-controller: bbr
+    udp-relay-mode: native
+  - name: "HK AnyTLS"
+    type: anytls
+    server: anytls.example.com
+    port: 8443
+    password: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+    sni: anytls.example.com
+  - name: "DE Mieru"
+    type: mieru
+    server: mieru.example.com
+    port: 2999
+    transport: TCP
+    username: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    password: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    multiplexing: MULTIPLEXING_LOW
+  - name: "🇺🇸 US Relay"
+    type: vless
+    server: relay.example.com
+    port: 8443
+    uuid: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+    flow: xtls-rprx-vision
+    tls: true
+    servername: www.example.org
+    client-fingerprint: chrome
+    reality-opts:
+      public-key: PUBLIC_KEY_BASE64URL
+      short-id: "0123abcd"
+    network: tcp
+  - name: "IPv6 SS"
+    type: ss
+    server: "2001:db8::10"
+    port: 8388
+    cipher: chacha20-ietf-poly1305
+    password: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+  - name: "VMess HTTP Header"
+    type: vmess
+    server: vh.example.com
+    port: 80
+    uuid: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    alterId: 0
+    cipher: auto
+    udp: true
+    network: http
+    http-opts:
+      method: GET
+      path:
+        - /index
+      headers:
+        Host:
+          - www.example.net
+  - name: "VMess HTTPUpgrade"
+    type: vmess
+    server: vu.example.com
+    port: 443
+    uuid: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    alterId: 0
+    cipher: auto
+    udp: true
+    tls: true
+    servername: vu.example.com
+    network: ws
+    ws-opts:
+      path: /up
+      headers:
+        Host: vu.example.com
+      v2ray-http-upgrade: true
+  - name: "VLESS H2"
+    type: vless
+    server: vh2.example.com
+    port: 443
+    uuid: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+    tls: true
+    servername: vh2.example.com
+    network: h2
+    h2-opts:
+      host:
+        - vh2.example.com
+      path: /h2
+proxy-groups:
+  - name: Proxy
+    type: select
+    proxies:
+      - auto
+      - "剩余流量：97 GB"
+      - "套餐到期：2027-01-01"
+      - "距离下次重置剩余：10 天"
+      - "🇭🇰 HK VMess WS"
+      - "JP VMess TCP"
+      - "🇺🇸 US VLESS Reality"
+      - "SG VLESS XHTTP"
+      - "TW VLESS WS"
+      - "KR VLESS gRPC"
+      - "HK SS obfs"
+      - "JP SS2022， Premium"
+      - "SS2022 ChaCha"
+      - "HK SSR"
+      - "US Trojan"
+      - "US Trojan WS"
+      - "US Trojan gRPC"
+      - "HK Hysteria1"
+      - "JP Hysteria2 Hop"
+      - "SG Hysteria2"
+      - "US TUIC"
+      - "HK AnyTLS"
+      - "DE Mieru"
+      - "🇺🇸 US Relay"
+      - "IPv6 SS"
+      - "VMess HTTP Header"
+      - "VMess HTTPUpgrade"
+      - "VLESS H2"
+  - name: AI
+    type: select
+    proxies:
+      - Proxy
+      - "JP VMess TCP"
+      - "🇺🇸 US VLESS Reality"
+      - "SG VLESS XHTTP"
+      - "TW VLESS WS"
+      - "JP SS2022， Premium"
+      - "US Trojan"
+      - "US Trojan WS"
+      - "US Trojan gRPC"
+      - "JP Hysteria2 Hop"
+      - "SG Hysteria2"
+      - "US TUIC"
+      - "🇺🇸 US Relay"
+  - name: Streaming
+    type: select
+    proxies:
+      - Proxy
+      - "🇭🇰 HK VMess WS"
+      - "JP VMess TCP"
+      - "🇺🇸 US VLESS Reality"
+      - "SG VLESS XHTTP"
+      - "TW VLESS WS"
+      - "KR VLESS gRPC"
+      - "HK SS obfs"
+      - "JP SS2022， Premium"
+      - "SS2022 ChaCha"
+      - "HK SSR"
+      - "US Trojan"
+      - "US Trojan WS"
+      - "US Trojan gRPC"
+      - "HK Hysteria1"
+      - "JP Hysteria2 Hop"
+      - "SG Hysteria2"
+      - "US TUIC"
+      - "HK AnyTLS"
+      - "DE Mieru"
+      - "🇺🇸 US Relay"
+      - "IPv6 SS"
+      - "VMess HTTP Header"
+      - "VMess HTTPUpgrade"
+      - "VLESS H2"
+  - name: Telegram
+    type: select
+    proxies:
+      - Proxy
+      - "🇭🇰 HK VMess WS"
+      - "JP VMess TCP"
+      - "🇺🇸 US VLESS Reality"
+      - "SG VLESS XHTTP"
+      - "TW VLESS WS"
+      - "KR VLESS gRPC"
+      - "HK SS obfs"
+      - "JP SS2022， Premium"
+      - "SS2022 ChaCha"
+      - "HK SSR"
+      - "US Trojan"
+      - "US Trojan WS"
+      - "US Trojan gRPC"
+      - "HK Hysteria1"
+      - "JP Hysteria2 Hop"
+      - "SG Hysteria2"
+      - "US TUIC"
+      - "HK AnyTLS"
+      - "DE Mieru"
+      - "🇺🇸 US Relay"
+      - "IPv6 SS"
+      - "VMess HTTP Header"
+      - "VMess HTTPUpgrade"
+      - "VLESS H2"
+  - name: Microsoft
+    type: select
+    proxies:
+      - DIRECT
+      - Proxy
+  - name: Apple
+    type: select
+    proxies:
+      - DIRECT
+      - Proxy
+  - name: Games
+    type: select
+    proxies:
+      - Proxy
+      - DIRECT
+      - "🇭🇰 HK VMess WS"
+      - "JP VMess TCP"
+      - "🇺🇸 US VLESS Reality"
+      - "SG VLESS XHTTP"
+      - "TW VLESS WS"
+      - "KR VLESS gRPC"
+      - "HK SS obfs"
+      - "JP SS2022， Premium"
+      - "SS2022 ChaCha"
+      - "HK SSR"
+      - "US Trojan"
+      - "US Trojan WS"
+      - "US Trojan gRPC"
+      - "HK Hysteria1"
+      - "JP Hysteria2 Hop"
+      - "SG Hysteria2"
+      - "US TUIC"
+      - "HK AnyTLS"
+      - "DE Mieru"
+      - "🇺🇸 US Relay"
+      - "IPv6 SS"
+      - "VMess HTTP Header"
+      - "VMess HTTPUpgrade"
+      - "VLESS H2"
+  - name: Google
+    type: select
+    proxies:
+      - Proxy
+      - "🇭🇰 HK VMess WS"
+      - "JP VMess TCP"
+      - "🇺🇸 US VLESS Reality"
+      - "SG VLESS XHTTP"
+      - "TW VLESS WS"
+      - "KR VLESS gRPC"
+      - "HK SS obfs"
+      - "JP SS2022， Premium"
+      - "SS2022 ChaCha"
+      - "HK SSR"
+      - "US Trojan"
+      - "US Trojan WS"
+      - "US Trojan gRPC"
+      - "HK Hysteria1"
+      - "JP Hysteria2 Hop"
+      - "SG Hysteria2"
+      - "US TUIC"
+      - "HK AnyTLS"
+      - "DE Mieru"
+      - "🇺🇸 US Relay"
+      - "IPv6 SS"
+      - "VMess HTTP Header"
+      - "VMess HTTPUpgrade"
+      - "VLESS H2"
+  - name: GitHub
+    type: select
+    proxies:
+      - Proxy
+      - DIRECT
+      - "🇭🇰 HK VMess WS"
+      - "JP VMess TCP"
+      - "🇺🇸 US VLESS Reality"
+      - "SG VLESS XHTTP"
+      - "TW VLESS WS"
+      - "KR VLESS gRPC"
+      - "HK SS obfs"
+      - "JP SS2022， Premium"
+      - "SS2022 ChaCha"
+      - "HK SSR"
+      - "US Trojan"
+      - "US Trojan WS"
+      - "US Trojan gRPC"
+      - "HK Hysteria1"
+      - "JP Hysteria2 Hop"
+      - "SG Hysteria2"
+      - "US TUIC"
+      - "HK AnyTLS"
+      - "DE Mieru"
+      - "🇺🇸 US Relay"
+      - "IPv6 SS"
+      - "VMess HTTP Header"
+      - "VMess HTTPUpgrade"
+      - "VLESS H2"
+  - name: auto
+    type: url-test
+    proxies:
+      - "🇭🇰 HK VMess WS"
+      - "JP VMess TCP"
+      - "🇺🇸 US VLESS Reality"
+      - "SG VLESS XHTTP"
+      - "TW VLESS WS"
+      - "KR VLESS gRPC"
+      - "HK SS obfs"
+      - "JP SS2022， Premium"
+      - "SS2022 ChaCha"
+      - "HK SSR"
+      - "US Trojan"
+      - "US Trojan WS"
+      - "US Trojan gRPC"
+      - "HK Hysteria1"
+      - "JP Hysteria2 Hop"
+      - "SG Hysteria2"
+      - "US TUIC"
+      - "HK AnyTLS"
+      - "DE Mieru"
+      - "🇺🇸 US Relay"
+      - "IPv6 SS"
+      - "VMess HTTP Header"
+      - "VMess HTTPUpgrade"
+      - "VLESS H2"
+    url: "http://www.gstatic.com/generate_204"
+    interval: 300
+    tolerance: 50
+rule-providers:
+  ads-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/category-ads-all.mrs"
+    path: "./rules/ads-domain.mrs"
+    interval: 86400
+  lan-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/private.mrs"
+    path: "./rules/lan-domain.mrs"
+    interval: 86400
+  lan-ip:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/private.mrs"
+    path: "./rules/lan-ip.mrs"
+    interval: 86400
+  applications-classical:
+    type: http
+    behavior: classical
+    format: yaml
+    url: "https://ghfast.top/https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/applications.txt"
+    path: "./rules/applications-classical.txt"
+    interval: 86400
+  openai-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/openai.mrs"
+    path: "./rules/openai-domain.mrs"
+    interval: 86400
+  claude-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/anthropic.mrs"
+    path: "./rules/claude-domain.mrs"
+    interval: 86400
+  gemini-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/google-gemini.mrs"
+    path: "./rules/gemini-domain.mrs"
+    interval: 86400
+  copilot-1-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/bing.mrs"
+    path: "./rules/copilot-1-domain.mrs"
+    interval: 86400
+  copilot-2-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/github-copilot.mrs"
+    path: "./rules/copilot-2-domain.mrs"
+    interval: 86400
+  ai-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/category-ai-!cn.mrs"
+    path: "./rules/ai-domain.mrs"
+    interval: 86400
+  telegram-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/telegram.mrs"
+    path: "./rules/telegram-domain.mrs"
+    interval: 86400
+  telegram-ip:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/telegram.mrs"
+    path: "./rules/telegram-ip.mrs"
+    interval: 86400
+  youtube-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/youtube.mrs"
+    path: "./rules/youtube-domain.mrs"
+    interval: 86400
+  netflix-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/netflix.mrs"
+    path: "./rules/netflix-domain.mrs"
+    interval: 86400
+  netflix-ip:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/netflix.mrs"
+    path: "./rules/netflix-ip.mrs"
+    interval: 86400
+  disney-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/disney.mrs"
+    path: "./rules/disney-domain.mrs"
+    interval: 86400
+  hbo-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/hbo.mrs"
+    path: "./rules/hbo-domain.mrs"
+    interval: 86400
+  spotify-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/spotify.mrs"
+    path: "./rules/spotify-domain.mrs"
+    interval: 86400
+  tiktok-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/tiktok.mrs"
+    path: "./rules/tiktok-domain.mrs"
+    interval: 86400
+  twitch-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/twitch.mrs"
+    path: "./rules/twitch-domain.mrs"
+    interval: 86400
+  bahamut-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/bahamut.mrs"
+    path: "./rules/bahamut-domain.mrs"
+    interval: 86400
+  bilibili-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/bilibili.mrs"
+    path: "./rules/bilibili-domain.mrs"
+    interval: 86400
+  github-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/github.mrs"
+    path: "./rules/github-domain.mrs"
+    interval: 86400
+  google-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/google.mrs"
+    path: "./rules/google-domain.mrs"
+    interval: 86400
+  google-ip:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/google.mrs"
+    path: "./rules/google-ip.mrs"
+    interval: 86400
+  microsoft-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/microsoft.mrs"
+    path: "./rules/microsoft-domain.mrs"
+    interval: 86400
+  icloud-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/icloud.mrs"
+    path: "./rules/icloud-domain.mrs"
+    interval: 86400
+  apple-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/apple.mrs"
+    path: "./rules/apple-domain.mrs"
+    interval: 86400
+  twitter-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/twitter.mrs"
+    path: "./rules/twitter-domain.mrs"
+    interval: 86400
+  twitter-ip:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/twitter.mrs"
+    path: "./rules/twitter-ip.mrs"
+    interval: 86400
+  facebook-1-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/facebook.mrs"
+    path: "./rules/facebook-1-domain.mrs"
+    interval: 86400
+  facebook-2-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/instagram.mrs"
+    path: "./rules/facebook-2-domain.mrs"
+    interval: 86400
+  facebook-3-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/whatsapp.mrs"
+    path: "./rules/facebook-3-domain.mrs"
+    interval: 86400
+  facebook-1-ip:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/facebook.mrs"
+    path: "./rules/facebook-1-ip.mrs"
+    interval: 86400
+  paypal-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/paypal.mrs"
+    path: "./rules/paypal-domain.mrs"
+    interval: 86400
+  speedtest-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/category-speedtest.mrs"
+    path: "./rules/speedtest-domain.mrs"
+    interval: 86400
+  steam-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/steam.mrs"
+    path: "./rules/steam-domain.mrs"
+    interval: 86400
+  epic-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/epicgames.mrs"
+    path: "./rules/epic-domain.mrs"
+    interval: 86400
+  gfw-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/gfw.mrs"
+    path: "./rules/gfw-domain.mrs"
+    interval: 86400
+  global-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/geolocation-!cn.mrs"
+    path: "./rules/global-domain.mrs"
+    interval: 86400
+  cn-domain:
+    type: http
+    behavior: domain
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/cn.mrs"
+    path: "./rules/cn-domain.mrs"
+    interval: 86400
+  cn-ip:
+    type: http
+    behavior: ipcidr
+    format: mrs
+    url: "https://ghfast.top/https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/cn.mrs"
+    path: "./rules/cn-ip.mrs"
+    interval: 86400
+rules:
+  - DOMAIN,panel.example.com,DIRECT
+  - RULE-SET,ads-domain,REJECT
+  - RULE-SET,lan-domain,DIRECT
+  - RULE-SET,lan-ip,DIRECT
+  - RULE-SET,applications-classical,DIRECT
+  - RULE-SET,openai-domain,AI
+  - RULE-SET,claude-domain,AI
+  - RULE-SET,gemini-domain,AI
+  - RULE-SET,copilot-1-domain,AI
+  - RULE-SET,copilot-2-domain,AI
+  - RULE-SET,ai-domain,AI
+  - RULE-SET,telegram-domain,Telegram
+  - RULE-SET,telegram-ip,Telegram,no-resolve
+  - RULE-SET,youtube-domain,Streaming
+  - RULE-SET,netflix-domain,Streaming
+  - RULE-SET,netflix-ip,Streaming,no-resolve
+  - RULE-SET,disney-domain,Streaming
+  - RULE-SET,hbo-domain,Streaming
+  - RULE-SET,spotify-domain,Streaming
+  - RULE-SET,tiktok-domain,Streaming
+  - RULE-SET,twitch-domain,Streaming
+  - RULE-SET,bahamut-domain,Streaming
+  - RULE-SET,bilibili-domain,DIRECT
+  - RULE-SET,github-domain,GitHub
+  - RULE-SET,google-domain,Google
+  - RULE-SET,google-ip,Google,no-resolve
+  - RULE-SET,microsoft-domain,Microsoft
+  - RULE-SET,icloud-domain,Apple
+  - RULE-SET,apple-domain,Apple
+  - RULE-SET,twitter-domain,Proxy
+  - RULE-SET,twitter-ip,Proxy,no-resolve
+  - RULE-SET,facebook-1-domain,Proxy
+  - RULE-SET,facebook-2-domain,Proxy
+  - RULE-SET,facebook-3-domain,Proxy
+  - RULE-SET,facebook-1-ip,Proxy,no-resolve
+  - RULE-SET,paypal-domain,Proxy
+  - RULE-SET,speedtest-domain,Proxy
+  - RULE-SET,steam-domain,Games
+  - RULE-SET,epic-domain,Games
+  - RULE-SET,gfw-domain,Proxy
+  - RULE-SET,global-domain,Proxy
+  - RULE-SET,cn-domain,DIRECT
+  - RULE-SET,cn-ip,DIRECT
+  - GEOIP,CN,DIRECT
+  - MATCH,Proxy

@@ -180,6 +180,10 @@ All changes are backward compatible. Sketch field names and shapes still parse.
 | quantumultx | `quantumultx` |
 | clash (classic), v2ray, ssr | The catalog is not used. Classic Clash gets only `GEOIP,CN,DIRECT` and `MATCH`. |
 
+The `shadowrocket` keys stay in the catalog, but the shadowrocket format is links-only (Shadowrocket users configure rules in the
+app), so it consumes no rule sets. The implementation is `rulesets.BuildPlan` (`internal/subscription/rulesets/plan.go`); the
+public catalog (`GET /guest/rulesets/catalog`) lists per category and source which formats can use them.
+
 4. **Name each rule set** deterministically as `<category>[-<n>]-<domain|ip|classical>`.
    `n` (starting at 1) is added only when the RuleRef value is an array. The suffix comes from the key's behavior.
    For mihomo, the `path` is `./rules/<id>.<ext of url>`.
@@ -201,7 +205,7 @@ rules: [RULE-SET,cn-domain,DIRECT, RULE-SET,cn-ip,DIRECT, GEOIP,CN,DIRECT, MATCH
 
 Other formats:
 
-- **sing-box**:
+- **sing-box** (schema of sing-box ≥ 1.12: typed DNS servers, rule actions):
   - Each key becomes a `route.rule_set` entry:
     `{"tag":"cn-domain","type":"remote","format":"binary","url":…,"download_detour":"Proxy","update_interval":"24h"}`.
     Use `download_detour: "direct"` when a mirror is set.
