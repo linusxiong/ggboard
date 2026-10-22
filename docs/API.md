@@ -104,6 +104,16 @@ password limit lockout (`password_limit_*`); register-by-ip limit.
 | GET | `/admin/stats/series?metric=income|orders|registers|traffic&range=7d|30d|90d` | — | `[{date, value}]` |
 | GET | `/admin/stats/nodes/ranking?date=YYYY-MM-DD` | — | `[{node_id,name,u,d,total}]` |
 | GET | `/admin/stats/users/ranking?date=&limit=` | — | `[{user_id,email,u,d,total}]` |
+
+Stats rules (`internal/service/stat`): days are calendar days in the server time zone. "Paid" orders are `status ∈ {1 processing,
+3 completed, 4 discounted}` bucketed by `paid_at` (a discounted order was paid and later credited to an upgrade, so it stays
+revenue); `income` = Σ `total_amount`, `today.commission` = Σ `commission_balance` of today's paid orders. `active_users` = not
+banned, not expired and `u + d < transfer_enable`; `online_users` = users with an alive IP; `pending_tickets` = open and awaiting
+staff; `pending_orders` = status 0; `pending_commission` = paid orders with an inviter, `commission_balance > 0` and
+`commission_status = 0`; `nodes.online` counts nodes in state ≥ 1 (a child reports its parent, docs/NODE_PROTOCOLS.md §5.1).
+`series` returns `range` points (default `30d`), oldest first, today last; past days read the `stats` row written by `stats_daily`
+(`orders` = `paid_count`) and fall back to live queries, today is always live, `traffic` = Σ `stat_nodes` u+d. Rankings default to
+today, `limit` 1..500 (default 20); deleted nodes/users keep their rows with an empty `name`/`email`.
 ### Users
 | GET | `/admin/users` | filters: `email`,`plan_id`,`group_id`,`banned`,`is_admin`,`is_staff`,`invite_user_id`,`expired` (`active|expired|never`), `id`, `uuid`, `token`, `remarks` | `[User(admin view: + remarks, invite_user_id, last_login_ip, telegram_id, password never)]` |
 | POST | `/admin/users` | `{email*, password*, plan_id?, group_id?, transfer_enable(GB)?, expired_at?, is_admin?, is_staff?, speed_limit?, device_limit?, balance?, remarks?}` | `User` |
@@ -116,6 +126,29 @@ password limit lockout (`password_limit_*`); register-by-ip limit.
 | POST | `/admin/users/export` | same filters as list | `text/csv` |
 | POST | `/admin/users/mail` | `{filters…, subject*, content*}` | `{queued}` |
 | POST | `/admin/users/:id/traffic-reset` | — | `User` |
+
+Users rules (`internal/service/adminuser`): only `GET /admin/users` and `GET /admin/users/:id` are open to staff, and staff get `uuid`
+and `token` blanked. Admin view = self view + `token`, `commission_type`, `remarks`, `invite_user_id`, `invite_user_email`,
+`last_login_ip`, `telegram_id`, `updated_at`. Filters: `email`/`remarks` are case-insensitive substrings; `plan_id`, `group_id`,
+`invite_user_id` = `0` select null; `expired` partitions users into `active` (expires in the future), `expired` (expired) and `never`
+(no expiry). `sort` accepts `id email expired_at created_at u d transfer_enable balance last_login_at` (default `-id`).
+- `POST /admin/users` → 201. `plan_id` fills `group_id`, `transfer_enable`, `speed_limit`, `device_limit` when omitted;
+  `next_reset_at` follows the plan; duplicate email → 409; unknown plan/group/inviter → 400 field error.
+- `PATCH` fields: `email password banned u d transfer_enable(bytes) expired_at plan_id group_id invite_user_id is_admin is_staff
+  speed_limit device_limit balance commission_balance commission_type commission_rate discount remarks remind_expire remind_traffic
+  telegram_id`; `null` clears nullable fields. Setting `plan_id` without `group_id` also moves the user to the plan's group;
+  `next_reset_at` is recomputed when `plan_id` or `expired_at` is present. 409: banning or demoting yourself, demoting the last admin,
+  duplicate email. Sessions are invalidated immediately (password, ban, roles).
+- `DELETE` → 409 for yourself or the last admin. Cascade: orders, tickets + messages, stat_users, invite_codes, commission_logs earned
+  as inviter, rule_profiles; users and orders that reference the user as inviter get `invite_user_id = null`.
+- `login-token` → `{url: app_url + "/login?token=<one-time, 5 min>"}`; the SPA posts the token to `/passport/login/token`.
+- `generate`: emails are `<prefix><8 random [a-z0-9]>@<suffix>` (exactly `<prefix>@<suffix>` when `count` is 1 and a prefix is
+  given). The whole batch shares `password`, or one random 12-character password when omitted (one argon2id hash per batch);
+  `csv` = `email,password` rows. Taken single email → 409.
+- `export`: filters in the JSON body; `text/csv` attachment `email,plan,expired_at,transfer_enable,u,d,balance,created_at`
+  (RFC3339 UTC, bytes, cents; cells starting with `= + - @` are prefixed with `'`).
+- `mail`: plain-text `content` (blank lines = paragraphs) through the `notify` template to every matched user, ignoring `remind_*`;
+  recipients that do not fit the mail queue are queued in the background. `{queued}` = number of recipients.
 ### Plans / groups / nodes / routes
 | GET,POST | `/admin/plans` | Plan fields | `[Plan + user_count]` / `Plan` |
 | GET,PATCH,DELETE | `/admin/plans/:id` | | |
@@ -156,13 +189,13 @@ password limit lockout (`password_limit_*`); register-by-ip limit.
 | GET,PATCH,DELETE | `/admin/knowledge/:id` | | |
 | POST | `/admin/knowledge/sort` | `{ids}` | |
 ### Settings & system
-| GET | `/admin/settings` | — | `{"<group>": {"<key>": value}}` all groups |
-| PUT | `/admin/settings` | `{"<key>": value, ...}` | `true` |
-| POST | `/admin/settings/mail/test` | `{email*}` | `true` |
+| GET | `/admin/settings` | — | `{"<group>": {"<key>": value}, …, "groups": [{name, keys:[{key,group,type,default,secret?,options?,min?,max?}]}]}` all groups (secrets included) + UI metadata |
+| PUT | `/admin/settings` | `{"<key>": value, ...}` (`null` resets a key) | `true`; unknown keys, invalid values and hidden keys (`rulesets_custom`, use `/admin/rulesets`) → 400 per key, nothing saved |
+| POST | `/admin/settings/mail/test` | `{email*}` | `true`; sent synchronously with the current mail settings, delivery error → 400 with the driver's message |
 | GET | `/admin/rulesets` | — | `{builtin: catalog, custom: {...}}` |
 | PUT | `/admin/rulesets` | `{custom:{sources?,categories?,templates?}}` (merged over builtin) | `true` |
-| GET | `/admin/system/status` | — | `{version, go_version, uptime, db_driver, started_at, scheduler:[{name,spec,last_run,last_error}], mail_queue, cache}` |
-| GET | `/admin/system/logs?level=&limit=` | — | `[{time,level,msg,attrs}]` (in-memory ring buffer, last 1000) |
+| GET | `/admin/system/status` | — | `{version, go_version, uptime (s), db_driver, started_at, scheduler:[{name,spec,running,last_run,last_duration,last_error,next_run,runs,failures}], mail:{pending,sent,failed,driver}, mail_queue (= mail.pending), cache:{items,max_items,hits,misses,hit_ratio}, online:{nodes,users}, goroutines, memory:{alloc,sys}}` |
+| GET | `/admin/system/logs?level=&limit=` | — | `[{time,level,msg,attrs}]` newest first (in-memory ring buffer, last 1000); `level` debug (default) / info / warn / error = minimum level; `limit` 1..1000 (default 200) |
 
 ### Settings keys (group → key: type = default)
 - **site**: `app_name`:s="GG Bond", `app_description`:s, `app_url`:s, `logo`:s, `tos_url`:s, `currency`:s="CNY", `currency_symbol`:s="¥", `default_locale`:s="zh-CN", `show_info_to_user`:b=true

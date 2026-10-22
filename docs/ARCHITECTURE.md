@@ -70,12 +70,12 @@ No Redis, no queue workers: an in-process cache (ristretto) and batched DB write
 ## Scheduler jobs (`internal/scheduler`)
 | job | cron | what |
 |---|---|---|
-| traffic_reset | `0 0 * * *` | users whose `next_reset_at <= now`: u=d=0, compute next `next_reset_at` per plan `reset_traffic_method` |
-| expire_remind | `0 10 * * *` | email users expiring within 24h (remind_expire) |
-| traffic_remind | `0 10 * * *` | email users with >80% used (remind_traffic), once per day |
+| traffic_reset | `0 0 * * *` | users whose `next_reset_at <= now`, 500 per transaction: u=d=0 and the next `next_reset_at` when the plan still resets (plan present, effective method ≠ never, `expired_at` set), otherwise only `next_reset_at` is cleared; node user lists invalidated |
+| expire_remind | `0 10 * * *` | `remind_mail_enable`: email users (not banned, `remind_expire`) whose `expired_at` is in (now, now+24h]; once per 24 h per user (`app.KV`) |
+| traffic_remind | `0 10 * * *` | `remind_mail_enable`: email users (not banned, not expired, `remind_traffic`) with 80% ≤ used < 100%, once per 24 h per user (`app.KV`) |
 | order_timeout | `*/1 * * * *` | cancel pending orders older than `order_timeout_minutes` (default 30) |
 | commission_settle | `0 */1 * * *` | orders with commission_status=1 → pay invite_user, log commission_logs, status=2 (respect `commission_auto_check_enable`) |
-| stats_daily | `5 0 * * *` | aggregate yesterday's `stats` row (orders, paid, registers, invites, transfer total) |
+| stats_daily | `5 0 * * *` | upsert yesterday's `stats` row: orders created, orders paid (status 1/3/4 by `paid_at`), commission_logs, registers, invites, `stat_nodes` traffic |
 | online_cleanup | `*/5 * * * *` | purge expired online/alive entries and `app.KV` |
 | traffic_flush | `@every 10s` | flush the in-memory traffic accumulator (also on shutdown) |
 | mail_queue | continuous | in-process worker goroutine with bounded channel + retry (mail is never sent inline in a request) |
