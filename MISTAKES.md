@@ -365,3 +365,9 @@
 - **根因**：把 uuid、订阅 token 当成普通标识符，忘了它们就是节点密码 / 订阅凭据。
 - **修复**：警告只写用户 id 和原因，不写值。
 - **规则**：凡是能直接登录或连接的值（密码哈希、uuid、订阅 token、server_token、网关密钥）都不得出现在警告、错误或日志里；自查时 `grep -n '%q' ` 逐条看格式化的是什么。
+
+### 58. （集成）Dockerfile 的前端阶段漏拷 `.pnpmfile.cjs`，`pnpm install --frozen-lockfile` 报 `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`
+- **现象**：本地 `pnpm install` 正常，Docker 构建失败：lockfile 里的 `pnpmfileChecksum` 与当前配置不一致。
+- **根因**：前端基础 agent 后来加了 `web/.pnpmfile.cjs`（给 typescript-eslint 单独提供 TypeScript 6），而 Dockerfile 只 `COPY` 了 `package.json`、`pnpm-lock.yaml`、`pnpm-workspace.yaml`。
+- **修复**：`COPY` 时一并复制 `.pnpmfile.cjs`（以及将来可能出现的 `.npmrc`）。
+- **规则**：凡是影响 pnpm 解析的文件（`.pnpmfile.cjs`、`.npmrc`、`pnpm-workspace.yaml`）都必须进入 Docker 的依赖安装层；改了任何一个就本地跑一次 `docker build`。
