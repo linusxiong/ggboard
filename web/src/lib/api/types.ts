@@ -648,7 +648,8 @@ export interface SubscriptionReset {
 export interface TrafficLog {
   record_at: ISODate
   node_id: ID
-  node_name: string
+  /** `null` for unknown/deleted nodes. */
+  node_name: string | null
   rate: number
   u: Bytes
   d: Bytes
@@ -1086,3 +1087,92 @@ export type SettingsUpdate = Partial<
     FrontendSettings &
     AppSettings
 >
+
+// ---- FE-1 ---- user portal: MFA / passkeys / security, guest flags, catalog extras (declaration merging)
+import type {
+  AuthenticationResponseJSON,
+  PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON,
+  RegistrationResponseJSON,
+} from '@simplewebauthn/browser'
+
+export interface GuestConfig {
+  /** Passkey (WebAuthn) sign-in is offered on the login page. */
+  passkey_enabled?: boolean
+  /** `false` → users cannot customise their rule profile (everyone gets `ruleset_default_template`). */
+  allow_user_rule_profile?: boolean
+}
+
+export interface SubscriptionReset {
+  /** New session JWT: the reset bumps `password_version`, which ends the old session. */
+  auth_token?: string
+}
+
+export interface RulesetMirror {
+  id: string
+  name: LocalizedText
+  /** Prepended to raw URLs; `""` = direct GitHub. */
+  prefix: string
+}
+export interface RulesetCatalog {
+  mirrors?: RulesetMirror[]
+  meta?: { generated_at: ISODateTime; version: number }
+}
+export interface RulesetSource {
+  description?: LocalizedText
+  license?: string
+  /** Fallback priority (lower first). */
+  order?: number
+}
+export interface RulesetTemplate {
+  description?: LocalizedText
+}
+
+export type MfaMethod = 'totp' | (string & {})
+/** `POST /passport/login` second-factor branch. */
+export interface MfaChallenge {
+  mfa_required: true
+  mfa_token: string
+  methods: MfaMethod[]
+  has_passkey: boolean
+}
+/** `POST /passport/login` → session or second-factor challenge. */
+export type LoginResult = AuthResult | MfaChallenge
+
+/** WebAuthn ceremony start: `options` goes to `startAuthentication` / `startRegistration` as `optionsJSON`. */
+export interface PasskeyLoginBegin {
+  challenge_id: string
+  options: PublicKeyCredentialRequestOptionsJSON
+}
+export interface PasskeyRegisterBegin {
+  challenge_id: string
+  options: PublicKeyCredentialCreationOptionsJSON
+}
+export type PasskeyAssertion = AuthenticationResponseJSON
+export type PasskeyAttestation = RegistrationResponseJSON
+
+export interface Passkey {
+  id: ID | string
+  name: string
+  created_at: ISODateTime
+  last_used_at: ISODateTime | null
+  /** Synced passkey (iCloud Keychain, Google Password Manager, 1Password …). */
+  backup_eligible: boolean
+  transports: string[]
+}
+/** `GET /user/security` */
+export interface SecurityOverview {
+  totp_enabled: boolean
+  totp_enabled_at: ISODateTime | null
+  backup_codes_remaining: number
+  passkeys: Passkey[]
+}
+/** `POST /user/security/totp/setup` */
+export interface TotpSetup {
+  secret: string
+  otpauth_url: string
+}
+/** `POST /user/security/totp/enable` and `/backup-codes` — shown once. */
+export interface BackupCodes {
+  backup_codes: string[]
+}

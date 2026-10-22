@@ -38,7 +38,7 @@ describe('login page (smoke)', () => {
     expect(await screen.findByRole('heading', { level: 1, name: '登录' })).toBeInTheDocument()
     const email = screen.getByLabelText(/邮箱/)
     const password = screen.getByLabelText(/密码/)
-    expect(email).toHaveAttribute('autocomplete', 'username')
+    expect(email).toHaveAttribute('autocomplete', 'username webauthn')
     expect(password).toHaveAttribute('type', 'password')
     expect(screen.getByRole('link', { name: '立即注册' })).toHaveAttribute('href', '/register')
 

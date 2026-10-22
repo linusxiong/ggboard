@@ -20,12 +20,15 @@ export class ApiError extends Error {
   readonly status: number
   readonly code: ErrorCode | (string & {})
   readonly errors: Record<string, string[]>
+  /** Seconds from the `Retry-After` header (429 lockouts), `null` when absent. */
+  readonly retryAfter: number | null
 
-  constructor(status: number, body: ErrorBody) {
+  constructor(status: number, body: ErrorBody, retryAfter: number | null = null) {
     super(body.message || body.code)
     this.status = status
     this.code = body.code
     this.errors = body.errors ?? {}
+    this.retryAfter = retryAfter
   }
 
   /** First message for a field (`validation_failed`), if any. */
@@ -59,6 +62,11 @@ export interface RequestOptions {
   /** Skip the bearer token (public endpoints still work with it, this is for tests/special cases). */
   anonymous?: boolean
   headers?: Record<string, string>
+  /**
+   * FE-1: a 401 from this endpoint is a business error (e.g. a failed WebAuthn verification), not an
+   * expired session — keep the session instead of logging out.
+   */
+  keepSession?: boolean
 }
 
 type UnauthorizedHandler = () => void
@@ -67,6 +75,13 @@ let unauthorizedHandler: UnauthorizedHandler | null = null
 /** Registered once by the router (see `src/router.tsx`). */
 export function setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
   unauthorizedHandler = handler
+}
+
+// ---- FE-1 ---- admin/staff routes answer 403 `mfa_setup_required` until the account enables 2FA.
+let mfaSetupRequiredHandler: (() => void) | null = null
+/** Registered once by the router: sends the user to `/profile?tab=security`. */
+export function setMfaSetupRequiredHandler(handler: (() => void) | null) {
+  mfaSetupRequiredHandler = handler
 }
 
 export function buildQuery(query?: QueryParams | object): string {
@@ -133,10 +148,11 @@ async function send(method: HttpMethod, path: string, opts: RequestOptions = {})
 
   if (!res.ok) {
     const error = await toApiError(res)
-    if (res.status === 401 && token) {
+    if (res.status === 401 && token && !opts.keepSession) {
       useAuthStore.getState().logout()
       unauthorizedHandler?.()
     }
+    if (res.status === 403 && error.code === 'mfa_setup_required') mfaSetupRequiredHandler?.()
     throw error
   }
   return res
@@ -147,18 +163,32 @@ async function toApiError(res: Response): Promise<ApiError> {
     code: statusToCode(res.status),
     message: res.statusText || `HTTP ${res.status}`,
   }
+  const retryAfter = parseRetryAfter(res.headers.get('Retry-After'))
   try {
     const text = await res.text()
-    if (!text) return new ApiError(res.status, fallback)
+    if (!text) return new ApiError(res.status, fallback, retryAfter)
     const parsed = JSON.parse(text) as Partial<ErrorBody>
-    return new ApiError(res.status, {
-      code: parsed.code ?? fallback.code,
-      message: parsed.message ?? fallback.message,
-      ...(parsed.errors ? { errors: parsed.errors } : {}),
-    })
+    return new ApiError(
+      res.status,
+      {
+        code: parsed.code ?? fallback.code,
+        message: parsed.message ?? fallback.message,
+        ...(parsed.errors ? { errors: parsed.errors } : {}),
+      },
+      retryAfter,
+    )
   } catch {
-    return new ApiError(res.status, fallback)
+    return new ApiError(res.status, fallback, retryAfter)
   }
+}
+
+/** `Retry-After`: delay-seconds or an HTTP date → whole seconds (≥ 0), `null` when absent/invalid. */
+export function parseRetryAfter(value: string | null, now = Date.now()): number | null {
+  if (!value) return null
+  const trimmed = value.trim()
+  if (/^\d+$/.test(trimmed)) return Number(trimmed)
+  const date = Date.parse(trimmed)
+  return Number.isNaN(date) ? null : Math.max(0, Math.ceil((date - now) / 1000))
 }
 
 function statusToCode(status: number): ErrorCode {

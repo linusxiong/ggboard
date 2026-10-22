@@ -1,0 +1,148 @@
+{
+  "title": "Subscription",
+  "subtitle": "Import your subscription link and tailor the routing rules.",
+  "link": {
+    "title": "Subscription link",
+    "subtitle": "Add this link to your client to get every node. Keep it private.",
+    "url": "Subscription URL",
+    "hideQr": "Hide QR code",
+    "rules": "Routing rules",
+    "savedProfile": "My rules (saved)",
+    "templateOnce": "Template for this link: {name}",
+    "savedHint": "The link uses the routing rules you save below.",
+    "overrideHint": "The link carries a template parameter; your saved rules stay unchanged.",
+    "qrLabel": "Subscription link QR code",
+    "qrHint": "Scan with a mobile client to import the subscription."
+  },
+  "import": {
+    "title": "One-click import",
+    "openIn": "Import to {client}",
+    "copyOnly": "{clients} and others: copy the link and add it in the client."
+  },
+  "reset": {
+    "action": "Reset subscription",
+    "title": "Reset your subscription link?",
+    "description": "A new URL and UUID are generated. The old link stops working immediately, so every device has to import the new one.",
+    "confirm": "Reset",
+    "done": "Subscription reset. Import the new link in your clients."
+  },
+  "preview": {
+    "title": "Config preview",
+    "hint": "See the config generated for each client from your saved rules.",
+    "hintOverride": "The preview uses the template selected for the link.",
+    "show": "Show preview",
+    "hide": "Hide preview",
+    "client": "Client format",
+    "output": "{client} config",
+    "empty": "(empty)"
+  },
+  "builder": {
+    "title": "Routing rules",
+    "subtitle": "Start from a template, then adjust categories and policy groups. Saved rules apply to your link automatically.",
+    "readOnly": "The administrator turned off custom routing rules; everyone uses the default template.",
+    "templates": "Template",
+    "templatesHint": "A template sets the default categories and policy groups.",
+    "templateStats": "{categories} categories · {groups} groups",
+    "source": "Rule source",
+    "sourceHint": "Preferred open-source rule sets; categories it lacks come from the next source.",
+    "coverage": "Covers {count} of {total} categories",
+    "homepage": "Project page",
+    "categories": "Categories",
+    "categoriesHint": "Turn on the services to route and pick the policy for each.",
+    "enabledCount": "{count} of {total} on",
+    "fallbackSource": "Not in this source; uses {source}",
+    "targetFor": "Policy for {name}",
+    "groups": "Policy groups",
+    "groupsHint": "Groups shown in the client, in order. Proxy is the required main group.",
+    "addGroup": "Add group",
+    "newGroup": "New group",
+    "groupName": "Name",
+    "proxyHint": "Main group; it can't be renamed or removed.",
+    "groupType": "Type",
+    "moveUp": "Move {name} up",
+    "moveDown": "Move {name} down",
+    "removeGroup": "Remove {name}",
+    "include": "Members",
+    "includeHint": "Comma separated: other group names, DIRECT, REJECT, * for all nodes, or a regex on node names (e.g. Hong Kong|HK).",
+    "testUrl": "Test URL",
+    "interval": "Test interval (seconds)",
+    "other": "More settings",
+    "final": "Final policy",
+    "mirror": "Rule download mirror",
+    "dns": "DNS mode",
+    "geoip": "Mainland China IPs go direct (GEOIP,CN,DIRECT)",
+    "geoipHint": "Added before the final rule; recommended inside China.",
+    "switchTemplateTitle": "Switch template?",
+    "switchTemplateHint": "Switching replaces your changes to categories, groups and the final policy (source, mirror and DNS are kept).",
+    "switchTemplateConfirm": "Switch",
+    "resetTitle": "Restore the “{name}” defaults?",
+    "resetHint": "Categories, policy groups and the final policy go back to the template defaults.",
+    "reset": "Restore template defaults",
+    "discard": "Discard changes",
+    "save": "Save rules",
+    "saved": "Routing rules saved",
+    "unsaved": "Unsaved changes",
+    "upToDate": "All changes saved",
+    "fixErrors": "Fix the highlighted problems first"
+  },
+  "issues": {
+    "groupName": {
+      "required": "Enter a group name",
+      "reserved": "DIRECT and REJECT are reserved names",
+      "duplicate": "A group with this name already exists",
+      "proxy": "The Proxy group can't be renamed"
+    },
+    "include": {
+      "required": "Add at least one member"
+    },
+    "interval": {
+      "invalid": "Use 10–86400 seconds"
+    },
+    "url": {
+      "invalid": "Enter a valid http(s) URL"
+    },
+    "proxy": {
+      "missing": "The Proxy group is required"
+    },
+    "final": {
+      "invalid": "Pick a valid final policy"
+    },
+    "target": {
+      "invalid": "This policy doesn't exist"
+    }
+  },
+  "bands": {
+    "basics": "Basics",
+    "ai": "AI services",
+    "social": "Messaging",
+    "streaming": "Streaming",
+    "services": "Platforms & services",
+    "games": "Games",
+    "regions": "Regions & fallback"
+  },
+  "targets": {
+    "direct": "Direct (DIRECT)",
+    "reject": "Block (REJECT)"
+  },
+  "mirrors": {
+    "direct": "GitHub (direct)",
+    "site": "Site default mirror"
+  },
+  "dns": {
+    "default": "Default",
+    "fakeip": "Fake-IP",
+    "none": "No DNS block"
+  },
+  "groupTypes": {
+    "select": "Manual select",
+    "url-test": "Auto (URL test)",
+    "fallback": "Fallback",
+    "load-balance": "Load balance"
+  },
+  "info": {
+    "title": "Subscription details",
+    "hint": "The UUID authenticates you on the nodes. Resetting changes both the link and the UUID; the old link stops working immediately.",
+    "uuid": "UUID",
+    "manage": "Manage subscription and rules"
+  }
+}

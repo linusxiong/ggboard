@@ -1,0 +1,148 @@
+{
+  "title": "订阅",
+  "subtitle": "导入订阅链接，并按需定制分流规则。",
+  "link": {
+    "title": "订阅链接",
+    "subtitle": "在客户端中添加此链接即可获取全部节点。请勿泄露给他人。",
+    "url": "订阅地址",
+    "hideQr": "隐藏二维码",
+    "rules": "分流规则",
+    "savedProfile": "我的规则（已保存）",
+    "templateOnce": "临时使用模板：{name}",
+    "savedHint": "链接会自动使用你在下方保存的分流规则。",
+    "overrideHint": "链接附带了模板参数，不会修改你保存的规则。",
+    "qrLabel": "订阅链接二维码",
+    "qrHint": "使用手机客户端扫描二维码导入订阅。"
+  },
+  "import": {
+    "title": "一键导入",
+    "openIn": "导入到 {client}",
+    "copyOnly": "{clients} 等客户端：复制订阅链接后在客户端中手动添加。"
+  },
+  "reset": {
+    "action": "重置订阅",
+    "title": "重置订阅链接？",
+    "description": "将生成新的订阅地址和 UUID，旧链接立即失效，所有设备都需要重新导入。",
+    "confirm": "重置",
+    "done": "订阅已重置，请在客户端中重新导入新链接。"
+  },
+  "preview": {
+    "title": "配置预览",
+    "hint": "查看按已保存规则为各客户端生成的配置。",
+    "hintOverride": "预览使用当前选择的临时模板。",
+    "show": "展开预览",
+    "hide": "收起预览",
+    "client": "客户端格式",
+    "output": "{client} 配置内容",
+    "empty": "（空）"
+  },
+  "builder": {
+    "title": "分流规则",
+    "subtitle": "选择模板后按需调整分类与策略组，保存后订阅链接自动生效。",
+    "readOnly": "站点管理员已关闭自定义分流规则，所有用户使用默认模板。",
+    "templates": "模板",
+    "templatesHint": "模板决定默认启用的分类和策略组。",
+    "templateStats": "{categories} 个分类 · {groups} 个策略组",
+    "source": "规则来源",
+    "sourceHint": "优先使用的开源规则集；缺少某个分类时自动使用其他来源。",
+    "coverage": "覆盖 {count} / {total} 个分类",
+    "homepage": "项目主页",
+    "categories": "分类",
+    "categoriesHint": "开启需要分流的服务，并选择它们走的策略。",
+    "enabledCount": "已启用 {count} / {total}",
+    "fallbackSource": "当前来源未收录，使用 {source}",
+    "targetFor": "{name} 的目标策略",
+    "groups": "策略组",
+    "groupsHint": "客户端中显示的策略组，按顺序排列。Proxy 为必需的主策略组。",
+    "addGroup": "添加策略组",
+    "newGroup": "新策略组",
+    "groupName": "名称",
+    "proxyHint": "主策略组，不可重命名或删除。",
+    "groupType": "类型",
+    "moveUp": "上移 {name}",
+    "moveDown": "下移 {name}",
+    "removeGroup": "删除 {name}",
+    "include": "包含",
+    "includeHint": "逗号分隔：其他策略组名、DIRECT、REJECT、* 表示全部节点，或匹配节点名的正则（如 香港|HK）。",
+    "testUrl": "测速地址",
+    "interval": "测速间隔（秒）",
+    "other": "其他设置",
+    "final": "兜底策略",
+    "mirror": "规则下载镜像",
+    "dns": "DNS 模式",
+    "geoip": "中国大陆 IP 直连（GEOIP,CN,DIRECT）",
+    "geoipHint": "在兜底规则前追加，适合国内使用。",
+    "switchTemplateTitle": "切换模板？",
+    "switchTemplateHint": "切换模板会覆盖你对分类、策略组和兜底策略的修改（来源、镜像与 DNS 保留）。",
+    "switchTemplateConfirm": "切换",
+    "resetTitle": "恢复为「{name}」默认设置？",
+    "resetHint": "分类、策略组和兜底策略将恢复为模板默认值。",
+    "reset": "恢复模板默认",
+    "discard": "放弃更改",
+    "save": "保存规则",
+    "saved": "分流规则已保存",
+    "unsaved": "有未保存的更改",
+    "upToDate": "所有更改已保存",
+    "fixErrors": "请先修正标出的问题"
+  },
+  "issues": {
+    "groupName": {
+      "required": "请输入策略组名称",
+      "reserved": "DIRECT 和 REJECT 是保留名称",
+      "duplicate": "已存在同名策略组",
+      "proxy": "Proxy 策略组不能重命名"
+    },
+    "include": {
+      "required": "请至少填写一项"
+    },
+    "interval": {
+      "invalid": "间隔需为 10–86400 秒"
+    },
+    "url": {
+      "invalid": "请输入有效的 http(s) 地址"
+    },
+    "proxy": {
+      "missing": "必须保留 Proxy 策略组"
+    },
+    "final": {
+      "invalid": "请选择有效的兜底策略"
+    },
+    "target": {
+      "invalid": "目标策略不存在"
+    }
+  },
+  "bands": {
+    "basics": "基础",
+    "ai": "AI 服务",
+    "social": "通讯",
+    "streaming": "流媒体",
+    "services": "平台与服务",
+    "games": "游戏",
+    "regions": "地区与兜底"
+  },
+  "targets": {
+    "direct": "直连（DIRECT）",
+    "reject": "拦截（REJECT）"
+  },
+  "mirrors": {
+    "direct": "直连 GitHub",
+    "site": "站点默认镜像"
+  },
+  "dns": {
+    "default": "默认",
+    "fakeip": "Fake-IP",
+    "none": "不下发 DNS"
+  },
+  "groupTypes": {
+    "select": "手动选择",
+    "url-test": "自动测速",
+    "fallback": "故障转移",
+    "load-balance": "负载均衡"
+  },
+  "info": {
+    "title": "订阅信息",
+    "hint": "UUID 用于节点认证。重置后订阅链接与 UUID 都会更换，旧链接立即失效。",
+    "uuid": "UUID",
+    "manage": "管理订阅与分流规则"
+  }
+}

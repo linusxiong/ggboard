@@ -80,6 +80,8 @@ function ForgotPage() {
           type="email"
           inputMode="email"
           autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
           placeholder={t('fields.emailPlaceholder')}
           required
         />

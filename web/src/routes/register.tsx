@@ -127,7 +127,9 @@ function RegisterPage() {
           label={t('fields.email')}
           type="email"
           inputMode="email"
-          autoComplete="email"
+          autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
           placeholder={t('fields.emailPlaceholder')}
           description={
             whitelist.length > 0 ? t('register.whitelist', { suffixes: whitelist.join(', ') }) : undefined
