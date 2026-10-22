@@ -96,7 +96,12 @@ func (r *Renderer) Render(name string, brand Brand, data Data) (Message, error) 
 	if err != nil {
 		return Message{}, err
 	}
-	view["Subject"] = subject
+	// MailSubject is the rendered e-mail subject (layout <title>). A caller-supplied Subject is template data
+	// (e.g. the ticket subject of ticket_reply) and must not be replaced by the e-mail subject.
+	view["MailSubject"] = subject
+	if _, ok := data["Subject"]; !ok {
+		view["Subject"] = subject
+	}
 
 	hc, err := h.Clone()
 	if err != nil {
