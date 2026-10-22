@@ -53,7 +53,7 @@ export const USER_NAV: readonly NavItem[] = [
 
 export const ADMIN_NAV: readonly NavItem[] = [
   { to: '/admin/dashboard', label: 'admin.dashboard', icon: Gauge, primary: true },
-  { to: '/admin/users', label: 'admin.users', icon: Users, primary: true },
+  { to: '/admin/users', label: 'admin.users', icon: Users, primary: true, staff: true },
   { to: '/admin/plans', label: 'admin.plans', icon: Package },
   { to: '/admin/groups', label: 'admin.groups', icon: Layers },
   { to: '/admin/nodes', label: 'admin.nodes', icon: Server, primary: true },
