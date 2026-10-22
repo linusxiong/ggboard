@@ -1,0 +1,97 @@
+/* Original decorative effects for GG Bond (GPL-3.0). Keyframes only; colours come from inline CSS variables. */
+@keyframes gg-shine {
+  from {
+    background-position: 150% center;
+  }
+  to {
+    background-position: -50% center;
+  }
+}
+@keyframes gg-gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+@keyframes gg-reveal {
+  from {
+    opacity: 0;
+    filter: blur(var(--gg-blur, 8px));
+    transform: translate3d(0, var(--gg-shift, -8px), 0);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translate3d(0, 0, 0);
+  }
+}
+.gg-shine {
+  background-image: linear-gradient(
+    var(--gg-angle, 110deg),
+    var(--gg-color) 0%,
+    var(--gg-color) 38%,
+    var(--gg-shine) 50%,
+    var(--gg-color) 62%,
+    var(--gg-color) 100%
+  );
+  background-size: 250% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gg-shine var(--gg-speed, 3s) linear var(--gg-delay, 0s) infinite;
+}
+.gg-gradient {
+  background-size: 300% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gg-gradient var(--gg-speed, 8s) ease-in-out infinite;
+}
+.gg-reveal > .gg-reveal-item {
+  display: inline-block;
+  opacity: 0;
+  will-change: opacity, transform, filter;
+}
+.gg-reveal.is-visible > .gg-reveal-item {
+  animation: gg-reveal var(--gg-duration, 600ms) cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--gg-item-delay, 0ms);
+}
+.gg-spotlight {
+  position: relative;
+  overflow: hidden;
+}
+.gg-spotlight > .gg-spotlight-glow {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 320ms ease;
+  background: radial-gradient(
+    var(--gg-size, 420px) circle at var(--gg-x, 50%) var(--gg-y, 50%),
+    var(--gg-glow),
+    transparent 65%
+  );
+}
+.gg-spotlight:hover > .gg-spotlight-glow,
+.gg-spotlight:focus-within > .gg-spotlight-glow {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gg-shine,
+  .gg-gradient {
+    animation: none;
+  }
+  .gg-reveal > .gg-reveal-item,
+  .gg-reveal.is-visible > .gg-reveal-item {
+    animation: none;
+    opacity: 1;
+  }
+  .gg-spotlight > .gg-spotlight-glow {
+    transition: none;
+  }
+}

@@ -177,8 +177,7 @@ React Aria JS) — see "Performance".
 backend CSP must allow the provider when it is on; `LazyCaptcha` defers it), `AriaProviders` (React Aria router + locale, rendered by
 `AppShell`), `data-table/`, `form/`, `feedback/`, `layout/` (AppShell, AuthLayout, nav), `charts/` (SVG line/bar/sparkline),
 `editor/` (Markdown editor), `native/` (`NativeField`, `NativeButton`), `icons/inline.tsx`, `auth/EmailCodeButton`.
-`reactbits/` — ShinyText, GradientText, BlurText, SpotlightCard, CountUp (React Bits, _MIT + Commons Clause_: use inside
-the app is fine, don't extract them). Always via the lazy exports + `<WhenIdle fallback={same-size static}>`.
+`effects/` — ShinyText, GradientText, BlurText, SpotlightCard, CountUp (original CSS/rAF effects, GPL-3.0; always behind `WhenIdle`/`lazy`).
 
 ## i18n
 
@@ -215,7 +214,7 @@ No hex colors in components. Dark mode follows the OS; `useUiStore().setTheme('l
   the authenticated shells.
 - HeroUI CSS is per component (`scripts/heroui-css.ts` attaches each component's stylesheet to its JS module); in a
   native element use `import 'heroui-css:button'`. The global CSS stays ≈ 11 KB gzip.
-- Route-level code splitting is automatic; lazy-load anything heavy (charts, editors, Markdown, QR, reactbits) and start
+- Route-level code splitting is automatic; lazy-load anything heavy (charts, editors, Markdown, QR, effects) and start
   animations after idle (`useAnimationsReady`, `WhenIdle`). Give async content a fixed-size placeholder (CLS 0).
 - Vendor groups (`vite.config.ts` → `rolldownOptions.output.codeSplitting.groups`): `react`, `tanstack`, `tanstack-query`,
   `heroui` (entries-aware), plus app groups. **No new dependency without need** — check the bundle impact.

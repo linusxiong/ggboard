@@ -22,7 +22,7 @@ GG Bond（猪猪侠谐音）是一个 **简洁、美观、高性能** 的代理�
 8. 功能清晰简单，不做冗余功能；但**后端支持的所有功能与 API 都必须完整实现**，不留桩代码。
 9. 参考项目：`https://github.com/linusxiong/Xboard`（用户自己的 fork，Laravel 10，旧版分表 schema）
    与上游 `https://github.com/cedar2025/Xboard`（新版统一 `v2_server` 表）。导入器两种 schema 都要支持。
-10. 前端：**HeroUI**（最新大版本）+ **reactbits.dev** 组件；深度使用 **TanStack 全家桶**
+10. 前端：**HeroUI**（最新大版本）+ reactbits.dev 风格的动效组件（**必须是原创实现**：React Bits 的许可证是 MIT + Commons Clause，与 GPL-3.0 不兼容，不得复制其源码）；深度使用 **TanStack 全家桶**
     （Router / Query / Table / Form / Virtual）与 **zustand**。
 11. 前端加载速度极致优化，Lighthouse **Performance / Accessibility / Best Practices（以及 SEO）全部 100 分**。
 12. 大量并行 agent 协作完成；子 agent 全部使用 **Opus，xhigh** 推理强度。
@@ -67,7 +67,7 @@ GG Bond（猪猪侠谐音）是一个 **简洁、美观、高性能** 的代理�
 | 领域 | 选型 |
 |---|---|
 | 构建 | Vite 8 + React 19 + TypeScript 7，包管理 **pnpm** |
-| UI | **HeroUI v3**（`@heroui/react`）+ Tailwind CSS v4；reactbits.dev 组件按需复制到 `web/src/components/reactbits/` |
+| UI | **HeroUI v3**（`@heroui/react`）+ Tailwind CSS v4；原创动效组件在 `web/src/components/effects/`（CSS 动画 + rAF，懒加载） |
 | 路由 | `@tanstack/react-router`（文件式路由 + 自动代码分割） |
 | 数据 | `@tanstack/react-query`；表格 `@tanstack/react-table`；表单 `@tanstack/react-form`；长列表 `@tanstack/react-virtual` |
 | 状态 | `zustand`（auth/session/UI 偏好） |
@@ -151,7 +151,7 @@ deploy/                 Dockerfile、compose、systemd、nginx 示例
 ## 6. 前端性能预算（Lighthouse 四个 100）
 
 - 首屏 JS（登录页/首页）gzip 后 < 120KB，LCP < 1.2s（本地），TBT < 50ms，CLS 0。
-- 路由级代码分割；重型组件（reactbits 动画、图表、Markdown 渲染）`lazy` + 可见时加载；
+- 路由级代码分割；重型组件（动效、图表、Markdown 渲染）`lazy` + 可见时加载；
   动画在 `requestIdleCallback` 后启动。
 - 不加载 web 字体；图标按需；图片用 SVG/WebP 并带尺寸；`<meta>` 完整（title/description/viewport/theme-color）。
 - 产物预压缩（`.br`/`.gz`），hash 文件名 `immutable` 缓存一年，`index.html` 不缓存。
@@ -201,5 +201,5 @@ deploy/                 Dockerfile、compose、systemd、nginx 示例
 - XrayR（master 已被清空，使用 tag `v25.3.6`）：`https://github.com/XrayR-project/XrayR`
 - V2bX（UniProxy 超集：hysteria2/tuic/anytls）：`https://github.com/wyx2685/V2bX`
 - soga 文档（需认证）：`https://aagit.yougotme.cc/soga/soga-v1`，整理版见 `docs/NODE_PROTOCOLS.md`
-- HeroUI：`https://heroui.com/docs`；reactbits：`https://reactbits.dev`；TanStack：`https://tanstack.com`
+- HeroUI：`https://heroui.com/docs`；TanStack：`https://tanstack.com`（reactbits.dev 仅作视觉参考，不复制代码）
 - Apple HIG：`https://developer.apple.com/design/human-interface-guidelines`

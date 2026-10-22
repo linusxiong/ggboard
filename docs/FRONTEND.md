@@ -40,7 +40,7 @@ There is **no schema library** (no Zod): search params and form fields are valid
 | Auth state | `useAuthStore` (`token`, `user`, `hydrated`, `login(token,user)`, `setUser`, `logout`), `isAdmin(u)`, `isStaff(u)` | persisted under `gg-auth` |
 | Links that look like buttons | `buttonClass({ variant, size })` from `@/lib/button` | `<Link to="/plans" className={buttonClass()}>` |
 | Motion helpers | `onIdle`, `useIdle`, `useReducedMotion`, `useAnimationsReady` from `@/lib/motion` | start animations only after idle |
-| reactbits | `@/components/reactbits` (lazy BlurText, CountUp, GradientText, ShinyText, SpotlightCard + `WhenIdle`) | already copied (see §11) |
+| effects | `@/components/effects` (lazy BlurText, CountUp, GradientText, ShinyText, SpotlightCard + `WhenIdle`) | original code (see §11) |
 | i18n | `useT(ns)`, `loadNamespaces([...])`, `t(ns, key)` from `@/i18n` | dictionaries in `src/i18n/<locale>/<namespace>.json` |
 | Tokens | `src/styles/theme.css` (HIG tokens → HeroUI vars → Tailwind) | see §2 for utility names |
 
@@ -581,37 +581,19 @@ import { AnimatePresence } from 'motion/react'
 ```
 
 `reducedMotion="user"` disables transform and layout animations but keeps opacity and color. `useReducedMotion()` (from motion, or from `@/lib/motion`) returns a boolean.
-**Don't** use `<LazyMotion strict>` anywhere reactbits motion components can render: they use `motion.*`, and strict mode throws.
+**Don't** use `<LazyMotion strict>` where `motion.*` components render (strict mode throws); the effects in `@/components/effects` use plain CSS/rAF and need no `motion`.
 HeroUI animates with CSS and honours its own `motion-reduce:` variant (and `data-reduce-motion`).
 
 ---
 
-## 11. reactbits.dev
+## 11. Effects (`web/src/components/effects`)
 
-Sources: <https://reactbits.dev/llms.txt> · <https://reactbits.dev/r/registry.json> · items `https://reactbits.dev/r/<Name>-TS-TW` (JSON, `files[].content`)
-
-The official installers are `npx shadcn@latest add https://reactbits.dev/r/<Name>-TS-TW` and `npx jsrepo@latest add …`. **Our rule is to copy the file instead.**
-The registry metadata pins `motion@^12.23.12`, which a CLI would write next to our motion 14, and shadcn also requires a `components.json`:
-`curl -s https://reactbits.dev/r/CountUp-TS-TW | jq -r '.files[0].content' > web/src/components/reactbits/CountUp.tsx`. Every file uses `export default`
-and starts with `'use client'`, which is harmless. Load components with `lazy()` and render them when visible or after idle (`useAnimationsReady()`). Pass colors as `var(--…)`.
-
-| component | deps | src size | handles reduced motion | use for |
-|---|---|---|---|---|
-| CountUp ✓ | motion | 17 kB | yes | dashboard numbers |
-| Counter | — | 21 kB | yes | odometer stats |
-| GradientText ✓ | — | 8.5 kB | yes | brand title |
-| ShinyText ✓ | — (canvas 2d) | 13 kB | yes | hero subtitle |
-| BlurText ✓ | motion | 14 kB | **no**, so guard it with `useReducedMotion` | landing headline |
-| RotatingText | motion | 13 kB | yes | landing slogans |
-| SpotlightCard ✓ / GlareHover | — | 12 / 11 kB | yes | plan cards |
-| BorderGlow | — | 11 kB | **no** | featured plan |
-| Magnet | — | 9 kB | yes | CTA |
-| GradualBlur | — (backdrop-filter) | 10 kB | **no** | scroll edges |
-
-✓ = already in `web/src/components/reactbits/`. Avoid GSAP components (`FadeContent`, `AnimatedContent`), WebGL backgrounds (`Aurora`, `DotGrid`, `ElectricBorder`, `SpecularButton`),
-and anything that pulls in `@hugeicons/*` (`AnimatedList`, `Stepper`, `MagicBento`, …).
-
----
+React Bits (reactbits.dev) is **MIT + Commons Clause**, which is not GPL-compatible, so its source is NOT used. The
+decorative effects are original: `ShinyText` and `GradientText` (CSS `background-clip: text` keyframes), `BlurText`
+(IntersectionObserver + staggered CSS reveal), `SpotlightCard` (pointer-driven CSS variables + radial gradient) and
+`CountUp` (requestAnimationFrame with ease-out-expo, honours reduced motion). Always render them through `WhenIdle`
+or `lazy` so they never enter a route's first chunk; `effects.css` disables every animation under
+`prefers-reduced-motion: reduce`.
 
 ## 12. lucide-react v1
 
@@ -730,7 +712,7 @@ Authenticated URLs render the login redirect, so they audit the shell. Checklist
     * The router plugin and generator depend on Babel and Prettier, not `typescript`, and no TS 7 incompatibility is documented.
 15. **Apple colors vs AA**: raw system colors with white text, 60% secondary label text, and `systemGray` text all fail `color-contrast`. Use the `label-*`/`tint` tokens.
     `--tint` sits at 4.58:1, so any tweak must be re-measured.
-16. **reactbits** registry metadata pins `motion@^12`, so copy the files instead of running the CLI. `BlurText`, `BorderGlow` and `GradualBlur` ignore reduced motion.
+16. **Effects** are original (`@/components/effects`, see §11); never copy React Bits source (MIT + Commons Clause, not GPL-compatible).
 17. **lucide v1** has no brand icons, and `DynamicIcon` defeats tree-shaking.
 18. A `ProgressBar` or `Meter` without a Label or `aria-label` fails `aria-progressbar-name`, and an icon-only `Button` without `aria-label` fails `button-name`.
     React 19 `<title>` needs a single string child: write `{`订单 ${n}`}`, not `订单 {n}`.

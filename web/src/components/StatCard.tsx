@@ -2,7 +2,7 @@ import { lazy, type ReactNode, Suspense } from 'react'
 import { useAnimationsReady } from '@/lib/motion'
 import { cx } from '@/lib/cn'
 
-const CountUp = lazy(() => import('@/components/reactbits/CountUp'))
+const CountUp = lazy(() => import('@/components/effects/CountUp'))
 
 interface StatCardProps {
   label: ReactNode

@@ -130,7 +130,7 @@ try {
         scene.who ? { token: scene.who.token, user: scene.who.user } : null,
       )
       await page.goto(BASE + scene.path, { waitUntil: 'networkidle0' })
-      await sleep(1200) // idle-time animations (reactbits) and count-ups
+      await sleep(1200) // idle-time animations (effects) and count-ups
       if (scene.prepare) {
         await scene.prepare(page)
         await sleep(900)

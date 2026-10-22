@@ -1,13 +1,14 @@
 /**
- * React Bits components — always consumed lazily so they never land in a route's initial chunk.
+ * Decorative effects (original GG Bond code, GPL-3.0) — always consumed lazily so they never land in a route's
+ * initial chunk:
  *
  *   <WhenIdle fallback={<span className="...">GG Bond</span>}>
  *     <ShinyText text="GG Bond" />
  *   </WhenIdle>
  *
- * `WhenIdle` renders `fallback` until the page is idle (requestIdleCallback after `load`) and
- * motion is allowed; with `prefers-reduced-motion: reduce` the fallback stays forever.
- * Make the fallback visually identical in size to avoid layout shift (CLS 0).
+ * `WhenIdle` renders `fallback` until the page is idle (requestIdleCallback after `load`) and motion is allowed;
+ * with `prefers-reduced-motion: reduce` the fallback stays forever. Make the fallback visually identical in size to
+ * avoid layout shift (CLS 0).
  */
 import { lazy, type ReactNode, Suspense } from 'react'
 import { useAnimationsReady } from '@/lib/motion'

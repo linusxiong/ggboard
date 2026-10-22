@@ -4,7 +4,7 @@
  * becomes a later, larger LCP candidate. The animated spotlight cards replace the static twins after idle.
  */
 import { MonitorSmartphone, Route as RouteIcon, ShieldCheck } from './icons'
-import { SpotlightCard, WhenIdle } from '@/components/reactbits'
+import { SpotlightCard, WhenIdle } from '@/components/effects'
 import { useT } from '@/i18n'
 import { useResolvedTheme } from '@/lib/theme'
 

@@ -171,4 +171,4 @@ make e2e                        # 冒烟 + 完整 API 端到端流程（scripts/
 
 ## 许可证 / License
 
-[GPL-3.0](LICENSE)。`web/src/components/reactbits/` 下的组件来自 [React Bits](https://reactbits.dev)，遵循其自身许可证。
+[GPL-3.0](LICENSE)。全部代码（含 `web/src/components/effects/` 下的动效组件）均为原创，无第三方许可证限制。
