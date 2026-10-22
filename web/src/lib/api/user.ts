@@ -27,6 +27,12 @@ import type {
   UserNode,
   UserStats,
   UserSubscription,
+  BackupCodes,
+  Passkey,
+  PasskeyAttestation,
+  PasskeyRegisterBegin,
+  SecurityOverview,
+  TotpSetup,
 } from './types'
 
 const enc = encodeURIComponent
@@ -178,3 +184,42 @@ export const knowledgeIndex = (query: { language?: string; keyword?: string } = 
 /** `GET /user/knowledge/:id` (placeholders substituted server-side). */
 export const knowledge = (id: ID, signal?: AbortSignal) =>
   api.get<KnowledgeArticle>(`/user/knowledge/${id}`, undefined, { signal })
+
+// ---- FE-1 ---- security: TOTP 2FA, backup codes, passkeys
+
+/** `GET /user/security` */
+export const security = (signal?: AbortSignal) =>
+  api.get<SecurityOverview>('/user/security', undefined, { signal })
+
+/** `POST /user/security/totp/setup` → secret + `otpauth://` URL (not active until `enable`). */
+export const totpSetup = () => api.post<TotpSetup>('/user/security/totp/setup')
+
+/** `POST /user/security/totp/enable` → backup codes (shown once). */
+export const totpEnable = (code: string) => api.post<BackupCodes>('/user/security/totp/enable', { code })
+
+/** `POST /user/security/totp/disable` */
+export const totpDisable = (input: { password: string; code: string }) =>
+  api.post<true>('/user/security/totp/disable', input)
+
+/** `POST /user/security/backup-codes` → a fresh set (old codes stop working). */
+export const regenerateBackupCodes = (code: string) =>
+  api.post<BackupCodes>('/user/security/backup-codes', { code })
+
+/** `POST /user/security/passkeys/begin` → creation options (`residentKey: required`). */
+export const passkeyRegisterBegin = (name?: string) =>
+  api.post<PasskeyRegisterBegin>('/user/security/passkeys/begin', name ? { name } : {})
+
+/** `POST /user/security/passkeys/finish` → the stored passkey. */
+export const passkeyRegisterFinish = (input: {
+  challenge_id: string
+  credential: PasskeyAttestation
+  name?: string
+}) => api.post<Passkey>('/user/security/passkeys/finish', input, { keepSession: true })
+
+/** `PATCH /user/security/passkeys/:id` */
+export const renamePasskey = (id: Passkey['id'], name: string) =>
+  api.patch<Passkey>(`/user/security/passkeys/${enc(String(id))}`, { name })
+
+/** `DELETE /user/security/passkeys/:id` with body `{password}`. */
+export const deletePasskey = (id: Passkey['id'], password: string) =>
+  api.delete(`/user/security/passkeys/${enc(String(id))}`, { body: { password } })

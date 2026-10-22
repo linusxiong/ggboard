@@ -192,3 +192,41 @@
 - **根因**：jsdom 的 DOMException 不继承 Error，`err instanceof Error ? err.name : ''` 拿不到 `TimeoutError`。
 - **修复**：改为按结构读取 `name`（`'name' in err`）。
 - **规则**：判断 fetch/abort 的错误类型时，按 `name` 判断，不要依赖 `instanceof Error`。
+
+## 2026-10-22
+
+### 1. （FE-1）路由 `loader` 里静态导入 query 工厂，React Query 被打进了所有页面的入口
+- **现象**：给 `/dashboard` `/subscription` `/profile` 写了 `loader: () => queryClient.query(subscriptionQuery())` 之后，入口 chunk 从 101.5 KB 涨到 115.2 KB（gzip），登录页首屏超过 120 KB 预算。
+- **根因**：TanStack Router 的 `autoCodeSplitting` 默认只拆 `component`/`errorComponent`/`notFoundComponent`/`pendingComponent`，`loader` 和 `validateSearch` 留在 routeTree 里，而 routeTree 属于入口。loader 静态导入的 `@/lib/api/queries` 又带上了 `@tanstack/react-query` 和全部 API 模块。
+- **修复**：loader 内 `const q = await import('@/lib/api/queries')` 动态导入；入口回到 103.4 KB，登录页 111.3 KB。
+- **规则**：路由文件顶层只放 `component` 会用到的导入；loader 需要的模块一律在 loader 内动态 `import()`。每次加 loader 后按页面统计首屏 chunk（入口 + 路由 chunk 的静态依赖闭包），和改动前对比。
+
+### 2. （FE-1）Vitest 5 的文件系统模块缓存让新增的 i18n JSON 在测试里“不存在”
+- **现象**：新增 `src/i18n/zh-CN/dashboard.json` 后，dev server 正常，测试里却一直报 `[i18n] missing namespace zh-CN/dashboard`，`availableNamespaces()` 只返回旧的 5 个命名空间。
+- **根因**：`node_modules/.vitest-cache` 按模块内容缓存转换结果，`src/i18n/index.ts` 本身没变，所以 `import.meta.glob('./*/*.json')` 的展开结果一直是旧的。删除 `node_modules/.vite/vitest` 没有用。
+- **修复**：`rm -rf node_modules/.vitest-cache` 后重跑。
+- **规则**：新增/删除被 `import.meta.glob` 匹配的文件后，测试表现与 dev 不一致时，先清 `node_modules/.vitest-cache`。CI 从干净目录安装，不受影响。
+
+### 3. （FE-1）`useLiteForm` 提交失败后用 rAF 聚焦首个错误字段，抢走了用户正在输入的焦点
+- **现象**：登录冒烟测试偶发失败：邮箱框只有 `a`，其余字符 `@example.com…` 被打进了密码框。
+- **根因**：首次空提交后 `requestAnimationFrame` 才去 focus 第一个 `[aria-invalid]`；用户（或 user-event）此时已经点进邮箱框开始输入，邮箱的错误被清掉，rAF 回调执行时第一个错误字段变成了密码框。真实用户快速输入时也会遇到。
+- **修复**：记录提交时的 `document.activeElement`，rAF 时焦点已经被用户移动就不再抢焦点。
+- **规则**：延迟执行的焦点管理必须先确认焦点仍在原处；偶发失败的测试先看 DOM 快照里的值落在哪个字段。
+
+### 4. （FE-1）业务接口的 401 会被 API client 当成会话过期而登出
+- **现象**：协调说明里 `/user/security/passkeys/finish` 验证失败可能返回 401；共享 client 对任何带 token 的 401 都会 `logout()` 并跳转登录页。
+- **根因**：client 只按状态码判断会话，不知道哪些 401 是业务错误。
+- **修复**：`RequestOptions.keepSession`，passkey finish 调用时传 `true`；登录页的 401/403/429 按状态映射成本地化文案（后端 message 是英文）。
+- **规则**：新增会返回 401 的业务端点时，前端调用处显式声明 `keepSession`；契约里尽量用 400/409 表达业务失败。
+
+### 5. （FE-1）测试里 `getByRole('alert')` 命中了上一个用例残留的 HeroUI toast
+- **现象**：`Found multiple elements with the role "alert"`，其中一个是上一个测试的“登录成功”toast。
+- **根因**：HeroUI 的 toast 队列是模块级单例，`cleanup()` 不会清空它。
+- **修复**：按文本查找后断言 `role="alert"`：`expect(screen.getByText('…')).toHaveAttribute('role', 'alert')`。
+- **规则**：断言表单错误时不要用全局唯一的 `getByRole('alert')`。
+
+### 6. （FE-1）`findByLabelText(/邮箱/)` 同时匹配“邮箱”和“邮箱验证码”，一直重试到测试超时
+- **现象**：注册/找回页的测试 5 秒超时，看不到明确报错。
+- **根因**：`findBy*` 遇到多个匹配会抛错并持续重试，直到超时，表现成“页面没渲染出来”。
+- **修复**：用精确字符串 `findByLabelText('邮箱')`。
+- **规则**：label 有包含关系时用精确字符串；`findBy*` 超时先检查是不是匹配到了多个元素。

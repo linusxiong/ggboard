@@ -1,0 +1,78 @@
+{
+  "title": "仪表盘",
+  "subtitle": "你的套餐、流量与节点一览。",
+  "greeting": {
+    "morning": "早上好，{name}",
+    "noon": "中午好，{name}",
+    "afternoon": "下午好，{name}",
+    "evening": "晚上好，{name}"
+  },
+  "plan": {
+    "current": "当前套餐",
+    "noneTitle": "还没有订阅套餐",
+    "noneHint": "选择一个套餐，即可获得订阅链接并开始使用。",
+    "buy": "选购套餐",
+    "renew": "续费 / 升级",
+    "state": {
+      "active": "使用中",
+      "expired": "已过期",
+      "depleted": "流量已用尽",
+      "none": "未订阅"
+    },
+    "expiredHint": "套餐已过期，续费后即可恢复使用。",
+    "depletedHint": "本周期流量已用完，可购买流量重置包或等待重置。",
+    "expires": "到期时间",
+    "forever": "长期有效",
+    "daysLeft_one": "剩余 {count} 天",
+    "daysLeft_other": "剩余 {count} 天",
+    "reset": "流量重置",
+    "resetIn_one": "{count} 天后重置",
+    "resetIn_other": "{count} 天后重置",
+    "noReset": "不重置",
+    "speed": "速率限制",
+    "mbps": "{value} Mbps",
+    "unlimitedSpeed": "不限速",
+    "devices": "设备数量",
+    "deviceCount_one": "最多 {count} 台",
+    "deviceCount_other": "最多 {count} 台"
+  },
+  "actions": {
+    "title": "快捷操作",
+    "copyLink": "复制订阅链接",
+    "import": "导入到客户端",
+    "shop": "购买 / 续费套餐",
+    "docs": "使用文档"
+  },
+  "stats": {
+    "pendingOrders": "待支付订单",
+    "openTickets": "处理中的工单",
+    "balance": "账户余额",
+    "commission": "佣金"
+  },
+  "traffic": {
+    "title": "近 7 天流量",
+    "weekTotal": "合计 {value}",
+    "empty": "近 7 天暂无流量记录",
+    "error": "流量记录加载失败",
+    "date": "日期",
+    "upload": "上传",
+    "download": "下载",
+    "total": "合计"
+  },
+  "notices": {
+    "title": "最新公告",
+    "all": "全部公告",
+    "empty": "暂无公告"
+  },
+  "nodes": {
+    "title": "节点",
+    "summary": "{online} / {total} 在线",
+    "empty": "当前套餐暂无可用节点",
+    "online": "在线",
+    "offline": "离线",
+    "rate": "流量倍率",
+    "rateValue": "×{rate}",
+    "showAll": "显示全部 {count} 个节点",
+    "showLess": "收起"
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "title": "Dashboard",
+  "subtitle": "Your plan, traffic and nodes at a glance.",
+  "greeting": {
+    "morning": "Good morning, {name}",
+    "noon": "Good afternoon, {name}",
+    "afternoon": "Good afternoon, {name}",
+    "evening": "Good evening, {name}"
+  },
+  "plan": {
+    "current": "Current plan",
+    "noneTitle": "No plan yet",
+    "noneHint": "Pick a plan to get your subscription link and start using the service.",
+    "buy": "Browse plans",
+    "renew": "Renew / upgrade",
+    "state": {
+      "active": "Active",
+      "expired": "Expired",
+      "depleted": "Out of traffic",
+      "none": "No plan"
+    },
+    "expiredHint": "Your plan has expired. Renew it to continue.",
+    "depletedHint": "You used all traffic for this period. Buy a reset pack or wait for the reset.",
+    "expires": "Expires",
+    "forever": "Never expires",
+    "daysLeft_one": "{count} day left",
+    "daysLeft_other": "{count} days left",
+    "reset": "Traffic reset",
+    "resetIn_one": "Resets in {count} day",
+    "resetIn_other": "Resets in {count} days",
+    "noReset": "No reset",
+    "speed": "Speed limit",
+    "mbps": "{value} Mbps",
+    "unlimitedSpeed": "Unlimited",
+    "devices": "Devices",
+    "deviceCount_one": "Up to {count} device",
+    "deviceCount_other": "Up to {count} devices"
+  },
+  "actions": {
+    "title": "Quick actions",
+    "copyLink": "Copy subscription link",
+    "import": "Import into a client",
+    "shop": "Buy or renew a plan",
+    "docs": "Guides"
+  },
+  "stats": {
+    "pendingOrders": "Unpaid orders",
+    "openTickets": "Open tickets",
+    "balance": "Balance",
+    "commission": "Commission"
+  },
+  "traffic": {
+    "title": "Traffic, last 7 days",
+    "weekTotal": "Total {value}",
+    "empty": "No traffic in the last 7 days",
+    "error": "Couldn't load traffic history",
+    "date": "Date",
+    "upload": "Upload",
+    "download": "Download",
+    "total": "Total"
+  },
+  "notices": {
+    "title": "Latest notices",
+    "all": "All notices",
+    "empty": "No notices yet"
+  },
+  "nodes": {
+    "title": "Nodes",
+    "summary": "{online} of {total} online",
+    "empty": "Your plan has no nodes yet",
+    "online": "Online",
+    "offline": "Offline",
+    "rate": "Traffic multiplier",
+    "rateValue": "×{rate}",
+    "showAll": "Show all {count} nodes",
+    "showLess": "Show fewer"
+  }
+}
