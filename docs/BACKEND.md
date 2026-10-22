@@ -114,6 +114,12 @@ mail, `a.Mailer.SendNow(ctx, msg)` for the admin test mail (synchronous), `a.Mai
 - `internal/subscription`: `Format`, `RenderContext`, `RuleProfile`, `Catalog`, `RegisterFormat`, `GetFormat`, `FormatNames`, `DetectFormat(flag, ua)`.
 - `internal/captcha`: `captcha.FromSettings(a.Settings).Verify(ctx, token, c.ClientIP())`, `captcha.Enabled(a.Settings)`.
 - `internal/plugin`: `plugin.NewRegistry[T](kind)` for new plugin points.
+- `internal/service/stat` (`statsvc.New(a)`): `PaidStatuses` (orders counted as paid: 1, 3, 4 by `paid_at`), `Paid(ctx, from, to)`,
+  `Registers`, `Overview`, `Series`, `NodeRanking`, `UserRanking`, `NodeCounts(ctx, now)` (three-state online count), `SaveDay(ctx, day)`.
+- `internal/service/adminuser`: admin user view (`View`, `Views` batch-loads plans/inviters), `Filters`, create/update/delete cascade,
+  generate/export/bulk mail; `Nullable[T]` distinguishes absent / null / value in PATCH bodies.
+- `internal/service/maintenance`: jobs `traffic_reset`, `expire_remind`, `traffic_remind`, `stats_daily` (exported with a `Clock`
+  for tests); `maintenance.Enqueue(ctx, a.Mailer, msg)` waits while the mail queue (1024) is full: use it for any bulk mail.
 
 ## 9. Database rules
 - SQLite (pure Go), PostgreSQL and MySQL must all work: JSON columns are TEXT, use `clause.OnConflict` + `traffic.Excluded` for upserts,

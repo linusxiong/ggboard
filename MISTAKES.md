@@ -240,3 +240,23 @@
 ### 5. （BE-E2 内容）共享包里的未导出标识符可能与其他 agent 冲突
 - **现象（险些发生）**：`internal/api/user`、`internal/api/admin` 由 4–5 个 agent 同时往里加文件。`toView`、`listTickets`、`userView`、测试 helper `newEnv` 这类通用名字合并后会重复声明，编译直接失败。
 - **规则**：在共享包里新增的未导出函数、类型、变量和测试 helper，都要带自己领域的前缀（`ticket*`、`invite*`、`commission*`、`content*`、`notice*`、`knowledge*`），并且不要声明 `TestMain`。
+
+## 2026-10-22
+
+### 1. （BE-E1 admin）以为 `binding:"email"` 会先 trim 再校验
+- **现象**：测试用 `" New@Example.com "` 创建用户，期望服务层规范化成 `new@example.com`，结果返回 400 `email: must be a valid email address`。
+- **根因**：gin 在 handler 之前按原始值做 validator 校验；`usersvc.NormalizeEmail` 的 trim/小写发生在校验之后。
+- **修复**：测试改用不带空格的大小写混合地址；契约保持“首尾空格是非法输入”。
+- **规则**：binding 标签看到的是原始请求值。需要宽松输入时，先在 handler 里规范化再调用 `httpx.Validate`；否则测试只覆盖大小写，不覆盖空白。
+
+### 2. （BE-E1 admin）在请求里启动的后台 goroutine 用了 `context.Background()`
+- **现象**：`golangci-lint` 报 gosec G118（goroutine uses context.Background while request-scoped context is available）。场景是批量邮件超出队列容量（1024）后，剩余收件人交给后台 goroutine 继续入队。
+- **根因**：后台任务需要活得比请求久，于是直接新建了根 context，丢掉了请求里的值，也绕过了 linter 能检查的链路。
+- **修复**：传 `context.WithoutCancel(ctx)`：保留请求值，但不随请求取消。
+- **规则**：故意比请求活得久的 goroutine 一律用 `context.WithoutCancel(reqCtx)`，并在调用处写注释说明原因。
+
+### 3. （BE-E1 admin）`mail.Queue.Enqueue` 不阻塞，队列满时直接返回 `ErrQueueFull`
+- **现象**：设计批量邮件和提醒任务时，如果按“循环 `SendTemplate`”实现，用户超过 1024 个就会丢信。这个问题差点漏掉。
+- **根因**：基础层邮件队列容量固定（默认 1024），满了不会等待，而是立即返回错误。
+- **修复**：新增 `maintenance.Enqueue(ctx, q, msg)`，遇到 `ErrQueueFull` 时退避重试，直到 ctx 结束。批量邮件超出容量的部分交给后台 goroutine 发送。分别有 1100 封和 1300 封的测试覆盖。
+- **规则**：凡是“对一批用户发信”的代码都不要直接循环 `Enqueue`/`SendTemplate`，要用 `maintenance.Enqueue`，并写一个超过 1024 封的测试。
