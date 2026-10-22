@@ -1,0 +1,5 @@
+# Standalone pnpm project (not a monorepo). Settings live here since pnpm 10.
+packages:
+  - .
+minimumReleaseAgeExclude:
+  - vite@8.3.5

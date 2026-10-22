@@ -1,0 +1,87 @@
+{
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "New",
+    "close": "Close",
+    "back": "Back",
+    "retry": "Try again",
+    "copy": "Copy",
+    "copied": "Copied",
+    "search": "Search",
+    "refresh": "Refresh",
+    "more": "More actions",
+    "submit": "Submit",
+    "reset": "Reset",
+    "goHome": "Back to home",
+    "showQr": "Show QR code"
+  },
+  "states": {
+    "loading": "Loading…",
+    "empty": "Nothing here yet",
+    "comingSoon": "Coming soon",
+    "comingSoonHint": "This page is under construction.",
+    "error": "Something went wrong",
+    "errorHint": "The page failed to load. Please try again.",
+    "notFound": "Page not found",
+    "notFoundHint": "The page you are looking for does not exist or was removed."
+  },
+  "table": {
+    "pagination": "Pagination",
+    "rowsPerPage": "Rows per page",
+    "range": "{from}–{to} of {total}",
+    "previous": "Previous",
+    "next": "Next",
+    "page": "Page {page}",
+    "actions": "Actions",
+    "sortAscending": "ascending",
+    "sortDescending": "descending"
+  },
+  "values": {
+    "never": "Never expires",
+    "unlimited": "Unlimited",
+    "none": "None",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "traffic": {
+    "used": "{used} of {total} used",
+    "remaining": "{value} left",
+    "label": "Traffic usage"
+  },
+  "periods": {
+    "monthly": "Monthly",
+    "quarterly": "Quarterly",
+    "half_yearly": "Half-yearly",
+    "yearly": "Yearly",
+    "two_yearly": "2 years",
+    "three_yearly": "3 years",
+    "onetime": "One-time",
+    "reset_traffic": "Traffic reset"
+  },
+  "periodUnit": {
+    "monthly": "mo",
+    "quarterly": "quarter",
+    "half_yearly": "6 mo",
+    "yearly": "yr",
+    "two_yearly": "2 yr",
+    "three_yearly": "3 yr",
+    "onetime": "once",
+    "reset_traffic": "reset"
+  },
+  "confirm": {
+    "title": "Confirm",
+    "dangerTitle": "Are you sure?",
+    "irreversible": "This action cannot be undone."
+  },
+  "copy": {
+    "success": "Copied to clipboard",
+    "failed": "Copy failed — please copy manually"
+  },
+  "qr": {
+    "label": "QR code: {value}"
+  }
+}

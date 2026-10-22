@@ -1,0 +1,32 @@
+{
+  "appName": "GG Bond",
+  "a11y": {
+    "skipToContent": "跳到主要内容"
+  },
+  "theme": {
+    "label": "外观",
+    "system": "跟随系统",
+    "light": "浅色",
+    "dark": "深色",
+    "toggle": "切换外观（当前：{mode}）"
+  },
+  "locale": {
+    "label": "语言",
+    "toggle": "切换语言",
+    "zh-CN": "简体中文",
+    "en": "English"
+  },
+  "errors": {
+    "network": "网络连接失败，请检查网络后重试。",
+    "timeout": "请求超时，请稍后重试。",
+    "unauthorized": "登录已过期，请重新登录。",
+    "forbidden": "没有权限执行此操作。",
+    "not_found": "请求的资源不存在。",
+    "conflict": "操作冲突，请刷新后重试。",
+    "rate_limited": "操作过于频繁，请稍后再试。",
+    "payment_failed": "支付失败。",
+    "validation_failed": "请检查填写的内容。",
+    "internal": "服务器开小差了，请稍后重试。",
+    "unknown": "未知错误。"
+  }
+}

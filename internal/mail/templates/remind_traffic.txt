@@ -1,0 +1,6 @@
+{{t "remind_traffic.title"}}
+
+{{t "remind_traffic.body" .Percent .Used .Total}}
+{{if .URL}}
+{{t "button.open"}}: {{.URL}}
+{{end}}

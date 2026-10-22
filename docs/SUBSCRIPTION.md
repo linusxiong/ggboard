@@ -31,7 +31,7 @@ Formats self-register in `init()` via `subscription.RegisterFormat`.
 
 Share-link conventions (v2ray/shadowrocket): vmess = base64 JSON `{v:"2",ps,add,port,id,aid:0,net,type,host,path,tls,sni,alpn,fp}`;
 vless `vless://uuid@host:port?encryption=none&security=tls|reality&sni=&fp=&pbk=&sid=&type=ws|grpc|...&path=&host=&serviceName=&flow=#name`;
-ss `ss://base64(method:password)@host:port#name` (2022 ciphers use `method:userkey`); ssr `ssr://base64(host:port:protocol:method:obfs:base64(pass)/?obfsparam=&protoparam=&remarks=)`;
+ss `ss://base64(method:password)@host:port#name` (password = `model.UserCredentials(u, node).Password`, i.e. `<server_key>:<user_key>` for 2022 ciphers, see docs/NODE_PROTOCOLS.md §4); ssr `ssr://base64(host:port:protocol:method:obfs:base64(pass)/?obfsparam=&protoparam=&remarks=)`;
 trojan `trojan://pass@host:port?security=tls&sni=&type=&path=&host=&allowInsecure=1#name`;
 hysteria2 `hysteria2://pass@host:port?sni=&insecure=1&obfs=salamander&obfs-password=&mport=10000-20000#name`;
 hysteria (v1) `hysteria://host:port?auth=&upmbps=&downmbps=&obfsParam=&peer=&insecure=&alpn=#name`;

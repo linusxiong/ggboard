@@ -1,0 +1,6 @@
+{{define "content"}}
+{{template "title" (t "remind_traffic.title")}}
+{{template "para" (t "remind_traffic.body" .Percent .Used .Total)}}
+<div style="margin:8px 0 8px;height:8px;background:#E5E5EA;border-radius:4px;overflow:hidden;"><div style="width:{{.Percent}}%;height:8px;background:#FF9500;border-radius:4px;"></div></div>
+{{if .URL}}{{template "button" (dict "URL" .URL "Label" (t "button.open"))}}{{end}}
+{{end}}

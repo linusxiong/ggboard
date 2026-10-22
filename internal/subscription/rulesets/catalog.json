@@ -1,0 +1,2457 @@
+{
+  "sources": {
+    "blackmatrix7": {
+      "name": "blackmatrix7/ios_rule_script",
+      "homepage": "https://github.com/blackmatrix7/ios_rule_script",
+      "license": "GPL-2.0. Rule data is aggregated from public sources; ggboard only references the raw URLs (clients download them), nothing is vendored.",
+      "order": 10,
+      "description": {
+        "zh-CN": "最全的分应用规则（Clash / Surge / Quantumult X / Shadowrocket / Loon），每日更新；无 sing-box 格式。",
+        "en": "Largest per-service rule collection for Clash, Surge, Quantumult X, Shadowrocket and Loon, updated daily; no sing-box files."
+      },
+      "urls": {
+        "clash": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/{name}/{name}.yaml",
+        "clash_classical": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/{name}/{name}_Classical.yaml",
+        "clash_domain": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/{name}/{name}_Domain.yaml",
+        "clash_ipcidr": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/{name}/{name}_IP.yaml",
+        "surge": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/{name}/{name}.list",
+        "surge_domain": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/{name}/{name}_Domain.list",
+        "quantumultx": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/QuantumultX/{name}/{name}.list",
+        "shadowrocket": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Shadowrocket/{name}/{name}.list",
+        "shadowrocket_domain": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Shadowrocket/{name}/{name}_Domain.list",
+        "loon": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/{name}/{name}.list",
+        "loon_domain": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/{name}/{name}_Domain.list"
+      },
+      "url_meta": {
+        "clash": {
+          "field": "name",
+          "behavior": "classical",
+          "format": "yaml"
+        },
+        "clash_classical": {
+          "field": "name",
+          "behavior": "classical",
+          "format": "yaml"
+        },
+        "clash_domain": {
+          "field": "name",
+          "behavior": "domain",
+          "format": "yaml"
+        },
+        "clash_ipcidr": {
+          "field": "name",
+          "behavior": "ipcidr",
+          "format": "yaml"
+        },
+        "surge": {
+          "field": "name",
+          "behavior": "classical",
+          "format": "text"
+        },
+        "surge_domain": {
+          "field": "name",
+          "behavior": "domain",
+          "format": "text"
+        },
+        "quantumultx": {
+          "field": "name",
+          "behavior": "classical",
+          "format": "text"
+        },
+        "shadowrocket": {
+          "field": "name",
+          "behavior": "classical",
+          "format": "text"
+        },
+        "shadowrocket_domain": {
+          "field": "name",
+          "behavior": "domain",
+          "format": "text"
+        },
+        "loon": {
+          "field": "name",
+          "behavior": "classical",
+          "format": "text"
+        },
+        "loon_domain": {
+          "field": "name",
+          "behavior": "domain",
+          "format": "text"
+        }
+      }
+    },
+    "metacubex": {
+      "name": "MetaCubeX/meta-rules-dat",
+      "homepage": "https://github.com/MetaCubeX/meta-rules-dat",
+      "license": "GPL-3.0. Built from v2fly/domain-list-community (MIT) and public GeoIP data; referenced by URL only.",
+      "order": 20,
+      "description": {
+        "zh-CN": "mihomo 官方 geosite/geoip 规则集：meta 分支提供 .mrs/.yaml，sing 分支提供 .srs/.json；速度最快。",
+        "en": "Official mihomo geosite/geoip rule sets: .mrs/.yaml on branch meta, .srs/.json on branch sing; fastest option."
+      },
+      "urls": {
+        "clash_mrs_domain": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/{name}.mrs",
+        "clash_mrs_ipcidr": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/{name}.mrs",
+        "clash_domain": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/{name}.yaml",
+        "clash_ipcidr": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/{name}.yaml",
+        "singbox": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/{name}.srs",
+        "singbox_ipcidr": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/{name}.srs",
+        "singbox_source": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/{name}.json",
+        "singbox_source_ipcidr": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/{name}.json"
+      },
+      "url_meta": {
+        "clash_mrs_domain": {
+          "field": "geosite",
+          "behavior": "domain",
+          "format": "mrs"
+        },
+        "clash_mrs_ipcidr": {
+          "field": "geoip",
+          "behavior": "ipcidr",
+          "format": "mrs"
+        },
+        "clash_domain": {
+          "field": "geosite",
+          "behavior": "domain",
+          "format": "yaml"
+        },
+        "clash_ipcidr": {
+          "field": "geoip",
+          "behavior": "ipcidr",
+          "format": "yaml"
+        },
+        "singbox": {
+          "field": "geosite",
+          "behavior": "domain",
+          "format": "binary"
+        },
+        "singbox_ipcidr": {
+          "field": "geoip",
+          "behavior": "ipcidr",
+          "format": "binary"
+        },
+        "singbox_source": {
+          "field": "geosite",
+          "behavior": "domain",
+          "format": "source"
+        },
+        "singbox_source_ipcidr": {
+          "field": "geoip",
+          "behavior": "ipcidr",
+          "format": "source"
+        }
+      },
+      "aliases": {
+        "clash_geosite": "clash_mrs_domain",
+        "clash_geoip": "clash_mrs_ipcidr",
+        "singbox_geosite": "singbox",
+        "singbox_geoip": "singbox_ipcidr"
+      }
+    },
+    "loyalsoldier": {
+      "name": "Loyalsoldier/clash-rules",
+      "homepage": "https://github.com/Loyalsoldier/clash-rules",
+      "license": "GPL-3.0. Referenced by URL only.",
+      "order": 30,
+      "description": {
+        "zh-CN": "经典 Clash 规则集（release 分支，每日构建）；.txt 文件内容是 YAML payload。",
+        "en": "Classic Clash rule providers (release branch, built daily); the .txt files contain YAML payloads."
+      },
+      "urls": {
+        "clash": "https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/{name}.txt",
+        "clash_domain": "https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/{name}.txt",
+        "clash_ipcidr": "https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/{name}.txt"
+      },
+      "url_meta": {
+        "clash": {
+          "field": "name",
+          "behavior": "classical",
+          "format": "yaml"
+        },
+        "clash_domain": {
+          "field": "name",
+          "behavior": "domain",
+          "format": "yaml"
+        },
+        "clash_ipcidr": {
+          "field": "name",
+          "behavior": "ipcidr",
+          "format": "yaml"
+        }
+      }
+    },
+    "sagernet": {
+      "name": "SagerNet/sing-geosite + SagerNet/sing-geoip",
+      "homepage": "https://github.com/SagerNet/sing-geosite",
+      "license": "GPL-3.0-or-later (per LICENSE file; GitHub shows NOASSERTION). Data from v2fly/domain-list-community and GeoIP databases; referenced by URL only.",
+      "order": 40,
+      "description": {
+        "zh-CN": "sing-box 官方规则集（rule-set 分支，仅 .srs）；geoip 只有国家/地区代码。",
+        "en": "Official sing-box rule sets (branch rule-set, .srs only); geoip offers country codes only."
+      },
+      "urls": {
+        "singbox": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-{name}.srs",
+        "singbox_ipcidr": "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-{name}.srs"
+      },
+      "url_meta": {
+        "singbox": {
+          "field": "geosite",
+          "behavior": "domain",
+          "format": "binary"
+        },
+        "singbox_ipcidr": {
+          "field": "geoip",
+          "behavior": "ipcidr",
+          "format": "binary"
+        }
+      },
+      "aliases": {
+        "singbox_geosite": "singbox",
+        "singbox_geoip": "singbox_ipcidr"
+      }
+    },
+    "acl4ssr": {
+      "name": "ACL4SSR/ACL4SSR",
+      "homepage": "https://github.com/ACL4SSR/ACL4SSR",
+      "license": "CC-BY-SA-4.0. Referenced by URL only.",
+      "order": 50,
+      "description": {
+        "zh-CN": "subconverter 常用的 ACL4SSR 规则（Clash/ 与 Clash/Ruleset/ 下的 .list）；语法与 Surge 兼容。",
+        "en": "ACL4SSR lists used by subconverter (Clash/ and Clash/Ruleset/ .list files); Surge-compatible syntax."
+      },
+      "urls": {
+        "clash": "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/{name}.list",
+        "surge": "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/{name}.list",
+        "shadowrocket": "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/{name}.list",
+        "loon": "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/{name}.list"
+      },
+      "url_meta": {
+        "clash": {
+          "field": "name",
+          "behavior": "classical",
+          "format": "text"
+        },
+        "surge": {
+          "field": "name",
+          "behavior": "classical",
+          "format": "text"
+        },
+        "shadowrocket": {
+          "field": "name",
+          "behavior": "classical",
+          "format": "text"
+        },
+        "loon": {
+          "field": "name",
+          "behavior": "classical",
+          "format": "text"
+        }
+      }
+    },
+    "dustinwin": {
+      "name": "DustinWin/ruleset_geodata",
+      "homepage": "https://github.com/DustinWin/ruleset_geodata",
+      "license": "GPL-3.0. Referenced by URL only.",
+      "order": 60,
+      "description": {
+        "zh-CN": "为 mihomo / sing-box 定制的精选规则集（mihomo-ruleset、sing-box-ruleset 分支），域名集与 *ip 集分开。",
+        "en": "Curated mihomo / sing-box rule sets (branches mihomo-ruleset and sing-box-ruleset); domain sets and *ip sets are separate files."
+      },
+      "urls": {
+        "clash_mrs_domain": "https://raw.githubusercontent.com/DustinWin/ruleset_geodata/mihomo-ruleset/{name}.mrs",
+        "clash_mrs_ipcidr": "https://raw.githubusercontent.com/DustinWin/ruleset_geodata/mihomo-ruleset/{name}.mrs",
+        "clash_domain": "https://raw.githubusercontent.com/DustinWin/ruleset_geodata/mihomo-ruleset/{name}.list",
+        "clash_ipcidr": "https://raw.githubusercontent.com/DustinWin/ruleset_geodata/mihomo-ruleset/{name}.list",
+        "singbox": "https://raw.githubusercontent.com/DustinWin/ruleset_geodata/sing-box-ruleset/{name}.srs",
+        "singbox_ipcidr": "https://raw.githubusercontent.com/DustinWin/ruleset_geodata/sing-box-ruleset/{name}.srs",
+        "singbox_source": "https://raw.githubusercontent.com/DustinWin/ruleset_geodata/sing-box-ruleset/{name}.json",
+        "singbox_source_ipcidr": "https://raw.githubusercontent.com/DustinWin/ruleset_geodata/sing-box-ruleset/{name}.json"
+      },
+      "url_meta": {
+        "clash_mrs_domain": {
+          "field": "geosite",
+          "behavior": "domain",
+          "format": "mrs"
+        },
+        "clash_mrs_ipcidr": {
+          "field": "geoip",
+          "behavior": "ipcidr",
+          "format": "mrs"
+        },
+        "clash_domain": {
+          "field": "geosite",
+          "behavior": "domain",
+          "format": "text"
+        },
+        "clash_ipcidr": {
+          "field": "geoip",
+          "behavior": "ipcidr",
+          "format": "text"
+        },
+        "singbox": {
+          "field": "geosite",
+          "behavior": "domain",
+          "format": "binary"
+        },
+        "singbox_ipcidr": {
+          "field": "geoip",
+          "behavior": "ipcidr",
+          "format": "binary"
+        },
+        "singbox_source": {
+          "field": "geosite",
+          "behavior": "domain",
+          "format": "source"
+        },
+        "singbox_source_ipcidr": {
+          "field": "geoip",
+          "behavior": "ipcidr",
+          "format": "source"
+        }
+      }
+    }
+  },
+  "categories": [
+    {
+      "id": "ads",
+      "name": {
+        "zh-CN": "广告拦截",
+        "en": "Ad blocking"
+      },
+      "default_target": "REJECT",
+      "order": 10,
+      "rules": {
+        "blackmatrix7": {
+          "name": "AdvertisingLite",
+          "behavior": "classical",
+          "split": true,
+          "formats": [
+            "clash",
+            "clash_classical",
+            "clash_domain",
+            "surge",
+            "surge_domain",
+            "quantumultx",
+            "shadowrocket",
+            "shadowrocket_domain",
+            "loon",
+            "loon_domain"
+          ]
+        },
+        "metacubex": {
+          "geosite": "category-ads-all",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        },
+        "loyalsoldier": {
+          "name": "reject",
+          "behavior": "domain",
+          "formats": [
+            "clash_domain"
+          ]
+        },
+        "sagernet": {
+          "geosite": "category-ads-all",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "acl4ssr": [
+          {
+            "name": "BanAD",
+            "behavior": "classical",
+            "formats": [
+              "clash",
+              "surge",
+              "shadowrocket",
+              "loon"
+            ]
+          },
+          {
+            "name": "BanProgramAD",
+            "behavior": "classical",
+            "formats": [
+              "clash",
+              "surge",
+              "shadowrocket",
+              "loon"
+            ]
+          }
+        ],
+        "dustinwin": {
+          "geosite": "ads",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        }
+      }
+    },
+    {
+      "id": "lan",
+      "name": {
+        "zh-CN": "局域网 / 私有网络",
+        "en": "LAN / private network"
+      },
+      "default_target": "DIRECT",
+      "order": 20,
+      "rules": {
+        "blackmatrix7": {
+          "name": "Lan",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "quantumultx",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "metacubex": {
+          "geosite": "private",
+          "geoip": "private",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_mrs_ipcidr",
+            "clash_domain",
+            "clash_ipcidr",
+            "singbox",
+            "singbox_ipcidr",
+            "singbox_source",
+            "singbox_source_ipcidr"
+          ]
+        },
+        "loyalsoldier": [
+          {
+            "name": "private",
+            "behavior": "domain",
+            "formats": [
+              "clash_domain"
+            ]
+          },
+          {
+            "name": "lancidr",
+            "behavior": "ipcidr",
+            "formats": [
+              "clash_ipcidr"
+            ]
+          }
+        ],
+        "sagernet": {
+          "geosite": "private",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "acl4ssr": {
+          "name": "LocalAreaNetwork",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "dustinwin": {
+          "geosite": "private",
+          "geoip": "privateip",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_mrs_ipcidr",
+            "clash_domain",
+            "clash_ipcidr",
+            "singbox",
+            "singbox_ipcidr",
+            "singbox_source",
+            "singbox_source_ipcidr"
+          ]
+        }
+      }
+    },
+    {
+      "id": "applications",
+      "name": {
+        "zh-CN": "直连软件（下载 / P2P 客户端）",
+        "en": "Direct apps (download / P2P clients)"
+      },
+      "default_target": "DIRECT",
+      "order": 25,
+      "rules": {
+        "loyalsoldier": {
+          "name": "applications",
+          "behavior": "classical",
+          "formats": [
+            "clash"
+          ]
+        }
+      }
+    },
+    {
+      "id": "openai",
+      "name": {
+        "zh-CN": "OpenAI / ChatGPT",
+        "en": "OpenAI / ChatGPT"
+      },
+      "default_target": "AI",
+      "order": 30,
+      "rules": {
+        "blackmatrix7": {
+          "name": "OpenAI",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "quantumultx",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "metacubex": {
+          "geosite": "openai",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        },
+        "sagernet": {
+          "geosite": "openai",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "acl4ssr": {
+          "name": "Ruleset/OpenAi",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "shadowrocket",
+            "loon"
+          ]
+        }
+      }
+    },
+    {
+      "id": "claude",
+      "name": {
+        "zh-CN": "Claude / Anthropic",
+        "en": "Claude / Anthropic"
+      },
+      "default_target": "AI",
+      "order": 31,
+      "rules": {
+        "blackmatrix7": {
+          "name": "Claude",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "quantumultx",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "metacubex": {
+          "geosite": "anthropic",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        },
+        "sagernet": {
+          "geosite": "anthropic",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "acl4ssr": {
+          "name": "Ruleset/Claude",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "shadowrocket",
+            "loon"
+          ]
+        }
+      }
+    },
+    {
+      "id": "gemini",
+      "name": {
+        "zh-CN": "Gemini / Google AI",
+        "en": "Gemini / Google AI"
+      },
+      "default_target": "AI",
+      "order": 32,
+      "rules": {
+        "blackmatrix7": {
+          "name": "Gemini",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "quantumultx",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "metacubex": {
+          "geosite": "google-gemini",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        },
+        "sagernet": {
+          "geosite": "google-gemini",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "acl4ssr": {
+          "name": "Ruleset/Gemini",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "shadowrocket",
+            "loon"
+          ]
+        }
+      }
+    },
+    {
+      "id": "copilot",
+      "name": {
+        "zh-CN": "Copilot / 微软 AI",
+        "en": "Copilot / Microsoft AI"
+      },
+      "default_target": "AI",
+      "order": 33,
+      "rules": {
+        "blackmatrix7": {
+          "name": "Copilot",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "quantumultx",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "metacubex": [
+          {
+            "geosite": "bing",
+            "formats": [
+              "clash_mrs_domain",
+              "clash_domain",
+              "singbox",
+              "singbox_source"
+            ]
+          },
+          {
+            "geosite": "github-copilot",
+            "formats": [
+              "clash_mrs_domain",
+              "clash_domain",
+              "singbox",
+              "singbox_source"
+            ]
+          }
+        ],
+        "sagernet": [
+          {
+            "geosite": "bing",
+            "formats": [
+              "singbox"
+            ]
+          },
+          {
+            "geosite": "github-copilot",
+            "formats": [
+              "singbox"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ai",
+      "name": {
+        "zh-CN": "其他海外 AI 服务",
+        "en": "Other AI services (non-CN)"
+      },
+      "default_target": "AI",
+      "order": 34,
+      "rules": {
+        "metacubex": {
+          "geosite": "category-ai-!cn",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        },
+        "sagernet": {
+          "geosite": "category-ai-!cn",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "acl4ssr": {
+          "name": "Ruleset/AI",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "dustinwin": {
+          "geosite": "ai",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        }
+      }
+    },
+    {
+      "id": "telegram",
+      "name": {
+        "zh-CN": "Telegram",
+        "en": "Telegram"
+      },
+      "default_target": "Telegram",
+      "order": 40,
+      "rules": {
+        "blackmatrix7": {
+          "name": "Telegram",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "quantumultx",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "metacubex": {
+          "geosite": "telegram",
+          "geoip": "telegram",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_mrs_ipcidr",
+            "clash_domain",
+            "clash_ipcidr",
+            "singbox",
+            "singbox_ipcidr",
+            "singbox_source",
+            "singbox_source_ipcidr"
+          ]
+        },
+        "loyalsoldier": {
+          "name": "telegramcidr",
+          "behavior": "ipcidr",
+          "formats": [
+            "clash_ipcidr"
+          ]
+        },
+        "sagernet": {
+          "geosite": "telegram",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "acl4ssr": {
+          "name": "Telegram",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "dustinwin": {
+          "geoip": "telegramip",
+          "formats": [
+            "clash_mrs_ipcidr",
+            "clash_ipcidr",
+            "singbox_ipcidr",
+            "singbox_source_ipcidr"
+          ]
+        }
+      }
+    },
+    {
+      "id": "youtube",
+      "name": {
+        "zh-CN": "YouTube",
+        "en": "YouTube"
+      },
+      "default_target": "Streaming",
+      "order": 50,
+      "rules": {
+        "blackmatrix7": {
+          "name": "YouTube",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "quantumultx",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "metacubex": {
+          "geosite": "youtube",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        },
+        "sagernet": {
+          "geosite": "youtube",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "acl4ssr": {
+          "name": "Ruleset/YouTube",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "dustinwin": {
+          "geosite": "youtube",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        }
+      }
+    },
+    {
+      "id": "netflix",
+      "name": {
+        "zh-CN": "Netflix",
+        "en": "Netflix"
+      },
+      "default_target": "Streaming",
+      "order": 51,
+      "rules": {
+        "blackmatrix7": {
+          "name": "Netflix",
+          "behavior": "classical",
+          "split": true,
+          "formats": [
+            "clash",
+            "clash_classical",
+            "clash_ipcidr",
+            "surge",
+            "quantumultx",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "metacubex": {
+          "geosite": "netflix",
+          "geoip": "netflix",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_mrs_ipcidr",
+            "clash_domain",
+            "clash_ipcidr",
+            "singbox",
+            "singbox_ipcidr",
+            "singbox_source",
+            "singbox_source_ipcidr"
+          ]
+        },
+        "sagernet": {
+          "geosite": "netflix",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "acl4ssr": [
+          {
+            "name": "Ruleset/Netflix",
+            "behavior": "classical",
+            "formats": [
+              "clash",
+              "surge",
+              "shadowrocket",
+              "loon"
+            ]
+          },
+          {
+            "name": "Ruleset/NetflixIP",
+            "behavior": "classical",
+            "formats": [
+              "clash",
+              "surge",
+              "shadowrocket",
+              "loon"
+            ]
+          }
+        ],
+        "dustinwin": {
+          "geosite": "netflix",
+          "geoip": "netflixip",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_mrs_ipcidr",
+            "clash_domain",
+            "clash_ipcidr",
+            "singbox",
+            "singbox_ipcidr",
+            "singbox_source",
+            "singbox_source_ipcidr"
+          ]
+        }
+      }
+    },
+    {
+      "id": "disney",
+      "name": {
+        "zh-CN": "Disney+",
+        "en": "Disney+"
+      },
+      "default_target": "Streaming",
+      "order": 52,
+      "rules": {
+        "blackmatrix7": {
+          "name": "Disney",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "quantumultx",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "metacubex": {
+          "geosite": "disney",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        },
+        "sagernet": {
+          "geosite": "disney",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "acl4ssr": {
+          "name": "Ruleset/DisneyPlus",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "dustinwin": {
+          "geosite": "disney",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        }
+      }
+    },
+    {
+      "id": "hbo",
+      "name": {
+        "zh-CN": "HBO Max",
+        "en": "HBO Max"
+      },
+      "default_target": "Streaming",
+      "order": 53,
+      "rules": {
+        "blackmatrix7": {
+          "name": "HBO",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "quantumultx",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "metacubex": {
+          "geosite": "hbo",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        },
+        "sagernet": {
+          "geosite": "hbo",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "acl4ssr": {
+          "name": "Ruleset/HBO",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "dustinwin": {
+          "geosite": "max",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        }
+      }
+    },
+    {
+      "id": "spotify",
+      "name": {
+        "zh-CN": "Spotify",
+        "en": "Spotify"
+      },
+      "default_target": "Streaming",
+      "order": 54,
+      "rules": {
+        "blackmatrix7": {
+          "name": "Spotify",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "quantumultx",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "metacubex": {
+          "geosite": "spotify",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        },
+        "sagernet": {
+          "geosite": "spotify",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "acl4ssr": {
+          "name": "Ruleset/Spotify",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "dustinwin": {
+          "geosite": "spotify",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        }
+      }
+    },
+    {
+      "id": "tiktok",
+      "name": {
+        "zh-CN": "TikTok",
+        "en": "TikTok"
+      },
+      "default_target": "Streaming",
+      "order": 55,
+      "rules": {
+        "blackmatrix7": {
+          "name": "TikTok",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "quantumultx",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "metacubex": {
+          "geosite": "tiktok",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        },
+        "sagernet": {
+          "geosite": "tiktok",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "acl4ssr": {
+          "name": "Ruleset/TikTok",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "dustinwin": {
+          "geosite": "tiktok",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        }
+      }
+    },
+    {
+      "id": "twitch",
+      "name": {
+        "zh-CN": "Twitch",
+        "en": "Twitch"
+      },
+      "default_target": "Streaming",
+      "order": 56,
+      "rules": {
+        "blackmatrix7": {
+          "name": "Twitch",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "quantumultx",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "metacubex": {
+          "geosite": "twitch",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        },
+        "sagernet": {
+          "geosite": "twitch",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "acl4ssr": {
+          "name": "Ruleset/Twitch",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "shadowrocket",
+            "loon"
+          ]
+        }
+      }
+    },
+    {
+      "id": "bahamut",
+      "name": {
+        "zh-CN": "巴哈姆特动画疯",
+        "en": "Bahamut Anime Crazy"
+      },
+      "default_target": "Streaming",
+      "order": 57,
+      "rules": {
+        "blackmatrix7": {
+          "name": "Bahamut",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "quantumultx",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "metacubex": {
+          "geosite": "bahamut",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        },
+        "sagernet": {
+          "geosite": "bahamut",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "acl4ssr": {
+          "name": "Ruleset/Bahamut",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "shadowrocket",
+            "loon"
+          ]
+        }
+      }
+    },
+    {
+      "id": "bilibili",
+      "name": {
+        "zh-CN": "哔哩哔哩",
+        "en": "Bilibili"
+      },
+      "default_target": "DIRECT",
+      "order": 58,
+      "rules": {
+        "blackmatrix7": {
+          "name": "BiliBili",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "quantumultx",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "metacubex": {
+          "geosite": "bilibili",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        },
+        "sagernet": {
+          "geosite": "bilibili",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "acl4ssr": {
+          "name": "Ruleset/Bilibili",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "dustinwin": {
+          "geosite": "bilibili",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        }
+      }
+    },
+    {
+      "id": "github",
+      "name": {
+        "zh-CN": "GitHub",
+        "en": "GitHub"
+      },
+      "default_target": "GitHub",
+      "order": 60,
+      "rules": {
+        "blackmatrix7": {
+          "name": "GitHub",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "quantumultx",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "metacubex": {
+          "geosite": "github",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        },
+        "sagernet": {
+          "geosite": "github",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "acl4ssr": {
+          "name": "Ruleset/Github",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "shadowrocket",
+            "loon"
+          ]
+        }
+      }
+    },
+    {
+      "id": "google",
+      "name": {
+        "zh-CN": "Google",
+        "en": "Google"
+      },
+      "default_target": "Google",
+      "order": 61,
+      "rules": {
+        "blackmatrix7": {
+          "name": "Google",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "quantumultx",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "metacubex": {
+          "geosite": "google",
+          "geoip": "google",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_mrs_ipcidr",
+            "clash_domain",
+            "clash_ipcidr",
+            "singbox",
+            "singbox_ipcidr",
+            "singbox_source",
+            "singbox_source_ipcidr"
+          ]
+        },
+        "loyalsoldier": {
+          "name": "google",
+          "behavior": "domain",
+          "formats": [
+            "clash_domain"
+          ]
+        },
+        "sagernet": {
+          "geosite": "google",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "acl4ssr": {
+          "name": "Ruleset/Google",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "shadowrocket",
+            "loon"
+          ]
+        }
+      }
+    },
+    {
+      "id": "microsoft",
+      "name": {
+        "zh-CN": "微软服务",
+        "en": "Microsoft"
+      },
+      "default_target": "Microsoft",
+      "order": 62,
+      "rules": {
+        "blackmatrix7": {
+          "name": "Microsoft",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "quantumultx",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "metacubex": {
+          "geosite": "microsoft",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        },
+        "sagernet": {
+          "geosite": "microsoft",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "acl4ssr": {
+          "name": "Microsoft",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "shadowrocket",
+            "loon"
+          ]
+        }
+      }
+    },
+    {
+      "id": "icloud",
+      "name": {
+        "zh-CN": "iCloud",
+        "en": "iCloud"
+      },
+      "default_target": "Apple",
+      "order": 63,
+      "rules": {
+        "blackmatrix7": {
+          "name": "iCloud",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "quantumultx",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "metacubex": {
+          "geosite": "icloud",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        },
+        "loyalsoldier": {
+          "name": "icloud",
+          "behavior": "domain",
+          "formats": [
+            "clash_domain"
+          ]
+        },
+        "sagernet": {
+          "geosite": "icloud",
+          "formats": [
+            "singbox"
+          ]
+        }
+      }
+    },
+    {
+      "id": "apple",
+      "name": {
+        "zh-CN": "苹果服务",
+        "en": "Apple"
+      },
+      "default_target": "Apple",
+      "order": 64,
+      "rules": {
+        "blackmatrix7": {
+          "name": "Apple",
+          "behavior": "classical",
+          "split": true,
+          "formats": [
+            "clash",
+            "clash_classical",
+            "clash_domain",
+            "surge",
+            "surge_domain",
+            "quantumultx",
+            "shadowrocket",
+            "shadowrocket_domain",
+            "loon",
+            "loon_domain"
+          ]
+        },
+        "metacubex": {
+          "geosite": "apple",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        },
+        "loyalsoldier": {
+          "name": "apple",
+          "behavior": "domain",
+          "formats": [
+            "clash_domain"
+          ]
+        },
+        "sagernet": {
+          "geosite": "apple",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "acl4ssr": {
+          "name": "Apple",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "shadowrocket",
+            "loon"
+          ]
+        }
+      }
+    },
+    {
+      "id": "twitter",
+      "name": {
+        "zh-CN": "X / Twitter",
+        "en": "X / Twitter"
+      },
+      "default_target": "Proxy",
+      "order": 65,
+      "rules": {
+        "blackmatrix7": {
+          "name": "Twitter",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "quantumultx",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "metacubex": {
+          "geosite": "twitter",
+          "geoip": "twitter",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_mrs_ipcidr",
+            "clash_domain",
+            "clash_ipcidr",
+            "singbox",
+            "singbox_ipcidr",
+            "singbox_source",
+            "singbox_source_ipcidr"
+          ]
+        },
+        "sagernet": {
+          "geosite": "twitter",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "acl4ssr": {
+          "name": "Ruleset/Twitter",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "shadowrocket",
+            "loon"
+          ]
+        }
+      }
+    },
+    {
+      "id": "facebook",
+      "name": {
+        "zh-CN": "Meta（Facebook / Instagram / WhatsApp）",
+        "en": "Meta (Facebook / Instagram / WhatsApp)"
+      },
+      "default_target": "Proxy",
+      "order": 66,
+      "rules": {
+        "blackmatrix7": [
+          {
+            "name": "Facebook",
+            "behavior": "classical",
+            "formats": [
+              "clash",
+              "surge",
+              "quantumultx",
+              "shadowrocket",
+              "loon"
+            ]
+          },
+          {
+            "name": "Instagram",
+            "behavior": "classical",
+            "formats": [
+              "clash",
+              "surge",
+              "quantumultx",
+              "shadowrocket",
+              "loon"
+            ]
+          },
+          {
+            "name": "Whatsapp",
+            "behavior": "classical",
+            "formats": [
+              "clash",
+              "surge",
+              "quantumultx",
+              "shadowrocket",
+              "loon"
+            ]
+          }
+        ],
+        "metacubex": [
+          {
+            "geosite": "facebook",
+            "geoip": "facebook",
+            "formats": [
+              "clash_mrs_domain",
+              "clash_mrs_ipcidr",
+              "clash_domain",
+              "clash_ipcidr",
+              "singbox",
+              "singbox_ipcidr",
+              "singbox_source",
+              "singbox_source_ipcidr"
+            ]
+          },
+          {
+            "geosite": "instagram",
+            "formats": [
+              "clash_mrs_domain",
+              "clash_domain",
+              "singbox",
+              "singbox_source"
+            ]
+          },
+          {
+            "geosite": "whatsapp",
+            "formats": [
+              "clash_mrs_domain",
+              "clash_domain",
+              "singbox",
+              "singbox_source"
+            ]
+          }
+        ],
+        "sagernet": [
+          {
+            "geosite": "facebook",
+            "formats": [
+              "singbox"
+            ]
+          },
+          {
+            "geosite": "instagram",
+            "formats": [
+              "singbox"
+            ]
+          },
+          {
+            "geosite": "whatsapp",
+            "formats": [
+              "singbox"
+            ]
+          }
+        ],
+        "acl4ssr": [
+          {
+            "name": "Ruleset/Facebook",
+            "behavior": "classical",
+            "formats": [
+              "clash",
+              "surge",
+              "shadowrocket",
+              "loon"
+            ]
+          },
+          {
+            "name": "Ruleset/Instagram",
+            "behavior": "classical",
+            "formats": [
+              "clash",
+              "surge",
+              "shadowrocket",
+              "loon"
+            ]
+          },
+          {
+            "name": "Ruleset/Whatsapp",
+            "behavior": "classical",
+            "formats": [
+              "clash",
+              "surge",
+              "shadowrocket",
+              "loon"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "paypal",
+      "name": {
+        "zh-CN": "PayPal",
+        "en": "PayPal"
+      },
+      "default_target": "Proxy",
+      "order": 67,
+      "rules": {
+        "blackmatrix7": {
+          "name": "PayPal",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "quantumultx",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "metacubex": {
+          "geosite": "paypal",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        },
+        "sagernet": {
+          "geosite": "paypal",
+          "formats": [
+            "singbox"
+          ]
+        }
+      }
+    },
+    {
+      "id": "speedtest",
+      "name": {
+        "zh-CN": "网络测速",
+        "en": "Speedtest"
+      },
+      "default_target": "Proxy",
+      "order": 68,
+      "rules": {
+        "blackmatrix7": {
+          "name": "Speedtest",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "quantumultx",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "metacubex": {
+          "geosite": "category-speedtest",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        },
+        "sagernet": {
+          "geosite": "category-speedtest",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "dustinwin": {
+          "geosite": "networktest",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        }
+      }
+    },
+    {
+      "id": "steam",
+      "name": {
+        "zh-CN": "Steam",
+        "en": "Steam"
+      },
+      "default_target": "Games",
+      "order": 70,
+      "rules": {
+        "blackmatrix7": {
+          "name": "Steam",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "quantumultx",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "metacubex": {
+          "geosite": "steam",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        },
+        "sagernet": {
+          "geosite": "steam",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "acl4ssr": {
+          "name": "Ruleset/Steam",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "shadowrocket",
+            "loon"
+          ]
+        }
+      }
+    },
+    {
+      "id": "epic",
+      "name": {
+        "zh-CN": "Epic Games",
+        "en": "Epic Games"
+      },
+      "default_target": "Games",
+      "order": 71,
+      "rules": {
+        "blackmatrix7": {
+          "name": "Epic",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "quantumultx",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "metacubex": {
+          "geosite": "epicgames",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        },
+        "sagernet": {
+          "geosite": "epicgames",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "acl4ssr": {
+          "name": "Ruleset/Epic",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "shadowrocket",
+            "loon"
+          ]
+        }
+      }
+    },
+    {
+      "id": "gfw",
+      "name": {
+        "zh-CN": "被墙网站（GFWList）",
+        "en": "Blocked sites (GFWList)"
+      },
+      "default_target": "Proxy",
+      "order": 80,
+      "rules": {
+        "blackmatrix7": {
+          "name": "Proxy",
+          "behavior": "classical",
+          "split": true,
+          "formats": [
+            "clash",
+            "clash_classical",
+            "clash_domain",
+            "surge",
+            "surge_domain",
+            "quantumultx",
+            "shadowrocket",
+            "shadowrocket_domain",
+            "loon",
+            "loon_domain"
+          ]
+        },
+        "metacubex": {
+          "geosite": "gfw",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        },
+        "loyalsoldier": {
+          "name": "gfw",
+          "behavior": "domain",
+          "formats": [
+            "clash_domain"
+          ]
+        },
+        "acl4ssr": {
+          "name": "ProxyGFWlist",
+          "behavior": "classical",
+          "formats": [
+            "clash",
+            "surge",
+            "shadowrocket",
+            "loon"
+          ]
+        },
+        "dustinwin": {
+          "geosite": "gfw",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        }
+      }
+    },
+    {
+      "id": "global",
+      "name": {
+        "zh-CN": "海外网站（非中国大陆）",
+        "en": "Foreign sites (non-CN)"
+      },
+      "default_target": "Proxy",
+      "order": 85,
+      "rules": {
+        "blackmatrix7": {
+          "name": "Global",
+          "behavior": "classical",
+          "split": true,
+          "formats": [
+            "clash",
+            "clash_classical",
+            "clash_domain",
+            "surge",
+            "surge_domain",
+            "quantumultx",
+            "shadowrocket",
+            "shadowrocket_domain",
+            "loon",
+            "loon_domain"
+          ]
+        },
+        "metacubex": {
+          "geosite": "geolocation-!cn",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_domain",
+            "singbox",
+            "singbox_source"
+          ]
+        },
+        "loyalsoldier": [
+          {
+            "name": "proxy",
+            "behavior": "domain",
+            "formats": [
+              "clash_domain"
+            ]
+          },
+          {
+            "name": "tld-not-cn",
+            "behavior": "domain",
+            "formats": [
+              "clash_domain"
+            ]
+          }
+        ],
+        "sagernet": {
+          "geosite": "geolocation-!cn",
+          "formats": [
+            "singbox"
+          ]
+        },
+        "dustinwin": [
+          {
+            "geosite": "proxy",
+            "formats": [
+              "clash_mrs_domain",
+              "clash_domain",
+              "singbox",
+              "singbox_source"
+            ]
+          },
+          {
+            "geosite": "tld-proxy",
+            "formats": [
+              "clash_mrs_domain",
+              "clash_domain",
+              "singbox",
+              "singbox_source"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "cn",
+      "name": {
+        "zh-CN": "中国大陆",
+        "en": "Mainland China"
+      },
+      "default_target": "DIRECT",
+      "order": 90,
+      "rules": {
+        "blackmatrix7": {
+          "name": "ChinaMax",
+          "behavior": "classical",
+          "split": true,
+          "formats": [
+            "clash",
+            "clash_classical",
+            "clash_domain",
+            "clash_ipcidr",
+            "surge",
+            "surge_domain",
+            "quantumultx",
+            "shadowrocket",
+            "shadowrocket_domain",
+            "loon",
+            "loon_domain"
+          ]
+        },
+        "metacubex": {
+          "geosite": "cn",
+          "geoip": "cn",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_mrs_ipcidr",
+            "clash_domain",
+            "clash_ipcidr",
+            "singbox",
+            "singbox_ipcidr",
+            "singbox_source",
+            "singbox_source_ipcidr"
+          ]
+        },
+        "loyalsoldier": [
+          {
+            "name": "direct",
+            "behavior": "domain",
+            "formats": [
+              "clash_domain"
+            ]
+          },
+          {
+            "name": "cncidr",
+            "behavior": "ipcidr",
+            "formats": [
+              "clash_ipcidr"
+            ]
+          }
+        ],
+        "sagernet": {
+          "geosite": "cn",
+          "geoip": "cn",
+          "formats": [
+            "singbox",
+            "singbox_ipcidr"
+          ]
+        },
+        "acl4ssr": [
+          {
+            "name": "ChinaDomain",
+            "behavior": "classical",
+            "formats": [
+              "clash",
+              "surge",
+              "shadowrocket",
+              "loon"
+            ]
+          },
+          {
+            "name": "ChinaIp",
+            "behavior": "classical",
+            "formats": [
+              "clash",
+              "surge",
+              "shadowrocket",
+              "loon"
+            ]
+          }
+        ],
+        "dustinwin": {
+          "geosite": "cn",
+          "geoip": "cnip",
+          "formats": [
+            "clash_mrs_domain",
+            "clash_mrs_ipcidr",
+            "clash_domain",
+            "clash_ipcidr",
+            "singbox",
+            "singbox_ipcidr",
+            "singbox_source",
+            "singbox_source_ipcidr"
+          ]
+        }
+      }
+    }
+  ],
+  "templates": [
+    {
+      "id": "none",
+      "name": {
+        "zh-CN": "无规则（全局代理）",
+        "en": "None (global proxy)"
+      },
+      "description": {
+        "zh-CN": "不下发任何分流规则，所有流量走代理。",
+        "en": "No rules; all traffic goes through the proxy."
+      },
+      "categories": {},
+      "groups": [
+        {
+          "name": "Proxy",
+          "type": "select",
+          "include": "auto, *"
+        },
+        {
+          "name": "auto",
+          "type": "url-test",
+          "include": "*",
+          "url": "http://www.gstatic.com/generate_204",
+          "interval": 300
+        }
+      ],
+      "final": "Proxy",
+      "geoip_cn_direct": false
+    },
+    {
+      "id": "minimal",
+      "name": {
+        "zh-CN": "精简（国内直连）",
+        "en": "Minimal (China direct)"
+      },
+      "description": {
+        "zh-CN": "局域网与中国大陆直连，其余走代理。",
+        "en": "LAN and mainland China go direct; everything else is proxied."
+      },
+      "categories": {
+        "lan": "DIRECT",
+        "cn": "DIRECT"
+      },
+      "groups": [
+        {
+          "name": "Proxy",
+          "type": "select",
+          "include": "auto, *"
+        },
+        {
+          "name": "auto",
+          "type": "url-test",
+          "include": "*",
+          "url": "http://www.gstatic.com/generate_204",
+          "interval": 300
+        }
+      ],
+      "final": "Proxy",
+      "geoip_cn_direct": true
+    },
+    {
+      "id": "standard",
+      "name": {
+        "zh-CN": "标准分流",
+        "en": "Standard"
+      },
+      "description": {
+        "zh-CN": "去广告、AI、Telegram、流媒体、微软与苹果分组，被墙网站代理，国内直连。",
+        "en": "Ad blocking plus AI, Telegram, streaming, Microsoft and Apple groups; blocked sites proxied, China direct."
+      },
+      "categories": {
+        "ads": "REJECT",
+        "lan": "DIRECT",
+        "openai": "AI",
+        "claude": "AI",
+        "gemini": "AI",
+        "telegram": "Telegram",
+        "youtube": "Streaming",
+        "netflix": "Streaming",
+        "disney": "Streaming",
+        "spotify": "Streaming",
+        "microsoft": "Microsoft",
+        "apple": "Apple",
+        "gfw": "Proxy",
+        "cn": "DIRECT"
+      },
+      "groups": [
+        {
+          "name": "Proxy",
+          "type": "select",
+          "include": "auto, *"
+        },
+        {
+          "name": "AI",
+          "type": "select",
+          "include": "Proxy, 美国|新加坡|日本|台湾|US|SG|JP|TW"
+        },
+        {
+          "name": "Streaming",
+          "type": "select",
+          "include": "Proxy, *"
+        },
+        {
+          "name": "Telegram",
+          "type": "select",
+          "include": "Proxy, *"
+        },
+        {
+          "name": "Microsoft",
+          "type": "select",
+          "include": "DIRECT, Proxy"
+        },
+        {
+          "name": "Apple",
+          "type": "select",
+          "include": "DIRECT, Proxy"
+        },
+        {
+          "name": "auto",
+          "type": "url-test",
+          "include": "*",
+          "url": "http://www.gstatic.com/generate_204",
+          "interval": 300
+        }
+      ],
+      "final": "Proxy",
+      "geoip_cn_direct": true
+    },
+    {
+      "id": "full",
+      "name": {
+        "zh-CN": "精细分流",
+        "en": "Full"
+      },
+      "description": {
+        "zh-CN": "启用全部分类（按默认目标），额外提供游戏、Google、GitHub 分组。",
+        "en": "Every category enabled with its default target, plus Games, Google and GitHub groups."
+      },
+      "categories": {
+        "ads": "REJECT",
+        "lan": "DIRECT",
+        "applications": "DIRECT",
+        "openai": "AI",
+        "claude": "AI",
+        "gemini": "AI",
+        "copilot": "AI",
+        "ai": "AI",
+        "telegram": "Telegram",
+        "youtube": "Streaming",
+        "netflix": "Streaming",
+        "disney": "Streaming",
+        "hbo": "Streaming",
+        "spotify": "Streaming",
+        "tiktok": "Streaming",
+        "twitch": "Streaming",
+        "bahamut": "Streaming",
+        "bilibili": "DIRECT",
+        "github": "GitHub",
+        "google": "Google",
+        "microsoft": "Microsoft",
+        "icloud": "Apple",
+        "apple": "Apple",
+        "twitter": "Proxy",
+        "facebook": "Proxy",
+        "paypal": "Proxy",
+        "speedtest": "Proxy",
+        "steam": "Games",
+        "epic": "Games",
+        "gfw": "Proxy",
+        "global": "Proxy",
+        "cn": "DIRECT"
+      },
+      "groups": [
+        {
+          "name": "Proxy",
+          "type": "select",
+          "include": "auto, *"
+        },
+        {
+          "name": "AI",
+          "type": "select",
+          "include": "Proxy, 美国|新加坡|日本|台湾|US|SG|JP|TW"
+        },
+        {
+          "name": "Streaming",
+          "type": "select",
+          "include": "Proxy, *"
+        },
+        {
+          "name": "Telegram",
+          "type": "select",
+          "include": "Proxy, *"
+        },
+        {
+          "name": "Microsoft",
+          "type": "select",
+          "include": "DIRECT, Proxy"
+        },
+        {
+          "name": "Apple",
+          "type": "select",
+          "include": "DIRECT, Proxy"
+        },
+        {
+          "name": "Games",
+          "type": "select",
+          "include": "Proxy, DIRECT, *"
+        },
+        {
+          "name": "Google",
+          "type": "select",
+          "include": "Proxy, *"
+        },
+        {
+          "name": "GitHub",
+          "type": "select",
+          "include": "Proxy, DIRECT, *"
+        },
+        {
+          "name": "auto",
+          "type": "url-test",
+          "include": "*",
+          "url": "http://www.gstatic.com/generate_204",
+          "interval": 300
+        }
+      ],
+      "final": "Proxy",
+      "geoip_cn_direct": true
+    }
+  ],
+  "mirrors": [
+    {
+      "id": "direct",
+      "name": {
+        "zh-CN": "直连 GitHub",
+        "en": "Direct (GitHub)"
+      },
+      "prefix": ""
+    },
+    {
+      "id": "ghfast",
+      "name": {
+        "zh-CN": "ghfast.top",
+        "en": "ghfast.top"
+      },
+      "prefix": "https://ghfast.top/"
+    },
+    {
+      "id": "gh-proxy",
+      "name": {
+        "zh-CN": "gh-proxy.com",
+        "en": "gh-proxy.com"
+      },
+      "prefix": "https://gh-proxy.com/"
+    },
+    {
+      "id": "ghproxy-net",
+      "name": {
+        "zh-CN": "ghproxy.net",
+        "en": "ghproxy.net"
+      },
+      "prefix": "https://ghproxy.net/"
+    },
+    {
+      "id": "gh-llkk",
+      "name": {
+        "zh-CN": "gh.llkk.cc",
+        "en": "gh.llkk.cc"
+      },
+      "prefix": "https://gh.llkk.cc/"
+    }
+  ],
+  "meta": {
+    "generated_at": "2026-10-21T23:49:31-04:00",
+    "version": 1
+  }
+}

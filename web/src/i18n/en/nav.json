@@ -1,0 +1,40 @@
+{
+  "skipToContent": "Skip to main content",
+  "mainNavigation": "Main navigation",
+  "userPanel": "Dashboard",
+  "adminPanel": "Admin",
+  "collapseSidebar": "Collapse sidebar",
+  "expandSidebar": "Expand sidebar",
+  "userMenu": "Account menu",
+  "signedInAs": "Signed in as",
+  "logout": "Sign out",
+  "loggedOut": "Signed out",
+  "user": {
+    "dashboard": "Dashboard",
+    "shop": "Shop",
+    "orders": "Orders",
+    "subscription": "Subscription",
+    "invite": "Invite",
+    "tickets": "Tickets",
+    "knowledge": "Knowledge",
+    "notices": "Notices",
+    "profile": "Profile"
+  },
+  "admin": {
+    "dashboard": "Overview",
+    "users": "Users",
+    "plans": "Plans",
+    "groups": "Groups",
+    "nodes": "Nodes",
+    "routes": "Routes",
+    "orders": "Orders",
+    "coupons": "Coupons",
+    "payments": "Payments",
+    "tickets": "Tickets",
+    "notices": "Notices",
+    "knowledge": "Knowledge",
+    "settings": "Settings",
+    "rulesets": "Rule sets",
+    "system": "System"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "skipToContent": "跳到主要内容",
+  "mainNavigation": "主导航",
+  "userPanel": "用户中心",
+  "adminPanel": "管理后台",
+  "collapseSidebar": "收起侧边栏",
+  "expandSidebar": "展开侧边栏",
+  "userMenu": "账户菜单",
+  "signedInAs": "当前账户",
+  "logout": "退出登录",
+  "loggedOut": "已退出登录",
+  "user": {
+    "dashboard": "仪表盘",
+    "shop": "购买套餐",
+    "orders": "我的订单",
+    "subscription": "订阅",
+    "invite": "邀请返利",
+    "tickets": "工单",
+    "knowledge": "使用文档",
+    "notices": "公告",
+    "profile": "个人中心"
+  },
+  "admin": {
+    "dashboard": "概览",
+    "users": "用户",
+    "plans": "套餐",
+    "groups": "权限组",
+    "nodes": "节点",
+    "routes": "路由规则",
+    "orders": "订单",
+    "coupons": "优惠券",
+    "payments": "支付方式",
+    "tickets": "工单",
+    "notices": "公告",
+    "knowledge": "知识库",
+    "settings": "系统设置",
+    "rulesets": "规则集",
+    "system": "系统状态"
+  }
+}

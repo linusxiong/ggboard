@@ -1,0 +1,61 @@
+{
+  "nav": {
+    "login": "Sign in",
+    "register": "Sign up",
+    "console": "Open dashboard",
+    "plans": "Plans"
+  },
+  "hero": {
+    "eyebrow": "Simple · Beautiful · Fast",
+    "title": "Stay connected,",
+    "highlight": "anywhere.",
+    "subtitle": "Reliable global nodes, routing rules you choose, and subscriptions tuned for every device you own.",
+    "ctaPrimary": "Get started",
+    "ctaSecondary": "Sign in"
+  },
+  "features": {
+    "title": "Built for speed and simplicity",
+    "items": {
+      "protocols": {
+        "title": "Every protocol",
+        "body": "VMess, VLESS, Trojan, Shadowsocks, Hysteria 2, AnyTLS, Mieru and more."
+      },
+      "rules": {
+        "title": "Your routing rules",
+        "body": "Mix well-known open-source rule sets for AI, streaming, Telegram and more."
+      },
+      "clients": {
+        "title": "Every client",
+        "body": "One-tap import for Clash, sing-box, Surge, Shadowrocket and Quantumult X."
+      }
+    }
+  },
+  "plans": {
+    "title": "Pick your plan",
+    "subtitle": "Upgrade or renew any time. Pay only for what you need.",
+    "traffic": "{gb} GB traffic",
+    "devices": "{count} devices",
+    "unlimitedDevices": "Unlimited devices",
+    "speed": "{mbps} Mbps cap",
+    "unlimitedSpeed": "No speed cap",
+    "from": "from",
+    "choose": "Choose {name}",
+    "empty": "No plans are on sale right now.",
+    "error": "Couldn't load plans."
+  },
+  "footer": {
+    "rights": "© {year} {name}",
+    "tos": "Terms of Service",
+    "openSource": "Open source under GPL-3.0"
+  },
+  "periodUnit": {
+    "monthly": "mo",
+    "quarterly": "quarter",
+    "half_yearly": "6 mo",
+    "yearly": "yr",
+    "two_yearly": "2 yr",
+    "three_yearly": "3 yr",
+    "onetime": "once",
+    "reset_traffic": "reset"
+  }
+}

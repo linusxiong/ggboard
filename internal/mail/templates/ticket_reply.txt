@@ -1,0 +1,8 @@
+{{t "ticket_reply.title"}}
+
+{{t "ticket_reply.body" .Subject}}
+{{if .Message}}
+{{.Message}}
+{{end}}{{if .URL}}
+{{t "button.view_ticket"}}: {{.URL}}
+{{end}}

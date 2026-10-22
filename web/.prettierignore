@@ -1,0 +1,7 @@
+dist
+node_modules
+coverage
+.lighthouseci
+pnpm-lock.yaml
+src/routeTree.gen.ts
+.heroui-css

@@ -1,0 +1,421 @@
+/*
+ * Apple Human Interface Guidelines design tokens (AGENTS.md §5).
+ *
+ * - Raw Apple system colors are exposed as CSS variables (`--sys-*`, `--label*`, `--fill*`, `--bg-*`).
+ * - They are mapped onto HeroUI v3 theme variables (`--background`, `--surface`, `--accent`, ...)
+ *   so every HeroUI component automatically speaks Apple.
+ * - They are exposed to Tailwind through `@theme inline` (`bg-canvas`, `text-label-secondary`, ...).
+ *
+ * Dark mode: follows `prefers-color-scheme` unless `<html data-theme="light|dark">` forces a scheme.
+ * Unlayered declarations intentionally win over HeroUI's layered defaults.
+ *
+ * Accessibility (WCAG AA 4.5:1): Apple's *default* tints are kept for fills/icons (`--sys-*`),
+ * text-on-background uses the HIG "increased contrast" variants (`--label-blue`, `--label-red`, ...),
+ * and the filled-button tint (`--tint`) is systemBlue nudged just enough to carry white text.
+ */
+
+/* ------------------------------------------------------------------ Tailwind tokens */
+@theme {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Helvetica Neue', 'Inter', sans-serif;
+  --font-display:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'PingFang SC', 'Helvetica Neue', 'Inter', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Apple type scale: size / line-height / weight / tracking */
+  --text-large-title: 2.125rem;
+  --text-large-title--line-height: 2.5625rem;
+  --text-large-title--font-weight: 700;
+  --text-large-title--letter-spacing: 0.011em;
+  --text-title1: 1.75rem;
+  --text-title1--line-height: 2.125rem;
+  --text-title1--font-weight: 700;
+  --text-title1--letter-spacing: 0.013em;
+  --text-title2: 1.375rem;
+  --text-title2--line-height: 1.75rem;
+  --text-title2--font-weight: 700;
+  --text-title2--letter-spacing: 0.016em;
+  --text-title3: 1.25rem;
+  --text-title3--line-height: 1.5625rem;
+  --text-title3--font-weight: 600;
+  --text-title3--letter-spacing: 0.019em;
+  --text-headline: 1.0625rem;
+  --text-headline--line-height: 1.375rem;
+  --text-headline--font-weight: 600;
+  --text-headline--letter-spacing: -0.024em;
+  --text-body: 1.0625rem;
+  --text-body--line-height: 1.375rem;
+  --text-body--letter-spacing: -0.024em;
+  --text-callout: 1rem;
+  --text-callout--line-height: 1.3125rem;
+  --text-callout--letter-spacing: -0.02em;
+  --text-subhead: 0.9375rem;
+  --text-subhead--line-height: 1.25rem;
+  --text-subhead--letter-spacing: -0.016em;
+  --text-footnote: 0.8125rem;
+  --text-footnote--line-height: 1.125rem;
+  --text-footnote--letter-spacing: -0.006em;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+  --text-caption2: 0.6875rem;
+  --text-caption2--line-height: 0.8125rem;
+  --text-caption2--letter-spacing: 0.006em;
+
+  /* Radii */
+  --radius-card: 18px;
+  --radius-card-lg: 20px;
+  --radius-button: 12px;
+  --radius-input: 10px;
+
+  /* Motion: short, ease-out (200–300ms) */
+  --ease-apple: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-apple-out: cubic-bezier(0.32, 0.72, 0, 1);
+  --default-transition-duration: 200ms;
+  --default-transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --shadow-card: var(--card-shadow);
+  --shadow-float: var(--float-shadow);
+
+  --breakpoint-xs: 30rem;
+}
+
+/* Colors are theme-dependent → `inline` so utilities reference the live variable. */
+@theme inline {
+  --color-system-blue: var(--sys-blue);
+  --color-system-green: var(--sys-green);
+  --color-system-indigo: var(--sys-indigo);
+  --color-system-orange: var(--sys-orange);
+  --color-system-pink: var(--sys-pink);
+  --color-system-purple: var(--sys-purple);
+  --color-system-red: var(--sys-red);
+  --color-system-teal: var(--sys-teal);
+  --color-system-yellow: var(--sys-yellow);
+  --color-system-mint: var(--sys-mint);
+  --color-system-cyan: var(--sys-cyan);
+  --color-system-brown: var(--sys-brown);
+  --color-system-gray: var(--sys-gray);
+  --color-system-gray-2: var(--sys-gray2);
+  --color-system-gray-3: var(--sys-gray3);
+  --color-system-gray-4: var(--sys-gray4);
+  --color-system-gray-5: var(--sys-gray5);
+  --color-system-gray-6: var(--sys-gray6);
+
+  --color-label: var(--label);
+  --color-label-secondary: var(--label-secondary);
+  --color-label-tertiary: var(--label-tertiary);
+  --color-label-quaternary: var(--label-quaternary);
+  --color-label-blue: var(--label-blue);
+  --color-label-green: var(--label-green);
+  --color-label-orange: var(--label-orange);
+  --color-label-red: var(--label-red);
+
+  --color-canvas: var(--bg-grouped);
+  --color-elevated: var(--bg-grouped-secondary);
+  --color-elevated-secondary: var(--bg-grouped-tertiary);
+  --color-system-background: var(--bg-system);
+  --color-secondary-system-background: var(--bg-system-secondary);
+  --color-tertiary-system-background: var(--bg-system-tertiary);
+
+  --color-fill: var(--fill);
+  --color-fill-secondary: var(--fill-secondary);
+  --color-fill-tertiary: var(--fill-tertiary);
+  --color-fill-quaternary: var(--fill-quaternary);
+
+  --color-hairline: var(--hairline);
+  --color-hairline-opaque: var(--hairline-opaque);
+  --color-tint: var(--tint);
+  --color-glass: var(--glass-bg);
+}
+
+/* `dark:` variant: forced theme wins, otherwise follow the OS (overrides HeroUI's variant,
+   which would still apply `dark:` under a forced light theme). */
+@custom-variant dark {
+  &:where([data-theme='dark'], [data-theme='dark'] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme='light']), :root:not([data-theme='light']) *) {
+      @slot;
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ Light (default) */
+:root {
+  color-scheme: light dark;
+
+  --sys-blue: #007aff;
+  --sys-green: #34c759;
+  --sys-indigo: #5856d6;
+  --sys-orange: #ff9500;
+  --sys-pink: #ff2d55;
+  --sys-purple: #af52de;
+  --sys-red: #ff3b30;
+  --sys-teal: #30b0c7;
+  --sys-yellow: #ffcc00;
+  --sys-mint: #00c7be;
+  --sys-cyan: #32ade6;
+  --sys-brown: #a2845e;
+  --sys-gray: #8e8e93;
+  --sys-gray2: #aeaeb2;
+  --sys-gray3: #c7c7cc;
+  --sys-gray4: #d1d1d6;
+  --sys-gray5: #e5e5ea;
+  --sys-gray6: #f2f2f7;
+
+  --bg-system: #ffffff;
+  --bg-system-secondary: #f2f2f7;
+  --bg-system-tertiary: #ffffff;
+  --bg-grouped: #f2f2f7;
+  --bg-grouped-secondary: #ffffff;
+  --bg-grouped-tertiary: #f2f2f7;
+
+  --label: #000000;
+  /* HIG secondaryLabel is 60%; 80% keeps the hue but reaches 4.5:1 on #F2F2F7/#E5E5EA. */
+  --label-secondary: rgb(60 60 67 / 0.8);
+  --label-tertiary: rgb(60 60 67 / 0.3);
+  --label-quaternary: rgb(60 60 67 / 0.18);
+  /* HIG "increased contrast" tints for text */
+  --label-blue: #0062cc;
+  --label-green: #1e7434;
+  --label-orange: #c93400;
+  --label-red: #d70015;
+
+  --fill: rgb(120 120 128 / 0.2);
+  --fill-secondary: rgb(120 120 128 / 0.16);
+  --fill-tertiary: rgb(118 118 128 / 0.12);
+  --fill-quaternary: rgb(116 116 128 / 0.08);
+
+  --hairline: rgb(60 60 67 / 0.29);
+  --hairline-opaque: #c6c6c8;
+
+  /* systemBlue nudged to carry white label text at 4.5:1 */
+  --tint: #006ef8;
+  --tint-foreground: #ffffff;
+
+  --glass-bg: rgb(249 249 251 / 0.72);
+  --glass-border: rgb(60 60 67 / 0.12);
+  --card-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 4px 16px -8px rgb(0 0 0 / 0.08);
+  --float-shadow: 0 10px 40px -12px rgb(0 0 0 / 0.22), 0 2px 6px rgb(0 0 0 / 0.06);
+
+  /* ---- HeroUI theme variables → Apple ---- */
+  --radius: 0.5rem;
+  --field-radius: 10px;
+  --border-width: 0.5px;
+  --field-border-width: 0px;
+
+  --background: var(--bg-grouped);
+  --foreground: var(--label);
+  --surface: var(--bg-grouped-secondary);
+  --surface-foreground: var(--label);
+  --surface-secondary: var(--bg-grouped-tertiary);
+  --surface-secondary-foreground: var(--label);
+  --surface-tertiary: var(--sys-gray5);
+  --surface-tertiary-foreground: var(--label);
+  --overlay: #ffffff;
+  --overlay-foreground: var(--label);
+  --muted: var(--label-secondary);
+  --default: var(--fill-tertiary);
+  --default-foreground: var(--label);
+  --accent: var(--tint);
+  --accent-foreground: var(--tint-foreground);
+  --success: var(--sys-green);
+  --success-foreground: #000000;
+  --warning: var(--sys-orange);
+  --warning-foreground: #000000;
+  --danger: var(--label-red);
+  --danger-foreground: #ffffff;
+  --segment: #ffffff;
+  --segment-foreground: var(--label);
+  --border: var(--hairline);
+  --separator: var(--hairline);
+  --focus: var(--sys-blue);
+  --link: var(--label-blue);
+  --backdrop: rgb(0 0 0 / 0.4);
+  --field-background: var(--fill-tertiary);
+  --field-foreground: var(--label);
+  --field-placeholder: var(--label-secondary);
+  --field-border: transparent;
+  --accent-soft-foreground: var(--label-blue);
+  --success-soft-foreground: var(--label-green);
+  --warning-soft-foreground: var(--label-orange);
+  --danger-soft-foreground: var(--label-red);
+  --surface-shadow: var(--card-shadow);
+  --overlay-shadow: var(--float-shadow);
+  --field-shadow: none;
+}
+
+/* ------------------------------------------------------------------ Dark */
+/* Same block twice: once for the OS preference, once for the forced theme. Keep them in sync. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --sys-blue: #0a84ff;
+    --sys-green: #30d158;
+    --sys-indigo: #5e5ce6;
+    --sys-orange: #ff9f0a;
+    --sys-pink: #ff375f;
+    --sys-purple: #bf5af2;
+    --sys-red: #ff453a;
+    --sys-teal: #40c8e0;
+    --sys-yellow: #ffd60a;
+    --sys-mint: #63e6e2;
+    --sys-cyan: #64d2ff;
+    --sys-brown: #ac8e68;
+    --sys-gray: #8e8e93;
+    --sys-gray2: #636366;
+    --sys-gray3: #48484a;
+    --sys-gray4: #3a3a3c;
+    --sys-gray5: #2c2c2e;
+    --sys-gray6: #1c1c1e;
+    --bg-system: #000000;
+    --bg-system-secondary: #1c1c1e;
+    --bg-system-tertiary: #2c2c2e;
+    --bg-grouped: #000000;
+    --bg-grouped-secondary: #1c1c1e;
+    --bg-grouped-tertiary: #2c2c2e;
+    --label: #ffffff;
+    --label-secondary: rgb(235 235 245 / 0.65);
+    --label-tertiary: rgb(235 235 245 / 0.3);
+    --label-quaternary: rgb(235 235 245 / 0.16);
+    --label-blue: #409cff;
+    --label-green: #30d158;
+    --label-orange: #ff9f0a;
+    --label-red: #ff6961;
+    --fill: rgb(120 120 128 / 0.36);
+    --fill-secondary: rgb(120 120 128 / 0.32);
+    --fill-tertiary: rgb(118 118 128 / 0.24);
+    --fill-quaternary: rgb(118 118 128 / 0.18);
+    --hairline: rgb(84 84 88 / 0.65);
+    --hairline-opaque: #38383a;
+    --tint: #076ef4;
+    --glass-bg: rgb(28 28 30 / 0.72);
+    --glass-border: rgb(84 84 88 / 0.4);
+    --card-shadow: 0 0 0 0.5px rgb(84 84 88 / 0.45);
+    --float-shadow: 0 0 0 0.5px rgb(84 84 88 / 0.6), 0 16px 48px -12px rgb(0 0 0 / 0.7);
+    --overlay: #2c2c2e;
+    --segment: #636366;
+    --danger: #e61b23;
+    --backdrop: rgb(0 0 0 / 0.6);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --sys-blue: #0a84ff;
+  --sys-green: #30d158;
+  --sys-indigo: #5e5ce6;
+  --sys-orange: #ff9f0a;
+  --sys-pink: #ff375f;
+  --sys-purple: #bf5af2;
+  --sys-red: #ff453a;
+  --sys-teal: #40c8e0;
+  --sys-yellow: #ffd60a;
+  --sys-mint: #63e6e2;
+  --sys-cyan: #64d2ff;
+  --sys-brown: #ac8e68;
+  --sys-gray: #8e8e93;
+  --sys-gray2: #636366;
+  --sys-gray3: #48484a;
+  --sys-gray4: #3a3a3c;
+  --sys-gray5: #2c2c2e;
+  --sys-gray6: #1c1c1e;
+  --bg-system: #000000;
+  --bg-system-secondary: #1c1c1e;
+  --bg-system-tertiary: #2c2c2e;
+  --bg-grouped: #000000;
+  --bg-grouped-secondary: #1c1c1e;
+  --bg-grouped-tertiary: #2c2c2e;
+  --label: #ffffff;
+  --label-secondary: rgb(235 235 245 / 0.65);
+  --label-tertiary: rgb(235 235 245 / 0.3);
+  --label-quaternary: rgb(235 235 245 / 0.16);
+  --label-blue: #409cff;
+  --label-green: #30d158;
+  --label-orange: #ff9f0a;
+  --label-red: #ff6961;
+  --fill: rgb(120 120 128 / 0.36);
+  --fill-secondary: rgb(120 120 128 / 0.32);
+  --fill-tertiary: rgb(118 118 128 / 0.24);
+  --fill-quaternary: rgb(118 118 128 / 0.18);
+  --hairline: rgb(84 84 88 / 0.65);
+  --hairline-opaque: #38383a;
+  --tint: #076ef4;
+  --glass-bg: rgb(28 28 30 / 0.72);
+  --glass-border: rgb(84 84 88 / 0.4);
+  --card-shadow: 0 0 0 0.5px rgb(84 84 88 / 0.45);
+  --float-shadow: 0 0 0 0.5px rgb(84 84 88 / 0.6), 0 16px 48px -12px rgb(0 0 0 / 0.7);
+  --overlay: #2c2c2e;
+  --segment: #636366;
+  --danger: #e61b23;
+  --backdrop: rgb(0 0 0 / 0.6);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+/* ------------------------------------------------------------------ Base */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    font-family: var(--font-sans);
+  }
+
+  body {
+    min-height: 100dvh;
+    background-color: var(--background);
+    color: var(--foreground);
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    letter-spacing: var(--text-body--letter-spacing);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: color-mix(in srgb, var(--sys-blue) 28%, transparent);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ HeroUI component tweaks */
+@layer gg-overrides {
+  .button {
+    border-radius: var(--radius-button);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .card {
+    border-radius: var(--radius-card);
+  }
+  .input,
+  .textarea {
+    border-radius: var(--radius-input);
+  }
+  /* Error text uses the text-safe red (HeroUI uses the fill color). */
+  .field-error,
+  .error-message {
+    color: var(--label-red);
+  }
+  .label::after {
+    color: var(--label-red);
+  }
+}

@@ -88,17 +88,17 @@ Derived credentials (shared helper `model.UserCredentials(u, node)`):
 // vmess
 {"network":"tcp|ws|grpc|http|h2|httpupgrade|xhttp","network_settings":{...},"tls":0,"tls_settings":{"server_name":"","allow_insecure":false}}
 // vless
-{"network":"tcp","network_settings":{...},"tls":0|1|2,"flow":"|xtls-rprx-vision","encryption":"none",
+{"network":"tcp","network_settings":{...},"tls":0|1|2,"flow":"|xtls-rprx-vision","encryption":"none","decryption":"",
  "tls_settings":{"server_name":"","allow_insecure":false,"public_key":"","private_key":"","short_id":"","dest":"example.com:443","server_port":"443","fingerprint":"chrome"}}
 // shadowsocks
 {"cipher":"aes-128-gcm|aes-256-gcm|chacha20-ietf-poly1305|2022-blake3-aes-128-gcm|2022-blake3-aes-256-gcm|2022-blake3-chacha20-poly1305",
  "server_key":"","obfs":"plain|http|tls","obfs_settings":{"path":"/","host":""},"plugin":"","plugin_opts":""}
 // shadowsocksr
-{"cipher":"chacha20-ietf","protocol":"auth_chain_a","protocol_param":"","obfs":"http_simple","obfs_param":"","single_port_type":"protocol|obfs"}
+{"cipher":"chacha20-ietf","password":"","protocol":"auth_chain_a","protocol_param":"","obfs":"http_simple","obfs_param":"","single_port_type":"protocol|obfs"}
 // trojan
 {"network":"tcp|ws|grpc","network_settings":{...},"server_name":"","allow_insecure":false}
 // hysteria
-{"version":2,"up_mbps":100,"down_mbps":100,"obfs":"plain|salamander","obfs_password":"","server_name":"","allow_insecure":false,"alpn":"h3","hop_interval":30}
+{"version":2,"up_mbps":100,"down_mbps":100,"ignore_client_bandwidth":false,"obfs":"plain|salamander","obfs_password":"","server_name":"","allow_insecure":false,"alpn":"h3","hop_interval":30}
 // anytls
 {"tls":1|2,"server_name":"","allow_insecure":false,"padding_scheme":[],"tls_settings":{"public_key":"","private_key":"","short_id":"","dest":"","server_names":[]}}
 // mieru
@@ -180,4 +180,5 @@ ticket_messages: `id, ticket_id idx, user_id, message text, created_at`.
 
 ## Ephemeral (memory only)
 - email verification codes (10 min TTL), login attempts, register-by-ip counters.
-- online users per node, alive IPs per user (`map[userID]set[ip]` with TTL 2×push_interval), node status.
+- online users per node, alive IPs per user (`map[userID]set[ip]` with TTL `max(300s, 2×push_interval)`), node status (three-state model, see docs/NODE_PROTOCOLS.md §5).
+- Reality `tls_settings.dest` is stored as `host:port`; node APIs split it into `dest` (host) + `server_port` (string) — see docs/NODE_PROTOCOLS.md.

@@ -1,0 +1,40 @@
+# GG Bond (ggboard) configuration example.
+# Copy to config.yaml (gitignored) or pass --config. Every key can also be set with an environment variable:
+# GGBOARD_<KEY with dots replaced by underscores>, e.g. GGBOARD_SERVER_ADDR, GGBOARD_DATABASE_DSN.
+# Precedence: flags > environment > this file > defaults. Runtime options (site name, mail, payments, ...)
+# live in the database and are edited in the admin panel, not here.
+
+server:
+  # Listen address.
+  addr: ":8080"
+  # Proxies whose X-Forwarded-For / X-Real-IP headers are trusted (IPs or CIDRs). Empty = trust none.
+  # Behind nginx on the same host use ["127.0.0.1", "::1"]; in Docker use the bridge network CIDR.
+  trusted_proxies: []
+  # Extra CORS origins ("*" for any). Empty = same-origin only (recommended: serve the SPA from this binary).
+  cors_origins: []
+
+database:
+  # sqlite (default, pure Go) | postgres | mysql
+  driver: sqlite
+  # sqlite: file path (default <data_dir>/ggboard.db)
+  # postgres: postgres://user:password@db.example.com:5432/ggboard?sslmode=disable
+  # mysql:    user:password@tcp(db.example.com:3306)/ggboard   (parseTime/utf8mb4 are added automatically)
+  dsn: ""
+
+jwt:
+  # Session signing secret (use 32+ random characters). When empty, one is generated once and stored in
+  # <data_dir>/jwt.secret with mode 0600.
+  secret: ""
+  # Session lifetime.
+  ttl: 168h
+
+log:
+  level: info   # debug | info | warn | error
+  format: text  # text | json
+
+frontend:
+  # Serve the SPA from this directory instead of the copy embedded in the binary (optional).
+  dir: ""
+
+# Directory for the SQLite database and generated secrets.
+data_dir: ./data

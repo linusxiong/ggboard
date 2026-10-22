@@ -1,0 +1,17 @@
+.git
+.github
+.worktrees
+.claude
+bin
+data
+dist
+*.db
+*.db-*
+.env
+.env.*
+web/node_modules
+web/dist
+web/.vite
+web/coverage
+web/.lighthouseci
+node_modules

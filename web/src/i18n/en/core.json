@@ -1,0 +1,32 @@
+{
+  "appName": "GG Bond",
+  "a11y": {
+    "skipToContent": "Skip to main content"
+  },
+  "theme": {
+    "label": "Appearance",
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark",
+    "toggle": "Change appearance (current: {mode})"
+  },
+  "locale": {
+    "label": "Language",
+    "toggle": "Change language",
+    "zh-CN": "简体中文",
+    "en": "English"
+  },
+  "errors": {
+    "network": "Network error. Check your connection and try again.",
+    "timeout": "The request timed out. Please try again.",
+    "unauthorized": "Your session has expired. Please sign in again.",
+    "forbidden": "You don't have permission to do that.",
+    "not_found": "The requested resource does not exist.",
+    "conflict": "Conflict. Refresh and try again.",
+    "rate_limited": "Too many requests. Please slow down.",
+    "payment_failed": "Payment failed.",
+    "validation_failed": "Please check the highlighted fields.",
+    "internal": "Server error. Please try again later.",
+    "unknown": "Unknown error."
+  }
+}

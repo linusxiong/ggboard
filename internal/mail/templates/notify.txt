@@ -1,0 +1,6 @@
+{{with or .Title .Subject}}{{.}}
+
+{{end}}{{.Content}}
+{{if .URL}}
+{{t "button.open"}}: {{.URL}}
+{{end}}

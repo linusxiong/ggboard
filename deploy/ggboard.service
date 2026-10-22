@@ -1,0 +1,53 @@
+# systemd unit for ggboard.
+#   useradd --system --home /var/lib/ggboard --shell /usr/sbin/nologin ggboard
+#   install -m 0755 bin/ggboard /usr/local/bin/ggboard
+#   install -d -m 0750 /etc/ggboard   # optional: /etc/ggboard/ggboard.env with GGBOARD_* variables
+#   cp deploy/ggboard.service /etc/systemd/system/ && systemctl daemon-reload && systemctl enable --now ggboard
+# To use a YAML file instead of environment variables add `--config /etc/ggboard/config.yaml` to ExecStart.
+[Unit]
+Description=GG Bond proxy panel
+Documentation=https://github.com/linusxiong/ggboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ggboard
+Group=ggboard
+StateDirectory=ggboard
+StateDirectoryMode=0700
+WorkingDirectory=/var/lib/ggboard
+Environment=GGBOARD_DATA_DIR=/var/lib/ggboard
+Environment=GGBOARD_SERVER_ADDR=127.0.0.1:8080
+EnvironmentFile=-/etc/ggboard/ggboard.env
+ExecStart=/usr/local/bin/ggboard serve
+Restart=on-failure
+RestartSec=5s
+KillSignal=SIGTERM
+TimeoutStopSec=30s
+LimitNOFILE=65535
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target

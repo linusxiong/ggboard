@@ -140,7 +140,7 @@ password limit lockout (`password_limit_*`); register-by-ip limit.
 | GET,POST | `/admin/coupons` | create: `{name*, code?, type*, value*, count? (batch), limit_use?, limit_use_with_user?, limit_plan_ids?, limit_periods?, started_at*, ended_at*, show?}` | `[Coupon + used_count]` / `[Coupon]` |
 | PATCH,DELETE | `/admin/coupons/:id` | | |
 | GET | `/admin/payments` | — | `[Payment(config included)]` |
-| GET | `/admin/payments/gateways` | — | `[{name, label, fields:[{key,label,description,type:"text|password|select|number",options?}]}]` |
+| GET | `/admin/payments/gateways` | — | `[{name, label, fields:[{key,label,description,type:"text|password|select|number|textarea",options?,default?,required}]}]` |
 | POST | `/admin/payments` | `{gateway*, name*, icon?, config*, notify_domain?, handling_fee_fixed?, handling_fee_percent?, enabled?}` | `Payment` + `notify_url` |
 | PATCH,DELETE | `/admin/payments/:id` | | |
 | POST | `/admin/payments/sort` | `{ids}` | `true` |

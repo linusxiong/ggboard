@@ -1,0 +1,6 @@
+{{define "content"}}
+{{template "title" (t "verify_code.title")}}
+{{template "para" (t "verify_code.body" .Minutes)}}
+<div style="margin:8px 0 8px;padding:18px 0;background:#F2F2F7;border-radius:12px;text-align:center;font-size:34px;line-height:40px;font-weight:700;letter-spacing:8px;color:#1C1C1E;font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;">{{.Code}}</div>
+{{template "muted" (t "verify_code.ignore")}}
+{{end}}

@@ -1,0 +1,8 @@
+node_modules
+dist
+coverage
+.lighthouseci
+*.local
+.DS_Store
+.tanstack
+.heroui-css

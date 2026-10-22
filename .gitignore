@@ -59,3 +59,7 @@ Thumbs.db
 *.swo
 .scratch/
 tmp/
+
+# ---- embedded frontend (copied by `make web`) ----
+internal/static/dist/*
+!internal/static/dist/.gitkeep

@@ -156,7 +156,7 @@ deploy/                 Dockerfile、compose、systemd、nginx 示例
 
 | 插件点 | 接口位置 | 内置实现 |
 |---|---|---|
-| 支付网关 | `internal/payment/gateway.go` | epay, epusdt, alipay_f2f, stripe, coinbase_commerce, btcpay |
+| 支付网关 | `internal/payment/gateway.go` | epay, epusdt, alipay_f2f, stripe, coinbase (Business Checkouts), btcpay |
 | 邮件驱动 | `internal/mail/mailer.go` | smtp, log |
 | 订阅格式 | `internal/subscription/format.go` | clash(mihomo), clash(classic), singbox, surge, quantumultx, shadowrocket, loon, v2ray(base64), ssr |
 | 规则集来源 | `internal/subscription/rulesets/` | blackmatrix7, Loyalsoldier, MetaCubeX, ACL4SSR, SagerNet(sing-geosite/geoip), DustinWin |

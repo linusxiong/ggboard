@@ -1,0 +1,29 @@
+# Usage (from the repository root):
+#   cp .env.example .env   # then edit secrets
+#   docker compose -f deploy/docker-compose.yml up -d --build
+#   docker compose -f deploy/docker-compose.yml exec ggboard ggboard admin create --email admin@example.com
+services:
+  ggboard:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        VERSION: ${GGBOARD_VERSION:-dev}
+    image: ggboard:${GGBOARD_VERSION:-latest}
+    restart: unless-stopped
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      GGBOARD_DATA_DIR: /data
+      GGBOARD_DATABASE_DRIVER: ${GGBOARD_DATABASE_DRIVER:-sqlite}
+      GGBOARD_DATABASE_DSN: ${GGBOARD_DATABASE_DSN:-/data/ggboard.db}
+    ports:
+      # Published on localhost only; put nginx (deploy/nginx.example.conf) in front.
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ggboard-data:/data
+    stop_grace_period: 20s
+
+volumes:
+  ggboard-data:

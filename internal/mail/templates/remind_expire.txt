@@ -1,0 +1,6 @@
+{{t "remind_expire.title"}}
+
+{{t "remind_expire.body" .ExpiredAt}}
+{{if .URL}}
+{{t "button.renew"}}: {{.URL}}
+{{end}}

@@ -1,0 +1,5 @@
+{{define "content"}}
+{{with or .Title .Subject}}{{template "title" .}}{{end}}
+{{if .ContentHTML}}<div style="font-size:16px;line-height:24px;color:#3C3C43;">{{.ContentHTML}}</div>{{else}}{{range paragraphs .Content}}{{template "para" .}}{{end}}{{end}}
+{{if .URL}}{{template "button" (dict "URL" .URL "Label" (t "button.open"))}}{{end}}
+{{end}}

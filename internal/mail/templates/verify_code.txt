@@ -1,0 +1,7 @@
+{{t "verify_code.title"}}
+
+{{t "verify_code.body" .Minutes}}
+
+    {{.Code}}
+
+{{t "verify_code.ignore"}}

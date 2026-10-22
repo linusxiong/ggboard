@@ -1,0 +1,5 @@
+{{define "content"}}
+{{template "title" (t "remind_expire.title")}}
+{{template "para" (t "remind_expire.body" .ExpiredAt)}}
+{{if .URL}}{{template "button" (dict "URL" .URL "Label" (t "button.renew"))}}{{end}}
+{{end}}

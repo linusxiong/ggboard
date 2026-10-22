@@ -1,0 +1,61 @@
+{
+  "nav": {
+    "login": "登录",
+    "register": "注册",
+    "console": "进入控制台",
+    "plans": "套餐"
+  },
+  "hero": {
+    "eyebrow": "简洁 · 美观 · 高性能",
+    "title": "随时随地，",
+    "highlight": "畅连世界。",
+    "subtitle": "稳定的全球节点、按需选择的分流规则，以及为每一台设备精心适配的订阅。",
+    "ctaPrimary": "立即开始",
+    "ctaSecondary": "已有账户登录"
+  },
+  "features": {
+    "title": "为速度与简洁而生",
+    "items": {
+      "protocols": {
+        "title": "全协议支持",
+        "body": "VMess、VLESS、Trojan、Shadowsocks、Hysteria 2、AnyTLS、Mieru 等主流协议一应俱全。"
+      },
+      "rules": {
+        "title": "自选分流规则",
+        "body": "基于知名开源规则集，自由组合 AI、流媒体、Telegram 等分流策略。"
+      },
+      "clients": {
+        "title": "全平台客户端",
+        "body": "Clash、sing-box、Surge、Shadowrocket、Quantumult X 一键导入。"
+      }
+    }
+  },
+  "plans": {
+    "title": "选择适合你的套餐",
+    "subtitle": "随时升级或续费，按需付费。",
+    "traffic": "{gb} GB 流量",
+    "devices": "{count} 台设备",
+    "unlimitedDevices": "不限设备",
+    "speed": "限速 {mbps} Mbps",
+    "unlimitedSpeed": "不限速",
+    "from": "起",
+    "choose": "选择 {name}",
+    "empty": "暂无可购买的套餐。",
+    "error": "套餐加载失败。"
+  },
+  "footer": {
+    "rights": "© {year} {name}",
+    "tos": "服务条款",
+    "openSource": "基于 GPL-3.0 开源"
+  },
+  "periodUnit": {
+    "monthly": "月",
+    "quarterly": "季",
+    "half_yearly": "半年",
+    "yearly": "年",
+    "two_yearly": "两年",
+    "three_yearly": "三年",
+    "onetime": "次",
+    "reset_traffic": "次"
+  }
+}

@@ -1,0 +1,6 @@
+{{define "content"}}
+{{template "title" (t "ticket_reply.title")}}
+{{template "para" (t "ticket_reply.body" .Subject)}}
+{{if .Message}}<div style="margin:8px 0;padding:14px 16px;background:#F2F2F7;border-radius:12px;font-size:15px;line-height:22px;color:#1C1C1E;white-space:pre-wrap;">{{.Message}}</div>{{end}}
+{{if .URL}}{{template "button" (dict "URL" .URL "Label" (t "button.view_ticket"))}}{{end}}
+{{end}}

@@ -1,0 +1,11 @@
+{{t "order_paid.title"}}
+
+{{t "order_paid.body"}}
+
+{{t "order.trade_no"}}: {{.TradeNo}}
+{{t "order.plan"}}: {{.PlanName}}
+{{if .Period}}{{t "order.period"}}: {{.Period}}
+{{end}}{{t "order.amount"}}: {{.Amount}}
+{{if .URL}}
+{{t "button.view_order"}}: {{.URL}}
+{{end}}

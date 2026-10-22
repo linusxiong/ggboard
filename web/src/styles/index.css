@@ -1,0 +1,22 @@
+/*
+ * Global stylesheet entry (render-blocking, keep it small).
+ *
+ * Cascade layers: theme < base < components < gg-overrides < utilities.
+ * HeroUI component CSS is NOT imported here: `scripts/heroui-css.ts` attaches each component's
+ * stylesheet to the JS chunk that renders it (lazy routes only fetch what they use).
+ */
+@layer theme, base, components, gg-overrides, utilities;
+
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* HeroUI v3 foundations (selective import, see heroui.com/docs → Theming → Import strategies) */
+@import '@heroui/styles/base' layer(base);
+@import '@heroui/styles/base/scrollbar.css' layer(base);
+@import '@heroui/styles/themes/default';
+@import '@heroui/styles/utilities';
+@import '@heroui/styles/variants';
+
+/* Apple HIG tokens (override HeroUI theme variables) + project utilities */
+@import './theme.css';
+@import './utilities.css';
