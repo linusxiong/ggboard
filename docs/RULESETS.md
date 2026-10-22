@@ -10,9 +10,8 @@ It lists:
 - **mirrors**: GitHub raw proxy prefixes.
 
 ggboard never vendors rule data. It only emits URLs, and clients download the files themselves.
-Admin overrides from setting `rulesets_custom` use the same schema. They merge by id: an entry with an
-existing id (source id, category `id`, template `id`, mirror `id`) replaces the built-in entry, and a new
-id is appended. To stop using a built-in category, leave it out of the template or profile `categories` map.
+Admin overrides (setting `rulesets_custom`, edited through `GET`/`PUT /api/v1/admin/rulesets`) use the same schema and
+merge by id; see [Admin overrides](#admin-overrides).
 
 Every URL in the file was verified on 2026-10-21 (see [Verification log](#verification-log)).
 
@@ -26,7 +25,7 @@ Top-level keys, always in this order:
 {
   "sources":    { "<source id>": Source },   // object; fallback priority comes from Source.order, not key order
   "categories": [ Category ],                // sorted by Category.order
-  "templates":  [ Template ],                // exactly: none, minimal, standard, full
+  "templates":  [ Template ],                // built-in: none, minimal, standard, full
   "mirrors":    [ Mirror ],                  // first entry is always {"id":"direct","prefix":""}
   "meta":       { "generated_at": "<RFC3339>", "version": 1 }   // version = schema version
 }
@@ -43,7 +42,7 @@ Top-level keys, always in this order:
 | `description` | `{zh-CN, en}` | One line for the UI |
 | `urls` | `{format key: template}` | Raw URL template. `{name}` is the only placeholder. It is not URL-escaped, because names may contain `!` (`geolocation-!cn`) or `/` (`Ruleset/OpenAi`), and both are valid in a path. |
 | `url_meta` | `{format key: {field, behavior, format}}` | Has the same keys as `urls`. `field` names the RuleRef field that fills `{name}`: `name`, `geosite` or `geoip`. `behavior` is `domain`, `ipcidr` or `classical`. `format` is `yaml`, `text` or `mrs` for mihomo, `binary` or `source` for sing-box, and `text` for Surge-family lists. |
-| `aliases` | `{old key: key}` (optional) | Key names from the `docs/SUBSCRIPTION.md` sketch (`clash_geosite`, `clash_geoip`, `singbox_geosite`, `singbox_geoip`). Resolve `urls[aliases[k]]` when `urls[k]` is missing. |
+| `aliases` | `{old key: key}` (optional) | Key names from the original design sketch (`clash_geosite`, `clash_geoip`, `singbox_geosite`, `singbox_geoip`; metacubex and sagernet only). Resolve `urls[aliases[k]]` when `urls[k]` is missing. |
 
 Source ids: `blackmatrix7` (order 10), `metacubex` (20), `loyalsoldier` (30), `sagernet` (40), `acl4ssr` (50), `dustinwin` (60).
 
@@ -129,14 +128,18 @@ URL expansion: `url = sources[s].urls[k].replace("{name}", ref[sources[s].url_me
 
 ### Mirror
 
-`{ "id": "ghfast", "name": {"zh-CN": "...", "en": "..."}, "prefix": "https://ghfast.top/" }`. The prefix is
-prepended to the full raw URL (`<prefix>https://raw.githubusercontent.com/...`). `RuleProfile.mirror` stores
-a prefix string: `""` means direct, `"default"` means `settings.ruleset_mirror`, and any other value is a custom
-prefix. The UI offers this list.
+`{ "id": "ghfast", "name": {"zh-CN": "...", "en": "..."}, "prefix": "https://ghfast.top/" }`. `name` is optional
+(admin-defined mirrors may omit it; the UI then shows the id). `prefix` is `""` (direct) or an http(s) URL ending in `/`
+without `?` or `#`. The prefix is prepended to the full raw URL (`<prefix>https://raw.githubusercontent.com/...`); only
+GitHub URLs (`raw.githubusercontent.com`, `github.com`, `gist.githubusercontent.com`) are prefixed.
 
-### Changes from the sketch in `docs/SUBSCRIPTION.md`
+`RuleProfile.mirror` accepts `""` (direct), `"default"` (= setting `ruleset_mirror`, which may itself be a prefix or a
+mirror id; empty = direct), a catalog mirror id, or a custom prefix. The UI offers this list.
 
-All changes are backward compatible. Sketch field names and shapes still parse.
+### Changes from the original design sketch
+
+The first contract draft sketched the catalog inline in `docs/SUBSCRIPTION.md` (since removed). All changes below are
+backward compatible: sketch field names and shapes still parse.
 
 1. Sources gained `license`, `order`, `description`, `url_meta` and `aliases`. `urls` stays a map of string templates.
 2. Format keys now follow the vocabulary above. The sketch's metacubex/sagernet keys (`clash_geosite`,
@@ -169,20 +172,20 @@ All changes are backward compatible. Sketch field names and shapes still parse.
    For example, a sing-box user who chose `blackmatrix7` falls back to `metacubex`.
 3. **Pick keys per RuleRef**, in array order, from its `formats`:
 
-| client format | keys used |
-|---|---|
-| clash-meta | If any `clash_mrs_*` key is present, use only those. Otherwise use every present key of `clash`, `clash_domain`, `clash_ipcidr`. Never use `clash_classical` together with them. |
-| stash | Every present key of `clash`, `clash_domain`, `clash_ipcidr` (no mrs). |
-| singbox | `singbox` and `singbox_ipcidr` when present, otherwise `singbox_source` and `singbox_source_ipcidr`. |
-| surge, surfboard | `surge` (`RULE-SET`) and `surge_domain` (`DOMAIN-SET`) |
-| shadowrocket | `shadowrocket` (`RULE-SET`) and `shadowrocket_domain` (`DOMAIN-SET`) |
-| loon | `loon` and `loon_domain` (bm7 says use them together) |
-| quantumultx | `quantumultx` |
-| clash (classic), v2ray, ssr | The catalog is not used. Classic Clash gets only `GEOIP,CN,DIRECT` and `MATCH`. |
+   | client format | keys used |
+   |---|---|
+   | clash-meta | If any `clash_mrs_*` key is present, use only those. Otherwise use every present key of `clash`, `clash_domain`, `clash_ipcidr`. Never use `clash_classical` together with them. |
+   | stash | Every present key of `clash`, `clash_domain`, `clash_ipcidr` (no mrs). |
+   | singbox | `singbox` and `singbox_ipcidr` when present, otherwise `singbox_source` and `singbox_source_ipcidr`. |
+   | surge, surfboard | `surge` (`RULE-SET`) and `surge_domain` (`DOMAIN-SET`) |
+   | shadowrocket | `shadowrocket` (`RULE-SET`) and `shadowrocket_domain` (`DOMAIN-SET`) |
+   | loon | `loon` and `loon_domain` (bm7 says use them together) |
+   | quantumultx | `quantumultx` |
+   | clash (classic), v2ray, ssr | The catalog is not used. Classic Clash gets only `GEOIP,CN,DIRECT` and `MATCH`. |
 
-The `shadowrocket` keys stay in the catalog, but the shadowrocket format is links-only (Shadowrocket users configure rules in the
-app), so it consumes no rule sets. The implementation is `rulesets.BuildPlan` (`internal/subscription/rulesets/plan.go`); the
-public catalog (`GET /guest/rulesets/catalog`) lists per category and source which formats can use them.
+   The `shadowrocket` keys stay in the catalog, but the shadowrocket format is links-only (Shadowrocket users configure rules in the
+   app), so it consumes no rule sets. The implementation is `rulesets.BuildPlan` (`internal/subscription/rulesets/plan.go`); the
+   public catalog (`GET /guest/rulesets/catalog`) lists per category and source which formats can use them.
 
 4. **Name each rule set** deterministically as `<category>[-<n>]-<domain|ip|classical>`.
    `n` (starting at 1) is added only when the RuleRef value is an array. The suffix comes from the key's behavior.
@@ -211,7 +214,7 @@ Other formats:
     Use `download_detour: "direct"` when a mirror is set.
   - Each category gets a rule `{"rule_set":["cn-domain","cn-ip"],"outbound":…}`.
   - sing-box ≥ 1.12 has no GeoIP database, so `geoip_cn_direct` adds the metacubex `geoip/cn.srs` rule set with outbound `direct`.
-- **Surge, Surfboard, Shadowrocket**: `RULE-SET,<url>,<target>`, `DOMAIN-SET,<url>,<target>`, `GEOIP,CN,DIRECT`, `FINAL,<final>`.
+- **Surge, Surfboard**: `RULE-SET,<url>,<target>`, `DOMAIN-SET,<url>,<target>`, `GEOIP,CN,DIRECT`, `FINAL,<final>,dns-failed`.
 - **Loon**: `[Remote Rule]` `<url>, policy=<target>, tag=<id>, enabled=true`.
 - **Quantumult X**: `[filter_remote]` `<url>, tag=<id>, force-policy=<target>, update-interval=86400, opt-parser=false, enabled=true`.
 
@@ -259,7 +262,7 @@ Coverage per client (any source):
 | client | categories | missing |
 |---|---|---|
 | clash-meta, stash | 32/32 | — |
-| singbox, surge, shadowrocket, loon | 31/32 | `applications`. Loyalsoldier publishes PROCESS-NAME rules only for Clash. |
+| singbox, surge, surfboard, loon (and the unused shadowrocket keys) | 31/32 | `applications`. Loyalsoldier publishes PROCESS-NAME rules only for Clash. |
 | quantumultx | 30/32 | `applications`, `ai`. bm7 has no aggregate AI list. |
 
 ---
@@ -287,6 +290,30 @@ Rejected candidates:
 | `ghproxy.link` | rewrites `https://` to `https%3A/`, so the payload is wrong |
 
 Public mirrors come and go. Re-verify them on every catalog refresh, and keep `direct` first.
+
+---
+
+## Admin overrides
+
+- Stored in the hidden JSON setting `rulesets_custom` (group `subscribe`, default `{}`), a catalog document that may omit
+  any section. `rulesets.Current` merges it over the built-in file by id: a source, category, template or mirror whose id
+  exists replaces the built-in entry, a new id is appended, and categories are re-sorted by `order` (then id). The merge is
+  cached until the setting changes. To stop using a built-in category, leave it out of the template or profile
+  `categories` map.
+- `GET /api/v1/admin/rulesets` → `{builtin, custom, effective}`; `PUT /api/v1/admin/rulesets {"custom": … }` → `true`.
+  `custom: null` (or omitted) resets. Unknown JSON fields are rejected (400 on `custom`), then the **merged** catalog is
+  validated (400 with field errors such as `sources.<id>.urls.<key>` or `templates[2].groups[0].include`):
+  - ids (source, category, template, mirror) match `^[a-z0-9][a-z0-9_-]{0,31}$` and are unique;
+  - a source has a `name` and at least one URL template; every key is a known format key and every template is an http(s)
+    URL containing `{name}`; `url_meta` and `aliases` point at existing templates;
+  - a category has a `default_target` and at least one source; every RuleRef lists `formats` the source has templates for,
+    with the field (`name`, `geosite` or `geoip`) those templates need;
+  - templates are validated like user profiles (groups, targets, `final`; see docs/SUBSCRIPTION.md);
+  - a mirror `prefix` is `""` or an http(s) URL ending in `/`.
+- An invalid stored value is ignored at render time (the built-in catalog is used), so subscriptions never break.
+- Related settings (group `subscribe`): `allow_user_rule_profile` (default `true`; `false` forces everyone onto
+  `ruleset_default_template` and makes `PUT /user/rule-profile` answer 403), `ruleset_default_template` (`standard`),
+  `ruleset_default_source` (`blackmatrix7`), `ruleset_mirror` (`""`).
 
 ---
 

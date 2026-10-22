@@ -2,6 +2,7 @@
   <img src="web/public/favicon.svg" width="88" alt="GG Bond" />
 </p>
 <h1 align="center">GG Bond · ggboard</h1>
+<!-- screenshots: see docs/screenshots -->
 <p align="center">简洁、美观、高性能的代理面板。单个 Go 二进制，内嵌 React 前端。<br/>
 <em>A fast, simple proxy panel: one Go binary with an embedded React SPA.</em></p>
 
@@ -11,6 +12,9 @@
   <img alt="React" src="https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white">
   <img alt="Lighthouse" src="https://img.shields.io/badge/Lighthouse-100%20%C2%B7%20100%20%C2%B7%20100%20%C2%B7%20100-brightgreen">
 </p>
+
+> **状态 / Status：v0.1.0-alpha** — 早期预览版，API、数据模型与配置项在 1.0 前仍可能变化；升级前请先备份 `data/`。
+> Early preview: APIs, schema and settings may still change before 1.0 — back up `data/` before upgrading.
 
 ---
 
@@ -30,7 +34,7 @@
   同时支持旧版分表 schema 与上游统一表 schema，MySQL / PostgreSQL / SQLite 均可。
 - **运营功能**：套餐 / 订单 / 优惠券 / 佣金与邀请 / 工单 / 公告 / 知识库 / 统计 / 定时任务 / 邮件提醒。
 - **前端**：React 19 + HeroUI v3 + TanStack（Router / Query / Table / Form）+ zustand，Apple HIG 设计语言，
-  浅色 / 深色自动切换，中英文，Lighthouse 四项 100 分。
+  浅色 / 深色自动切换，中英文，Lighthouse 四项 100 分（桌面预设，`pnpm -C web lh` 作为门槛）。
 - **零依赖部署**：SQLite 默认即可运行，无需 Redis / 队列进程；也支持 PostgreSQL 与 MySQL。
 
 ## 快速开始 / Quick start
@@ -44,7 +48,9 @@ docker compose -f deploy/docker-compose.yml up -d --build
 docker compose -f deploy/docker-compose.yml exec ggboard ggboard admin create --email admin@example.com --password 'change-me'
 ```
 
-面板监听 `127.0.0.1:8080`，请用 nginx / Caddy 反向代理并启用 HTTPS（示例：`deploy/nginx.example.conf`）。
+面板监听 `127.0.0.1:8080`，请用 nginx / Caddy 反向代理并启用 HTTPS（示例：`deploy/nginx.example.conf`），
+并把代理地址写进 `server.trusted_proxies`。完整部署（systemd、TLS、备份、升级、PostgreSQL / MySQL）见
+[docs/DEPLOY.md](docs/DEPLOY.md)。
 
 ### 二进制 / From source
 
@@ -58,25 +64,34 @@ make web && make build          # 构建前端并嵌入，产物 bin/ggboard
 
 ## 节点后端接入 / Connecting node backends
 
-后台 **设置 → 服务器** 可看到 `server_token`。
+后台 **设置 → 节点通讯** 可看到 `server_token`；先在 **节点** 页创建节点，拿到节点 ID。
 
-**XrayR / V2bX**（面板类型 `NewV2board` / `V2board`）：
+**XrayR**（面板类型 `NewV2board`，即 `UniProxy` 接口）：
 
 ```yaml
-ApiConfig:
-  ApiHost: "https://panel.example.com"
-  ApiKey: "<server_token>"
-  NodeID: 1
-  NodeType: vless          # vmess | vless | trojan | shadowsocks | hysteria | hysteria2 | tuic | anytls
+Nodes:
+  - PanelType: "NewV2board"
+    ApiConfig:
+      ApiHost: "https://panel.example.com"
+      ApiKey: "<server_token>"
+      NodeID: 1
+      NodeType: Vless        # V2ray | Vless | Trojan | Shadowsocks
+      EnableVless: true      # 仅 vless 节点需要
 ```
 
-**soga**（协议 `soga-v1`）：
+**V2bX**（同一套 `UniProxy` 接口，另支持 hysteria / hysteria2 / tuic / anytls）：
+
+```json
+{ "Core": "sing", "ApiHost": "https://panel.example.com", "ApiKey": "<server_token>", "NodeID": 1, "NodeType": "vless" }
+```
+
+**soga**（协议 `soga-v1`，推荐 `/soga/` 前缀）：
 
 ```bash
-soga config type=soga-v1 webapi_url=https://panel.example.com/soga/ webapi_key=<server_token> node_id=1 node_type=vless
+soga config type=soga-v1 server_type=vless node_id=1 webapi_url=https://panel.example.com/soga/ webapi_key=<server_token>
 ```
 
-接口细节见 [docs/NODE_PROTOCOLS.md](docs/NODE_PROTOCOLS.md)。
+协议与各后端类型对照、完整配置片段见 [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md)，接口细节见 [docs/NODE_PROTOCOLS.md](docs/NODE_PROTOCOLS.md)。
 
 ## 从 Xboard 迁移 / Migrating from Xboard
 
@@ -93,6 +108,9 @@ ggboard import xboard --dsn "mysql://user:pass@127.0.0.1:3306/xboard" --with-sta
 | 文档 | 内容 |
 |---|---|
 | [AGENTS.md](AGENTS.md) | 项目约定、技术栈、设计规范、可插拔点 |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | 部署：Docker Compose、systemd、nginx / Caddy、配置参考、备份与升级 |
+| [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md) | 管理员指南：设置、节点对接、套餐与支付、规则集、Xboard 迁移、2FA 策略 |
+| [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | 用户指南：各客户端一键导入、分流规则、2FA / Passkey、密码管理器 |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架构、启动流程、缓存、定时任务、安全 |
 | [docs/API.md](docs/API.md) | 全部 HTTP 接口 |
 | [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | 数据模型 |
@@ -100,6 +118,8 @@ ggboard import xboard --dsn "mysql://user:pass@127.0.0.1:3306/xboard" --with-sta
 | [docs/PAYMENTS.md](docs/PAYMENTS.md) · [docs/PAYMENTS_GATEWAYS.md](docs/PAYMENTS_GATEWAYS.md) | 支付插件接口与各网关协议 |
 | [docs/NODE_PROTOCOLS.md](docs/NODE_PROTOCOLS.md) | XrayR / V2bX / soga 对接协议 |
 | [docs/BACKEND.md](docs/BACKEND.md) · [docs/FRONTEND.md](docs/FRONTEND.md) · [web/README.md](web/README.md) | 开发指南 |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献指南：开发环境、约定、如何新增插件 |
+| [SECURITY.md](SECURITY.md) | 安全策略：漏洞报告与加固清单 |
 | [MISTAKES.md](MISTAKES.md) | 错题本：开发中踩过的坑 |
 
 ## 开发 / Development

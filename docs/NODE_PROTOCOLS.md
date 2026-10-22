@@ -1,11 +1,14 @@
 # Node protocols: UniProxy (XrayR / V2bX) and soga-v1
 
-Contract for `internal/api/node/`. Implement it exactly as written here. Every behaviour was checked against these sources:
+Contract for `internal/api/node/` (handlers), `internal/service/node/` (rendering, reports, validation) and
+`internal/app/online/` (runtime status). The code implements this file; change both together. Every behaviour was checked
+against these sources:
 XrayR tag v25.3.6 (`api/newV2board`, `service/controller`), V2bX (`api/panel`, `core/{xray,sing,hy2}`, `limiter`, `node`),
 Xboard fork + upstream (`Middleware/Server.php`, `UniProxyController`, `ServerService`, `Models/Server`, `DeviceStateService`,
 `Helper`), and the soga-v1 webapi document plus the soga config pages. Citations in [brackets] are there for reviewers.
 
 Conventions:
+
 - Bodies are UTF-8 JSON, sent with `Content-Type: application/json; charset=utf-8`. Responses are compact JSON from `encoding/json`.
 - "int" means a JSON number with no fraction. **Never emit `null` where this file says int/string/bool.**
 - `ps` = `nodes.protocol_settings`. `ts` = `ps.tls_settings`. `uuid` = `users.uuid` (36 chars, lowercase, with hyphens).
@@ -18,6 +21,7 @@ Conventions:
 ## 1. Overview and authentication
 
 ### 1.1 Mounts
+
 | client | auth | paths (exact) |
 |---|---|---|
 | XrayR (`PanelType: NewV2board`), V2bX | query `token`, `node_id`, `node_type` | `/api/v1/server/UniProxy/{config,user,push,alive,alivelist,status}`: root only (clients hard-code `ApiHost + "/api/v1/server/UniProxy/..."`) |
@@ -29,15 +33,18 @@ Node endpoints use no JWT, no CORS and no user rate limiters. POST bodies are ca
 `webapi_url` naively.
 
 Backend configuration snippets (use placeholders only; never commit real values):
+
 ```yaml
 # XrayR config.yml  (NodeType: V2ray|Vmess|Vless|Trojan|Shadowsocks; it sends node_type=lowercase, or "vless" for V2ray+EnableVless)
 PanelType: "NewV2board"
 ApiConfig: { ApiHost: "https://panel.example.com", ApiKey: "<server_token>", NodeID: 3, NodeType: Vless, EnableVless: true }
 ```
+
 ```jsonc
 // V2bX config.json Nodes[] (NodeType: vmess|vless|trojan|shadowsocks|hysteria|hysteria2|tuic|anytls; "v2ray" is sent as vmess)
 { "Core": "sing", "ApiHost": "https://panel.example.com", "ApiKey": "<server_token>", "NodeID": 3, "NodeType": "vless", "Timeout": 30 }
 ```
+
 ```ini
 # /etc/soga/soga.conf   (server_type: v2ray|vless|trojan|ss|ssr|hysteria|anytls|mieru; node_id may be "1,2,3" if all share one type)
 type=soga-v1
@@ -48,20 +55,25 @@ api=webapi
 webapi_url=https://panel.example.com/soga/
 webapi_key=<server_token>
 ```
+
 **Recommended soga `webapi_url`: `https://<panel>/soga/`.** soga appends `api/v1/<endpoint>`. The soga licence binds to the full
 `webapi_url`, and a dedicated prefix lets a reverse proxy route or limit node traffic on its own. `https://<panel>/` (root
 mount) works too.
 
 ### 1.2 UniProxy authentication (every request, GET and POST)
+
 Query parameters: `token`, `node_id`, `node_type`. XrayR and V2bX send all three on every call, in alphabetical order.
 Check them in this order:
+
 1. **token**: required. Compare it with `server_token` using `crypto/subtle.ConstantTimeCompare`. If `server_token` is empty,
    reject everything (the Xboard fork does the same).
 2. **node_id**: required, a decimal uint64.
 3. **node_type**: optional (upstream allows null). Normalise it: `strings.ToLower(strings.TrimSpace(v))`, then apply aliases
-   `v2ray→vmess` and `hysteria2→hysteria` (record that `hysteria2` was requested). Treat `v2node` as absent.
-   Values accepted after aliasing: `vmess vless trojan shadowsocks hysteria tuic anytls mieru`. `shadowsocksr` is not a
-   UniProxy type.
+   `v2ray→vmess`, `ss`/`shadowsocks-plugin→shadowsocks`, `ssr→shadowsocksr` and `hysteria2→hysteria` (record that
+   `hysteria2` was requested). Treat `v2node` as absent (`nodesvc.CanonicalType`, shared with soga).
+   Values accepted after aliasing: `vmess vless trojan shadowsocks hysteria tuic anytls mieru`; anything else is
+   400 `unsupported node_type "<v>"`. `shadowsocksr` is not a UniProxy type: a shadowsocksr node is "not found" with
+   `node <id> is shadowsocksr, which UniProxy does not support`.
 4. Load the node by id. If the node is missing, or `node_type` was given and `node.type` differs, the node is "not found".
    If `hysteria2` was requested and `ps.version != 2`, the node is also "not found" (Xboard has no version check; ggboard
    adds it).
@@ -70,25 +82,29 @@ Check them in this order:
 | failure | Xboard (reference) | **ggboard** |
 |---|---|---|
 | token missing or wrong, or `server_token` unset | 422 `{"message":"Invalid token","errors":{"token":["Invalid token"]}}` (Laravel validation under ForceJson) | **403** `{"code":"forbidden","message":"invalid token"}` |
-| node_id missing or not a uint64; bad node_type | 422 | **400** `{"code":"validation_failed","message":"<what>"}` |
+| node_id missing or not a uint64 > 0; bad node_type | 422 | **400** `{"code":"validation_failed","message":"node_id must be a positive integer"}` (or `unsupported node_type …`) |
 | node not found / type mismatch | `ApiException` default code 400 → `Handler::render` → `fail([400,msg])` → **HTTP 400** `{"status":"fail","message":"Server does not exist","data":null,"error":null}` (not 500) | **400** `{"code":"validation_failed","message":"server is not exist"}`, or `"node 3 is vless, requested vmess"` |
 
 XrayR treats status `> 399` as a failure and V2bX treats `>= 400` as one. Both only log the body.
-Redact the `token` query parameter in access logs for `/api/v1/server/*`.
+The access log records the route pattern only, never query strings, so `token` never reaches the logs.
 
 ### 1.3 soga-v1 authentication
+
 soga sends these request headers on every call: `API-KEY` (= `webapi_key`), `NODE-ID`, and `NODE-TYPE`. GET requests also
 carry `If-None-Match` once soga has an ETag. Go canonicalises them as `Api-Key`, `Node-Id`, `Node-Type`; read them with
 `r.Header.Get`.
 
 Validation is the same as §1.2, using the headers:
+
 - Documented `NODE-TYPE` values: `vmess vless shadowsocks shadowsocksr trojan hysteria anytls mieru`.
-- Also accept `v2ray→vmess`, `ss→shadowsocks`, `ssr→shadowsocksr`, `hysteria2→hysteria`.
-- `tuic` → 400.
+- Also accept `v2ray→vmess`, `ss`/`shadowsocks-plugin→shadowsocks`, `ssr→shadowsocksr`, `hysteria2→hysteria`.
+- `tuic` → 400 `unsupported NODE-TYPE "tuic"` (a tuic node requested without a type is 400 `… which soga does not support`).
 - A missing NODE-TYPE means "match by id only".
 - soga runs hysteria **2** only (soga page "Xboard 对接 hysteria"), so a hysteria node with `ps.version == 1` is "not found".
 
-Errors carry an **int** `code`: 403 `{"code":403,"message":"invalid API-KEY"}` and 400 `{"code":400,"message":"node not found"}`.
+Errors carry an **int** `code` equal to the HTTP status: 403 `{"code":403,"message":"invalid API-KEY"}`, 400
+`{"code":400,"message":"node not found"}` (also `NODE-ID must be a positive integer` and type mismatches), 413
+`request body too large` for POST bodies over 8 MiB.
 **Never answer 404 on a soga path.** The soga doc warns that a 404 from any of the 8 endpoints stops soga from working, so
 all of them must exist.
 
@@ -97,6 +113,7 @@ all of them must exist.
 ## 2. UniProxy endpoints (`/api/v1/server/UniProxy/*`)
 
 ### 2.1 `GET /config`
+
 Returns 200 with a bare JSON object (no envelope) and an `ETag`, or 304 (§6.6). Keys present for **every** type:
 
 | key | type | value |
@@ -116,10 +133,12 @@ Why both settings keys: XrayR reads `networkSettings` for vmess and trojan, and 
 is non-empty [panel/node.go]. Upstream sends camelCase only; the fork sent both for vless.
 
 The key must be **present** for vmess, vless and trojan (`null` is fine):
+
 - V2bX xray skips stream settings when the raw value is empty, then dereferences `in.StreamSetting` → nil-pointer panic.
 - V2bX trojan calls `json.Unmarshal` on an empty value → "unexpected end of JSON input" [core/xray/inbound.go].
 
 #### 2.1.1 shadowsocks
+
 | key | type | mapping |
 |---|---|---|
 | `cipher` | string | `ps.cipher` (required by admin validation) |
@@ -132,32 +151,39 @@ XrayR and V2bX switch to multi-user SS2022 mode **only when `server_key` is non-
 core/xray/ss.go `if serverKey == ""`]. Upstream emits no `server_key` for `2022-blake3-chacha20-poly1305`; ggboard emits the
 32-byte key. Admin UI must warn that chacha20-2022 is unreliable multi-user: V2bX's sing core only base64-encodes user keys
 for the two AES ciphers [core/sing/user.go].
+
 ```json
 {"protocol":"shadowsocks","listen_ip":"0.0.0.0","server_port":8388,"host":"ss.example.com","network":null,"networkSettings":null,"network_settings":null,
  "cipher":"aes-128-gcm","server_key":null,"obfs":"http","obfs_settings":{"path":"/","host":"www.example.net"},"plugin":null,"plugin_opts":null,
  "base_config":{"push_interval":60,"pull_interval":60},"routes":[]}
 ```
+
 ```json
 {"protocol":"shadowsocks","listen_ip":"0.0.0.0","server_port":8389,"host":"ss.example.com","network":null,"networkSettings":null,"network_settings":null,
  "cipher":"2022-blake3-aes-256-gcm","server_key":"YjVkODdhNWRlMWEzNWIyMmQwMjM0NThjNDYyMGVjYWE=","obfs":null,"obfs_settings":null,"plugin":null,"plugin_opts":null,
  "base_config":{"push_interval":60,"pull_interval":60},"routes":[]}
 ```
+
 In the second example, `P.created_at` is `1735689600`, so `md5("1735689600")` = `b5d87a5de1a35b22d023458c4620ecaa`, and all 32 hex
 characters are base64-encoded.
 
 #### 2.1.2 vmess
+
 | key | type | mapping |
 |---|---|---|
 | `tls` | int | `ps.tls` (0\|1), default 0. The backend terminates TLS with its own local certificate. |
 | `tls_settings` | object | `{"server_name":ts.server_name or "","allow_insecure":ts.allow_insecure or false}` |
 | `tlsSettings` | object | **same value** as `tls_settings`. V2bX (vmess/vless) uses `tlsSettings` instead of `tls_settings` when it is present; sending both keeps panels that emit either spelling interchangeable. XrayR ignores it. |
+
 ```json
 {"protocol":"vmess","listen_ip":"0.0.0.0","server_port":10086,"host":"v.example.com","network":"ws",
  "networkSettings":{"path":"/ws","headers":{"Host":"v.example.com"}},"network_settings":{"path":"/ws","headers":{"Host":"v.example.com"}},
  "tls":1,"tls_settings":{"server_name":"v.example.com","allow_insecure":false},"tlsSettings":{"server_name":"v.example.com","allow_insecure":false},
  "base_config":{"push_interval":60,"pull_interval":60},"routes":[]}
 ```
+
 `network_settings` values pass through as stored (xray style, DATA_MODEL). Clients read:
+
 - ws: `path`, `headers.Host`
 - grpc: `serviceName`
 - httpupgrade: `path`, `host`
@@ -167,6 +193,7 @@ characters are base64-encoded.
 V2bX xray rejects `http`/`h2` ("the network type is not vail").
 
 #### 2.1.3 vless
+
 | key | type | mapping |
 |---|---|---|
 | `tls` | int | `ps.tls`: 0 none, 1 tls (local certificate), 2 reality |
@@ -175,7 +202,7 @@ V2bX xray rejects `http`/`h2` ("the network type is not vail").
 | `tls_settings` | object | tls 0 or 1: `{"server_name","allow_insecure"}`. tls 2: the reality object below. |
 | `tlsSettings` | object | **same value** as `tls_settings` (see vmess). |
 | `decryption` | string\|null | `ps.decryption` (§8 delta) when non-empty and not `"none"`, otherwise `null` (upstream key) |
-| `encryption` | string | **only when `decryption` is set**: its first `.`-segment, e.g. `mlkem768x25519plus`. **Omit the key otherwise.** V2bX rejects every non-empty value except `mlkem768x25519plus`, including `"none"` [core/xray/inbound.go]. |
+| `encryption` | string | **only when `decryption` is set and has at least 4 `.`-segments**: its first segment, e.g. `mlkem768x25519plus`. **Omit the key otherwise.** V2bX rejects every non-empty value except `mlkem768x25519plus`, including `"none"` [core/xray/inbound.go]. |
 | `encryption_settings` | object | only alongside `encryption`. Split `decryption` on `.` into `s[0..n-1]`: `{"mode":s[1],"ticket":s[2],"server_padding":join(s[3:n-1],"."),"private_key":s[n-1]}`. V2bX rebuilds `method.mode.ticket[.server_padding].private_key` from these. |
 
 **Reality object** (`tls == 2`):
@@ -190,6 +217,7 @@ V2bX xray rejects `http`/`h2` ("the network type is not vail").
 | `xver` | string | **Only when `ts.xver` > 0**, as a JSON *string* such as `"1"`: V2bX declares `xver,string` and fails the whole decode on a number. XrayR's field is unexported and never parsed. Absent by default. |
 
 Why `dest` is split into host and port:
+
 - XrayR builds `Dest = dest + ":" + server_port` [v2board.go].
 - V2bX xray uses `"%s:%s"`. V2bX sing uses `dest` as the host and `server_port` as the port.
 - Our stored `"example.com:443"` would therefore become `example.com:443:443`.
@@ -197,13 +225,16 @@ Why `dest` is split into host and port:
 `server_port` must be a JSON string: V2bX unmarshals it into a Go `string` and rejects a number.
 
 tls 1 with TCP and vision:
+
 ```json
 {"protocol":"vless","listen_ip":"0.0.0.0","server_port":443,"host":"vl.example.com","network":"tcp","networkSettings":null,"network_settings":null,
  "tls":1,"flow":"xtls-rprx-vision","server_name":"vl.example.com","tls_settings":{"server_name":"vl.example.com","allow_insecure":false},
  "tlsSettings":{"server_name":"vl.example.com","allow_insecure":false},"decryption":null,
  "base_config":{"push_interval":60,"pull_interval":60},"routes":[]}
 ```
+
 tls 0 with xhttp and VLESS encryption (`ps.decryption = "mlkem768x25519plus.native.600s.PRIVATE_KEY_BASE64URL"`):
+
 ```json
 {"protocol":"vless","listen_ip":"0.0.0.0","server_port":8080,"host":"vl.example.com","network":"xhttp",
  "networkSettings":{"path":"/xh","host":"vl.example.com","mode":"auto","extra":{}},"network_settings":{"path":"/xh","host":"vl.example.com","mode":"auto","extra":{}},
@@ -212,9 +243,11 @@ tls 0 with xhttp and VLESS encryption (`ps.decryption = "mlkem768x25519plus.nati
  "encryption_settings":{"mode":"native","ticket":"600s","server_padding":"","private_key":"PRIVATE_KEY_BASE64URL"},
  "base_config":{"push_interval":60,"pull_interval":60},"routes":[]}
 ```
+
 For tls 2 (reality), see the full transcript in §7.1.
 
 #### 2.1.4 trojan
+
 | key | type | mapping |
 |---|---|---|
 | `server_name` | string | `ps.server_name` |
@@ -222,6 +255,7 @@ For tls 2 (reality), see the full transcript in §7.1.
 | `tls_settings` | object | `{"server_name":ps.server_name,"allow_insecure":ps.allow_insecure}` |
 
 XrayR always builds TLS over TCP and reads only `host` and `server_name` [parseTrojanNodeResponse]. V2bX supports tcp, ws and grpc.
+
 ```json
 {"protocol":"trojan","listen_ip":"0.0.0.0","server_port":443,"host":"t.example.com","network":"grpc",
  "networkSettings":{"serviceName":"trojan-grpc"},"network_settings":{"serviceName":"trojan-grpc"},"server_name":"t.example.com",
@@ -229,6 +263,7 @@ XrayR always builds TLS over TCP and reads only `host` and `server_name` [parseT
 ```
 
 #### 2.1.5 hysteria (v1 and v2; V2bX `NodeType` `hysteria` or `hysteria2`)
+
 | key | type | mapping |
 |---|---|---|
 | `version` | int | `ps.version`, default 2 |
@@ -240,11 +275,13 @@ XrayR always builds TLS over TCP and reads only `host` and `server_name` [parseT
 | `ignore_client_bandwidth` | bool | **v2 only**. `ps.ignore_client_bandwidth`, default false. V2bX-only; §8 delta. |
 
 Port hopping (`node.port` = `"20000-30000"`) is configured on the client and firewall side. The backend listens on `server_port` only.
+
 ```json
 {"protocol":"hysteria","listen_ip":"0.0.0.0","server_port":36712,"host":"hy.example.com","network":null,"networkSettings":null,"network_settings":null,
  "version":1,"server_name":"hy.example.com","tls_settings":{"server_name":"hy.example.com","allow_insecure":false},"up_mbps":200,"down_mbps":1000,
  "obfs":"obfs-pass-123","base_config":{"push_interval":60,"pull_interval":60},"routes":[]}
 ```
+
 ```json
 {"protocol":"hysteria","listen_ip":"0.0.0.0","server_port":36712,"host":"hy2.example.com","network":null,"networkSettings":null,"network_settings":null,
  "version":2,"server_name":"hy2.example.com","tls_settings":{"server_name":"hy2.example.com","allow_insecure":false},"up_mbps":0,"down_mbps":0,
@@ -252,7 +289,9 @@ Port hopping (`node.port` = `"20000-30000"`) is configured on the client and fir
 ```
 
 #### 2.1.6 tuic (V2bX only)
+
 Keys:
+
 - `version`: 5.
 - `server_name`: `ps.server_name`.
 - `congestion_control`: `ps.congestion_control`, default `"cubic"` (the upstream default).
@@ -263,6 +302,7 @@ Keys:
 - `tls_settings`: `{"server_name","allow_insecure"}`.
 
 Users authenticate with uuid as both UUID and password [core/sing/user.go].
+
 ```json
 {"protocol":"tuic","listen_ip":"0.0.0.0","server_port":8443,"host":"tu.example.com","network":null,"networkSettings":null,"network_settings":null,
  "version":5,"server_name":"tu.example.com","congestion_control":"bbr","zero_rtt_handshake":false,"udp_relay_mode":"native","alpn":["h3"],
@@ -271,7 +311,9 @@ Users authenticate with uuid as both UUID and password [core/sing/user.go].
 ```
 
 #### 2.1.7 anytls (V2bX only; TLS comes from the backend's local certificate, and V2bX anytls has no reality)
+
 Keys:
+
 - `tls`: int, `ps.tls`, default 1.
 - `server_name`: `ps.server_name`.
 - `tls_settings`: for tls 1, `{"server_name","allow_insecure"}`. For tls 2, the vless reality object, with
@@ -279,6 +321,7 @@ Keys:
 - `padding_scheme`: []string. Use `ps.padding_scheme`; if it is empty, use the default
   `["stop=8","0=30-30","1=100-400","2=400-500,c,500-1000,c,500-1000,c,500-1000,c,500-1000","3=9-9,500-1000","4=500-1000","5=500-1000","6=500-1000","7=500-1000"]`
   (the upstream default).
+
 ```json
 {"protocol":"anytls","listen_ip":"0.0.0.0","server_port":8443,"host":"a.example.com","network":null,"networkSettings":null,"network_settings":null,
  "tls":1,"server_name":"a.example.com","tls_settings":{"server_name":"a.example.com","allow_insecure":false},
@@ -287,18 +330,22 @@ Keys:
 ```
 
 #### 2.1.8 mieru (upstream shape; no XrayR or V2bX support. soga is the real consumer, §3)
+
 ```json
 {"protocol":"mieru","listen_ip":"0.0.0.0","server_port":2999,"host":"m.example.com","network":null,"networkSettings":null,"network_settings":null,
  "transport":"TCP","traffic_pattern":"","multiplexing":"MULTIPLEXING_LOW","base_config":{"push_interval":60,"pull_interval":60},"routes":[]}
 ```
+
 `transport` = `ps.transport`, default `"TCP"`. `traffic_pattern` = `""`. `multiplexing` = `ps.multiplexing`, or `""`.
 
 #### 2.1.9 routes
+
 Emit the `node_routes` rows whose ids are in `P.route_ids`, sorted by id:
 `{"id":int,"match":[string],"action":"block"|"dns","action_value":string}`. `action_value` is `""` when empty, never `null`.
 Upstream omits `routes` when there are none; both clients accept `[]`.
 
 How clients read routes:
+
 - **XrayR**: for `block`, `regexp.MustCompile(strings.Join(match,"|"))`. **An invalid pattern panics XrayR**, so the admin API
   must reject a route whose joined match fails `regexp.Compile`. For `dns`, it creates a nameserver at `action_value` for
   `match` domains.
@@ -308,7 +355,9 @@ How clients read routes:
 - **soga**: §3.3.
 
 ### 2.2 `GET /user`
+
 200: `{"users":[{"id":int,"uuid":string,"speed_limit":int,"device_limit":int}, ...]}`, sorted by `id`, with an ETag; or 304.
+
 - **Selection** (also used by soga `/users`). Include a user when all of these hold:
   - `group_id IN groups(P) ∪ groups(children of P)` (§5.3)
   - `banned = false`
@@ -325,8 +374,10 @@ How clients read routes:
   msgpack-decodes when the response Content-Type contains `application/x-msgpack`.
 
 ### 2.3 `POST /push`
+
 Body: `{"<uid>":[upload,download], ...}` (bytes since the last push). Example: `{"1":[1024,4096],"2":[0,512]}`.
 XrayR and V2bX send it only when at least one user has traffic [XrayR controller.go `if len(userTraffic) > 0`].
+
 - Decode into `map[string]json.RawMessage`. Treat the literal body `[]` as empty.
 - Keep an entry only if its key parses as a uint64 > 0 and its value is a 2-element array of finite numbers ≥ 0
   (truncate them to int64). Drop anything else silently, as Xboard does.
@@ -340,10 +391,12 @@ XrayR and V2bX send it only when at least one user has traffic [XrayR controller
   `{"code":"validation_failed","message":"invalid data format"}` (upstream answers 422).
 
 ### 2.4 `POST /alive` (V2bX; XrayR newV2board's `ReportNodeOnlineUsers` is a no-op)
+
 Body: `{"<uid>":["1.2.3.4","2001:db8::1"], ...}`. V2bX sends it every push interval, only for users above
 `DeviceOnlineMinTraffic`.
 
 For each uid:
+
 1. Normalise each IP: strip `:port`, and turn `[v6]:port` into `v6`.
 2. Deduplicate.
 3. **Replace** the IP set stored for `(uid, P)` with this list, stamped `now` (Xboard `setDevices`). Users not in the body
@@ -352,6 +405,7 @@ For each uid:
 Response: `{"data":true}`. Invalid JSON gets 400 `{"code":"validation_failed","message":"invalid online data"}`.
 
 ### 2.5 `GET /alivelist` (V2bX)
+
 200: `{"alive":{"<uid>":count, ...}}`. It contains users who are eligible on P (selection as in §2.2), have
 `device_limit > 0`, and have `count > 0` (§5.2).
 
@@ -359,29 +413,38 @@ The value is **always an object** (`{}` when empty, never `null` or `[]`), and t
 fails, V2bX falls back to an empty map. V2bX refuses a new IP when `device_limit <= alive[uid]` [limiter.go].
 
 ### 2.6 `POST /status` (upstream extra; XrayR and V2bX never call it)
-Body: `{"cpu":float 0..100,"mem":{"total":int,"used":int},"swap":{...},"disk":{...}}` (bytes). Store it in
-`NodeStatus.Load` of P and answer `{"data":true,"code":0,"message":"success"}`. A missing or invalid field gets 400.
+
+Body: `{"cpu":float 0..100,"mem":{"total":int,"used":int},"swap":{...},"disk":{...}}` (bytes; optional `uptime` seconds).
+Stored as `online.Load` of P, with `mem`/`swap`/`disk` converted to used/total percentages (2 decimals) and `cpu` capped at
+100. Answer `{"data":true,"code":0,"message":"success"}`. All four fields are required here: a missing or invalid one gets 400
+`invalid status data` with a field error.
 
 ---
 
 ## 3. soga-v1 endpoints (`[/soga]/api/v1/*`)
+
 Conventions:
+
 - GET responses are bare JSON (an object for `/node`, arrays for the others), with an ETag or 304 (§6.6).
 - POST responses are 200 `{"code":0,"message":""}`. `code != 0` means failure; we only use it together with a 4xx status.
 - POST bodies are JSON arrays. Accept `[]` and `null` as empty.
-- GET `/node` and GET `/users` set `LastCheckAt(P)`.
+- Every authenticated request, GET or POST, sets `LastCheckAt(P)` (§5.1).
 
 ### 3.1 `GET /api/v1/node`
+
 Returns `{"basic":{"pull_interval":pull_iv,"push_interval":push_iv,"speed_limit":0},"config":{...}}`.
+
 - `basic.speed_limit` is the node's total limit in Mbps. ggboard has none, so it is always 0.
 - `config.port` is **`P.server_port`** (the listen port, not the client `port`) for every type.
 
 `stream_type` maps from `ps.network` one-to-one:
+
 - `tcp ws http h2 grpc`. A `tcp` network with an http header is still sent as `tcp`, because soga has no header obfs.
 - `xhttp`: vless only.
-- `httpupgrade`: no soga equivalent. Emit it verbatim, log `slog.Warn`, and have the admin UI warn.
+- `httpupgrade`: no soga equivalent. It is emitted verbatim and logged with `slog.Warn` when the body is rendered.
 
 Optional keys appear only in these cases:
+
 - `path`: when the stream is `ws`, `http`, `h2` or `httpupgrade`. Value: `network_settings.path`.
 - `service_name`: when the stream is `grpc`. Value: `network_settings.serviceName`.
 - `xhttp_settings`: when the stream is `xhttp`. Value:
@@ -399,6 +462,7 @@ Optional keys appear only in these cases:
 | mieru | `port`, `transport` = `ps.transport` or `"TCP"` (soga supports TCP only) |
 
 Examples. These are the `config` objects only; `basic` is as above. For ss2022, see §7.2.
+
 ```jsonc
 {"port":10086,"stream_type":"ws","tls_type":"tls","path":"/ws"}                                             // vmess
 {"port":443,"stream_type":"grpc","service_name":"trojan-grpc"}                                              // trojan
@@ -414,7 +478,9 @@ Examples. These are the `config` objects only; `basic` is as above. For ss2022, 
 ```
 
 ### 3.2 `GET /api/v1/users`
+
 Returns a JSON array sorted by id, using the §2.2 selection, with an ETag. `[]` when empty. Every element has:
+
 - `id`: int
 - `speed_limit`: int Mbps, null → 0
 - `device_limit`: int, null → 0
@@ -435,11 +501,13 @@ Example (mieru): `[{"id":1,"username":"3b1b6f5e-...","password":"3b1b6f5e-...","
 soga applies the lower of the panel's limits and its local `user_speed_limit`, `user_conn_limit` and `node_speed_limit`.
 
 ### 3.3 `GET /api/v1/audit_rules`
+
 Returns `[{"id":int,"rule":string}]` with an ETag. For each `block` route in `P.route_ids` (sorted by id) and each match
 entry at index `i`, emit `{"id": route.id*1000 + i, "rule": entry}`. Skip entries prefixed `protocol:`, which soga cannot express.
 The admin API must cap `match` at 999 entries.
 
 soga rule syntax:
+
 - a plain string matches as a substring
 - `regexp:` is a regular expression
 - `domain:` matches the domain and its subdomains
@@ -452,34 +520,43 @@ forms only work on soga and V2bX.
 `dns` routes are not sent to soga, which configures DNS locally in `dns.yml`.
 
 ### 3.4 `GET /api/v1/white_list`
+
 Returns the settings value `server_white_list` ([]string) verbatim, `[]` if unset, with an ETag. soga merges it with its local
 `whiteList`. The syntax is the same as for audit rules.
 
 ### 3.5 `POST /api/v1/traffic`
+
 Body: `[{"id":uid,"u":bytes,"d":bytes}]`. Uses the **same pipeline as §2.3**: the same rate and stats, `LastPushAt`, and
 `Online` = the number of distinct kept ids. Entries with `id <= 0` or negative values are dropped; duplicate ids are summed.
 soga may skip users below `submit_traffic_min_traffic` KB.
 
 ### 3.6 `POST /api/v1/alive_ip`
+
 Body: `[{"id":uid,"ips":["1.2.3.4"]}]`. Same handling as §2.4.
 
 IPs may arrive CIDR-masked, e.g. `192.168.1.0`, when soga sets `user_ip_limit_cidr_prefix_v4/v6` without `submit_real_ip`.
 Store them as given. soga skips users below `submit_alive_ip_min_traffic` KB.
 
 ### 3.7 `POST /api/v1/audit_log`
+
 Body: `[{"user_id":int,"audit_id":int}]`. soga already deduplicates repeated hits of the same rule by the same user.
+Malformed entries are dropped.
 
 For each entry, call `slog.Warn("audit rule hit", "node_id",P.id, "user_id",…, "route_id",audit_id/1000, "rule",<entry text>)`.
-Also keep the last 1000 hits in an in-memory ring buffer for the admin node view (`GET /admin/nodes/:id/audit`). Nothing is persisted, because DATA_MODEL
-has no audit table.
+Also keep the hit in an in-memory ring buffer of the last 1000 hits across all nodes. `GET /api/v1/admin/nodes/:id/audit`
+returns the hits of that node's P, newest first, as `[{"at","node_id","user_id","audit_id","route_id","rule"}]`. Nothing is
+persisted (there is no audit table) and the buffer is empty after a restart.
 
 ### 3.8 `POST /api/v1/status`
-Body: `{"cpu":23.5,"mem":{"total":int,"used":int},"swap":{...},"disk":{...},"uptime":int seconds}`. Store it in
-`NodeStatus.Load{cpu,mem,swap,disk,uptime}` of P.
+
+Body: `{"cpu":23.5,"mem":{"total":int,"used":int},"swap":{...},"disk":{...},"uptime":int seconds}`. Stored like §2.6 in
+`online.Load{cpu,mem,swap,disk,uptime}` of P, except that every field is optional (missing = 0). An invalid value gets 400
+`{"code":400,"message":"invalid status field: <name>"}`.
 
 ---
 
 ## 4. Credential and key derivation (one helper: `model.UserCredentials(u, P)`)
+
 | node type | UniProxy sends | backend derives (verified) | soga `/users` | subscription credential |
 |---|---|---|---|---|
 | vmess / vless | `uuid` | id = uuid | `uuid` | uuid |
@@ -494,6 +571,7 @@ Body: `{"cpu":23.5,"mem":{"total":int,"used":int},"swap":{...},"disk":{...},"upt
 
 Derivations. `uuid[:n]` is the first n *bytes of the 36-char string, hyphens included*. This is byte-identical to Xboard
 `Helper::uuidToBase64` / `getServerKey` and to the client code above.
+
 - User key: `base64.StdEncoding.EncodeToString([]byte(uuid[:n]))`, where n = 16 for `2022-blake3-aes-128-gcm` and 32 for
   `2022-blake3-aes-256-gcm` and `2022-blake3-chacha20-poly1305`.
 - Node key: `ps.server_key` if set. Otherwise `base64(hex(md5(strconv.FormatInt(P.created_at.Unix(),10)))[:n])`, with the
@@ -510,16 +588,20 @@ Derivations. `uuid[:n]` is the first n *bytes of the 36-char string, hyphens inc
 ## 5. Node status, devices, child nodes
 
 ### 5.1 Online semantics (in-memory `app.Online`, keyed by P)
+
 - `LastCheckAt` is set on **every** authenticated node request. `LastPushAt` is set on every successful `push` or `traffic`,
   including empty ones.
 - `Online` is the number of distinct uids in the latest push or traffic body. It reads as 0 once `LastPushAt` is older than W.
 - Window `W = 2 × max(push_iv, pull_iv)` seconds.
-- Status:
-  - 2 = online: `LastPushAt` is within W
-  - 1 = online, no push: only `LastCheckAt` is within W
-  - 0 = offline
+- Status (`online.State*`; the admin API shows it as the string `state`):
+  - 2 `online`: `LastPushAt` is within W
+  - 1 `idle` (online, no push): only `LastCheckAt` is within W
+  - 0 `offline`
 
-  `is_online` (used by `/user/nodes` and the admin totals) is `status ≥ 1`.
+  `is_online` (used by `/user/nodes` and the admin totals) is `status ≥ 1`. Subscriptions do not filter on it.
+- Every authenticated request also stores the backend's `User-Agent` (first 64 bytes) as the node's `version`.
+- Admin view (`GET /api/v1/admin/nodes`, `/:id`): `status: {state, online, last_check_at, last_push_at, load, version}`
+  of P (`nodesvc.StatusView`).
 
 "Last push within 2×push_interval" on its own would make idle, healthy nodes flap to offline: XrayR and V2bX skip the push
 when there is no traffic (verified). Upstream Xboard uses the same three-state model with a fixed 300 s
@@ -530,8 +612,10 @@ tell admins to set that value to ≤ `push_iv`. The state lives in memory, so af
 their next poll.
 
 ### 5.2 Alive IPs and device limits
-- Store: `alive[uid][nodeID] = map[ip]lastSeen`, written by UniProxy `alive` and soga `alive_ip`. Entry TTL is
-  `T = max(300, 2×push_iv)` s; Xboard's `DeviceStateService` uses `TTL=300`. A cron job purges expired entries.
+
+- Store (`internal/app/online`): per node P and user, `{ips, expires}`, replaced by each UniProxy `alive` / soga `alive_ip`
+  report (an empty list removes the entry). TTL `T = max(300, 2×push_iv)` s from the report; Xboard's
+  `DeviceStateService` uses `TTL=300`. The `online_cleanup` job (every 5 min) purges expired entries.
 - `count(uid)` (`device_limit_mode` setting):
   - **0 strict**: the number of distinct IPs, across **all** nodes, seen within T.
   - **1 relaxed**: the same count after collapsing IPv4 to /24 and IPv6 to /64. This mode is ggboard-defined: Xboard stores
@@ -544,6 +628,7 @@ their next poll.
   The panel never blocks anything itself. `/admin/nodes/:id/online` reads this store.
 
 ### 5.3 Child nodes (`parent_id`)
+
 - A child is a relay entrance shown in subscriptions. Validate on save: same `type` as the parent, and the parent has no
   `parent_id` itself.
 - Effective node `P = parent` (or the node itself). A backend that authenticates with a child id is answered **as P**:
@@ -560,6 +645,7 @@ their next poll.
 ---
 
 ## 6. Edge cases
+
 1. **Node not found**: 400 (§1.2/§1.3). Never 404 on soga paths.
 2. **Type mismatch** (including `hysteria2` against a v1 node, or soga against a v1 hysteria node): 400 with an explicit message.
 3. **`show=false`**: still served. Xboard's `getServer` ignores `show`, and its V1 middleware has no enabled check; we adopt
@@ -582,28 +668,34 @@ their next poll.
    - Bodies must be deterministic: struct field order, rows sorted by id, and map keys only where `encoding/json` sorts them.
    - The tag is a content hash and **not** `nodes.updated_at`: settings (`base_config`) and routes change the body without
      touching the node. Note also that Xboard bumps `updated_at` on every push.
-   - Cache: config per P, and users per (group set, NODE-TYPE shape), each for 60 s (ARCHITECTURE). Writes to nodes, routes
-     or settings invalidate the config cache immediately.
+   - Cache (`nodesvc`, 60 s): config bodies per (P, push/pull interval), so interval changes apply at once; user bodies
+     per P (UniProxy and soga shapes), rebuilt whenever the underlying per-group-set user list (`usersvc`, 60 s) changes.
+     Admin writes to nodes, routes or groups call `nodesvc.Invalidate`, which drops both.
    - gzip middleware may compress the body. It then marks the ETag weak (`W/"<tag>"`, RFC 9110); clients echo it back and the
      substring comparison still matches, so the tag itself never changes.
 7. **Bad push/traffic entries**: non-numeric, negative or wrong-length entries are dropped. Unknown uids are ignored.
    Traffic from banned or expired users is still charged (Xboard does the same).
 8. **Several backends with one node id**: traffic is summed. `Online` reflects the latest pusher. The Xboard fork's
    per-backend sum via an `id` query param is not implemented.
-9. **Secrets in logs**: redact the `token` query parameter and the `API-KEY` header.
+9. **Secrets in logs**: the access log records route patterns only (no query strings, no headers), so neither `token`
+   nor `API-KEY` is logged.
 10. **uuid reset or user ban**: the user list body changes, so the ETag changes. Backends then drop the user within one
     pull interval plus the cache TTL.
 
 ---
 
 ## 7. Worked examples
+
 (Bodies are shown wrapped for reading. On the wire they are compact, and the ETag values were computed over the compact bytes.)
 
 ### 7.1 XrayR, vless + reality, node 3
+
 Node data:
+
 - `type=vless`, `server_port=443`, `host=hk1.example.com`, `route_ids=[1]`
 - `ps = {"network":"tcp","tls":2,"flow":"xtls-rprx-vision","tls_settings":{"server_name":"www.example.org","dest":"www.example.org:443","server_port":"443","public_key":"PUBLIC_KEY_BASE64URL","private_key":"PRIVATE_KEY_BASE64URL","short_id":"0123abcd"}}`
 - Route 1: `{"match":["example-blocked.com"],"action":"block"}`
+
 ```http
 GET /api/v1/server/UniProxy/config?node_id=3&node_type=vless&token=<server_token> HTTP/1.1
 Host: panel.example.com
@@ -621,7 +713,9 @@ ETag: "2bb00202abbadb48db07c406a2a1851180f3a03d"
  "decryption":null,"base_config":{"push_interval":60,"pull_interval":60},
  "routes":[{"id":1,"match":["example-blocked.com"],"action":"block","action_value":""}]}
 ```
+
 XrayR then builds a REALITY inbound with Dest `www.example.org:443`, ServerNames `[www.example.org]`, and ShortIds `[0123abcd]`.
+
 ```http
 GET /api/v1/server/UniProxy/user?node_id=3&node_type=vless&token=<server_token> HTTP/1.1
 
@@ -631,6 +725,7 @@ ETag: "19b74f5415250b984cc6359bfd8bd041e146d05f"
 {"users":[{"id":1,"uuid":"3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f","speed_limit":0,"device_limit":3},
           {"id":2,"uuid":"9d4c2e1a-0b3f-4a5c-8e7d-6f1a2b3c4d5e","speed_limit":100,"device_limit":0}]}
 ```
+
 ```http
 GET /api/v1/server/UniProxy/user?node_id=3&node_type=vless&token=<server_token> HTTP/1.1
 If-None-Match: "19b74f5415250b984cc6359bfd8bd041e146d05f"
@@ -638,7 +733,9 @@ If-None-Match: "19b74f5415250b984cc6359bfd8bd041e146d05f"
 HTTP/1.1 304 Not Modified
 ETag: "19b74f5415250b984cc6359bfd8bd041e146d05f"
 ```
+
 In this exchange XrayR receives 304, maps it to `UserNotModified`, and keeps its user list. User 2 is capped at 12,500,000 B/s.
+
 ```http
 POST /api/v1/server/UniProxy/push?node_id=3&node_type=vless&token=<server_token> HTTP/1.1
 Content-Type: application/json
@@ -648,14 +745,18 @@ Content-Type: application/json
 HTTP/1.1 200 OK
 {"data":true}
 ```
+
 If P.rate is 1.5, user 1 is charged u=1572864 and d=78643200. `LastPushAt(3)=now` and `Online(3)=2`.
 
 The same node driven by V2bX would also send:
+
 - `POST /alive` with `{"1":["203.0.113.7"]}` → `{"data":true}`
 - `GET /alivelist` → `{"alive":{"1":1}}`. Only user 1 has `device_limit > 0`.
 
 ### 7.2 soga, shadowsocks 2022 (aes-128), node 7, `webapi_url=https://panel.example.com/soga/`
+
 Node data: `type=shadowsocks`, `server_port=8388`, `created_at=1735689600` (unix), `ps={"cipher":"2022-blake3-aes-128-gcm","obfs":"plain"}`.
+
 ```http
 GET /soga/api/v1/node HTTP/1.1
 Host: panel.example.com
@@ -670,6 +771,7 @@ ETag: "f8d278af3b4f513c6ab09ac8025dbc61e9e60e0c"
 {"basic":{"pull_interval":60,"push_interval":60,"speed_limit":0},
  "config":{"port":8388,"cipher":"2022-blake3-aes-128-gcm","password":"YjVkODdhNWRlMWEzNWIyMg==","obfs":"plain"}}
 ```
+
 ```http
 GET /soga/api/v1/users HTTP/1.1
 API-KEY: <server_token>
@@ -682,8 +784,10 @@ ETag: "e2e3870b1bd7ccc5eb600870fb0627dce73202d2"
 [{"id":1,"password":"M2IxYjZmNWUtN2MyYS00ZA==","speed_limit":0,"device_limit":3,"tcp_limit":0},
  {"id":2,"password":"OWQ0YzJlMWEtMGIzZi00YQ==","speed_limit":100,"device_limit":0,"tcp_limit":0}]
 ```
+
 The two passwords are `base64("3b1b6f5e-7c2a-4d")` and `base64("9d4c2e1a-0b3f-4a")`. User 1's subscription password is
 `YjVkODdhNWRlMWEzNWIyMg==:M2IxYjZmNWUtN2MyYS00ZA==`. A repeat request with `If-None-Match: "e2e3…02d2"` gets 304 with no body.
+
 ```http
 POST /soga/api/v1/traffic HTTP/1.1
 API-KEY: <server_token>
@@ -696,6 +800,7 @@ Content-Type: application/json
 HTTP/1.1 200 OK
 {"code":0,"message":""}
 ```
+
 Further POSTs to the same path prefix with the same headers:
 
 | request | body | response |
@@ -708,7 +813,8 @@ With the wrong key, the response is 403 `{"code":403,"message":"invalid API-KEY"
 
 ---
 
-## 8. Contract deltas (the integrator applies these to DATA_MODEL / ARCHITECTURE)
+## 8. Deltas from Xboard (all implemented)
+
 - `protocol_settings` additions:
   - vless `decryption` (server-side VLESS encryption string; `encryption` is kept for subscriptions only)
   - hysteria `ignore_client_bandwidth` (bool)
@@ -717,5 +823,7 @@ With the wrong key, the response is 403 `{"code":403,"message":"invalid API-KEY"
 - Node config ETag is `sha1(body)`, not "per node `updated_at`" as ARCHITECTURE currently says.
 - Alive-IP TTL is `max(300, 2×push_interval)`. This reconciles DATA_MODEL (2× push) with ARCHITECTURE (600 s).
 - Online status follows the three-state model in §5.1. `device_limit_mode` follows §5.2.
-- Admin validation: route `match` must compile as a Go regexp when joined with `|`, and has at most 999 entries. A child's
-  type equals its parent's. Warn on SS `2022-blake3-chacha20-poly1305` and on `httpupgrade` for soga.
+- Admin validation (`nodesvc.ValidateRoute`, `nodesvc.CheckNode`): route `match` must compile as a Go regexp when joined
+  with `|`, and has 1–999 entries. A child's type equals its parent's, and the parent is not itself a child. The admin UI
+  warns on SS `2022-blake3-chacha20-poly1305`; `httpupgrade` on a soga node is only logged (`slog.Warn`) when soga fetches
+  `/node`.
