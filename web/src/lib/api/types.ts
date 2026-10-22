@@ -1110,7 +1110,8 @@ export interface SubscriptionReset {
 
 export interface RulesetMirror {
   id: string
-  name: LocalizedText
+  /** Optional for admin-defined mirrors; fall back to `id` when absent. */
+  name?: LocalizedText
   /** Prepended to raw URLs; `""` = direct GitHub. */
   prefix: string
 }
