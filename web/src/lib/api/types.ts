@@ -1086,3 +1086,43 @@ export type SettingsUpdate = Partial<
     FrontendSettings &
     AppSettings
 >
+
+// ---- FE-3 ----
+// Admin console part A (dashboard, users, plans, groups, nodes, routes). Declaration merging only
+// adds fields the backend contract (docs/API.md, docs/NODE_PROTOCOLS.md §5/§8) returns but the
+// foundation types did not list yet.
+
+/** Three-state node status (docs/NODE_PROTOCOLS.md §5.1). */
+export type NodeStatusState = 'online' | 'idle' | 'offline'
+/** soga/upstream `status` body stores `{total, used}` byte pairs; older shapes send a percentage. */
+export type NodeLoadValue = number | { total: number; used: number }
+export interface NodeStatus {
+  /** online = push within W, idle = only checks within W, offline. Derived client-side when absent. */
+  state?: NodeStatusState
+}
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- merged declaration must repeat the type parameter
+export interface Node<T extends NodeType = NodeType> {
+  /** Parent node name for child (relay) nodes, `null` otherwise. */
+  parent?: string | null
+}
+export interface AdminUser {
+  /** Inviter e-mail (admin view), `null` when the user was not invited. */
+  invite_user_email?: string | null
+}
+export interface VlessSettings {
+  /** Server-side VLESS encryption string, e.g. `mlkem768x25519plus.native.600s.<key>` (§8 delta). */
+  decryption?: string
+}
+export interface HysteriaSettings {
+  /** Hysteria 2 only (V2bX, §8 delta). */
+  ignore_client_bandwidth?: boolean
+}
+export interface ShadowsocksRSettings {
+  /** Node password (§8 delta); empty → derived from created_at. */
+  password?: string
+}
+/** `/admin/stats/users/ranking` query. */
+export interface UserRankingQuery {
+  date?: ISODate
+  limit?: number
+}

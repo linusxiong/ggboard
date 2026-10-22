@@ -1,15 +1,13 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { ComingSoon } from '@/components/ComingSoon'
-import { useT } from '@/i18n'
+import { createFileRoute, type SearchSchemaInput } from '@tanstack/react-router'
+import { NodesPage } from '@/features/admin/nodes/NodesPage'
+import { type NodeSearch, parseNodeSearch } from '@/features/admin/nodes/search'
+import { loadNamespaces } from '@/i18n'
 import { requireAdmin } from '@/lib/guards'
 
-/** Placeholder — replace the component body with the real page (see web/README.md). */
+/** `/admin/nodes` — nodes (filters in the URL: `?type=&group=&status=&q=`). */
 export const Route = createFileRoute('/_admin/admin/nodes')({
+  validateSearch: (search: Partial<NodeSearch> & SearchSchemaInput) => parseNodeSearch(search),
   beforeLoad: requireAdmin,
-  component: AdminNodesPage,
+  loader: () => loadNamespaces(['admin-nodes', 'admin-stats', 'common']),
+  component: NodesPage,
 })
-
-function AdminNodesPage() {
-  const t = useT('nav')
-  return <ComingSoon title={t('admin.nodes')} />
-}

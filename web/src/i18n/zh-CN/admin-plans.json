@@ -1,0 +1,82 @@
+{
+  "title": "套餐",
+  "description": "价格、流量与限制；关闭“销售”的套餐仅供老用户续费。",
+  "create": "新建套餐",
+  "edit": "编辑套餐「{name}」",
+  "editNamed": "编辑套餐 {name}",
+  "deleteNamed": "删除套餐 {name}",
+  "deleteTitle": "删除套餐「{name}」？",
+  "deleteHint": "删除后无法恢复。",
+  "deleteInUse": "当前有 {count} 个用户正在使用此套餐，服务端会拒绝删除。请先为这些用户更换套餐。",
+  "usersOnPlan": "{count} 个用户正在使用",
+  "created": "套餐已创建",
+  "saved": "套餐已保存",
+  "deleted": "套餐已删除",
+  "empty": "还没有套餐",
+  "notForSale": "未定价",
+  "morePrices": "另有 {count} 个周期",
+  "moveUp": "上移 {name}",
+  "moveDown": "下移 {name}",
+  "pricesHint": "留空表示不提供该周期；价格以站点货币填写。",
+  "contentEdit": "编辑",
+  "contentPreview": "预览",
+  "contentEmpty": "暂无介绍",
+  "columns": {
+    "order": "排序",
+    "name": "名称",
+    "group": "权限组",
+    "traffic": "流量",
+    "prices": "价格",
+    "users": "用户",
+    "show": "显示",
+    "sell": "销售",
+    "renew": "续费"
+  },
+  "toggle": {
+    "show": "在商店显示 {name}",
+    "sell": "允许购买 {name}",
+    "renew": "允许续费 {name}"
+  },
+  "sections": {
+    "basic": "基本信息",
+    "traffic": "流量与限制",
+    "prices": "价格",
+    "content": "介绍"
+  },
+  "fields": {
+    "name": "名称",
+    "group": "权限组",
+    "groupPlaceholder": "选择权限组",
+    "groupHint": "购买后用户获得该权限组下的节点",
+    "tags": "标签",
+    "tagsPlaceholder": "推荐, 热门",
+    "tagsHint": "用逗号分隔",
+    "show": "显示",
+    "showHint": "在商店中展示",
+    "sell": "销售",
+    "sellHint": "允许新购",
+    "renew": "续费",
+    "renewHint": "允许已有用户续费",
+    "transfer": "流量（GB）",
+    "transferHint": "每个周期可用流量",
+    "resetMethod": "流量重置方式",
+    "speedLimit": "限速（Mbps）",
+    "deviceLimit": "设备数限制",
+    "capacityLimit": "最大用户数",
+    "capacityHint": "留空表示不限制同时持有此套餐的用户数",
+    "unlimitedHint": "留空表示不限",
+    "content": "介绍（Markdown）",
+    "contentHint": "支持 Markdown，显示在商店套餐卡片中"
+  },
+  "reset": {
+    "follow": "跟随系统设置",
+    "0": "每月 1 日",
+    "1": "每月购买日",
+    "2": "不重置",
+    "3": "每年 1 月 1 日",
+    "4": "每年购买日"
+  },
+  "errors": {
+    "required": "请填写{field}"
+  }
+}

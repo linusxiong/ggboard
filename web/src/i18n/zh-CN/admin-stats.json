@@ -1,0 +1,57 @@
+{
+  "title": "概览",
+  "description": "收入、订单、用户与节点的实时概况，每分钟自动刷新",
+  "updatedAt": "更新于 {time} · 每分钟自动刷新",
+  "loading": "加载中…",
+  "loadError": "数据加载失败，请稍后重试。",
+  "sections": {
+    "today": "今日",
+    "month": "本月",
+    "operations": "运营",
+    "trend": "趋势",
+    "ranking": "流量排行"
+  },
+  "tiles": {
+    "income": "收入",
+    "paidOrders": "已付订单",
+    "registers": "新注册",
+    "commission": "佣金",
+    "users": "用户总数",
+    "usersHint": "活跃 {active} · 在线 {online}",
+    "nodes": "在线节点",
+    "nodesHint": "共 {total} 个节点",
+    "pendingTickets": "待回复工单",
+    "pendingOrders": "待支付订单",
+    "pendingCommission": "待确认佣金"
+  },
+  "sparkline": "{metric}近 7 天趋势：从 {first} 到 {last}",
+  "metricLabel": "指标",
+  "rangeLabel": "时间范围",
+  "metrics": {
+    "income": "收入",
+    "orders": "订单",
+    "registers": "注册",
+    "traffic": "流量"
+  },
+  "ranges": {
+    "7d": "7 天",
+    "30d": "30 天",
+    "90d": "90 天"
+  },
+  "chartLabel": "{metric}趋势（近 {range}）",
+  "date": "日期",
+  "noSeries": "暂无数据",
+  "rankingDate": "日期",
+  "limit": "条数",
+  "nodeRanking": "节点流量排行",
+  "userRanking": "用户流量排行",
+  "empty": "当天暂无流量数据",
+  "columns": {
+    "rank": "排名",
+    "node": "节点",
+    "user": "用户",
+    "upload": "上行",
+    "download": "下行",
+    "total": "合计"
+  }
+}

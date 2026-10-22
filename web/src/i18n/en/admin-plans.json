@@ -1,0 +1,82 @@
+{
+  "title": "Plans",
+  "description": "Prices, traffic and limits. Plans with “Sell” off can only be renewed by existing users.",
+  "create": "New plan",
+  "edit": "Edit plan “{name}”",
+  "editNamed": "Edit plan {name}",
+  "deleteNamed": "Delete plan {name}",
+  "deleteTitle": "Delete plan “{name}”?",
+  "deleteHint": "This cannot be undone.",
+  "deleteInUse": "{count} users are on this plan, so the server will refuse to delete it. Move them to another plan first.",
+  "usersOnPlan": "{count} users on this plan",
+  "created": "Plan created",
+  "saved": "Plan saved",
+  "deleted": "Plan deleted",
+  "empty": "No plans yet",
+  "notForSale": "No prices",
+  "morePrices": "+{count} more periods",
+  "moveUp": "Move {name} up",
+  "moveDown": "Move {name} down",
+  "pricesHint": "Leave a period empty to not offer it. Prices are in the site currency.",
+  "contentEdit": "Edit",
+  "contentPreview": "Preview",
+  "contentEmpty": "No description",
+  "columns": {
+    "order": "Order",
+    "name": "Name",
+    "group": "Group",
+    "traffic": "Traffic",
+    "prices": "Prices",
+    "users": "Users",
+    "show": "Show",
+    "sell": "Sell",
+    "renew": "Renew"
+  },
+  "toggle": {
+    "show": "Show {name} in the shop",
+    "sell": "Allow buying {name}",
+    "renew": "Allow renewing {name}"
+  },
+  "sections": {
+    "basic": "Basics",
+    "traffic": "Traffic & limits",
+    "prices": "Prices",
+    "content": "Description"
+  },
+  "fields": {
+    "name": "Name",
+    "group": "Server group",
+    "groupPlaceholder": "Choose a group",
+    "groupHint": "Buyers get the nodes of this group",
+    "tags": "Tags",
+    "tagsPlaceholder": "Recommended, Popular",
+    "tagsHint": "Separate with commas",
+    "show": "Show",
+    "showHint": "Listed in the shop",
+    "sell": "Sell",
+    "sellHint": "New purchases allowed",
+    "renew": "Renew",
+    "renewHint": "Existing users may renew",
+    "transfer": "Traffic (GB)",
+    "transferHint": "Traffic per period",
+    "resetMethod": "Traffic reset",
+    "speedLimit": "Speed limit (Mbps)",
+    "deviceLimit": "Device limit",
+    "capacityLimit": "Max subscribers",
+    "capacityHint": "Leave empty for no limit on concurrent holders",
+    "unlimitedHint": "Leave empty for unlimited",
+    "content": "Description (Markdown)",
+    "contentHint": "Markdown, shown on the shop card"
+  },
+  "reset": {
+    "follow": "Follow system setting",
+    "0": "Monthly on the 1st",
+    "1": "Monthly on purchase day",
+    "2": "Never",
+    "3": "Yearly on Jan 1",
+    "4": "Yearly on purchase day"
+  },
+  "errors": {
+    "required": "{field} is required"
+  }
+}

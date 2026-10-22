@@ -1,0 +1,57 @@
+{
+  "title": "Overview",
+  "description": "Live income, orders, users and nodes — refreshes every minute",
+  "updatedAt": "Updated {time} · refreshes every minute",
+  "loading": "Loading…",
+  "loadError": "Could not load the data. Please try again later.",
+  "sections": {
+    "today": "Today",
+    "month": "This month",
+    "operations": "Operations",
+    "trend": "Trends",
+    "ranking": "Traffic ranking"
+  },
+  "tiles": {
+    "income": "Income",
+    "paidOrders": "Paid orders",
+    "registers": "Sign-ups",
+    "commission": "Commission",
+    "users": "Users",
+    "usersHint": "{active} active · {online} online",
+    "nodes": "Nodes online",
+    "nodesHint": "{total} nodes in total",
+    "pendingTickets": "Tickets awaiting reply",
+    "pendingOrders": "Unpaid orders",
+    "pendingCommission": "Pending commission"
+  },
+  "sparkline": "{metric}, last 7 days: from {first} to {last}",
+  "metricLabel": "Metric",
+  "rangeLabel": "Time range",
+  "metrics": {
+    "income": "Income",
+    "orders": "Orders",
+    "registers": "Sign-ups",
+    "traffic": "Traffic"
+  },
+  "ranges": {
+    "7d": "7 days",
+    "30d": "30 days",
+    "90d": "90 days"
+  },
+  "chartLabel": "{metric} trend (last {range})",
+  "date": "Date",
+  "noSeries": "No data yet",
+  "rankingDate": "Date",
+  "limit": "Rows",
+  "nodeRanking": "Node traffic",
+  "userRanking": "User traffic",
+  "empty": "No traffic recorded on this day",
+  "columns": {
+    "rank": "Rank",
+    "node": "Node",
+    "user": "User",
+    "upload": "Upload",
+    "download": "Download",
+    "total": "Total"
+  }
+}

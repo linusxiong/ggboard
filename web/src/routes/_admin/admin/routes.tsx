@@ -1,15 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ComingSoon } from '@/components/ComingSoon'
-import { useT } from '@/i18n'
+import { RoutesPage } from '@/features/admin/routes/RoutesPage'
+import { loadNamespaces } from '@/i18n'
 import { requireAdmin } from '@/lib/guards'
 
-/** Placeholder — replace the component body with the real page (see web/README.md). */
+/** `/admin/routes` — node routes (block / dns). */
 export const Route = createFileRoute('/_admin/admin/routes')({
   beforeLoad: requireAdmin,
-  component: AdminRoutesPage,
+  loader: () => loadNamespaces(['admin-nodes', 'common']),
+  component: RoutesPage,
 })
-
-function AdminRoutesPage() {
-  const t = useT('nav')
-  return <ComingSoon title={t('admin.routes')} />
-}

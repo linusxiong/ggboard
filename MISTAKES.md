@@ -192,3 +192,47 @@
 - **根因**：jsdom 的 DOMException 不继承 Error，`err instanceof Error ? err.name : ''` 拿不到 `TimeoutError`。
 - **修复**：改为按结构读取 `name`（`'name' in err`）。
 - **规则**：判断 fetch/abort 的错误类型时，按 `name` 判断，不要依赖 `instanceof Error`。
+
+## 2026-10-22
+
+### 1. （FE-3）新增的 i18n JSON 在 Vitest 里不可见，`t()` 直接返回 key
+- **现象**：新加的 `admin-nodes.json` 在浏览器里正常，但 `ProtocolForm.test.tsx` 渲染出 `nodes.ps.tcpHeader` 之类的原始 key；`availableNamespaces('zh-CN')` 只列出旧的 5 个命名空间。
+- **根因**：`src/i18n/index.ts` 用 `import.meta.glob` 枚举字典，Vitest 把转换结果缓存在 `node_modules/.vitest-cache`，新文件加入后缓存里的 glob 结果没有失效。
+- **修复**：`rm -rf node_modules/.vitest-cache` 后重跑，测试即拿到新字典。
+- **规则**：新增会被 `import.meta.glob` 匹配的文件（字典、路由片段等）后，若测试表现得像文件不存在，先清 Vitest 缓存再排查代码。
+
+### 2. （FE-3）浏览器面板的标签页被其他 agent 共用
+- **现象**：调试 `/admin/nodes` 时，`tab-3` 突然跳到了另一个 worktree 的 `localhost:5291/subscription`。
+- **根因**：内置浏览器面板在所有会话间共享，不带 `tabId` 的操作作用于“当前活动标签页”，其他 agent 也在用。
+- **修复**：用 `preview_start({url})` 新开自己的标签页，之后所有调用都显式传 `tabId`；dev server 与 mock 使用不常见端口（5183 / 8093）。
+- **规则**：并行开发时，浏览器验证一律在自己新开的标签页里进行并显式传 `tabId`；端口不要用默认的 5173 / 8080。
+
+### 3. （FE-3）截图滞后于 DOM，坐标点击小图标不触发 React Aria `onPress`
+- **现象**：点击后立即截图仍显示点击前的画面（抽屉、确认框“没有出现”）；按截图坐标点击表格里的删除图标没有反应，而 JS `element.click()` 能正常打开确认框。
+- **根因**：截图异步且可能取到上一帧；缩放后的视口坐标落在 16px 图标边缘时，指针事件未命中按钮。
+- **修复**：用 `javascript_tool` / `read_page` 核对 DOM 状态，用 `find` 返回的 `ref` 或 JS 触发点击；需要看画面时再截一次。
+- **规则**：判断“有没有渲染出来”以 DOM 查询为准，截图只用于看布局。
+
+### 4. （FE-3）`react-hooks/purity` 禁止在渲染期调用 `Date.now()`
+- **现象**：lint 报 “Cannot call impure function during render”（判断用户是否过期、生成 key）。
+- **根因**：React Compiler 规则要求渲染是纯函数。
+- **修复**：新增 `features/admin/shared/useNow.ts`（`useSyncExternalStore` + 每分钟一次的共享时钟）；弹层的 `key` 改为实体 id。
+- **规则**：渲染里需要“当前时间”时用 `useNow()`，不要直接 `Date.now()`；`key` 用稳定的业务 id。
+
+### 5. （FE-3）`@tanstack/query/no-unstable-deps`：把 `useMutation()` 的返回值放进 `useMemo` 依赖
+- **现象**：表格列 `useMemo` 依赖了整个 mutation 对象，lint 报错（且每次渲染都会重建列）。
+- **根因**：`useMutation` 的结果对象每次渲染都是新引用。
+- **修复**：解构出 `mutate` / `isPending` 再放入依赖。
+- **规则**：列定义、回调依赖里只放 `mutate`、`isPending` 这类稳定或原始值。
+
+### 6. （FE-3）`applyServerErrors` 只匹配顶层字段，嵌套路径错误会落到表单横幅
+- **现象**：节点保存返回 `errors: {"protocol_settings.tls_settings.private_key": [...]}`，按 `name in form.state.values` 匹配不到任何字段。
+- **根因**：通用助手只认表单顶层 key；协议配置是一个整体 JSON 字段。
+- **修复**：`splitNodeErrors()` 先按 `protocol_settings.` 前缀拆分：协议错误交给 `ProtocolForm` 按路径显示，其余再交给 `applyServerErrors`，并自动切到有错误的标签页。
+- **规则**：后端按 JSON 路径返回错误时，前端要按路径路由到具体输入；不要假设通用助手能处理嵌套 key。
+
+### 7. （FE-3）React Aria 集合的 key 不能是空字符串；流量坐标轴按十进制取整
+- **现象**：`flow: ""`（无流控）、“无父节点”等选项用 `''` 作 key 时选择不稳定；节点流量图的 Y 轴出现 186 GB / 140 GB / 93 GB 这样的刻度。
+- **根因**：空字符串 key 与“未选择”混淆；`niceTicks` 在字节值上按 10 的幂取整，再按 1024 进制显示。
+- **修复**：空值选项使用哨兵 key（`'0'`、`'__empty__'`）；图表新增 `tickUnit` + `byteUnit()`，按显示单位取整（0 / 50 / 100 / 150 / 200 GB）。
+- **规则**：Select/ListBox 的 key 永远非空；带单位的轴先换算到显示单位再取整。
