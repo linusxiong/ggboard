@@ -1175,6 +1175,7 @@ export interface TotpSetup {
 /** `POST /user/security/totp/enable` and `/backup-codes` — shown once. */
 export interface BackupCodes {
   backup_codes: string[]
+}
 
 // ---- FE-2 ----
 // Fields the backend returns beyond the original contract (interface merging keeps this append-only).
