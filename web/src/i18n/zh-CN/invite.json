@@ -1,0 +1,81 @@
+{
+  "title": "邀请返利",
+  "subtitle": "邀请好友注册并购买套餐，你将获得订单金额一定比例的佣金。",
+  "stats": {
+    "label": "邀请数据",
+    "registered": "已邀请注册",
+    "pending": "待结算佣金",
+    "pendingHint": "订单完成后自动结算",
+    "paid": "累计获得佣金",
+    "rate": "佣金比例"
+  },
+  "wallet": {
+    "title": "可用佣金",
+    "subtitle": "可转入账户余额用于购买，或申请提现。",
+    "transfer": "转入余额",
+    "withdraw": "申请提现",
+    "empty": "暂无可用佣金。"
+  },
+  "link": {
+    "title": "邀请链接",
+    "subtitle": "好友通过链接注册即成为你的邀请用户。",
+    "code": "邀请码",
+    "label": "邀请链接地址",
+    "copy": "复制链接",
+    "showQr": "显示二维码",
+    "hideQr": "隐藏二维码",
+    "qrLabel": "邀请链接二维码",
+    "noCode": "你还没有可用的邀请码，先生成一个吧。"
+  },
+  "codes": {
+    "title": "我的邀请码",
+    "subtitle": "仅显示尚未被使用的邀请码。",
+    "usage": "已生成 {count} / {limit} 个未使用的邀请码",
+    "generate": "生成邀请码",
+    "generated": "已生成新的邀请码",
+    "limitReached": "已达上限",
+    "empty": "暂无邀请码",
+    "visits": "访问 {count} 次",
+    "copyCode": "复制邀请码",
+    "copyLink": "复制链接"
+  },
+  "history": {
+    "title": "佣金记录",
+    "tradeNo": "订单号",
+    "orderAmount": "订单金额",
+    "commission": "佣金",
+    "date": "时间",
+    "empty": "暂无佣金记录",
+    "emptyHint": "被邀请的好友完成购买后，佣金会显示在这里。"
+  },
+  "transfer": {
+    "title": "佣金转入余额",
+    "body": "可转入 {available}，转入后可直接用于购买套餐。",
+    "amount": "转入金额",
+    "invalid": "请输入大于 0 的金额",
+    "tooMuch": "最多可转入 {available}",
+    "submit": "确认转入",
+    "done": "已将 {amount} 转入余额"
+  },
+  "withdraw": {
+    "title": "申请提现",
+    "body": "当前可提现佣金 {available}。提交后会创建一个工单，由工作人员人工处理。",
+    "method": "提现方式",
+    "methodPlaceholder": "例如 USDT、Alipay",
+    "methodRequired": "请填写提现方式",
+    "suggestions": "常用提现方式",
+    "account": "收款账户",
+    "accountPlaceholder": "钱包地址或收款账号",
+    "accountRequired": "请填写收款账户",
+    "submit": "提交申请",
+    "created": "提现申请已提交",
+    "createdBody": "我们已为你创建工单，处理进度会在工单中回复。",
+    "viewTicket": "查看工单",
+    "closedTitle": "提现功能已关闭",
+    "closedBody": "管理员暂未开放佣金提现，你可以将佣金转入余额使用。",
+    "openTitle": "你还有未关闭的工单",
+    "openBody": "提现申请会以工单形式提交，请先等待或关闭当前的工单。",
+    "viewOpenTicket": "查看未关闭的工单",
+    "viewTickets": "查看工单"
+  }
+}

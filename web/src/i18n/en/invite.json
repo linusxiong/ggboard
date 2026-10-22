@@ -1,0 +1,81 @@
+{
+  "title": "Referrals",
+  "subtitle": "Invite friends to sign up and buy a plan, and earn a share of what they pay.",
+  "stats": {
+    "label": "Referral stats",
+    "registered": "Friends joined",
+    "pending": "Pending commission",
+    "pendingHint": "Settled automatically once orders complete",
+    "paid": "Commission earned",
+    "rate": "Commission rate"
+  },
+  "wallet": {
+    "title": "Available commission",
+    "subtitle": "Move it to your balance to pay for plans, or request a withdrawal.",
+    "transfer": "Move to balance",
+    "withdraw": "Withdraw",
+    "empty": "No commission available yet."
+  },
+  "link": {
+    "title": "Invite link",
+    "subtitle": "Friends who sign up through your link are credited to you.",
+    "code": "Invite code",
+    "label": "Invite URL",
+    "copy": "Copy link",
+    "showQr": "Show QR code",
+    "hideQr": "Hide QR code",
+    "qrLabel": "Invite link QR code",
+    "noCode": "You don't have an invite code yet. Generate one to get your link."
+  },
+  "codes": {
+    "title": "My invite codes",
+    "subtitle": "Only unused codes are listed.",
+    "usage": "{count} of {limit} unused codes",
+    "generate": "Generate code",
+    "generated": "New invite code generated",
+    "limitReached": "Limit reached",
+    "empty": "No invite codes",
+    "visits": "{count} visits",
+    "copyCode": "Copy code",
+    "copyLink": "Copy link"
+  },
+  "history": {
+    "title": "Commission history",
+    "tradeNo": "Order no.",
+    "orderAmount": "Order amount",
+    "commission": "Commission",
+    "date": "Date",
+    "empty": "No commission yet",
+    "emptyHint": "Commission shows up here once your friends complete a purchase."
+  },
+  "transfer": {
+    "title": "Move commission to balance",
+    "body": "You can move up to {available}. Your balance pays for plans directly.",
+    "amount": "Amount",
+    "invalid": "Enter an amount greater than 0",
+    "tooMuch": "You can move at most {available}",
+    "submit": "Move to balance",
+    "done": "{amount} moved to your balance"
+  },
+  "withdraw": {
+    "title": "Withdraw commission",
+    "body": "You have {available} available. We'll open a ticket and our staff will process it by hand.",
+    "method": "Method",
+    "methodPlaceholder": "e.g. USDT, Alipay",
+    "methodRequired": "Enter a withdrawal method",
+    "suggestions": "Common methods",
+    "account": "Account",
+    "accountPlaceholder": "Wallet address or account",
+    "accountRequired": "Enter the receiving account",
+    "submit": "Submit request",
+    "created": "Withdrawal requested",
+    "createdBody": "We opened a ticket for you. Updates will be posted there.",
+    "viewTicket": "View ticket",
+    "closedTitle": "Withdrawals are closed",
+    "closedBody": "Withdrawals aren't available right now. You can move your commission to your balance instead.",
+    "openTitle": "You already have an open ticket",
+    "openBody": "Withdrawals are filed as tickets. Wait for your open ticket to be resolved, or close it first.",
+    "viewOpenTicket": "View open ticket",
+    "viewTickets": "View tickets"
+  }
+}

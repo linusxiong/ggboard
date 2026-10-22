@@ -1,0 +1,121 @@
+{
+  "status": {
+    "pending": "Unpaid",
+    "processing": "Activating",
+    "cancelled": "Cancelled",
+    "completed": "Completed",
+    "discounted": "Credited"
+  },
+  "type": {
+    "new": "New",
+    "renew": "Renewal",
+    "upgrade": "Upgrade",
+    "reset_traffic": "Traffic reset"
+  },
+  "list": {
+    "title": "Orders",
+    "subtitle": "Check order status, finish a payment or cancel an unpaid order.",
+    "filter": "Filter by status",
+    "all": "All",
+    "tradeNo": "Order no.",
+    "plan": "Plan",
+    "amount": "Amount",
+    "status": "Status",
+    "createdAt": "Created",
+    "pay": "Pay",
+    "view": "View",
+    "payNamed": "Pay order {no}",
+    "viewNamed": "View order {no}",
+    "shop": "Browse plans",
+    "empty": "No orders yet",
+    "emptyFiltered": "No orders with this status"
+  },
+  "detail": {
+    "title": "Order details",
+    "back": "All orders",
+    "side": "Order information",
+    "summary": "Order",
+    "tradeNo": "Order no.",
+    "plan": "Plan",
+    "period": "Period",
+    "type": "Type",
+    "createdAt": "Created",
+    "paidAt": "Paid",
+    "payment": "Payment method",
+    "amounts": "Amounts",
+    "progress": "Progress"
+  },
+  "hero": {
+    "pending": "Awaiting payment",
+    "payWithin": "Please pay within",
+    "expiring": "Time's up. This order will close automatically.",
+    "pollingPaused": "Auto-refresh paused",
+    "refresh": "Refresh status",
+    "processing": "Payment received, activating",
+    "processingBody": "We've got your payment. Your plan will be active in a few seconds.",
+    "completed": "Payment successful",
+    "completedBody": "Your plan is active. Import your subscription to get started.",
+    "toSubscription": "View subscription",
+    "toDashboard": "Back to dashboard",
+    "cancelled": "Order cancelled",
+    "cancelledBody": "This order is closed. Any balance it used has been returned.",
+    "buyAgain": "Buy again",
+    "discounted": "Credited",
+    "discountedBody": "The remaining value of this order was credited towards an upgrade."
+  },
+  "timeline": {
+    "label": "Order progress",
+    "created": "Order placed",
+    "awaitingPayment": "Awaiting payment",
+    "paid": "Paid",
+    "activating": "Activating",
+    "activated": "Plan activated",
+    "cancelled": "Cancelled",
+    "discounted": "Credited to upgrade"
+  },
+  "amounts": {
+    "price": "Plan price",
+    "discount": "Discount",
+    "surplus": "Current plan credit",
+    "balance": "Balance used",
+    "refund": "Returned to balance",
+    "refundHint": "Credit above the price went back to your balance",
+    "fee": "Payment fee",
+    "feeEstimated": "Payment fee (estimate)",
+    "total": "Total"
+  },
+  "payment": {
+    "method": "Payment method",
+    "fee": "Fee {fee}",
+    "noFee": "No fee"
+  },
+  "pay": {
+    "title": "Payment",
+    "amount": "Amount due",
+    "amountWithFee": "Amount due (incl. fee)",
+    "submit": "Pay now",
+    "change": "Change method",
+    "noMethods": "No payment methods available",
+    "noMethodsHint": "Please contact support or try again later.",
+    "freeBody": "Your balance and discounts cover the full amount. Nothing more to pay.",
+    "activate": "Activate",
+    "redirecting": "Taking you to the payment page…",
+    "openGateway": "Not redirected? Continue here",
+    "badUrl": "The payment gateway returned an invalid address. Please choose another method.",
+    "qrLabel": "{method} payment QR code",
+    "qrHint": "Scan the code with {method} to pay. This page updates automatically.",
+    "app": "your payment app",
+    "htmlTitle": "Payment page",
+    "htmlHint": "Complete the payment above. This page updates automatically.",
+    "iHavePaid": "I've paid",
+    "notYet": "No payment yet. This page will refresh automatically."
+  },
+  "cancel": {
+    "button": "Cancel order",
+    "title": "Cancel this order?",
+    "body": "This can't be undone. Any balance used will be returned.",
+    "confirm": "Cancel order",
+    "keep": "Keep it",
+    "done": "Order cancelled"
+  }
+}

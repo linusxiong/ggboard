@@ -1,0 +1,26 @@
+{
+  "knowledge": {
+    "title": "Help center",
+    "subtitle": "Client downloads, setup guides and FAQs.",
+    "language": "Article language",
+    "index": "Articles",
+    "search": "Search articles",
+    "searchPlaceholder": "Search titles and content",
+    "empty": "No articles yet",
+    "noResults": "No articles match “{keyword}”",
+    "loadError": "Couldn't load articles",
+    "pick": "Choose an article",
+    "pickHint": "Pick an article from the list to read it here.",
+    "back": "Back to articles",
+    "updated": "Updated",
+    "gated": "Some content is only available with an active plan.",
+    "toShop": "Browse plans"
+  },
+  "notices": {
+    "title": "Announcements",
+    "subtitle": "The latest service updates and notices.",
+    "empty": "No announcements",
+    "expand": "Read more",
+    "collapse": "Show less"
+  }
+}

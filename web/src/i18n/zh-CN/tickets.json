@@ -1,0 +1,62 @@
+{
+  "level": {
+    "low": "低",
+    "medium": "中",
+    "high": "高"
+  },
+  "status": {
+    "waiting": "等待回复",
+    "replied": "已回复",
+    "closed": "已关闭"
+  },
+  "filter": {
+    "all": "全部",
+    "0": "处理中",
+    "1": "已关闭"
+  },
+  "list": {
+    "title": "工单",
+    "subtitle": "遇到问题？提交工单，我们会尽快回复。",
+    "filter": "按状态筛选",
+    "new": "新建工单",
+    "subject": "主题",
+    "level": "优先级",
+    "status": "状态",
+    "updatedAt": "最后更新",
+    "open": "查看",
+    "openNamed": "查看工单：{subject}",
+    "empty": "暂无工单",
+    "emptyHint": "需要帮助时，点击右上角「新建工单」。"
+  },
+  "create": {
+    "title": "新建工单",
+    "subject": "主题",
+    "subjectRequired": "请填写主题",
+    "level": "优先级",
+    "message": "问题描述",
+    "messagePlaceholder": "请尽量详细地描述你遇到的问题，例如使用的客户端、节点和出现的时间。",
+    "messageRequired": "请描述你的问题",
+    "submit": "提交工单",
+    "conflictTitle": "你还有一个未关闭的工单",
+    "conflictBody": "同一时间只能有一个处理中的工单，请在原工单中继续沟通，或关闭后再新建。",
+    "goToOpen": "前往该工单"
+  },
+  "detail": {
+    "back": "全部工单",
+    "createdAt": "创建于",
+    "conversation": "工单对话",
+    "thread": "消息记录",
+    "me": "我",
+    "staff": "客服",
+    "reply": "回复内容",
+    "replyPlaceholder": "输入回复…",
+    "replyRequired": "请输入回复内容",
+    "send": "发送",
+    "shortcut": "⌘/Ctrl + Enter 发送",
+    "close": "关闭工单",
+    "closeTitle": "关闭这个工单？",
+    "closeBody": "关闭后将无法继续回复，如需帮助可以新建工单。",
+    "closed": "工单已关闭",
+    "closedHint": "工单已关闭，如需继续沟通请新建工单。"
+  }
+}

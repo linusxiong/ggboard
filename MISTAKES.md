@@ -452,3 +452,32 @@
 - **根因**：`findBy*` 遇到多个匹配会抛错并持续重试，直到超时，表现成“页面没渲染出来”。
 - **修复**：用精确字符串 `findByLabelText('邮箱')`。
 - **规则**：label 有包含关系时用精确字符串；`findBy*` 超时先检查是不是匹配到了多个元素。
+
+### 1. （FE-2 商城/工单）Vitest 5 的 `fsModuleCache` 缓存了 `import.meta.glob` 的展开结果，新增的 i18n 词典在测试里“不存在”
+- **现象**：新建 `src/i18n/*/shop.json` 等文件后，dev server 正常，但 Vitest 里报 `[i18n] missing namespace zh-CN/shop`，页面只显示 key（`title`、`subtitle`）。`availableNamespaces('zh-CN')` 在测试里只有旧的 5 个。
+- **根因**：Vitest 5 默认开启持久化模块缓存（`node_modules/.vitest-cache`），按源文件内容做 key。`src/i18n/index.ts` 本身没变，缓存里还是旧的 glob 展开结果。
+- **修复**：`pnpm exec vitest --clearCache` 后重跑。
+- **规则**：新增/删除被 `import.meta.glob` 匹配的文件（词典、路由片段等）后，先清 Vitest 缓存；测试里出现“文件明明在却找不到”时第一时间怀疑缓存。集成者可考虑在 `vite.config.ts` 的 `test` 里设 `fsModuleCache: false`。
+
+### 2. （FE-2）共享的浏览器面板里没带 `tabId`，操作落到了另一个 agent 的标签页
+- **现象**：点击-输入-提交的一组 `browser_batch` 操作中途，另一个并行 agent 打开了自己的标签页（`localhost:5291/login`）并成为活动标签；我没写 `tabId` 的后续操作把测试文字输入到了对方的登录表单里。
+- **根因**：内置浏览器面板被多个 agent 共享，省略 `tabId` 时操作的是“当前活动标签”，而活动标签会被别人切换。
+- **修复**：此后每个浏览器调用都显式传 `tabId`，并用 `form_input` + `ref` 代替依赖焦点的键盘输入。
+- **规则**：并行开发时，所有 `mcp__Claude_Browser__*` 调用（含 batch 里的每一项）都必须带自己的 `tabId`；开始前先 `tabs_context` 记下自己的 tab；dev server 用独占端口（本次 5287 / mock 8787），不要用默认 5173。
+
+### 3. （FE-2）把 `<form>` 包在 `Modal.Body`/`Modal.Footer` 外面后，HeroUI 的间距消失
+- **现象**：新建工单、佣金转入/提现弹窗里，标题和第一个字段、正文和按钮行贴在一起。
+- **根因**：HeroUI 用相邻兄弟选择器给间距（`.modal__header + .modal__body { mt-2 }`、`.modal__body + .modal__footer { mt-5 }`），中间多了一层 `<form>` 就不再是兄弟元素；`display: contents` 也救不了兄弟选择器。
+- **修复**：表单内的 `Modal.Body` 加 `mt-2`，`Modal.Footer` 加 `mt-5`。
+- **规则**：在 HeroUI 复合组件的部件之间插入包裹元素前，先查它的 CSS 是否依赖 `+`/`>` 结构选择器。
+
+### 4. （FE-2）共享的 `Markdown` 组件（DOMPurify 默认 URI 白名单）会删掉 `clash://` 之类的一键导入链接
+- **现象**：知识库文章里的「一键导入 Clash」链接渲染后没有 `href`。
+- **根因**：DOMPurify 默认 `ALLOWED_URI_REGEXP` 只放行 http(s)/mailto/tel 等协议，客户端深链接全部被当成危险 URL。
+- **修复**：知识库改用 `features/content/KnowledgeMarkdown.tsx`：同样懒加载 `marked` + `dompurify`，但用独立的 DOMPurify 实例和显式的客户端协议白名单（`javascript:`/`data:` 仍被删除，有测试覆盖）。
+- **规则**：渲染第三方/管理员内容时，先确认链接协议需求；放宽白名单只能用显式列表，不能用“除了 javascript 都放行”。
+
+### 5. （FE-2）观察到：`src/test/login.test.tsx` 在整套测试并行跑时偶发超时
+- **现象**：`Unable to find role="alert"`，单独跑或重跑都通过；基线（未加 FE-2 代码）3 次里也失败过 1 次。
+- **根因**：`findBy*` 默认 1 s 超时，机器负载高（多个 agent 并行构建/测试）时不够。
+- **规则**：新写的页面级测试统一给 `findBy*` 传 `{ timeout: 4000 }`；该 smoke 测试的属主应同样放宽超时（本次未修改他人测试）。
