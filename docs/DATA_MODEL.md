@@ -178,7 +178,38 @@ ticket_messages: `id, ticket_id idx, user_id, message text, created_at`.
 ## rule_profiles
 `user_id uint64 PK, data json (see docs/SUBSCRIPTION.md), updated_at`.
 
+## user_mfa
+One row per user, created on first use (`internal/service/mfa`).
+| column | type | notes |
+|---|---|---|
+| user_id | uint64 PK | |
+| totp_secret | text | `v1.` + base64url(nonce ‖ AES-256-GCM ciphertext); key = HKDF-SHA256(`jwt.secret`, info `ggboard/mfa/totp-secret/v1`), AAD = user id; empty when off |
+| totp_enabled | bool | |
+| totp_enabled_at | *time | |
+| totp_last_step | int64 | last accepted TOTP time step (unix/30); replay guard |
+| backup_codes | json []string | SHA-256 hex of the unused backup codes |
+| webauthn_handle | varchar(64) unique, null | hex of the 16-byte WebAuthn user handle shared by all passkeys of the user |
+| created_at, updated_at | time | |
+
+## passkeys
+| column | type | notes |
+|---|---|---|
+| id | uint64 PK | |
+| user_id | uint64 idx | |
+| rp_id | varchar(255) | RP id the credential was registered for; only passkeys of the current RP id are used for login |
+| credential_hash | char(64) unique | hex SHA-256 of the raw credential id (portable unique lookup) |
+| credential_id | text | base64url credential id |
+| credential | text | JSON go-webauthn `Credential` (public key, flags, attestation, transports) |
+| name | varchar(64) | |
+| sign_count | int64 | authenticator signature counter; must increase when non-zero |
+| backup_eligible, backup_state | bool | BE / BS flags |
+| transports | json []string | |
+| last_used_at | *time | |
+| created_at, updated_at | time | |
+
 ## Ephemeral (memory only)
 - email verification codes (10 min TTL), login attempts, register-by-ip counters.
+- MFA: pending TOTP secrets (10 min), MFA login tokens (5 min, single use), WebAuthn ceremony state (2 min, single use),
+  wrong second-factor code counters (1 h window); cached "has a second factor" flag for the admin gate (30 s).
 - online users per node, alive IPs per user (`map[userID]set[ip]` with TTL `max(300s, 2×push_interval)`), node status (three-state model, see docs/NODE_PROTOCOLS.md §5).
 - Reality `tls_settings.dest` is stored as `host:port`; node APIs split it into `dest` (host) + `server_port` (string) — see docs/NODE_PROTOCOLS.md.

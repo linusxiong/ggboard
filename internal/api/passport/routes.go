@@ -1,4 +1,6 @@
-// Package passport implements the Passport API (registration, login, password reset): /api/v1/passport/*.
+// Package passport implements the Passport API (registration, login with optional second factor, passkey
+// login, password reset): /api/v1/passport/*, plus the password-manager well-known URLs
+// /.well-known/change-password and /.well-known/passkey-endpoints.
 package passport
 
 import (
@@ -28,4 +30,13 @@ func Register(r gin.IRouter, a *app.App) {
 	g.POST("/email/send-code",
 		httpx.RateLimit("passport_send_code", httpx.Per(sendCodePerHour, time.Hour), sendCodePerHour, httpx.KeyByIP),
 		sendCode(a))
+
+	// Second factor and passkeys (BE-A2): passport/mfa.go, passport/passkey.go.
+	g.POST("/login/mfa", loginMFA(a))
+	g.POST("/passkey/login/begin", passkeyLoginBegin(a))
+	g.POST("/passkey/login/finish", passkeyLoginFinish(a))
+
+	// Password-manager well-known URLs (root paths, outside the SPA fallback).
+	r.GET("/.well-known/change-password", changePasswordURL(a))
+	r.GET("/.well-known/passkey-endpoints", passkeyEndpoints(a))
 }

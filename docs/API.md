@@ -30,7 +30,7 @@ Ticket {"id","user_id","subject","level","status","reply_status","last_reply_use
 ## Guest 🔓 (`/guest`)
 | method | path | req | res |
 |---|---|---|---|
-| GET | `/guest/config` | — | `{app_name, app_description, app_url, logo, tos_url, currency, currency_symbol, register_enabled, email_verify, email_whitelist_suffix[], invite_force, captcha:{provider:"none|turnstile|recaptcha|hcaptcha", site_key}, downloads:{windows:{url,version},macos:{...},android:{...},ios:{...}}, locales:["zh-CN","en"]}` — `email_whitelist_suffix` is `[]` unless `email_whitelist_enable`; the captcha secret is never returned |
+| GET | `/guest/config` | — | `{app_name, app_description, app_url, logo, tos_url, currency, currency_symbol, register_enabled, email_verify, email_whitelist_suffix[], invite_force, captcha:{provider:"none|turnstile|recaptcha|hcaptcha", site_key}, downloads:{windows:{url,version},macos:{...},android:{...},ios:{...}}, locales:["zh-CN","en"], passkey_enabled}` — `email_whitelist_suffix` is `[]` unless `email_whitelist_enable`; the captcha secret is never returned; `passkey_enabled` is true when a WebAuthn RP id can be derived (`app_url` or `passkey_rp_id` set) |
 | GET | `/guest/plans` | — | `[Plan]` where show=true & sell=true (prices only; no capacity leak) |
 | ANY | `/guest/payment/notify/:gateway/:uuid` | gateway-specific | gateway-specific body (plugin returns it) |
 | GET | `/guest/payment/return/:trade_no` | — | 302 → `/orders/:trade_no` |
@@ -40,10 +40,13 @@ Ticket {"id","user_id","subject","level","status","reply_status","last_reply_use
 | method | path | req | res |
 |---|---|---|---|
 | POST | `/passport/register` | `{email*, password*(min 8), invite_code?, email_code?, captcha?}` | `{token, user}` |
-| POST | `/passport/login` | `{email*, password*, captcha?}` | `{token, user}` |
+| POST | `/passport/login` | `{email*, password*, captcha?}` | `{token, user}`; when the account has TOTP enabled: `{mfa_required:true, mfa_token, methods:["totp"], has_passkey}` (no session token, see below) |
 | POST | `/passport/forgot` | `{email*, email_code*, password*}` | `true` |
 | POST | `/passport/email/send-code` | `{email*, captcha?}` | `true` (60s cooldown per email, 10/h per IP) |
 | POST | `/passport/login/token` | `{token*}` one-time login token (from admin "login as") | `{token, user}` |
+| POST | `/passport/login/mfa` | `{mfa_token*, code*}` (`code`: 6-digit TOTP or backup code `xxxxx-xxxxx`) | `{token, user}` |
+| POST | `/passport/passkey/login/begin` | `{email?}` | `{challenge_id, options}` (`options` = `PublicKeyCredentialRequestOptionsJSON`) |
+| POST | `/passport/passkey/login/finish` | `{challenge_id*, credential*}` (`credential` = `AuthenticationResponseJSON`) | `{token, user}` |
 Rules: `stop_register` → 403; `email_whitelist_enable` (exact domain match, else 400 on `email`); `invite_force` requires valid invite code (400 on `invite_code`);
 a valid code sets `invite_user_id` and is consumed (`status=true`) when `invite_never_expire=false` (unknown codes are ignored unless forced);
 `try_out_plan_id` grants trial on register (plan/group/limits, `transfer_enable` = GB×1024³, `expired_at` = now + `try_out_hour` h, `next_reset_at`);
@@ -52,6 +55,38 @@ Login: wrong credentials 401, banned 403. Every 429 carries `Retry-After` (secon
 Email codes: 6 digits, valid 10 min, single use, discarded after 5 wrong guesses; one `send-code` serves both register and forgot (the response is `true`
 whether or not the email is registered); 400 on `email_code` when missing or invalid. Captcha (when `captcha_provider != none`) is checked on
 register, login and send-code: 400 on `captcha`. `/forgot` with a valid code for an unregistered email → 400 on `email`.
+
+Second factor (TOTP) — `internal/service/mfa`:
+- `/login` with TOTP enabled checks the password (lockout, captcha, ban as usual) and returns
+  `{"data":{"mfa_required":true,"mfa_token":"<64 hex>","methods":["totp"],"has_passkey":false}}`. `last_login_*` is recorded only
+  after the second step. `methods` is always `["totp"]`; backup codes are accepted by the same endpoint.
+- `mfa_token`: opaque, valid 5 min, single use, bound to the user id and `password_version` (a password change revokes it).
+- `/login/mfa`: TOTP accepts the current step ±1 (30 s steps) and never the same or an older step twice; a backup code is consumed.
+  Wrong code → 401 `mfa_invalid`; the 5th wrong code for a token revokes it → 429 (`Retry-After`); unknown, used or expired token
+  (or TOTP disabled meanwhile) → 401 `mfa_expired`; banned → 403. Independently, 20 wrong second-factor codes per user per hour
+  (login, disable, backup-codes) → 429 with `Retry-After` until the window ends.
+- `/login/token` (admin "login as") does not ask for a second factor.
+
+Passkeys (WebAuthn, go-webauthn) — never need a second step:
+- RP id = `passkey_rp_id` or the host of `app_url` (no port); allowed origins = the `app_url` origin + `passkey_origins`
+  (`https://<rp id>` when neither gives one); RP name = `app_name`. Without an RP id every passkey endpoint returns 400.
+- `begin` without `email` → discoverable (usernameless) login: `options` has no `allowCredentials`. With `email` the user's passkeys are
+  listed in `allowCredentials`; an unknown email (or an account without passkeys) gets the discoverable options with a fresh random
+  challenge, so the response never reveals whether the account exists.
+- The challenge lives 2 min, is single use (consumed by the first `finish`, even a failed one) and is bound to the RP id.
+- `finish`: unknown/expired challenge → 401; malformed `credential` → 400 on `credential`; failed verification (signature, origin,
+  RP id hash, foreign credential, sign counter not increasing — a possible clone) → 401; banned → 403. On success `sign_count`,
+  `backup_state` and `last_used_at` are updated and `last_login_*` recorded.
+- Options JSON (`options`, pass as `optionsJSON` to `@simplewebauthn/browser` `startAuthentication`):
+  `{"challenge":"<b64url>","timeout":120000,"rpId":"panel.example.com","allowCredentials":[{"type":"public-key","id":"<b64url>","transports":["internal","hybrid"]}],"userVerification":"preferred"}`
+  (`allowCredentials` omitted for discoverable logins).
+- `credential` is the object returned by `startAuthentication`:
+  `{"id":"<b64url>","rawId":"<b64url>","type":"public-key","response":{"clientDataJSON":"<b64url>","authenticatorData":"<b64url>","signature":"<b64url>","userHandle":"<b64url>"},"clientExtensionResults":{},"authenticatorAttachment":"platform"}`.
+
+Password-manager well-known URLs (root paths, not under `/api/v1`; explicit routes, so never served by the SPA fallback):
+- `GET /.well-known/change-password` → 302 to `<app_url>/profile?tab=security` (request origin when `app_url` is empty).
+- `GET /.well-known/passkey-endpoints` → `{"enroll":"<base>/profile?tab=security","manage":"<base>/profile?tab=security"}`,
+  `Content-Type: application/json`, `Cache-Control: public, max-age=3600`.
 
 ## User 🔑 (`/user`)
 ### Account
@@ -114,6 +149,36 @@ from Xboard). `keyword` is a case-insensitive substring of title or body (`%`/`_
 (`plan_id` null or not `IsAvailable`: banned, expired or traffic used up) get every `<!--access start-->…<!--access end-->`
 block replaced by `<div class="knowledge-no-access">…</div>` (text in the article's language); placeholders are replaced
 after that, `{{urlEncodeSubscribeUrl}}` = query escaping, `{{safeBase64SubscribeUrl}}` = URL-safe base64 without padding.
+
+### Security (2FA / passkeys)
+| method | path | req | res |
+|---|---|---|---|
+| GET | `/user/security` | — | `{totp_enabled, totp_enabled_at, backup_codes_remaining, passkeys:[Passkey]}` (`totp_enabled_at` null when off) |
+| POST | `/user/security/totp/setup` | — | `{secret, otpauth_url}` (pending secret kept 10 min; issuer = `mfa_issuer` or `app_name`, account = email; 409 when already enabled) |
+| POST | `/user/security/totp/enable` | `{code*}` | `{backup_codes:[10 × "xxxxx-xxxxx"]}` (shown once; wrong code → 400 on `code`, the pending secret is discarded after 5; no pending setup → 400 on `code`; 409 when already enabled) |
+| POST | `/user/security/totp/disable` | `{password*, code*}` | `true` (`code` = TOTP or backup code; deletes secret and backup codes; wrong password → 400 on `password` (counts towards the password lockout), wrong code → 400 on `code`; 409 when not enabled) |
+| POST | `/user/security/backup-codes` | `{code*}` | `{backup_codes}` (regenerates all 10; `code` = TOTP or backup code; 409 when TOTP is off) |
+| POST | `/user/security/passkeys/begin` | `{name?}` (max 64) | `{challenge_id, options}` (`options` = `PublicKeyCredentialCreationOptionsJSON`) |
+| POST | `/user/security/passkeys/finish` | `{challenge_id*, credential*, name?}` (`credential` = `RegistrationResponseJSON`) | `Passkey` (bad/expired/foreign challenge → 400 on `challenge_id`; failed attestation → 400 on `credential`; already registered → 409) |
+| PATCH | `/user/security/passkeys/:id` | `{name*}` (max 64) | `Passkey` (404 when not yours) |
+| DELETE | `/user/security/passkeys/:id` | JSON body `{password*}` | `true` (wrong password → 400 on `password`; 404 when not yours) |
+
+`Passkey` = `{"id":1,"name":"Laptop","created_at":"…","last_used_at":null,"backup_eligible":true,"transports":["internal","hybrid"]}`.
+Rules: enabling/disabling TOTP and adding/removing passkeys keep every session valid (`password_version` is not bumped). Backup codes
+are 10 lower-case Crockford base32 characters shown as `xxxxx-xxxxx` (input is case-insensitive, the dash optional) and are stored as
+SHA-256 hashes; the TOTP secret is stored AES-256-GCM encrypted with a key derived (HKDF-SHA256) from `jwt.secret`, so rotating the JWT
+secret invalidates enrolled authenticators. Every `/user/security/*` route: 60 requests/min per user.
+Passkey registration: resident key required (`residentKey:"required"`, `requireResidentKey:true`), user verification preferred,
+attestation `none`, `credProps` requested, existing passkeys in `excludeCredentials`, user handle = 16 random bytes per user (stable
+across registrations), timeout 120 s, challenge valid 2 min and single use. `name` defaults to "Synced passkey"/"Device passkey"
+(platform authenticator, backup eligible or not), "Phone passkey" (hybrid), "Security key" (usb/nfc/ble) or "Passkey".
+Options JSON (pass as `optionsJSON` to `startRegistration`):
+`{"rp":{"name":"GG Bond","id":"panel.example.com"},"user":{"name":"a@example.com","displayName":"a@example.com","id":"<b64url 16 bytes>"},"challenge":"<b64url>","pubKeyCredParams":[{"type":"public-key","alg":-7},…],"timeout":120000,"excludeCredentials":[{"type":"public-key","id":"<b64url>","transports":["internal"]}],"authenticatorSelection":{"requireResidentKey":true,"residentKey":"required","userVerification":"preferred"},"attestation":"none","extensions":{"credProps":true}}`.
+`credential` is the object returned by `startRegistration`:
+`{"id","rawId","type":"public-key","response":{"clientDataJSON","attestationObject","transports":[…],"publicKeyAlgorithm","publicKey","authenticatorData"},"clientExtensionResults":{},"authenticatorAttachment":"platform"}`
+(only `id`, `rawId`, `type`, `response.clientDataJSON`, `response.attestationObject` are required; `transports` is stored).
+Admin enforcement: with `admin_mfa_required` on, `/admin/*` answers 403 `mfa_setup_required` to admins/staff without TOTP and without
+a passkey (`mfasvc.AdminGate`, mounted after `RequireStaff`/`RequireAdmin`); `/user/security` stays reachable to enrol.
 
 ## Client subscription 🔓 (token)
 `GET /api/v1/client/subscribe?token=<token>[&flag=clash][&types=vmess,vless][&filter=HK,JP][&profile=standard][&source=blackmatrix7][&cats=openai,telegram][&mirror=1]`
@@ -238,4 +303,5 @@ and `token` blanked. Admin view = self view + `token`, `commission_type`, `remar
 - **email**: `email_driver`:s="log"|"smtp", `email_host`, `email_port`:i=465, `email_encryption`:s="ssl"|"tls"|"none", `email_username`, `email_password`(secret), `email_from_address`, `email_from_name`, `email_template`:s="default", `remind_mail_enable`:b=true
 - **frontend**: `frontend_accent`:s="#007AFF", `frontend_background_url`:s, `frontend_customer_service_url`:s, `frontend_footer_html`:s
 - **app**: `windows_download_url`, `windows_version`, `macos_download_url`, `macos_version`, `android_download_url`, `android_version`, `ios_download_url`, `ios_version`
+- **security**: `passkey_rp_id`:s="" (empty → host of `app_url`), `passkey_origins`:[]s (extra allowed origins; the `app_url` origin is always allowed), `admin_mfa_required`:b=false, `mfa_issuer`:s="" (empty → `app_name`)
 Secrets are returned to admin only and masked in logs.

@@ -21,6 +21,17 @@ type LoginInput struct {
 // Login verifies the captcha, the password lockout and the credentials, then records last_login_at/ip.
 // Wrong credentials are 401 (and count towards the lockout), banned accounts 403, locked emails 429.
 func (s *Service) Login(ctx context.Context, in LoginInput) (*model.User, error) {
+	u, err := s.VerifyLogin(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	s.RecordLogin(ctx, u, in.IP)
+	return u, nil
+}
+
+// VerifyLogin is Login without recording the login: POST /passport/login uses it because accounts with
+// two-factor authentication record the login only after the second step (internal/service/mfa).
+func (s *Service) VerifyLogin(ctx context.Context, in LoginInput) (*model.User, error) {
 	email := usersvc.NormalizeEmail(in.Email)
 	if err := s.CheckPasswordLock(email); err != nil {
 		return nil, err
@@ -40,10 +51,14 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (*model.User, error)
 		return nil, err
 	}
 	s.ClearPasswordFailures(email)
-	if err := s.users.RecordLogin(ctx, u, in.IP); err != nil {
+	return u, nil
+}
+
+// RecordLogin stores last_login_at/ip of u after a completed sign-in (failures are logged, not returned).
+func (s *Service) RecordLogin(ctx context.Context, u *model.User, ip string) {
+	if err := s.users.RecordLogin(ctx, u, ip); err != nil {
 		s.a.Log.Warn("account: record login failed", "user_id", u.ID, "err", err)
 	}
-	return u, nil
 }
 
 // LoginWithToken exchanges a one-time login token (admin "login as") for its user. Invalid, used or

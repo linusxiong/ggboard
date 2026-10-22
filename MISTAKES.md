@@ -284,3 +284,30 @@
 - **根因**：简报是对契约的摘要，细节有损。
 - **修复**：一律按契约实现。简报额外要求的内容（`tlsSettings` 双写、`xver` 字符串）如果与契约不矛盾，就先改契约文档（重新计算 §7.1 的 ETag），再写代码。所有偏差都写进汇报。
 - **规则**：开工时把简报和契约逐条对照，列出冲突清单。冲突时以契约为准；需要改契约的，先改文档、再改代码，并在汇报中写明。
+
+### 4. （BE-A2 MFA）`httpx.Bind` 对 DELETE 只读 query，带 body 的 DELETE 契约会读不到参数
+- **现象**：契约要求 `DELETE /user/security/passkeys/:id {password*}`，按习惯写 `httpx.Bind(c, &in)` 时，`password` 永远为空，请求总是 400。
+- **根因**：`httpx.Bind` 对 GET/HEAD/DELETE 绑定 query string，不读 JSON body。
+- **修复**：DELETE 使用 `c.ShouldBindJSON`，遇到 `io.EOF` 时退回 `httpx.Validate`（见 `internal/api/user/security.go` 的 `bindBody`）。密码不能放进 query。
+- **规则**：写 handler 前先看 `httpx.Bind` 对该 HTTP 方法的绑定来源；DELETE 需要 body 时必须显式按 JSON 绑定，并为“空 body”写测试。
+
+### 5. （BE-A2 MFA）往 `model.All()`、设置分组、`/guest/config` 追加内容，会打破基础层的精确计数测试
+- **现象**：新增 2 个模型、1 个设置分组和 `passkey_enabled` 字段后，`model_test`（`len(All()) == 20`）、`settings_test`（`len(Groups()) == 9`）和 `guest/config_test`（精确的键列表）都失败。
+- **根因**：这些测试断言的是精确数量或精确键集合，任何按约定进行的追加都会让它们失败。
+- **修复**：只做最小修改：数量改为 22、10，键列表追加 `passkey_enabled`。已在汇报中列出。
+- **规则**：追加共享结构（模型、设置键或分组、公开 DTO 字段）之前，先 `grep -rn "len(All()\|len(groups)\|want := \[\]string"` 找出精确断言，与改动一起最小化更新，并在汇报中写明。
+
+### 6. （BE-A2 MFA）go-webauthn v0.18 的几个默认行为与直觉不同
+- **现象 / 根因**：
+  - `BeginLogin(user)` 在用户没有凭据时直接返回错误，“未知邮箱也返回 options”必须改走 `BeginDiscoverableLogin`；
+  - 计数器回退只会设置 `credential.Authenticator.CloneWarning`，`ValidateLogin` 不会报错；
+  - 客户端返回了 RP 未请求的扩展输出时，默认（`UnsolicitedOutputPolicyReject`）会让整个仪式失败，部分密码管理器会主动返回 `credProps`；
+  - `allowCredentials` 带有 `omitempty`，可发现登录时这个字段是缺省，不是 `[]`。
+- **修复**：邮箱登录先查用户和凭据，没有时退回可发现登录；`CloneWarning` 为真时返回 401；主动请求 `credProps`，并设置 `ExtensionsUnsolicitedOutputPolicy: Ignore`；契约中写明 `allowCredentials` 会被省略。sign_count 用条件更新防止并发重放。
+- **规则**：接入安全库时逐个读 `Validate*`/`Finish*` 的源码，确认哪些检查返回 error、哪些只设置标志；用软件认证器（`internal/service/mfa/mfatest`）把每条失败路径都走一遍。
+
+### 7. （BE-A2 MFA）简报给的“单行追加”没有按 gofmt 对齐
+- **现象**：按简报原样追加 `registerSecurity(g, a) // user/security.go (BE-A2)` 后，`gofmt -l` 报出 `internal/api/user/routes.go`。
+- **根因**：同一块中的行尾注释由 gofmt 统一对齐，原样粘贴的行与相邻行的列宽不一致。
+- **修复**：按相邻行的列宽对齐为 `registerSecurity(g, a)    // user/security.go     (BE-A2)`。
+- **规则**：修改共享文件后立即运行 `gofmt -l .`。“只追加一行”也算格式改动。

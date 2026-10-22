@@ -10,6 +10,7 @@ import (
 	"github.com/linusxiong/ggboard/internal/httpx"
 	"github.com/linusxiong/ggboard/internal/model"
 	"github.com/linusxiong/ggboard/internal/service/account"
+	mfasvc "github.com/linusxiong/ggboard/internal/service/mfa"
 	usersvc "github.com/linusxiong/ggboard/internal/service/user"
 )
 
@@ -84,8 +85,9 @@ func login(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
+		ctx := c.Request.Context()
 		svc := account.New(a)
-		u, err := svc.Login(c.Request.Context(), account.LoginInput{
+		u, err := svc.VerifyLogin(ctx, account.LoginInput{
 			Email: in.Email, Password: in.Password, Captcha: in.Captcha, IP: c.ClientIP(),
 		})
 		if err != nil {
@@ -96,6 +98,18 @@ func login(a *app.App) gin.HandlerFunc {
 			account.Fail(c, err)
 			return
 		}
+		// Accounts with TOTP get an MFA token instead of a session (second step: POST /login/mfa).
+		challenge, err := mfasvc.New(a).Challenge(ctx, u)
+		if err != nil {
+			httpx.Fail(c, err)
+			return
+		}
+		if challenge != nil {
+			httpx.Logger(c).Info("password accepted, second factor required", "user_id", u.ID)
+			httpx.OK(c, challenge)
+			return
+		}
+		svc.RecordLogin(ctx, u, c.ClientIP())
 		httpx.Logger(c).Info("user logged in", "user_id", u.ID)
 		respond(c, a, svc, u)
 	}

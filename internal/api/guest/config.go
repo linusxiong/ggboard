@@ -6,6 +6,7 @@ import (
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/captcha"
 	"github.com/linusxiong/ggboard/internal/httpx"
+	mfasvc "github.com/linusxiong/ggboard/internal/service/mfa"
 	"github.com/linusxiong/ggboard/internal/settings"
 )
 
@@ -48,6 +49,7 @@ type Config struct {
 	Captcha              CaptchaConfig `json:"captcha"`
 	Downloads            Downloads     `json:"downloads"`
 	Locales              []string      `json:"locales"`
+	PasskeyEnabled       bool          `json:"passkey_enabled"` // a WebAuthn RP can be derived (app_url or passkey_rp_id)
 }
 
 // PublicConfig builds the public site configuration from settings. email_whitelist_suffix is empty unless
@@ -79,6 +81,7 @@ func PublicConfig(st *settings.Service) Config {
 		Captcha:              cc,
 		Downloads:            Downloads{Windows: dl("windows"), MacOS: dl("macos"), Android: dl("android"), IOS: dl("ios")},
 		Locales:              append([]string(nil), Locales...),
+		PasskeyEnabled:       mfasvc.PasskeyEnabled(st),
 	}
 }
 
