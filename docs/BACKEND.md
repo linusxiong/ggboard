@@ -82,7 +82,8 @@ Reads never hit the database (snapshot is swapped after each successful Set).
 ## 6. Mail (`internal/mail`)
 Never send inline. `a.Mailer.SendTemplate(to, mail.TplVerifyCode, mail.Data{"Code": "123456"})`. Templates and data keys:
 `verify_code{Code, Minutes}`, `remind_expire{ExpiredAt, URL}`, `remind_traffic{Percent, Used, Total, URL}`,
-`order_paid{TradeNo, PlanName, Period, Amount, URL}`, `ticket_reply{Subject, Message, URL}`, `notify{Subject, Title?, Content | ContentHTML (template.HTML, sanitized), URL}`.
+`order_paid{TradeNo, PlanName, Period, Amount, URL}`, `ticket_reply{Subject, Message, URL}` (`Subject` = ticket subject; the rendered
+e-mail subject is `MailSubject` and only replaces `Subject` when the caller passes none), `notify{Subject, Title?, Content | ContentHTML (template.HTML, sanitized), URL}`.
 Brand (app_name, app_url, logo) and locale (`default_locale`) come from settings. `a.Mailer.Enqueue(mail.Message{...})` for custom
 mail, `a.Mailer.SendNow(ctx, msg)` for the admin test mail (synchronous), `a.Mailer.Stats()`. Every outcome is written to `mail_logs`.
 
@@ -104,6 +105,11 @@ mail, `a.Mailer.SendNow(ctx, msg)` for the admin test mail (synchronous), `a.Mai
   `model.UserCredentials(u, node)`, `model.NodeServerKey(node)` (preload `Parent` for child nodes), `model.SS2022UserKey`, typed protocol settings
   (`var s model.VlessSettings; s.Decode(n.ProtocolSettings)` or `model.DecodeSettings[model.VlessSettings](m)`), `model.DecodeNetwork(network, m)`,
   `model.Day(t)` for every `date` column, `u.IsAvailable(now)`.
+- `internal/service/ticket` (`ticketsvc.New(a)`): `Create` (`ErrOpenExists`: one open ticket per user), `Get(ctx, id, ownerID)`,
+  `ReplyAsOwner`, `ReplyAsStaff` (mails `ticket_reply`), `Close`, `CountOpen(ctx, userID)`, `Query(ctx, Filter)`, views `ForOwner`/`ForStaff`.
+- `internal/service/invite` (`invitesvc.New(a)`): `Overview`, `Stat`, `CommissionPending(ctx, userID)`, `GenerateCode`, `CommissionQuery`,
+  `Transfer`, `Withdraw`. `internal/service/content` (`contentsvc.New(a)`): `NoticeQuery(ctx, onlyVisible)`, `KnowledgeQuery`,
+  `KnowledgeIndex`, `Article`, `RenderBody`, `SortNotices`, `SortKnowledge`.
 - `internal/payment`: `Gateway`, `Register`, `Get`, `List`, `Names`, `FormatAmount(cents)`, `ParseAmount(s)`, `FailResponse()`.
 - `internal/subscription`: `Format`, `RenderContext`, `RuleProfile`, `Catalog`, `RegisterFormat`, `GetFormat`, `FormatNames`, `DetectFormat(flag, ua)`.
 - `internal/captcha`: `captcha.FromSettings(a.Settings).Verify(ctx, token, c.ClientIP())`, `captcha.Enabled(a.Settings)`.

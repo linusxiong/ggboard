@@ -211,3 +211,32 @@
 - **现象**：给 docs/API.md 的表格加上 `plan:{id,name}|null`、`node_name|null` 后，GFM 会在 `|` 处拆分单元格，即使 `|` 在反引号里也一样。
 - **修复**：改成文字说明，例如“`plan` is `{id,name}` or null”。
 - **规则**：表格单元格内不写裸 `|`，确实需要时用 `\|` 转义。改完契约文档后要预览表格。已有的 `"none|turnstile|…"` 也有同样的问题，留给文档负责人统一处理。
+
+## 2026-10-22
+
+### 1. （BE-E2 内容）邮件渲染器用邮件标题覆盖了调用方传入的 `Subject`
+- **现象**：`ticket_reply` 邮件正文写成「您的工单「【GG Bond】您的工单有新回复」收到了新的回复」，工单标题丢失。基础层的测试只检查了“没有 `<no value>`”，没有发现。
+- **根因**：`mail.Renderer.Render` 渲染完邮件标题后执行 `view["Subject"] = subject`，而 `ticket_reply` 的契约正好用 `Subject` 传工单标题，同名键被覆盖。
+- **修复**：邮件标题改放 `MailSubject`（layout 的 `<title>` 使用它）；只有调用方没传 `Subject` 时才回填。回归测试见 `internal/mail/subject_test.go`。
+- **规则**：渲染器自己注入的键不能和模板数据键重名。模板测试要传有辨识度的数据值，并断言这些值确实出现在正文里，而不是只检查“没有报错”。
+
+### 2. （BE-E2 内容）以为 validator 的 `omitempty` 对“非 nil 指针指向空串”也会跳过
+- **现象**：`*string` 字段加 `binding:"omitempty,url"`，PATCH 传 `"img_url": ""`（意图是清空）却返回 400。
+- **根因**：validator v10 对指针字段只在 nil 时跳过；指针非 nil 时会继续校验解引用后的值，空串于是被 `url` 规则拒绝。
+- **修复**：PATCH 的可选字段一律用 `omitnil`，“空串或合法 URL”这类规则在代码里判断。先写临时测试确认了 `omitnil`、`dive` 穿透 `*[]string`、`unique` 的实际行为。
+- **规则**：组合使用指针和 validator 标签时，先用临时测试验证行为再写进 handler，不要凭标签名猜语义。
+
+### 3. （BE-E2 内容）用中间件缓存的用户对象计算邀请统计，返佣比例最多滞后 30 秒
+- **现象**：测试中把用户 `commission_rate` 改为 25 后，`GET /user/invite` 仍返回 10。
+- **根因**：`auth.CurrentUser(c)` 是缓存 30 秒的副本。管理员修改返佣比例时并不要求调用 `InvalidateUser`。
+- **修复**：`invitesvc.Stat` 只接收 `userID`，自己从库里读取 `commission_rate`。
+- **规则**：凡是展示“管理员可能刚刚修改过”的用户字段（比例、余额、套餐），或基于这些字段做计算，都要从数据库重新读取；`CurrentUser` 只用来取身份（ID、邮箱、角色）。
+
+### 4. （BE-E2 内容）任务简报转述的 Xboard 规则与源码不一致
+- **现象**：简报写的是“有工单在等待客服回复时不能新开工单”（按 `reply_status` 判断）。Xboard（legacy 和 upstream 都一样）的 `createTicket` 实际查的是 `status = 0`：只要有未关闭的工单就不能新开。upstream 的提现申请也走同一条路径，所以有未关闭工单时也无法申请提现。
+- **修复**：按源码实现 `status = 0` 规则（返回 409），并写进 `docs/API.md`。
+- **规则**：同错题 2026-10-21 #10，转述只能当线索，要以 Service/Controller 的实际代码为准，并在汇报里说明偏差。
+
+### 5. （BE-E2 内容）共享包里的未导出标识符可能与其他 agent 冲突
+- **现象（险些发生）**：`internal/api/user`、`internal/api/admin` 由 4–5 个 agent 同时往里加文件。`toView`、`listTickets`、`userView`、测试 helper `newEnv` 这类通用名字合并后会重复声明，编译直接失败。
+- **规则**：在共享包里新增的未导出函数、类型、变量和测试 helper，都要带自己领域的前缀（`ticket*`、`invite*`、`commission*`、`content*`、`notice*`、`knowledge*`），并且不要声明 `TestMain`。

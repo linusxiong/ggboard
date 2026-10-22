@@ -19,7 +19,10 @@ Node (admin) {"id","type","name","group_ids","route_ids","parent_id","host","por
       "protocol_settings":{...},"status":{"online":3,"last_check_at":"...","last_push_at":"...","load":{...}|null},"created_at","updated_at"}
 Order {"id","trade_no","user_id","plan_id","plan":{...},"type","period","status","commission_status","total_amount","handling_amount",
       "discount_amount","surplus_amount","refund_amount","balance_amount","payment_id","payment":{"id","name"},"callback_no","paid_at","created_at","updated_at"}
-Ticket {"id","user_id","subject","level","status","reply_status","created_at","updated_at","messages":[{"id","user_id","is_me","message","created_at"}]}
+Ticket {"id","user_id","subject","level","status","reply_status","last_reply_user_id","created_at","updated_at",
+        "messages":[{"id","user_id","is_me","message","created_at"}] /* detail responses only, oldest first */,
+        "user":{"id","email"} /* staff responses only */}
+        // is_me: user API = written by the owner; admin API = written by staff (anyone but the owner), as in Xboard
 ```
 
 ## Guest 🔓 (`/guest`)
@@ -79,19 +82,33 @@ register, login and send-code: 400 on `captcha`. `/forgot` with a valid code for
 | POST | `/user/orders/:trade_no/cancel` | — | `true` |
 ### Invite & commission
 | GET | `/user/invite` | — | `{codes:[{code,pv,created_at}], stat:{register_count, commission_pending, commission_paid, commission_rate, invite_gen_limit}}` |
-| POST | `/user/invite/codes` | — | `{code}` (respect `invite_gen_limit`) |
-| GET | `/user/invite/commissions` | `page` | `[{trade_no, order_amount, get_amount, created_at}]` |
-| POST | `/user/commission/transfer` | `{amount*}` | `User` (commission → balance) |
-| POST | `/user/commission/withdraw` | `{method*, account*}` | `{ticket_id}` (creates ticket; respects `commission_withdraw_limit`, `withdraw_close_enable`) |
+| POST | `/user/invite/codes` | — | 201 `{code}` (32 alphanumeric chars; 400 when the user already holds `invite_gen_limit` unused codes) |
+| GET | `/user/invite/commissions` | `page`, `page_size` | `[{trade_no, order_amount, get_amount, created_at}]` |
+| POST | `/user/commission/transfer` | `{amount*}` (cents, > 0) | `User` (commission → balance, atomic; 400 `errors.amount` when it exceeds `commission_balance`) |
+| POST | `/user/commission/withdraw` | `{method*, account*}` | 201 `{ticket_id}` (creates ticket; respects `commission_withdraw_limit`, `withdraw_close_enable`) |
+Invite rules (Xboard): `codes` lists the user's unused codes (`status=false`, newest first; consumed codes can no longer be
+used, whatever `invite_never_expire` says now). `register_count` = users with `invite_user_id = me`; `commission_paid` =
+Σ `commission_logs.get_amount`; `commission_pending` = Σ `orders.commission_balance` with `invite_user_id = me`, `status = 3`
+and `commission_status ∈ {0,1}` (× `commission_distribution_l1`% when `commission_distribution_enable`);
+`commission_rate` = `users.commission_rate` ?? `invite_commission`. Commission history skips rows with `get_amount = 0`,
+newest first. Withdraw: 403 when `withdraw_close_enable`; 400 `errors.method` unless listed in `commission_withdraw_method`;
+400 unless `0 < commission_balance` and `commission_balance ≥ commission_withdraw_limit × 100`; 409 while the user has an
+open ticket (the request **is** a ticket). It opens a level-2 ticket (subject/message in `default_locale`: method, account,
+current commission balance + `currency`); nothing is deducted, staff settle it manually.
 ### Support & content
-| GET | `/user/tickets` | `page`,`status?` | `[Ticket]` (no messages) |
-| POST | `/user/tickets` | `{subject*, level*, message*}` | `Ticket` |
-| GET | `/user/tickets/:id` | — | `Ticket` with messages |
-| POST | `/user/tickets/:id/reply` | `{message*}` | `Ticket` |
-| POST | `/user/tickets/:id/close` | — | `true` |
-| GET | `/user/notices` | `page` | `[{id,title,content,img_url,tags,created_at}]` (show=true, by sort) |
-| GET | `/user/knowledge` | `language?`,`keyword?` | `{"<category>":[{id,title,updated_at}]}` |
+| GET | `/user/tickets` | `page`,`page_size`,`status?` | `[Ticket]` (own, no messages, latest activity first) |
+| POST | `/user/tickets` | `{subject* (≤255), level* (0..2), message* (≤10000)}` | 201 `Ticket` (409 while the user has another **open** ticket, Xboard rule) |
+| GET | `/user/tickets/:id` | — | `Ticket` with messages (404 for other users' tickets) |
+| POST | `/user/tickets/:id/reply` | `{message*}` | `Ticket` (400 when closed; → `reply_status=0`) |
+| POST | `/user/tickets/:id/close` | — | `true` (idempotent) |
+| GET | `/user/notices` | `page`,`page_size` | `[{id,title,content,img_url,tags,created_at}]` (show=true, `sort` ASC then newest first) |
+| GET | `/user/knowledge` | `language?` (default `default_locale`), `keyword?` | `{"<category>":[{id,title,updated_at}]}` (show=true, `sort` ASC) |
 | GET | `/user/knowledge/:id` | — | `{id,title,body,category,language,updated_at}` body with `{{siteName}} {{subscribeUrl}} {{urlEncodeSubscribeUrl}} {{safeBase64SubscribeUrl}}` replaced |
+Knowledge rules: `language=zh-CN` matches exactly, a bare primary tag (`en`) also matches regional tags (`en-US`, imported
+from Xboard). `keyword` is a case-insensitive substring of title or body (`%`/`_` literal). Users without a valid plan
+(`plan_id` null or not `IsAvailable`: banned, expired or traffic used up) get every `<!--access start-->…<!--access end-->`
+block replaced by `<div class="knowledge-no-access">…</div>` (text in the article's language); placeholders are replaced
+after that, `{{urlEncodeSubscribeUrl}}` = query escaping, `{{safeBase64SubscribeUrl}}` = URL-safe base64 without padding.
 
 ## Client subscription 🔓 (token)
 `GET /api/v1/client/subscribe?token=<token>[&flag=clash][&types=vmess,vless][&filter=HK,JP][&profile=standard][&source=blackmatrix7][&cats=openai,telegram][&mirror=1]`
@@ -151,16 +168,18 @@ register, login and send-code: 400 on `captcha`. `/forgot` with a valid code for
 | PATCH,DELETE | `/admin/payments/:id` | | |
 | POST | `/admin/payments/sort` | `{ids}` | `true` |
 ### Support & content 🧑‍💼
-| GET | `/admin/tickets` | `status?`,`reply_status?`,`user_id?` | `[Ticket + user.email]` |
-| GET | `/admin/tickets/:id` | — | `Ticket` with messages |
-| POST | `/admin/tickets/:id/reply` | `{message*}` | `Ticket` |
+| GET | `/admin/tickets` | `status?`,`reply_status?`,`user_id?`,`email?`,`page`,`page_size`,`sort` (`id created_at updated_at level status reply_status`) | `[Ticket + user]` (default latest activity first) |
+| GET | `/admin/tickets/:id` | — | `Ticket` with messages + user |
+| POST | `/admin/tickets/:id/reply` | `{message*}` | `Ticket` (reopens a closed ticket, `reply_status=1`; e-mails the owner `ticket_reply`, at most once per ticket per 30 min — an owner reply re-arms it) |
 | POST | `/admin/tickets/:id/close` | — | `true` |
-| GET,POST | `/admin/notices` | `{title*, content*, img_url?, tags?, show?}` | |
-| PATCH,DELETE | `/admin/notices/:id` | | |
-| POST | `/admin/notices/sort` | `{ids}` | |
-| GET,POST | `/admin/knowledge` | `{language*, category*, title*, body*, show?}` | `[Knowledge(no body)]` |
-| GET,PATCH,DELETE | `/admin/knowledge/:id` | | |
-| POST | `/admin/knowledge/sort` | `{ids}` | |
+| GET | `/admin/notices` | — | `[Notice]` all (hidden included), display order, unpaginated (`total` = count) |
+| POST | `/admin/notices` | `{title*, content*, img_url? (http(s) or ""), tags? (≤20 × ≤32 chars), show? (default true), sort?}` | 201 `Notice` |
+| PATCH,DELETE | `/admin/notices/:id` | any POST field | `Notice` / `true` |
+| POST | `/admin/notices/sort` | `{ids}` (unique, all existing) | `true` (`sort` = position, 1-based) |
+| GET | `/admin/knowledge` | `language?`,`category?`,`keyword?` | `[{id,language,category,title,show,sort,created_at,updated_at}]` (no body), display order, unpaginated |
+| POST | `/admin/knowledge` | `{language* (≤5), category*, title*, body*, show? (default true), sort?}` | 201 `Knowledge` |
+| GET,PATCH,DELETE | `/admin/knowledge/:id` | any POST field | `Knowledge` (raw body) / `Knowledge` / `true` |
+| POST | `/admin/knowledge/sort` | `{ids}` | `true` |
 ### Settings & system
 | GET | `/admin/settings` | — | `{"<group>": {"<key>": value}}` all groups |
 | PUT | `/admin/settings` | `{"<key>": value, ...}` | `true` |
