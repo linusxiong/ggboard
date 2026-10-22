@@ -9,13 +9,19 @@ import (
 	usersvc "github.com/linusxiong/ggboard/internal/service/user"
 )
 
+// pver identifies the version of P a body is rendered from. Keys are built after Resolve, so a request that
+// resolved P just before an admin write (and Invalidate) would otherwise store a body rendered from the old P
+// under the new cache generation, serving stale settings until CacheTTL.
+func pver(p *model.Node) string { return strconv.FormatInt(p.UpdatedAt.UnixNano(), 36) }
+
 // UniProxyConfig returns the encoded UniProxy config of r.P (cached per P and intervals; node/route writes
 // invalidate it through Invalidate).
 func (s *Service) UniProxyConfig(ctx context.Context, r *Resolved) (*Body, error) {
 	iv := s.Intervals()
-	k := s.key("uniproxy", u64(r.P.ID), strconv.Itoa(iv.Push), strconv.Itoa(iv.Pull))
+	k := s.key("uniproxy", u64(r.P.ID), pver(r.P), strconv.Itoa(iv.Push), strconv.Itoa(iv.Pull))
+	lctx := context.WithoutCancel(ctx) // singleflight: the load is shared by concurrent callers, so it must not fail because the first caller went away
 	return cache.GetOrLoad(s.a.Cache, k, CacheTTL, func() (*Body, error) {
-		routes, err := s.Routes(ctx, r.P.RouteIDs)
+		routes, err := s.Routes(lctx, r.P.RouteIDs)
 		if err != nil {
 			return nil, err
 		}
@@ -26,7 +32,7 @@ func (s *Service) UniProxyConfig(ctx context.Context, r *Resolved) (*Body, error
 // SogaNode returns the encoded soga /node body of r.P (cached like UniProxyConfig).
 func (s *Service) SogaNode(_ context.Context, r *Resolved) (*Body, error) {
 	iv := s.Intervals()
-	k := s.key("soga", u64(r.P.ID), strconv.Itoa(iv.Push), strconv.Itoa(iv.Pull))
+	k := s.key("soga", u64(r.P.ID), pver(r.P), strconv.Itoa(iv.Push), strconv.Itoa(iv.Pull))
 	return cache.GetOrLoad(s.a.Cache, k, CacheTTL, func() (*Body, error) {
 		if Network(r.P) == "httpupgrade" {
 			s.a.Log.Warn("soga has no httpupgrade transport; stream_type sent verbatim", "node_id", r.P.ID)
@@ -37,8 +43,9 @@ func (s *Service) SogaNode(_ context.Context, r *Resolved) (*Body, error) {
 
 // AuditRules returns the encoded soga /audit_rules body of r.P (cached).
 func (s *Service) AuditRules(ctx context.Context, r *Resolved) (*Body, error) {
-	return cache.GetOrLoad(s.a.Cache, s.key("audit", u64(r.P.ID)), CacheTTL, func() (*Body, error) {
-		routes, err := s.Routes(ctx, r.P.RouteIDs)
+	lctx := context.WithoutCancel(ctx) // singleflight: the load is shared by concurrent callers, so it must not fail because the first caller went away
+	return cache.GetOrLoad(s.a.Cache, s.key("audit", u64(r.P.ID), pver(r.P)), CacheTTL, func() (*Body, error) {
+		routes, err := s.Routes(lctx, r.P.RouteIDs)
 		if err != nil {
 			return nil, err
 		}
@@ -138,7 +145,7 @@ func (s *Service) SogaUsers(ctx context.Context, r *Resolved) (*Body, error) {
 	if err != nil {
 		return nil, err
 	}
-	return s.usersBody(s.key("users_soga", u64(r.P.ID)), users, func() any { return SogaUserList(r.P, users) })
+	return s.usersBody(s.key("users_soga", u64(r.P.ID), pver(r.P)), users, func() any { return SogaUserList(r.P, users) })
 }
 
 // AliveList returns uid → alive device count for users eligible on P with device_limit > 0 and count > 0

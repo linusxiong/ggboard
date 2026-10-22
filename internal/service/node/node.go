@@ -173,6 +173,7 @@ func Inherit(n *model.Node) {
 
 // Resolve loads node id with its parent and the groups of P's children (cached for CacheTTL).
 func (s *Service) Resolve(ctx context.Context, id uint64) (*Resolved, error) {
+	ctx = context.WithoutCancel(ctx) // singleflight: the load is shared by concurrent callers, so it must not fail because the first caller went away
 	return cache.GetOrLoad(s.a.Cache, s.key("resolve", u64(id)), CacheTTL, func() (*Resolved, error) {
 		n := new(model.Node)
 		err := s.a.DB.WithContext(ctx).Preload("Parent").Where("id = ?", id).First(n).Error
@@ -226,9 +227,10 @@ func EffectiveID(n *model.Node) uint64 {
 
 // visible returns every node with show=true ordered by sort, id (cached).
 func (s *Service) visible(ctx context.Context) ([]*model.Node, error) {
+	lctx := context.WithoutCancel(ctx) // singleflight: the load is shared by concurrent callers, so it must not fail because the first caller went away
 	return cache.GetOrLoad(s.a.Cache, s.key("visible"), CacheTTL, func() ([]*model.Node, error) {
 		var nodes []*model.Node
-		err := s.a.DB.WithContext(ctx).
+		err := s.a.DB.WithContext(lctx).
 			Where(map[string]any{"show": true}).
 			Order(clause.OrderByColumn{Column: clause.Column{Name: "sort"}}).
 			Order("id").

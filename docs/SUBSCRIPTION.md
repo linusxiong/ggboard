@@ -139,14 +139,15 @@ RuleProfile {
   "dns": "default"                   // "default" (non-fake-IP DNS block) | "fakeip" | "none" (no DNS block)
 }
 ```
-
-Stored in `rule_profiles.data` as a **complete** profile: `PUT /user/rule-profile` (raw JSON body; empty body → 400) fills
-omitted parts from the chosen template (`categories`, `groups`, `final`, `geoip_cn_direct`; `source` from
-`ruleset_default_source`, `mirror` `default`, `dns` `default`), validates strictly (400 with field errors) and answers with the
-same view as `GET`: known template/source/categories (unknown JSON fields rejected); 1–32 groups,
-unique names (≤ 64 chars, no `, = * " '`, not DIRECT/REJECT/reserved policy names), `type` ∈ select/url-test/fallback/load-balance,
-health-checked groups need an http(s) `url` and `interval` 10–86400 s, include tokens must be groups, DIRECT/REJECT, `*` or valid RE2
-(≤ 256 bytes), no self-inclusion and no include loops; targets and `final` must be DIRECT, REJECT or a group; valid mirror and dns.
+Stored in `rule_profiles.data` as a **complete** profile: `PUT /user/rule-profile` fills omitted parts from the chosen template
+(`categories`, `groups`, `final`, `geoip_cn_direct`; `source` from `ruleset_default_source`, `mirror` `default`, `dns` `default`)
+and validates strictly (400 with field errors): known template/source/categories (unknown JSON fields rejected); 1–32 groups,
+unique names (≤ 64 chars, no `, = * " '`, no control/line-separator/noncharacter runes, not DIRECT/REJECT/reserved policy names),
+`type` ∈ select/url-test/fallback/load-balance, health-checked groups need an http(s) `url` (≤ 512 bytes) and `interval` 10–86400 s,
+include lists ≤ 2048 bytes whose tokens must be groups, DIRECT/REJECT, `*` or valid RE2 (≤ 256 bytes; at most 32 expressions across
+all groups, each compiling to ≤ 256 instructions and ≤ 4096 rune ranges, since they are matched against every proxy on every render),
+no self-inclusion and no include loops; targets and `final` must be DIRECT, REJECT or a group; valid dns; a custom mirror must be an
+`https://` prefix ending in "/". `types`/`filter` query lists accept at most 64 entries.
 Group resolution at render time: tokens that match nothing are dropped, references that would loop are dropped, an empty group
 gets `Proxy` (or DIRECT when that would loop, and always for `Proxy` itself). A category whose target group is missing routes to `final`.
 

@@ -242,6 +242,9 @@ func (q *Queue) run() {
 	}
 }
 
+// errShutdown is recorded for messages still queued when Stop's deadline passed.
+var errShutdown = errors.New("mail: shutdown before delivery")
+
 func (q *Queue) deliver(msg Message) error {
 	var err error
 	for attempt := 0; attempt <= q.opts.Retries; attempt++ {
@@ -252,18 +255,39 @@ func (q *Queue) deliver(msg Message) error {
 			case <-time.After(q.opts.Backoff(attempt)):
 			}
 		}
+		// After Stop's deadline every remaining message is recorded as failed at once: one more full attempt
+		// (up to opts.Timeout) per queued message would hold shutdown for hours.
+		select {
+		case <-q.stop:
+			return errShutdown
+		default:
+		}
 		var m Mailer
 		if m, err = q.Mailer(); err != nil {
 			return err // configuration error: retrying will not help
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), q.opts.Timeout)
-		err = m.Send(ctx, msg)
-		cancel()
+		err = q.sendOnce(m, msg)
 		if err == nil {
 			return nil
 		}
 	}
 	return err
+}
+
+// sendOnce is one delivery attempt bounded by opts.Timeout and aborted when Stop's deadline passes.
+func (q *Queue) sendOnce(m Mailer, msg Message) error {
+	ctx, cancel := context.WithTimeout(context.Background(), q.opts.Timeout)
+	defer cancel()
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		select {
+		case <-q.stop:
+			cancel()
+		case <-done:
+		}
+	}()
+	return m.Send(ctx, msg)
 }
 
 func (q *Queue) record(msg Message, sendErr error) {

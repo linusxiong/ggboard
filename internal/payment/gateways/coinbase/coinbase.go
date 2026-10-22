@@ -65,22 +65,38 @@ func (*Gateway) Fields() []payment.Field {
 		{Key: "api_key_secret", Label: "CDP API key secret", Type: payment.FieldTextarea, Required: true, Description: "ECDSA P-256 private key (PEM; literal \\n accepted). Create the key as ECDSA."},
 		{Key: "webhook_secret", Label: "Webhook secret", Type: payment.FieldPassword, Required: true,
 			Description: "Secret of the webhook subscription (events checkout.payment.success/failed/expired, checkout.refund.*) targeting the notify URL"},
-		{Key: "exchange_rate", Label: "Exchange rate", Type: payment.FieldNumber, Default: "1", Description: "USDC per site-currency unit; 1 is only valid for a USD site"},
+		{Key: "exchange_rate", Label: "Exchange rate", Type: payment.FieldNumber, Description: "USDC per site-currency unit; leave empty (= 1) only for a USD site"},
 	}
 }
 
-// ValidateConfig parses the EC key and requires an explicit rate for non-USD sites.
+// dollarCurrency reports site currencies USDC is charged 1:1 for.
+func dollarCurrency(c string) bool {
+	switch strings.ToUpper(strings.TrimSpace(c)) {
+	case "USD", "USDC", "USDT":
+		return true
+	}
+	return false
+}
+
+// checkRate rejects a missing rate, or the rate 1, for sites not priced in dollars: the old form default of "1"
+// would otherwise charge 100 CNY as 100 USDC without any warning.
+func checkRate(cfg map[string]string, siteCurrency string) error {
+	rate, err := gwutil.ParseRate(cfg["exchange_rate"])
+	if err != nil {
+		return fmt.Errorf("coinbase: %w", err)
+	}
+	if !dollarCurrency(siteCurrency) && (strings.TrimSpace(cfg["exchange_rate"]) == "" || rate.Equal(decimal.NewFromInt(1))) {
+		return fmt.Errorf("coinbase: exchange_rate (USDC per %s) is required and cannot be 1 when the site currency is not USD", siteCurrency)
+	}
+	return nil
+}
+
+// ValidateConfig parses the EC key and requires a real rate for sites not priced in dollars.
 func (*Gateway) ValidateConfig(cfg map[string]string, siteCurrency string) error {
 	if _, err := ParseKey(cfg["api_key_secret"]); err != nil {
 		return err
 	}
-	if _, err := gwutil.ParseRate(cfg["exchange_rate"]); err != nil {
-		return fmt.Errorf("coinbase: %w", err)
-	}
-	if !strings.EqualFold(siteCurrency, "USD") && strings.TrimSpace(cfg["exchange_rate"]) == "" {
-		return errors.New("coinbase: exchange_rate is required when the site currency is not USD")
-	}
-	return nil
+	return checkRate(cfg, siteCurrency)
 }
 
 // ParseKey parses a SEC1 or PKCS#8 ECDSA private key in PEM (literal "\n" sequences accepted).
@@ -158,6 +174,9 @@ func (g *Gateway) Pay(ctx context.Context, cfg map[string]string, req payment.Pa
 	key, err := ParseKey(cfg["api_key_secret"])
 	if err != nil {
 		return nil, err
+	}
+	if err := checkRate(cfg, req.Currency); err != nil {
+		return nil, err // saved before ValidateConfig enforced it (or imported): never charge at 1:1
 	}
 	rate, err := gwutil.ParseRate(cfg["exchange_rate"])
 	if err != nil {

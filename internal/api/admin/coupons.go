@@ -81,7 +81,8 @@ func adminListCoupons(a *app.App) gin.HandlerFunc {
 			db = db.Where("code = ?", strings.TrimSpace(q.Code))
 		}
 		if q.Name != "" {
-			db = db.Where("name LIKE ?", "%"+q.Name+"%")
+			// Case-insensitive substring on every dialect (PostgreSQL LIKE is case-sensitive); % and _ are literal.
+			db = db.Where("LOWER(name) LIKE ? ESCAPE '!'", "%"+couponLikeEscape(strings.ToLower(strings.TrimSpace(q.Name)))+"%")
 		}
 		coupons, total, err := httpx.Paginate[model.Coupon](c, db, map[string]string{
 			"id": "id", "created_at": "created_at", "ended_at": "ended_at", "started_at": "started_at", "value": "value",
@@ -332,7 +333,17 @@ func adminUpdateCoupon(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, httpx.Conflict("coupon code already exists").WithField("code", "already exists"))
 			return
 		}
-		if err := a.DB.WithContext(c.Request.Context()).Save(cp).Error; err != nil {
+		db := a.DB.WithContext(c.Request.Context())
+		if in.LimitUse == nil && !in.clearLimitUse {
+			// limit_use is the remaining-uses counter that orders decrement and cancellations increment
+			// concurrently; writing back the value loaded above would undo those changes.
+			db = db.Omit("limit_use")
+		}
+		if err := db.Save(cp).Error; err != nil {
+			httpx.Fail(c, err)
+			return
+		}
+		if err := a.DB.WithContext(c.Request.Context()).First(cp, cp.ID).Error; err != nil {
 			httpx.Fail(c, err)
 			return
 		}
@@ -354,4 +365,9 @@ func adminDeleteCoupon(a *app.App) gin.HandlerFunc {
 		httpx.Logger(c).Info("coupon deleted", "coupon_id", cp.ID, "admin_id", auth.CurrentUser(c).ID)
 		httpx.OK(c, true)
 	}
+}
+
+// couponLikeEscape escapes LIKE wildcards with '!' (used with ESCAPE '!').
+func couponLikeEscape(s string) string {
+	return strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(s)
 }

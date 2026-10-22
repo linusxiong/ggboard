@@ -3,7 +3,6 @@ package passport
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -72,11 +71,7 @@ func securityPageURL(c *gin.Context, a *app.App) string {
 	if base := mfasvc.AppBaseURL(a.Settings); base != "" {
 		return base + SecurityPagePath
 	}
-	scheme := "http"
-	if c.Request.TLS != nil || strings.EqualFold(c.GetHeader("X-Forwarded-Proto"), "https") {
-		scheme = "https"
-	}
-	return scheme + "://" + c.Request.Host + SecurityPagePath
+	return httpx.RequestBase(c) + SecurityPagePath
 }
 
 // changePasswordURL is GET /.well-known/change-password: 302 to the security page

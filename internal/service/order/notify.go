@@ -135,10 +135,20 @@ func (s *Service) HandleNotify(ctx context.Context, gatewayParam, uuid string, r
 // paidAfterCancel records a verified payment for an order that order_timeout (or the user) already
 // cancelled: the callback number is stored, the event logged at ERROR and the administrator alerted.
 func (s *Service) paidAfterCancel(ctx context.Context, log *slog.Logger, p *model.Payment, o *model.Order, res *payment.NotifyResult, resp *payment.NotifyResponse) *payment.NotifyResponse {
-	if err := s.a.DB.WithContext(ctx).Model(&model.Order{}).Where("id = ? AND status = ?", o.ID, model.OrderStatusCancelled).
-		UpdateColumn("callback_no", res.CallbackNo).Error; err != nil {
-		log.Error("payment notify: store callback_no of cancelled order", "err", err)
+	// Conditional on a new callback number: gateways retry and EPay hands the buyer the signed parameters on the
+	// return redirect, so the same notification can be replayed any number of times; alert once per transaction.
+	q := s.a.DB.WithContext(ctx).Model(&model.Order{}).Where("id = ? AND status = ?", o.ID, model.OrderStatusCancelled)
+	if res.CallbackNo != "" {
+		q = q.Where("(callback_no IS NULL OR callback_no <> ?)", res.CallbackNo)
+	}
+	upd := q.UpdateColumn("callback_no", res.CallbackNo)
+	if upd.Error != nil {
+		log.Error("payment notify: store callback_no of cancelled order", "err", upd.Error)
 		return internalFail()
+	}
+	if upd.RowsAffected == 0 {
+		log.Warn("repeated payment notify for a cancelled order; already reported")
+		return resp
 	}
 	log.Error("verified payment for a cancelled order; not fulfilled")
 	amount := res.Amount

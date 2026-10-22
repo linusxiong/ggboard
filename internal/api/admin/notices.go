@@ -45,7 +45,7 @@ type noticeInput struct {
 	ImgURL  *string   `json:"img_url" binding:"omitnil,max=255"`
 	Tags    *[]string `json:"tags" binding:"omitnil,max=20,dive,max=32"`
 	Show    *bool     `json:"show"`
-	Sort    *int      `json:"sort"`
+	Sort    *int      `json:"sort" binding:"omitnil,gte=-1000000,lte=1000000"`
 }
 
 // updates validates the input and returns the columns to write. create requires title and content.
@@ -59,6 +59,8 @@ func (in *noticeInput) updates(create bool) (map[string]any, error) {
 	}
 	if v, ok, err := contentRequiredText(in.Content, create); err != nil {
 		e = e.WithField("content", err.Error())
+	} else if len(v) > contentMaxBytes {
+		e = e.WithField("content", errContentTooLong.Error())
 	} else if ok {
 		m["content"] = v
 	}
@@ -182,6 +184,13 @@ var errContentRequired = errors.New("is required")
 
 // contentRequiredText trims *p. It reports whether the field was given; an empty value is an error when the
 // field is given or required.
+// contentMaxBytes caps notice contents and knowledge bodies at what a MySQL TEXT column holds (65535 bytes):
+// longer values fail with "Data too long" in strict mode, or are silently truncated (possibly cutting an
+// <!--access end--> marker and exposing gated text) otherwise. The request body limit alone allows 1 MiB.
+const contentMaxBytes = 65535
+
+var errContentTooLong = errors.New("must be at most 65535 bytes")
+
 func contentRequiredText(p *string, required bool) (string, bool, error) {
 	if p == nil {
 		if required {

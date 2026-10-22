@@ -166,16 +166,21 @@ func (a *App) FlushTraffic(ctx context.Context) error { return a.Traffic.Flush(c
 func (a *App) Close(ctx context.Context) error {
 	a.closeOnce.Do(func() {
 		var errs []error
-		stopCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		defer cancel()
+		// Each phase gets its own deadline: a scheduler stop that used up a shared one would leave the final
+		// traffic flush with an expired context, losing every buffered report.
+		phase := func(fn func(context.Context) error) {
+			pctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+			defer cancel()
+			errs = append(errs, fn(pctx))
+		}
 		if a.Scheduler != nil {
-			errs = append(errs, a.Scheduler.Stop(stopCtx))
+			phase(a.Scheduler.Stop)
 		}
 		if a.Traffic != nil && a.DB != nil {
-			errs = append(errs, a.FlushTraffic(stopCtx))
+			phase(a.FlushTraffic)
 		}
 		if a.Mailer != nil {
-			errs = append(errs, a.Mailer.Stop(stopCtx))
+			phase(a.Mailer.Stop)
 		}
 		if a.Cache != nil {
 			a.Cache.Close()

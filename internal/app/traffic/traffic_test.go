@@ -2,6 +2,7 @@ package traffic_test
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -107,5 +108,40 @@ func TestFlushFailureRestores(t *testing.T) {
 	a.DB.First(&sn)
 	if sn.U != 15 || sn.D != 15 {
 		t.Fatalf("restored data lost: %+v", sn)
+	}
+}
+
+// Review 2026-10-22: counters saturate instead of wrapping (a wrapped counter lowered users.u), the rate is
+// applied with floor (docs/NODE_PROTOCOLS.md §2.3) and unknown or unbindable uids are ignored at flush.
+func TestReviewFlushSaturatesAndIgnoresUnknown(t *testing.T) {
+	a := testutil.NewTestApp(t)
+	u := testutil.CreateUser(t, a, "sat@example.com")
+	v := testutil.CreateUser(t, a, "floor@example.com")
+	acc := traffic.New()
+	acc.Add(1, u.ID, 1, math.MaxInt64, 0)
+	acc.Add(1, u.ID, 1, math.MaxInt64, 0)
+	acc.Add(1, v.ID, 0.5, 1, 3)
+	acc.Add(1, 1<<63, 1, 10, 10)
+	acc.Add(1, 999999, 1, 10, 10)
+	if err := acc.Flush(context.Background(), a.DB); err != nil {
+		t.Fatal(err)
+	}
+	if acc.Pending() != 0 {
+		t.Fatal("flush must not restore anything")
+	}
+	var got model.User
+	a.DB.First(&got, u.ID)
+	if got.U != math.MaxInt64 {
+		t.Fatalf("u = %d, want saturated MaxInt64", got.U)
+	}
+	var got2 model.User
+	a.DB.First(&got2, v.ID)
+	if got2.U != 0 || got2.D != 1 {
+		t.Fatalf("floor(rate): u/d = %d/%d, want 0/1", got2.U, got2.D)
+	}
+	var n int64
+	a.DB.Model(&model.StatUser{}).Count(&n)
+	if n != 2 {
+		t.Fatalf("stat_users rows = %d, want 2", n)
 	}
 }

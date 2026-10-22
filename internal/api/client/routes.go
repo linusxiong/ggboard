@@ -21,18 +21,33 @@ const (
 	SubscribeBurst = 30
 )
 
+// Unknown tokens are limited per client IP (IPv6 per /64): each costs a database lookup, and keying the token
+// bucket by attacker-chosen strings would let anyone grow the limiter without bound. 60 misses per hour (burst
+// 30) is far above what a client with a reset link produces.
+const (
+	MissRate  = 60
+	MissBurst = 30
+)
+
+// limits are the rate limiters shared by both subscription routes.
+type limits struct {
+	token *httpx.Limiter // per existing token
+	miss  *httpx.Limiter // per IP, charged for unknown or malformed tokens
+}
+
 // Register mounts the package's routes on the root router r (paths include httpx.APIPrefix).
 func Register(r gin.IRouter, a *app.App) {
-	lim := httpx.NewLimiter(httpx.Per(SubscribeRate, time.Hour), SubscribeBurst)
-	byQuery := httpx.Limit("subscribe", lim, httpx.KeyByQuery("token"))
-	byParam := httpx.Limit("subscribe", lim, func(c *gin.Context) string { return c.Param("token") })
+	lim := &limits{
+		token: httpx.NewLimiter(httpx.Per(SubscribeRate, time.Hour), SubscribeBurst),
+		miss:  httpx.NewLimiter(httpx.Per(MissRate, time.Hour), MissBurst),
+	}
 
 	g := r.Group(httpx.APIPrefix + "/client")
-	fromQuery := subscribe(a, func(c *gin.Context) string { return c.Query("token") }, false)
-	g.GET("/subscribe", byQuery, fromQuery)
-	g.HEAD("/subscribe", byQuery, fromQuery)
+	fromQuery := subscribe(a, lim, func(c *gin.Context) string { return c.Query("token") }, false)
+	g.GET("/subscribe", fromQuery)
+	g.HEAD("/subscribe", fromQuery)
 
-	fromParam := subscribe(a, func(c *gin.Context) string { return c.Param("token") }, true)
-	r.GET("/s/:token", byParam, fromParam)
-	r.HEAD("/s/:token", byParam, fromParam)
+	fromParam := subscribe(a, lim, func(c *gin.Context) string { return c.Param("token") }, true)
+	r.GET("/s/:token", fromParam)
+	r.HEAD("/s/:token", fromParam)
 }

@@ -186,8 +186,9 @@ func validMirror(c *subscription.Catalog, m string) string {
 	case m == "" || m == MirrorDefault:
 		return ""
 	case strings.Contains(m, "://"):
-		if !ValidMirrorPrefix(m) {
-			return `must be an http(s) URL ending with "/"`
+		// https only (docs/SUBSCRIPTION.md): rule sets fetched over plain http can be rewritten in transit.
+		if !strings.HasPrefix(m, "https://") || len(m) > MaxURLLen || !ValidMirrorPrefix(m) {
+			return `must be an https URL ending with "/"`
 		}
 		return ""
 	}

@@ -127,7 +127,7 @@ type CreateInput struct {
 	SpeedLimit     *int       `json:"speed_limit" binding:"omitempty,gte=0"`
 	DeviceLimit    *int       `json:"device_limit" binding:"omitempty,gte=0"`
 	Balance        int64      `json:"balance" binding:"gte=0"`
-	Remarks        string     `json:"remarks" binding:"max=65535"`
+	Remarks        string     `json:"remarks" binding:"max=16000"` // runes: ≤ 64000 bytes, fits a MySQL TEXT
 	InviteUserID   *uint64    `json:"invite_user_id"`
 }
 
@@ -218,7 +218,7 @@ type UpdateInput struct {
 	CommissionType    *int                `json:"commission_type,omitempty" binding:"omitempty,oneof=0 1 2"`
 	CommissionRate    Nullable[int]       `json:"commission_rate,omitzero"`
 	Discount          Nullable[int]       `json:"discount,omitzero"`
-	Remarks           *string             `json:"remarks,omitempty" binding:"omitempty,max=65535"`
+	Remarks           *string             `json:"remarks,omitempty" binding:"omitempty,max=16000"`
 	RemindExpire      *bool               `json:"remind_expire,omitempty"`
 	RemindTraffic     *bool               `json:"remind_traffic,omitempty"`
 	TelegramID        Nullable[int64]     `json:"telegram_id,omitzero"`
@@ -409,7 +409,7 @@ func (s *Service) changes(tx *gorm.DB, actor, u *model.User, in *UpdateInput, no
 // ---------------------------------------------------------------- delete
 
 // Delete removes user id and its dependants (orders, tickets and their messages, stat_users, invite codes,
-// commission logs earned as inviter, rule profile). Users and orders that reference the user as inviter get
+// commission logs earned as inviter, rule profile, passkeys and the user_mfa row). Users and orders that reference the user as inviter get
 // invite_user_id = null. Actors cannot delete themselves, and the last administrator cannot be deleted.
 func (s *Service) Delete(ctx context.Context, actor *model.User, id uint64) error {
 	if actor != nil && actor.ID == id {
@@ -441,6 +441,10 @@ func (s *Service) Delete(ctx context.Context, actor *model.User, id uint64) erro
 			func() error { return tx.Where("user_id = ?", id).Delete(&model.InviteCode{}).Error },
 			func() error { return tx.Where("invite_user_id = ?", id).Delete(&model.CommissionLog{}).Error },
 			func() error { return tx.Where("user_id = ?", id).Delete(&model.RuleProfile{}).Error },
+			// Second factors: an orphaned passkey would sign in as whoever gets this id next (passkey login
+			// resolves the owner through these rows), and an orphaned TOTP secret would be forced on them.
+			func() error { return tx.Where("user_id = ?", id).Delete(&model.Passkey{}).Error },
+			func() error { return tx.Where("user_id = ?", id).Delete(&model.UserMFA{}).Error },
 			func() error {
 				return tx.Model(&model.User{}).Where("invite_user_id = ?", id).Update("invite_user_id", nil).Error
 			},
@@ -502,10 +506,15 @@ func (s *Service) ResetSecret(ctx context.Context, id uint64) (*model.User, erro
 }
 
 // LoginURL returns app_url + "/login?token=<one-time token>" for user id (the SPA exchanges the token at
-// POST /passport/login/token within auth.LoginTokenTTL).
+// POST /passport/login/token within auth.LoginTokenTTL). Administrators and staff cannot be impersonated (409):
+// the token skips their second factor and would let one admin act as, or plant a passkey on, another.
 func (s *Service) LoginURL(ctx context.Context, id uint64) (string, error) {
-	if _, err := s.load(ctx, id); err != nil {
+	u, err := s.load(ctx, id)
+	if err != nil {
 		return "", err
+	}
+	if u.IsAdmin || u.IsStaff {
+		return "", httpx.Conflict("administrators and staff cannot be impersonated")
 	}
 	tok := auth.IssueLoginToken(s.a, id)
 	return strings.TrimRight(s.a.Settings.String("app_url"), "/") + "/login?token=" + tok, nil

@@ -3,6 +3,7 @@ package httpx
 import (
 	"math"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"time"
 
@@ -15,8 +16,22 @@ import (
 // KeyFunc extracts the rate-limit key from a request ("" skips limiting).
 type KeyFunc func(c *gin.Context) string
 
-// KeyByIP keys by client IP (honoring trusted proxies).
-func KeyByIP(c *gin.Context) string { return c.ClientIP() }
+// KeyByIP keys by client IP (honoring trusted proxies). IPv6 clients are keyed by their /64: a single host
+// usually controls a whole /64, so per-address buckets would let it rotate addresses past every limit.
+func KeyByIP(c *gin.Context) string { return IPKey(c.ClientIP()) }
+
+// IPKey returns the rate-limit key of ip: IPv4 addresses as they are, IPv6 addresses as their /64 prefix.
+func IPKey(ip string) string {
+	addr, err := netip.ParseAddr(ip)
+	if err != nil || addr.Unmap().Is4() {
+		return ip
+	}
+	p, err := addr.WithZone("").Prefix(64)
+	if err != nil {
+		return ip
+	}
+	return p.String()
+}
 
 // KeyByQuery returns a KeyFunc keying by a query parameter (e.g. the subscription token).
 func KeyByQuery(name string) KeyFunc {
@@ -84,17 +99,34 @@ func Limit(name string, l *Limiter, keyFn KeyFunc) gin.HandlerFunc {
 		keyFn = KeyByIP
 	}
 	return func(c *gin.Context) {
-		key := keyFn(c)
-		if key == "" || l.Allow(key) {
+		if l.Check(c, name, keyFn(c)) {
 			c.Next()
-			return
 		}
-		secs := int(math.Ceil(l.RetryAfter(key).Seconds()))
-		if secs < 1 {
-			secs = 1
-		}
-		c.Header("Retry-After", strconv.Itoa(secs))
-		Logger(c).Info("rate limited", "limiter", name, "path", c.Request.URL.Path)
-		Fail(c, NewError(http.StatusTooManyRequests, CodeRateLimited, "too many requests, retry later"))
 	}
+}
+
+// Check consumes one token for key ("" is never limited). When none is left it aborts the request with 429 and
+// Retry-After and returns false. name is used in logs; the logged path is the route pattern (LogPath), so
+// secrets carried in path parameters (/s/:token) never reach the log.
+func (l *Limiter) Check(c *gin.Context, name, key string) bool {
+	if key == "" || l.Allow(key) {
+		return true
+	}
+	l.Deny(c, name, key)
+	return false
+}
+
+// Exhausted reports whether key has no token left, without consuming one (for limiters charged only on
+// failures: check first, Allow after a failure).
+func (l *Limiter) Exhausted(key string) bool { return l.get(key).Tokens() < 1 }
+
+// Deny aborts the request with 429 and the Retry-After of key.
+func (l *Limiter) Deny(c *gin.Context, name, key string) {
+	secs := int(math.Ceil(l.RetryAfter(key).Seconds()))
+	if secs < 1 {
+		secs = 1
+	}
+	c.Header("Retry-After", strconv.Itoa(secs))
+	Logger(c).Info("rate limited", "limiter", name, "path", LogPath(c))
+	Fail(c, NewError(http.StatusTooManyRequests, CodeRateLimited, "too many requests, retry later"))
 }

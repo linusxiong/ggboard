@@ -33,21 +33,23 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (*model.User, error)
 // two-factor authentication record the login only after the second step (internal/service/mfa).
 func (s *Service) VerifyLogin(ctx context.Context, in LoginInput) (*model.User, error) {
 	email := usersvc.NormalizeEmail(in.Email)
-	if err := s.CheckPasswordLock(email); err != nil {
+	release, err := s.ReservePasswordAttempt(email)
+	if err != nil {
 		return nil, err
 	}
 	if err := s.VerifyCaptcha(ctx, in.Captcha, in.IP); err != nil {
+		release()
 		return nil, err
 	}
 	u, err := s.users.Authenticate(ctx, email, in.Password)
 	switch {
 	case errors.Is(err, usersvc.ErrInvalidCredentials):
-		s.RecordPasswordFailure(email)
-		return nil, httpx.Unauthorized("invalid email or password")
+		return nil, httpx.Unauthorized("invalid email or password") // the reserved attempt counts
 	case errors.Is(err, usersvc.ErrBanned):
 		s.ClearPasswordFailures(email)
 		return nil, httpx.Forbidden("account is banned")
 	case err != nil:
+		release()
 		return nil, err
 	}
 	s.ClearPasswordFailures(email)
@@ -62,7 +64,8 @@ func (s *Service) RecordLogin(ctx context.Context, u *model.User, ip string) {
 }
 
 // LoginWithToken exchanges a one-time login token (admin "login as") for its user. Invalid, used or
-// expired tokens are 401; banned users 403. last_login_* is not touched (the session is the admin's).
+// expired tokens are 401, and so are tokens of users promoted to admin/staff since the token was issued (they
+// cannot be impersonated); banned users 403. last_login_* is not touched (the session is the admin's).
 func (s *Service) LoginWithToken(ctx context.Context, token string) (*model.User, error) {
 	id, ok := auth.ConsumeLoginToken(s.a, token)
 	if !ok {
@@ -74,6 +77,9 @@ func (s *Service) LoginWithToken(ctx context.Context, token string) (*model.User
 	}
 	if err != nil {
 		return nil, err
+	}
+	if u.IsAdmin || u.IsStaff {
+		return nil, httpx.Unauthorized("invalid or expired login token")
 	}
 	if u.Banned {
 		return nil, httpx.Forbidden("account is banned")
@@ -113,17 +119,16 @@ func (s *Service) ChangePassword(ctx context.Context, userID uint64, oldPassword
 	if err != nil {
 		return nil, err
 	}
-	if err := s.CheckPasswordLock(u.Email); err != nil {
+	if _, err := s.ReservePasswordAttempt(u.Email); err != nil {
 		return nil, err
 	}
 	if !auth.VerifyPassword(u.PasswordHash, oldPassword) {
-		s.RecordPasswordFailure(u.Email)
-		return nil, httpx.FieldError("old_password", "is incorrect")
+		return nil, httpx.FieldError("old_password", "is incorrect") // the reserved attempt counts
 	}
+	s.ClearPasswordFailures(u.Email)
 	if err := s.users.SetPassword(ctx, u, newPassword); err != nil {
 		return nil, err
 	}
 	auth.InvalidateUser(s.a, u.ID)
-	s.ClearPasswordFailures(u.Email)
 	return u, nil
 }

@@ -80,17 +80,18 @@ func (s *Service) CompleteLogin(ctx context.Context, token, code string) (*model
 	if row == nil || !row.TOTPEnabled {
 		return nil, errExpired()
 	}
-	if err := s.checkFailures(u.ID); err != nil {
+	release, err := s.reserveFailure(u.ID)
+	if err != nil {
 		return nil, err
 	}
 	ok, err = s.verifyCode(ctx, row, code)
 	if err != nil {
+		release()
 		s.putBack(key, p)
 		return nil, err
 	}
 	if !ok {
-		s.recordFailure(u.ID)
-		p.Attempts++
+		p.Attempts++ // the reserved failure counts
 		if p.Attempts >= MaxTokenAttempts {
 			return nil, &account.RetryError{
 				Err: httpx.RateLimited("too many invalid verification codes, please sign in again"),

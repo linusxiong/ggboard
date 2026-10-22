@@ -61,9 +61,16 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*model.User, 
 	if st.Bool("email_whitelist_enable") && !EmailAllowed(email, st.Strings("email_whitelist_suffix")) {
 		return nil, httpx.FieldError("email", "this email domain is not allowed")
 	}
-	if err := s.checkRegisterIP(in.IP); err != nil {
+	release, err := s.reserveRegisterIP(in.IP)
+	if err != nil {
 		return nil, err
 	}
+	registered := false
+	defer func() {
+		if !registered {
+			release() // only completed registrations count towards register_limit_count
+		}
+	}()
 	if err := s.VerifyCaptcha(ctx, in.Captcha, in.IP); err != nil {
 		return nil, err
 	}
@@ -161,7 +168,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*model.User, 
 			}
 		}
 	}
-	s.countRegisterIP(in.IP)
+	registered = true
 	return u, nil
 }
 
@@ -203,28 +210,18 @@ func (s *Service) trialPlan(ctx context.Context) (*model.Plan, error) {
 	return &p, nil
 }
 
-func (s *Service) checkRegisterIP(ip string) error {
+// reserveRegisterIP reserves one registration of ip (IPv6 per /64) under register_limit_* (account.ReserveAttempt:
+// reserved before the work so concurrent requests cannot all pass the check), or returns a *RetryError.
+func (s *Service) reserveRegisterIP(ip string) (release func(), err error) {
 	st := s.a.Settings
 	if ip == "" || !st.Bool("register_limit_by_ip_enable") {
-		return nil
+		return func() {}, nil
 	}
-	key := kvRegisterIP + ip
-	v, ok := s.a.KV.Get(key)
-	n, _ := v.(int)
-	if !ok || n < st.Int("register_limit_count") {
-		return nil
+	key := kvRegisterIP + httpx.IPKey(ip)
+	release, ok := ReserveAttempt(s.a, key, st.Int("register_limit_count"), minutes(st.Int("register_limit_expire")))
+	if !ok {
+		wait, _ := s.a.KV.TTL(key)
+		return nil, retryError(fmt.Sprintf("too many registrations from this IP address, try again in %d minutes", waitMinutes(wait)), wait)
 	}
-	wait, _ := s.a.KV.TTL(key)
-	return retryError(fmt.Sprintf("too many registrations from this IP address, try again in %d minutes", waitMinutes(wait)), wait)
-}
-
-func (s *Service) countRegisterIP(ip string) {
-	st := s.a.Settings
-	if ip == "" || !st.Bool("register_limit_by_ip_enable") {
-		return
-	}
-	s.a.KV.Update(kvRegisterIP+ip, minutes(st.Int("register_limit_expire")), true, func(old any, _ bool) any {
-		n, _ := old.(int)
-		return n + 1
-	})
+	return release, nil
 }

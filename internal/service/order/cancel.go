@@ -51,16 +51,24 @@ func (s *Service) Cancel(ctx context.Context, orderID uint64) (*model.Order, err
 	return &o, nil
 }
 
+// CheckoutGrace is how long a pending order stays payable after its last checkout. Payment pages outlive the
+// order deadline (Stripe Checkout Sessions expire no sooner than 30 minutes after creation, others not at all),
+// so cancelling a just-checked-out order turns a normal payment into "paid after cancel" needing manual repair.
+const CheckoutGrace = 31 * time.Minute
+
 // CancelExpired is the order_timeout job: it cancels pending orders created more than order_timeout_minutes
-// ago and returns how many were cancelled.
+// ago, except orders checked out (payment_id set, updated_at bumped by Checkout) within CheckoutGrace, and
+// returns how many were cancelled.
 func (s *Service) CancelExpired(ctx context.Context) (int, error) {
 	timeout := time.Duration(s.a.Settings.Int("order_timeout_minutes")) * time.Minute
 	if timeout <= 0 {
 		return 0, nil
 	}
+	now := s.now()
 	var ids []uint64
 	err := s.a.DB.WithContext(ctx).Model(&model.Order{}).
-		Where("status = ? AND created_at < ?", model.OrderStatusPending, s.now().Add(-timeout)).
+		Where("status = ? AND created_at < ?", model.OrderStatusPending, now.Add(-timeout)).
+		Where("(payment_id IS NULL OR updated_at < ?)", now.Add(-CheckoutGrace)).
 		Order("id").Limit(batchLimit).Pluck("id", &ids).Error
 	if err != nil {
 		return 0, err

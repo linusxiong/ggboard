@@ -107,7 +107,14 @@ func resolve(c *gin.Context, a *app.App) (*model.User, *Claims, error) {
 		return nil, nil, httpx.Internal(err)
 	}
 	if u.PasswordVersion != claims.Ver {
-		return nil, nil, httpx.Unauthorized("session expired, please sign in again")
+		// The cached copy may predate the change that issued this token: a load that read the row before a
+		// password change committed can store it after InvalidateUser ran. Check the database before rejecting.
+		var fresh model.User
+		if err := a.DB.First(&fresh, id).Error; err != nil || fresh.PasswordVersion != claims.Ver {
+			return nil, nil, httpx.Unauthorized("session expired, please sign in again")
+		}
+		a.Cache.Set(userCacheKey(id), fresh, UserCacheTTL)
+		u = &fresh
 	}
 	if u.Banned {
 		return nil, nil, httpx.Forbidden("account is banned")

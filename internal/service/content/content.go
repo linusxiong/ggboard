@@ -61,11 +61,6 @@ type KnowledgeSummary struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-type knowledgeRow struct {
-	KnowledgeSummary
-	Category string
-}
-
 // KnowledgeFilter narrows knowledge queries; empty fields are ignored.
 type KnowledgeFilter struct {
 	Language    string // "zh-CN" matches exactly; a bare primary tag ("en") also matches its regional tags ("en-US")
@@ -98,19 +93,35 @@ func (s *Service) KnowledgeQuery(ctx context.Context, f KnowledgeFilter) *gorm.D
 }
 
 // KnowledgeIndex groups the visible articles in language (default: setting default_locale) matching keyword
-// by category, each list in display order.
-func (s *Service) KnowledgeIndex(ctx context.Context, language, keyword string) (map[string][]KnowledgeSummary, error) {
+// by category, each list in display order. hasPlan is whether the reader has a valid plan: without one the
+// keyword is matched against the body with its plan-gated blocks removed, otherwise searching for a guessed
+// string would reveal what the gated blocks contain.
+func (s *Service) KnowledgeIndex(ctx context.Context, language, keyword string, hasPlan bool) (map[string][]KnowledgeSummary, error) {
 	if strings.TrimSpace(language) == "" {
 		language = s.a.Settings.String("default_locale")
 	}
-	var rows []knowledgeRow
+	kw := strings.ToLower(strings.TrimSpace(keyword))
+	recheck := kw != "" && !hasPlan
+	var rows []struct {
+		KnowledgeSummary
+		Category string
+		Body     string
+	}
+	cols := []string{"id", "title", "category", "updated_at"}
+	if recheck {
+		cols = append(cols, "body")
+	}
 	err := s.KnowledgeQuery(ctx, KnowledgeFilter{Language: language, Keyword: keyword, OnlyVisible: true}).
-		Select("id", "title", "category", "updated_at").Order(KnowledgeOrder).Find(&rows).Error
+		Select(cols).Order(KnowledgeOrder).Find(&rows).Error
 	if err != nil {
 		return nil, err
 	}
 	out := make(map[string][]KnowledgeSummary)
 	for _, r := range rows {
+		if recheck && !strings.Contains(strings.ToLower(r.Title), kw) &&
+			!strings.Contains(strings.ToLower(accessBlock.ReplaceAllLiteralString(r.Body, "")), kw) {
+			continue // the SQL match was inside a gated block
+		}
 		out[r.Category] = append(out[r.Category], r.KnowledgeSummary)
 	}
 	return out, nil

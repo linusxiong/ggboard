@@ -78,6 +78,12 @@ func (s *Service) Checkout(ctx context.Context, userID uint64, tradeNo string, i
 	if in.PaymentID == nil || *in.PaymentID == 0 {
 		return nil, httpx.FieldError("payment_id", "is required")
 	}
+	// No new payment page for an order past its deadline: order_timeout is about to cancel it, and a payment
+	// started now would arrive after the cancellation.
+	if timeout := time.Duration(s.a.Settings.Int("order_timeout_minutes")) * time.Minute; timeout > 0 &&
+		!s.now().Before(o.CreatedAt.Add(timeout)) {
+		return nil, httpx.Conflict("the order has expired, please place a new one")
+	}
 	var p model.Payment
 	if err := db.First(&p, *in.PaymentID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

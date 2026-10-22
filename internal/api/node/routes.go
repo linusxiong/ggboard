@@ -7,8 +7,8 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -23,9 +23,17 @@ const SogaPrefix = "/soga" + httpx.APIPrefix
 const ctxResolved = "node.resolved"
 
 type handler struct {
-	a   *app.App
-	svc *nodesvc.Service
+	a     *app.App
+	svc   *nodesvc.Service
+	fails *httpx.Limiter // failed token checks per client IP (IPv6 per /64)
 }
+
+// Failed node-token checks allowed per client address: backends never fail (they all share server_token), so
+// 30 failures (refilled at 60 per hour) only ever stop online guessing of the token.
+const (
+	authFailRate  = 60
+	authFailBurst = 30
+)
 
 // Register mounts the package's routes on the root router r (paths include httpx.APIPrefix).
 func Register(r gin.IRouter, a *app.App) {
@@ -33,7 +41,7 @@ func Register(r gin.IRouter, a *app.App) {
 		// docs/NODE_PROTOCOLS.md §1.1: tolerate soga's naive joining of webapi_url ("/soga//api/v1/node").
 		e.RemoveExtraSlash = true
 	}
-	h := &handler{a: a, svc: nodesvc.New(a)}
+	h := &handler{a: a, svc: nodesvc.New(a), fails: httpx.NewLimiter(httpx.Per(authFailRate, time.Hour), authFailBurst)}
 	big := httpx.LargeBody(httpx.NodeBodyLimit)
 
 	uni := r.Group(httpx.APIPrefix+"/server/UniProxy", h.uniAuth)
@@ -63,11 +71,22 @@ func (h *handler) tokenOK(given string) bool {
 	return want != "" && subtle.ConstantTimeCompare([]byte(given), []byte(want)) == 1
 }
 
-// parseNodeID parses a node id (decimal uint64 > 0).
-func parseNodeID(s string) (uint64, bool) {
-	id, err := strconv.ParseUint(strings.TrimSpace(s), 10, 64)
-	return id, err == nil && id > 0
+// tokenCheck is tokenOK behind the per-IP failure limiter: limited is true (and the token is not even compared)
+// once the client address used up its failures; every failed comparison is charged.
+func (h *handler) tokenCheck(c *gin.Context, given string) (ok, limited bool) {
+	key := httpx.KeyByIP(c)
+	if h.fails.Exhausted(key) {
+		return false, true
+	}
+	if h.tokenOK(given) {
+		return true, false
+	}
+	h.fails.Allow(key)
+	return false, false
 }
+
+// parseNodeID parses a node id (decimal uint64 > 0).
+func parseNodeID(s string) (uint64, bool) { return nodesvc.ParseUserID(s) }
 
 // touch records the authenticated request on P (LastCheckAt) and the backend's User-Agent as its version.
 func (h *handler) touch(c *gin.Context, r *nodesvc.Resolved) {

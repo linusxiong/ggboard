@@ -97,11 +97,13 @@ Passkey {"id":1,"name":"Laptop","created_at":"…","last_used_at":null,"backup_e
 
 Rules: `stop_register` → 403; `email_whitelist_enable` (exact domain match, else 400 on `email`); `invite_force` requires a valid invite code (400 on `invite_code`);
 a valid code sets `invite_user_id` and is consumed (`status=true`) when `invite_never_expire=false` (unknown codes are ignored unless forced);
-`try_out_plan_id` grants a trial on register (plan/group/limits, `transfer_enable` = GB×1024³, `expired_at` = now + `try_out_hour` h, `next_reset_at`);
-password lockout (`password_limit_*`, per email, also counts wrong `old_password` on `/user/password` and wrong passwords on
-`/user/security/*`) → 429; registrations per IP (`register_limit_*`) → 429; duplicate email → 409.
-Login: wrong credentials 401, banned 403. Every 429 carries `Retry-After` (seconds).
-Email codes: 6 digits, valid 10 min, single use, discarded after 5 wrong guesses; one `send-code` serves both register and forgot (the response is `true`
+`try_out_plan_id` grants trial on register (plan/group/limits, `transfer_enable` = GB×1024³, `expired_at` = now + `try_out_hour` h, `next_reset_at`);
+password limit lockout (`password_limit_*`, per email, also counts wrong `old_password` on `/user/password` and wrong passwords on `/user/security/*`) → 429; register-by-ip limit → 429; duplicate email → 409.
+Login: wrong credentials 401, banned 403. Every 429 carries `Retry-After` (seconds). All passport routes: 30 requests/min per IP
+(IPv6 clients are keyed by their /64, for every per-IP limit). Lockout counters are reserved before the password is checked, so
+concurrent requests cannot exceed `password_limit_count`.
+Email codes: 6 digits, valid 10 min, single use, discarded after 5 wrong guesses; 10 wrong codes per email per hour (whatever the
+code) → 429 until the hour ends; one `send-code` serves both register and forgot (the response is `true`
 whether or not the email is registered); 400 on `email_code` when missing or invalid. Captcha (when `captcha_provider != none`) is checked on
 register, login and send-code: 400 on `captcha`. `/forgot` with a valid code for an unregistered email → 400 on `email`.
 
@@ -164,7 +166,7 @@ Every route requires a valid JWT (401) of a user who is not banned (403).
 | method | path | req | res |
 | --- | --- | --- | --- |
 | GET | `/user/rule-profile` | — | `RuleProfile` (stored, else the default template) + `customized`, `editable`, `effective` (see `docs/SUBSCRIPTION.md`) |
-| PUT | `/user/rule-profile` | `RuleProfile` (omitted parts filled from its template; empty body → 400) | same view as GET; 400 field errors; 403 when `allow_user_rule_profile=false` |
+| PUT | `/user/rule-profile` | `RuleProfile` (omitted parts filled from its template; empty body → 400) | same view as GET; 400 field errors (limits in `docs/SUBSCRIPTION.md`); 60 requests/min per user (also for preview); 403 when `allow_user_rule_profile=false` |
 | GET | `/user/rulesets/catalog` | — | same body as the guest catalog |
 
 ### Shop
@@ -178,7 +180,7 @@ Every route requires a valid JWT (401) of a user who is not banned (403).
 | GET | `/user/orders` | `page`, `page_size`, `status?` (0..4), `sort` (`id created_at`) | paginated `[Order]` (default newest first) |
 | POST | `/user/orders` | `{plan_id*, period*, coupon_code?}` | 201 `{trade_no, status}` (status 3 when nothing was left to pay: free or covered by balance). 409 when an unpaid order exists (`errors.trade_no` = its trade_no), the plan is sold out (`errors.plan_id`) or the balance changed meanwhile; 404 unknown or hidden plan; 403 upgrade while `plan_change_enable=false`; 400 on `period`, `plan_id` (not for sale, renew disabled, expired legacy plan, reset without an active subscription) or `coupon_code` |
 | GET | `/user/orders/:trade_no` | — | `Order` (404 for other users' orders) |
-| POST | `/user/orders/:trade_no/checkout` | `{payment_id?}` (omit when nothing is left to pay) | `{type, data}`: `type` is `url` (redirect to `data`), `qrcode` (render `data`), `html` (render the auto-submitting form) or `paid` (`data` = trade_no; already paid, or fulfilled now because the total is 0). 400 on `payment_id` (missing, unknown or disabled); 402 `payment_failed` when the gateway fails; 409 cancelled or no longer pending |
+| POST | `/user/orders/:trade_no/checkout` | `{payment_id?}` (omit when nothing is left to pay) | `{type, data}`: `type` is `url` (redirect to `data`), `qrcode` (render `data`), `html` (render the auto-submitting form) or `paid` (`data` = trade_no; already paid, or fulfilled now because the total is 0). 400 on `payment_id` (missing, unknown or disabled); 402 `payment_failed` when the gateway fails; 409 cancelled or no longer pending; 409 when the order is past `created_at + order_timeout_minutes` |
 | GET | `/user/orders/:trade_no/status` | — | `{status}` (poll while paying) |
 | POST | `/user/orders/:trade_no/cancel` | — | `true` (409 unless pending; balance and coupon use restored) |
 
@@ -264,7 +266,7 @@ a passkey (`mfasvc.AdminGate`, mounted right after `RequireStaff`); `/user/secur
   `ETag`, `Cache-Control: no-store`. `If-None-Match` with the current ETag → 304.
 - Unknown/malformed token (allowed: `[A-Za-z0-9_-]`, ≤ 64 chars) → 403 (no detail). Banned/expired/out-of-traffic users → 200 with
   info-only entries when `show_info_to_server_enable` (also prepended for active users), else a config without proxies.
-  Invalid overrides → 400. Rate limit 120/h per token (burst 30) → 429.
+  Invalid overrides → 400. Rate limit 120/h per token (burst 30) → 429; unknown tokens are limited per IP (30 misses → 429).
 - Also mounted at `GET|HEAD /s/:token` (short link) — same handler and rate-limit bucket; access logs record the route pattern,
   never the token.
 
@@ -332,8 +334,10 @@ and `token` blanked. `AdminUser` = self view + `token`, `commission_type`, `rema
   `next_reset_at` is recomputed when `plan_id` or `expired_at` is present. 409: banning or demoting yourself, demoting the last admin,
   duplicate email. Sessions are invalidated immediately (password, ban, roles).
 - `DELETE` → 409 for yourself or the last admin. Cascade: orders, tickets + messages, stat_users, invite_codes, commission_logs earned
-  as inviter, rule_profiles; users and orders that reference the user as inviter get `invite_user_id = null`.
+  as inviter, rule_profiles, passkeys, user_mfa; users and orders that reference the user as inviter get `invite_user_id = null`.
 - `login-token` → `{url: app_url + "/login?token=<one-time, 5 min>"}`; the SPA posts the token to `/passport/login/token`.
+  Administrators and staff cannot be impersonated: 409 for such a target (the token skips the second factor), and a token
+  whose user was promoted after it was issued is refused with 401.
 - `generate`: emails are `<prefix><8 random [a-z0-9]>@<suffix>` (exactly `<prefix>@<suffix>` when `count` is 1 and a prefix is
   given). The whole batch shares `password`, or one random 12-character password when omitted (one argon2id hash per batch);
   `csv` = `email,password` rows. Taken single email → 409.
@@ -496,7 +500,7 @@ comma/newline separated string), `json`. Secrets are returned to admins only and
 | invite | `commission_distribution_l1` | int 0..100 | `0` | percent |
 | invite | `commission_distribution_l2` | int 0..100 | `0` | percent |
 | invite | `commission_distribution_l3` | int 0..100 | `0` | percent |
-| server | `server_token` | string (secret) | generated | node API key; see note below |
+| server | `server_token` | string (secret) | generated | node API key; see note below at least 16 chars when set by an admin; `null` regenerates a new token immediately |
 | server | `server_pull_interval` | int 10..86400 | `60` | seconds |
 | server | `server_push_interval` | int 10..86400 | `60` | seconds |
 | server | `server_white_list` | strings | `[]` | soga `white_list` |

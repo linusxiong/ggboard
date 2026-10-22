@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/linusxiong/ggboard/internal/model"
@@ -145,8 +146,11 @@ func (s *Service) CheckNode(ctx context.Context, n *model.Node) error {
 	}
 	if n.Host == "" {
 		errs.Add("host", "is required")
-	} else if len(n.Host) > 255 || strings.ContainsAny(n.Host, " \t/\\") {
+	} else if len(n.Host) > 255 || strings.ContainsAny(n.Host, " \t/\\,#?@") || unsafeText(n.Host) {
 		errs.Add("host", "must be a host name or IP address")
+	}
+	if unsafeText(n.Name) {
+		errs.Add("name", "must not contain control characters or line breaks")
 	}
 	if !ValidPortSpec(n.Port) {
 		errs.Add("port", `must be a port, a range "20000-30000" or a comma list of both`)
@@ -158,8 +162,8 @@ func (s *Service) CheckNode(ctx context.Context, n *model.Node) error {
 		errs.Add("tags", fmt.Sprintf("at most %d tags", MaxNodeTags))
 	}
 	for _, t := range n.Tags {
-		if utf8.RuneCountInString(t) > 64 {
-			errs.Add("tags", "each tag must be at most 64 characters")
+		if utf8.RuneCountInString(t) > 64 || unsafeText(t) {
+			errs.Add("tags", "each tag must be at most 64 characters without control characters")
 			break
 		}
 	}
@@ -295,10 +299,53 @@ func validateReality(errs ValidationError, prefix string, ts model.TLSSettings, 
 	}
 }
 
+// unsafeText reports strings that would break out of a line in the generated configs (Surge, Loon, Quantumult X
+// lines, YAML scalars): control characters (newlines included), line/paragraph separators and noncharacters.
+func unsafeText(s string) bool {
+	for _, r := range s {
+		if unicode.IsControl(r) || unicode.In(r, unicode.Zl, unicode.Zp, unicode.Noncharacter_Code_Point) {
+			return true
+		}
+	}
+	return false
+}
+
+// unsafeSetting returns the dotted path of the first string inside v that unsafeText rejects ("" when none).
+func unsafeSetting(prefix string, v any) string {
+	switch x := v.(type) {
+	case string:
+		if unsafeText(x) {
+			return prefix
+		}
+	case map[string]any:
+		for k, e := range x {
+			if unsafeText(k) {
+				return prefix
+			}
+			if f := unsafeSetting(prefix+"."+k, e); f != "" {
+				return f
+			}
+		}
+	case model.JSONMap:
+		return unsafeSetting(prefix, map[string]any(x))
+	case []any:
+		for i, e := range x {
+			if f := unsafeSetting(prefix+"["+strconv.Itoa(i)+"]", e); f != "" {
+				return f
+			}
+		}
+	}
+	return ""
+}
+
 // ValidateSettings checks protocol_settings of a node type with the typed model settings; problems are added to
 // errs under "protocol_settings[.field]".
 func ValidateSettings(nodeType string, ps model.JSONMap, errs ValidationError) {
 	const p = "protocol_settings"
+	if f := unsafeSetting(p, ps); f != "" {
+		errs.Add(f, "must not contain control characters or line breaks")
+		return
+	}
 	st := model.NewSettingsFor(nodeType)
 	if st == nil {
 		return

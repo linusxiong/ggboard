@@ -134,7 +134,8 @@ each table is inserted in one pass. The result is the same as the two passes abo
 
 - **Default**: abort with exit 1, writing nothing, if any of these target tables has rows: users, plans, server_groups, nodes,
   node_routes, orders, payments, coupons, invite_codes, commission_logs, tickets, ticket_messages, notices, knowledge,
-  stat_users, stat_nodes, stats, rule_profiles.
+  stat_users, stat_nodes, stats, rule_profiles, passkeys, user_mfa (second factors are keyed by user id, so leftovers would
+  attach to the imported user that receives the same id).
   - Run the import right after `ggboard migrate` and **before** `ggboard admin create`. Imported `is_admin` users stay admins.
   - The `settings` table is allowed to be non-empty, because defaults are seeded on boot.
   - Not in the list: `user_mfa` and `passkeys` (and `mail_logs`, which is keyed by email). They are neither checked nor

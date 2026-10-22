@@ -197,6 +197,12 @@ The mail queue is not a cron job. It is a worker goroutine with a bounded channe
 - **Payment notify**: every gateway verifies its signature; fulfilment is idempotent and compares the amount with the order.
 - **Secrets**: `server_token`, `email_password`, `captcha_secret` and payment configs are only served by admin-only
   endpoints.
+- **Proxies & limits**: per-IP rate limits key IPv6 clients by /64. `X-Forwarded-For`/`X-Real-IP`/`X-Forwarded-Proto` are
+  honoured only from `server.trusted_proxies` (`httpx.RequestScheme`/`RequestBase` for links built without `app_url`).
+- **Hashing budget**: argon2id derivations run at most `NumCPU` (≥ 2) at a time; unknown emails at login still spend one
+  derivation (no timing oracle). Password/MFA/register-by-IP counters reserve an attempt before verifying (no check-then-act races).
+- **Logs** carry route patterns (`httpx.LogPath`), never raw paths of matched routes or query strings. With a captcha provider
+  enabled, `static.CSPFor` adds exactly that provider's script/frame (hCaptcha also connect/style) origins to the CSP.
 - **CORS**: same-origin by default; `server.cors_origins` widens it.
 - **Headers**: every response sets `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`
   and `X-Frame-Options: DENY`. HTML documents add this CSP:

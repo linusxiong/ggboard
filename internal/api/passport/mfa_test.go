@@ -364,12 +364,21 @@ func TestWellKnownURLs(t *testing.T) {
 		t.Fatalf("body = %s", rec.Body.String())
 	}
 
-	// Without app_url the request origin is used.
+	// Without app_url the request origin is used; X-Forwarded-Proto only counts from a trusted proxy
+	// (review 2026-10-22: anyone could claim https).
 	_, r = setup(t, nil)
 	rec = testutil.DoWithHeaders(t, r, http.MethodGet, "/.well-known/change-password", nil, "",
 		map[string]string{"X-Forwarded-Proto": "https"})
+	if loc := rec.Header().Get("Location"); rec.Code != http.StatusFound || loc != "http://example.com/profile?tab=security" {
+		t.Fatalf("change-password without app_url, untrusted proxy = %d %q", rec.Code, loc)
+	}
+	ta := testutil.NewTestApp(t)
+	ta.Cfg.Server.TrustedProxies = []string{"192.0.2.0/24"} // httptest's RemoteAddr is 192.0.2.1
+	tr := testutil.NewRouterWith(t, ta, passport.Register)
+	rec = testutil.DoWithHeaders(t, tr, http.MethodGet, "/.well-known/change-password", nil, "",
+		map[string]string{"X-Forwarded-Proto": "https"})
 	if loc := rec.Header().Get("Location"); rec.Code != http.StatusFound || loc != "https://example.com/profile?tab=security" {
-		t.Fatalf("change-password without app_url = %d %q", rec.Code, loc)
+		t.Fatalf("change-password without app_url, trusted proxy = %d %q", rec.Code, loc)
 	}
 	rec = testutil.Do(t, r, http.MethodGet, "/.well-known/passkey-endpoints", nil, "")
 	if !strings.Contains(rec.Body.String(), `"enroll":"http://example.com/profile?tab=security"`) {

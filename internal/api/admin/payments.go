@@ -44,13 +44,7 @@ type adminPaymentView struct {
 	NotifyURL    string `json:"notify_url"`
 }
 
-func commerceRequestBase(c *gin.Context) string {
-	scheme := "http"
-	if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
-		scheme = "https"
-	}
-	return scheme + "://" + c.Request.Host
-}
+func commerceRequestBase(c *gin.Context) string { return httpx.RequestBase(c) }
 
 func adminPaymentViewOf(c *gin.Context, a *app.App, p *model.Payment) adminPaymentView {
 	v := adminPaymentView{Payment: *p, NotifyURL: ordersvc.New(a).PaymentNotifyURL(p, commerceRequestBase(c))}

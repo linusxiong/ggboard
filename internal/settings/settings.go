@@ -175,6 +175,12 @@ func (s *Service) SetContext(ctx context.Context, values map[string]any) error {
 	if len(values) == 0 {
 		return nil
 	}
+	if v, ok := values["server_token"]; ok && v == nil {
+		// "Reset to default" means a fresh token, as on first boot: the default ("") would disconnect every node
+		// (an unset token rejects all requests) until the next restart regenerated it.
+		values = maps.Clone(values)
+		values["server_token"] = RandomToken(32)
+	}
 	errs := FieldErrors{}
 	type write struct {
 		key   string
@@ -248,6 +254,9 @@ func normalize(d Def, v any) (any, error) {
 		}
 		if len(d.Options) > 0 && !slices.Contains(d.Options, str) {
 			return nil, fmt.Errorf("must be one of: %s", strings.Join(d.Options, ", "))
+		}
+		if d.MinLen != nil && str != "" && len(str) < *d.MinLen {
+			return nil, fmt.Errorf("must be at least %d characters", *d.MinLen)
 		}
 		return str, nil
 	case TypeInt:

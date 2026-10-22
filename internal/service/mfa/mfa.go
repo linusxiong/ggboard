@@ -143,12 +143,13 @@ func (s *Service) PasskeyCount(ctx context.Context, userID uint64) (int64, error
 // Configured reports whether userID has TOTP enabled or at least one passkey. The answer is cached for 30 s
 // and dropped whenever the user's second factors change.
 func (s *Service) Configured(ctx context.Context, userID uint64) (bool, error) {
+	lctx := context.WithoutCancel(ctx) // singleflight: the load is shared by concurrent callers, so it must not fail because the first caller went away
 	return cache.GetOrLoad(s.a.Cache, idKey(cacheStatusKeyNS, userID), statusTTL, func() (bool, error) {
-		on, err := s.TOTPEnabled(ctx, userID)
+		on, err := s.TOTPEnabled(lctx, userID)
 		if err != nil || on {
 			return on, err
 		}
-		n, err := s.PasskeyCount(ctx, userID)
+		n, err := s.PasskeyCount(lctx, userID)
 		return n > 0, err
 	})
 }
@@ -160,28 +161,22 @@ func (s *Service) changed(userID uint64) {
 	s.a.Cache.Delete(idKey(cacheStatusKeyNS, userID))
 }
 
-// checkFailures returns a *account.RetryError once userID made UserFailureLimit wrong second-factor attempts
-// within UserFailureWindow.
-func (s *Service) checkFailures(userID uint64) error {
+// reserveFailure reserves one second-factor attempt of userID (account.ReserveAttempt: the attempt counts as a
+// failure unless released or cleared) and returns a *account.RetryError once userID made UserFailureLimit wrong
+// attempts within UserFailureWindow. Reserving before verifying keeps concurrent requests from all passing a
+// check made before any failure is recorded.
+func (s *Service) reserveFailure(userID uint64) (release func(), err error) {
 	key := idKey(kvFailures, userID)
-	v, ok := s.a.KV.Get(key)
-	if n, _ := v.(int); !ok || n < UserFailureLimit {
-		return nil
+	release, ok := account.ReserveAttempt(s.a, key, UserFailureLimit, UserFailureWindow)
+	if ok {
+		return release, nil
 	}
 	wait, _ := s.a.KV.TTL(key)
 	mins := max(1, int(math.Ceil(wait.Minutes())))
-	return &account.RetryError{
+	return nil, &account.RetryError{
 		Err:        httpx.RateLimited(fmt.Sprintf("too many invalid verification codes, try again in %d minutes", mins)),
 		RetryAfter: wait,
 	}
-}
-
-// recordFailure counts a wrong second-factor code of userID (fixed window starting at the first failure).
-func (s *Service) recordFailure(userID uint64) {
-	s.a.KV.Update(idKey(kvFailures, userID), UserFailureWindow, true, func(old any, _ bool) any {
-		n, _ := old.(int)
-		return n + 1
-	})
 }
 
 func (s *Service) clearFailures(userID uint64) { s.a.KV.Delete(idKey(kvFailures, userID)) }
@@ -190,12 +185,11 @@ func (s *Service) clearFailures(userID uint64) { s.a.KV.Delete(idKey(kvFailures,
 // count towards password_limit_*): 400 on the "password" field, 429 while locked.
 func (s *Service) checkPassword(u *model.User, password string) error {
 	acc := account.New(s.a)
-	if err := acc.CheckPasswordLock(u.Email); err != nil {
+	if _, err := acc.ReservePasswordAttempt(u.Email); err != nil {
 		return err
 	}
 	if !auth.VerifyPassword(u.PasswordHash, password) {
-		acc.RecordPasswordFailure(u.Email)
-		return httpx.FieldError("password", "is incorrect")
+		return httpx.FieldError("password", "is incorrect") // the reserved attempt counts
 	}
 	acc.ClearPasswordFailures(u.Email)
 	return nil

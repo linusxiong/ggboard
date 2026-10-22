@@ -35,7 +35,7 @@ type User struct {
 	TelegramID        *int64         `json:"telegram_id"`
 	Remarks           string         `gorm:"type:text" json:"remarks"`
 	PasswordVersion   int            `gorm:"not null;default:0" json:"-"`
-	CreatedAt         time.Time      `json:"created_at"`
+	CreatedAt         time.Time      `gorm:"index" json:"created_at"`
 	UpdatedAt         time.Time      `json:"updated_at"`
 }
 

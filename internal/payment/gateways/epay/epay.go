@@ -114,7 +114,7 @@ func (*Gateway) Notify(_ context.Context, cfg map[string]string, r *http.Request
 	if params["out_trade_no"] == "" {
 		return nil, nil, errors.New("epay: missing out_trade_no")
 	}
-	amount, err := gwutil.ParseCents(params["money"])
+	amount, err := gwutil.ParsePaidCents(params["money"])
 	if err != nil {
 		return nil, nil, err
 	}

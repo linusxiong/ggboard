@@ -60,7 +60,9 @@ func contentKnowledgeIndex(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		idx, err := contentsvc.New(a).KnowledgeIndex(c.Request.Context(), in.Language, in.Keyword)
+		u := auth.CurrentUser(c)
+		hasPlan := u.PlanID != nil && u.IsAvailable(time.Now())
+		idx, err := contentsvc.New(a).KnowledgeIndex(c.Request.Context(), in.Language, in.Keyword, hasPlan)
 		if err != nil {
 			httpx.Fail(c, err)
 			return

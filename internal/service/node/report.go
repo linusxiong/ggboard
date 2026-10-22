@@ -23,28 +23,36 @@ var ErrBadReport = errors.New("nodesvc: invalid report body")
 // Traffic is the raw upload/download of one user in one report.
 type Traffic struct{ Up, Down int64 }
 
+// MaxReportCount is the largest value accepted for one counter in one report (1 PiB). Larger values cannot be
+// real traffic since the last push; accepting them lets a single report overflow the int64 usage counters.
+const MaxReportCount = 1 << 50
+
 // parseCount parses a JSON number token as a non-negative int64 (fractions truncated). Strings, negatives,
-// non-finite and out-of-range values are rejected.
+// non-finite and out-of-range (> MaxReportCount) values are rejected.
 func parseCount(raw json.RawMessage) (int64, bool) {
 	s := strings.TrimSpace(string(raw))
 	if s == "" || (s[0] != '-' && (s[0] < '0' || s[0] > '9')) {
 		return 0, false
 	}
 	if i, err := strconv.ParseInt(s, 10, 64); err == nil {
-		return i, i >= 0
+		return i, i >= 0 && i <= MaxReportCount
 	}
 	f, err := strconv.ParseFloat(s, 64)
-	if err != nil || math.IsNaN(f) || math.IsInf(f, 0) || f < 0 || f >= math.MaxInt64 {
+	if err != nil || math.IsNaN(f) || math.IsInf(f, 0) || f < 0 || f > MaxReportCount {
 		return 0, false
 	}
 	return int64(f), true
 }
 
-// parseID parses a JSON number token as a user id (> 0, integral).
-func parseID(raw json.RawMessage) (uint64, bool) {
-	id, err := strconv.ParseUint(strings.TrimSpace(string(raw)), 10, 64)
+// ParseUserID parses a decimal user or node id: > 0 and ≤ MaxInt64 (ids are signed BIGINT in every dialect, and
+// database/sql cannot bind a uint64 with the high bit set, which would fail the whole traffic flush).
+func ParseUserID(s string) (uint64, bool) {
+	id, err := strconv.ParseUint(strings.TrimSpace(s), 10, 63)
 	return id, err == nil && id > 0
 }
+
+// parseID parses a JSON number token as a user id (> 0, ≤ MaxInt64, integral).
+func parseID(raw json.RawMessage) (uint64, bool) { return ParseUserID(string(raw)) }
 
 // topLevel returns the first non-space byte of body (0 when empty).
 func topLevel(body []byte) byte {
@@ -80,8 +88,8 @@ func ParseUniProxyPush(body []byte) (map[uint64]Traffic, error) {
 		return nil, ErrBadReport
 	}
 	for k, v := range m {
-		uid, err := strconv.ParseUint(k, 10, 64)
-		if err != nil || uid == 0 {
+		uid, ok := ParseUserID(k)
+		if !ok {
 			continue
 		}
 		var pair []json.RawMessage
@@ -169,12 +177,23 @@ func NormalizeIP(s string) string {
 	return strings.TrimSuffix(strings.TrimPrefix(s, "["), "]")
 }
 
+// Bounds on alive reports: an address longer than MaxAliveIPLen is not an IP (the longest IPv6 text form with a
+// zone is well below it), and one user cannot be online from more than MaxAliveIPsPerUser addresses on one node.
+// Both keep a misbehaving node from growing the in-memory online store without limit.
+const (
+	MaxAliveIPLen      = 64
+	MaxAliveIPsPerUser = 256
+)
+
 func normalizeIPs(ips []string) []string {
-	seen := make(map[string]struct{}, len(ips))
-	out := make([]string, 0, len(ips))
+	seen := make(map[string]struct{}, min(len(ips), MaxAliveIPsPerUser))
+	out := make([]string, 0, min(len(ips), MaxAliveIPsPerUser))
 	for _, raw := range ips {
+		if len(out) == MaxAliveIPsPerUser {
+			break
+		}
 		ip := NormalizeIP(raw)
-		if ip == "" {
+		if ip == "" || len(ip) > MaxAliveIPLen {
 			continue
 		}
 		if _, dup := seen[ip]; !dup {
@@ -215,8 +234,8 @@ func ParseUniProxyAlive(body []byte) (map[uint64][]string, error) {
 		return nil, ErrBadReport
 	}
 	for k, v := range m {
-		uid, err := strconv.ParseUint(k, 10, 64)
-		if err != nil || uid == 0 {
+		uid, ok := ParseUserID(k)
+		if !ok {
 			continue
 		}
 		out[uid] = normalizeIPs(stringsOf(v))
@@ -421,6 +440,11 @@ func (s *Service) RecordAudit(ctx context.Context, r *Resolved, entries []AuditE
 	if len(entries) == 0 {
 		return nil
 	}
+	if len(entries) > AuditRingSize {
+		// One report cannot flood the log: only the newest AuditRingSize hits would survive in the ring anyway.
+		s.a.Log.Warn("audit log report truncated", "node_id", r.P.ID, "entries", len(entries), "kept", AuditRingSize)
+		entries = entries[len(entries)-AuditRingSize:]
+	}
 	routes, err := s.Routes(ctx, r.P.RouteIDs)
 	if err != nil {
 		return err
@@ -472,16 +496,21 @@ func (s *Service) OnlineUsers(ctx context.Context, id uint64) ([]OnlineUser, err
 		ids = append(ids, uid)
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-	var rows []struct {
-		ID    uint64
-		Email string
-	}
-	if err := s.a.DB.WithContext(ctx).Model(&model.User{}).Select("id", "email").Where("id IN ?", ids).Scan(&rows).Error; err != nil {
-		return nil, err
-	}
-	emails := make(map[uint64]string, len(rows))
-	for _, r := range rows {
-		emails[r.ID] = r.Email
+	emails := make(map[uint64]string, len(ids))
+	// Chunked: SQLite allows at most 32766 bound parameters per statement (PostgreSQL/MySQL 65535).
+	const chunk = 1000
+	for i := 0; i < len(ids); i += chunk {
+		var rows []struct {
+			ID    uint64
+			Email string
+		}
+		part := ids[i:min(i+chunk, len(ids))]
+		if err := s.a.DB.WithContext(ctx).Model(&model.User{}).Select("id", "email").Where("id IN ?", part).Scan(&rows).Error; err != nil {
+			return nil, err
+		}
+		for _, r := range rows {
+			emails[r.ID] = r.Email
+		}
 	}
 	for _, uid := range ids {
 		ips := alive[uid]

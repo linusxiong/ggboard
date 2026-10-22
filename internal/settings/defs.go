@@ -23,6 +23,7 @@ type Def struct {
 	Options []string `json:"options,omitempty"` // allowed values for strings
 	Min     *int     `json:"min,omitempty"`     // inclusive bounds for ints
 	Max     *int     `json:"max,omitempty"`
+	MinLen  *int     `json:"min_len,omitempty"` // minimum length of a non-empty string
 }
 
 // Group is the admin-UI metadata of a settings group.
@@ -39,6 +40,8 @@ func s(group, key, def string, opts ...string) Def {
 func secret(group, key string) Def {
 	return Def{Key: key, Group: group, Type: TypeString, Default: "", Secret: true}
 }
+func withMinLen(d Def, n int) Def { d.MinLen = ip(n); return d }
+
 func i(group, key string, def, min, max int) Def {
 	return Def{Key: key, Group: group, Type: TypeInt, Default: def, Min: ip(min), Max: ip(max)}
 }
@@ -127,7 +130,8 @@ var defs = []Def{
 	i(GroupInvite, "commission_distribution_l2", 0, 0, 100),
 	i(GroupInvite, "commission_distribution_l3", 0, 0, 100),
 
-	secret(GroupServer, "server_token"),
+	// Shared by every node backend; Xboard also requires 16 characters (nodes are not rate limited).
+	withMinLen(secret(GroupServer, "server_token"), 16),
 	i(GroupServer, "server_pull_interval", 60, 10, 86400),
 	i(GroupServer, "server_push_interval", 60, 10, 86400),
 	ss(GroupServer, "server_white_list"),

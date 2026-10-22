@@ -8,6 +8,7 @@ import (
 	"crypto/sha1" //nolint:gosec // ETag content hash, not a security boundary (same as node config ETags)
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
@@ -54,6 +55,9 @@ type Result struct {
 	Proxies     int // number of proxies rendered (info nodes included)
 }
 
+// MaxQueryList bounds the entries of the types and filter query lists (400 above).
+const MaxQueryList = 64
+
 // OverridesFromQuery reads profile, source, cats, final and mirror.
 func OverridesFromQuery(q url.Values) rulesets.Overrides {
 	ov := rulesets.Overrides{
@@ -79,10 +83,11 @@ func queryBool(q url.Values, key string) (value, ok bool) {
 
 // LoadStoredProfile returns the raw stored profile of a user (nil when there is none).
 func LoadStoredProfile(ctx context.Context, a *app.App, userID uint64) ([]byte, error) {
-	key := a.Cache.Key(ProfileNamespace, strconv.FormatUint(userID, 10))
+	key := profileKey(a, userID)
+	lctx := context.WithoutCancel(ctx) // singleflight: the load is shared by concurrent callers, so it must not fail because the first caller went away
 	return cache.GetOrLoad(a.Cache, key, ProfileTTL, func() ([]byte, error) {
 		var rows []model.RuleProfile
-		if err := a.DB.WithContext(ctx).Where("user_id = ?", userID).Limit(1).Find(&rows).Error; err != nil {
+		if err := a.DB.WithContext(lctx).Where("user_id = ?", userID).Limit(1).Find(&rows).Error; err != nil {
 			return nil, err
 		}
 		if len(rows) == 0 || len(rows[0].Data) == 0 || string(rows[0].Data) == "null" {
@@ -99,8 +104,20 @@ func SaveProfile(ctx context.Context, a *app.App, userID uint64, raw []byte) err
 		Columns:   []clause.Column{{Name: "user_id"}},
 		DoUpdates: clause.AssignmentColumns([]string{"data", "updated_at"}),
 	}).Create(&row).Error
-	a.Cache.Delete(a.Cache.Key(ProfileNamespace, strconv.FormatUint(userID, 10)))
+	// A per-user namespace generation rather than Delete: a load that read the old row before this write can
+	// only store it under the previous generation's key, which no reader builds any more.
+	a.Cache.InvalidateNamespace(profileNamespace(userID))
 	return err
+}
+
+func profileNamespace(userID uint64) string {
+	return ProfileNamespace + ":" + strconv.FormatUint(userID, 10)
+}
+
+// profileKey is versioned by both the shared namespace (InvalidateNamespace(ProfileNamespace) drops every
+// profile) and the user's own generation (SaveProfile).
+func profileKey(a *app.App, userID uint64) string {
+	return a.Cache.Key(ProfileNamespace, a.Cache.Key(profileNamespace(userID), ""))
 }
 
 // StoredProfile decodes the user's stored profile (nil when none or when it no longer decodes).
@@ -163,6 +180,19 @@ func Generate(ctx context.Context, a *app.App, u *model.User, req Request) (*Res
 		return nil, err
 	}
 
+	types, keywords := subscription.ParseList(q.Get("types")), subscription.ParseList(q.Get("filter"))
+	if len(types) > MaxQueryList || len(keywords) > MaxQueryList {
+		// Keywords are matched against every proxy name and tag: an unbounded list costs seconds of CPU.
+		errs := rulesets.FieldErrors{}
+		if len(types) > MaxQueryList {
+			errs["types"] = []string{fmt.Sprintf("at most %d entries", MaxQueryList)}
+		}
+		if len(keywords) > MaxQueryList {
+			errs["filter"] = []string{fmt.Sprintf("at most %d entries", MaxQueryList)}
+		}
+		return nil, errs
+	}
+
 	locale := a.Settings.String("default_locale")
 	var proxies []subscription.Proxy
 	if a.Settings.Bool("show_info_to_server_enable") {
@@ -179,8 +209,8 @@ func Generate(ctx context.Context, a *app.App, u *model.User, req Request) (*Res
 		}
 		emojiOn, emojiSet := queryBool(q, "emoji")
 		opt := subscription.ProxyOptions{
-			Types:        subscription.ParseList(q.Get("types")),
-			Keywords:     subscription.ParseList(q.Get("filter")),
+			Types:        types,
+			Keywords:     keywords,
 			StripEmoji:   emojiSet && !emojiOn,
 			ShowProtocol: a.Settings.Bool("show_protocol_to_server_enable"),
 		}
