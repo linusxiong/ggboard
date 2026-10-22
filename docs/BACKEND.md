@@ -106,6 +106,9 @@ mail, `a.Mailer.SendNow(ctx, msg)` for the admin test mail (synchronous), `a.Mai
   `model.Day(t)` for every `date` column, `u.IsAvailable(now)`.
 - `internal/payment`: `Gateway`, `Register`, `Get`, `List`, `Names`, `FormatAmount(cents)`, `ParseAmount(s)`, `FailResponse()`.
 - `internal/subscription`: `Format`, `RenderContext`, `RuleProfile`, `Catalog`, `RegisterFormat`, `GetFormat`, `FormatNames`, `DetectFormat(flag, ua)`.
+  Also `subscription.AvailableNodes(ctx, a, u)` (show + group, sort/id, child nodes, three-state status; 5 s cache per group,
+  `subscription.InvalidateNodes(a)` after node/group writes that must show at once), `subscription/rulesets` (`Current(a.Settings)` merged
+  catalog, `ResolveProfile`, `BuildPlan`) and `subscription/engine` (`Generate`, `SaveProfile`); see docs/SUBSCRIPTION.md.
 - `internal/captcha`: `captcha.FromSettings(a.Settings).Verify(ctx, token, c.ClientIP())`, `captcha.Enabled(a.Settings)`.
 - `internal/plugin`: `plugin.NewRegistry[T](kind)` for new plugin points.
 

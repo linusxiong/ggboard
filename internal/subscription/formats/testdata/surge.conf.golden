@@ -1,0 +1,56 @@
+#!MANAGED-CONFIG https://panel.example.com/api/v1/client/subscribe?token=0123456789abcdef0123456789abcdef interval=86400 strict=false
+
+[General]
+loglevel = notify
+skip-proxy = 127.0.0.1, 192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12, 100.64.0.0/10, localhost, *.local
+dns-server = system, 223.5.5.5, 119.29.29.29
+proxy-test-url = http://www.gstatic.com/generate_204
+internet-test-url = http://www.gstatic.com/generate_204
+
+[Proxy]
+剩余流量：97 GB = ss, 127.0.0.1, 1080, encrypt-method=aes-128-gcm, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, udp-relay=true
+套餐到期：2027-01-01 = ss, 127.0.0.1, 1080, encrypt-method=aes-128-gcm, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, udp-relay=true
+距离下次重置剩余：10 天 = ss, 127.0.0.1, 1080, encrypt-method=aes-128-gcm, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, udp-relay=true
+🇭🇰 HK VMess WS = vmess, hk1.example.com, 443, username=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, vmess-aead=true, tls=true, sni=hk1.example.com, ws=true, ws-path=/ws, ws-headers=Host:cdn.example.com
+JP VMess TCP = vmess, 192.0.2.10, 10086, username=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, vmess-aead=true
+HK SS obfs = ss, ss.example.com, 8388, encrypt-method=aes-128-gcm, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, udp-relay=true, obfs=http, obfs-host=www.example.net, obfs-uri=/
+JP SS2022， Premium = ss, ss2022.example.com, 8389, encrypt-method=2022-blake3-aes-128-gcm, password=YjVkODdhNWRlMWEzNWIyMg==:M2IxYjZmNWUtN2MyYS00ZA==, udp-relay=true
+US Trojan = trojan, t1.example.com, 443, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, sni=t1.example.com
+US Trojan WS = trojan, t2.example.com, 443, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, sni=t2.example.com, ws=true, ws-path=/tj, ws-headers=Host:t2.example.com
+JP Hysteria2 Hop = hysteria2, hy2.example.com, 20000, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, sni=hy2.example.com, download-bandwidth=500, salamander-password=obfs-pass-456, port-hopping=20000-30000, port-hopping-interval=30
+SG Hysteria2 = hysteria2, 198.51.100.20, 8443, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, sni=hy2s.example.com, skip-cert-verify=true
+US TUIC = tuic-v5, tuic.example.com, 8443, uuid=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, alpn=h3, sni=tuic.example.com
+HK AnyTLS = anytls, anytls.example.com, 8443, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, sni=anytls.example.com
+IPv6 SS = ss, 2001:db8::10, 8388, encrypt-method=chacha20-ietf-poly1305, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, udp-relay=true
+
+[Proxy Group]
+Proxy = select, auto, 剩余流量：97 GB, 套餐到期：2027-01-01, 距离下次重置剩余：10 天, 🇭🇰 HK VMess WS, JP VMess TCP, HK SS obfs, JP SS2022， Premium, US Trojan, US Trojan WS, JP Hysteria2 Hop, SG Hysteria2, US TUIC, HK AnyTLS, IPv6 SS
+AI = select, Proxy, JP VMess TCP, JP SS2022， Premium, US Trojan, US Trojan WS, JP Hysteria2 Hop, SG Hysteria2, US TUIC
+Streaming = select, Proxy, 🇭🇰 HK VMess WS, JP VMess TCP, HK SS obfs, JP SS2022， Premium, US Trojan, US Trojan WS, JP Hysteria2 Hop, SG Hysteria2, US TUIC, HK AnyTLS, IPv6 SS
+Telegram = select, Proxy, 🇭🇰 HK VMess WS, JP VMess TCP, HK SS obfs, JP SS2022， Premium, US Trojan, US Trojan WS, JP Hysteria2 Hop, SG Hysteria2, US TUIC, HK AnyTLS, IPv6 SS
+Microsoft = select, DIRECT, Proxy
+Apple = select, DIRECT, Proxy
+auto = url-test, 🇭🇰 HK VMess WS, JP VMess TCP, HK SS obfs, JP SS2022， Premium, US Trojan, US Trojan WS, JP Hysteria2 Hop, SG Hysteria2, US TUIC, HK AnyTLS, IPv6 SS, url=http://www.gstatic.com/generate_204, interval=300, tolerance=50
+
+[Rule]
+DOMAIN,panel.example.com,DIRECT
+RULE-SET,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/AdvertisingLite/AdvertisingLite.list,REJECT
+DOMAIN-SET,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/AdvertisingLite/AdvertisingLite_Domain.list,REJECT
+RULE-SET,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Lan/Lan.list,DIRECT
+RULE-SET,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/OpenAI/OpenAI.list,AI
+RULE-SET,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Claude/Claude.list,AI
+RULE-SET,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Gemini/Gemini.list,AI
+RULE-SET,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Telegram/Telegram.list,Telegram
+RULE-SET,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/YouTube/YouTube.list,Streaming
+RULE-SET,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Netflix/Netflix.list,Streaming
+RULE-SET,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Disney/Disney.list,Streaming
+RULE-SET,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Spotify/Spotify.list,Streaming
+RULE-SET,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Microsoft/Microsoft.list,Microsoft
+RULE-SET,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Apple/Apple.list,Apple
+DOMAIN-SET,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Apple/Apple_Domain.list,Apple
+RULE-SET,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Proxy/Proxy.list,Proxy
+DOMAIN-SET,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/Proxy/Proxy_Domain.list,Proxy
+RULE-SET,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/ChinaMax/ChinaMax.list,DIRECT
+DOMAIN-SET,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/ChinaMax/ChinaMax_Domain.list,DIRECT
+GEOIP,CN,DIRECT
+FINAL,Proxy,dns-failed

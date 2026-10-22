@@ -1,0 +1,15 @@
+shadowsocks=127.0.0.1:1080, method=aes-128-gcm, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, udp-relay=true, fast-open=false, tag=剩余流量：97 GB
+shadowsocks=127.0.0.1:1080, method=aes-128-gcm, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, udp-relay=true, fast-open=false, tag=套餐到期：2027-01-01
+shadowsocks=127.0.0.1:1080, method=aes-128-gcm, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, udp-relay=true, fast-open=false, tag=距离下次重置剩余：10 天
+vmess=hk1.example.com:443, method=chacha20-ietf-poly1305, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, obfs=wss, obfs-host=cdn.example.com, obfs-uri=/ws, tls-verification=true, aead=true, fast-open=false, tag=🇭🇰 HK VMess WS
+vmess=192.0.2.10:10086, method=chacha20-ietf-poly1305, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, aead=true, fast-open=false, tag=JP VMess TCP
+vless=us1.example.com:443, method=none, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, obfs=over-tls, obfs-host=www.example.org, reality-base64-pubkey=PUBLIC_KEY_BASE64URL, reality-hex-shortid=0123abcd, vless-flow=xtls-rprx-vision, fast-open=false, tag=🇺🇸 US VLESS Reality
+vless=tw1.example.com:443, method=none, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, obfs=wss, obfs-host=tw1.example.com, obfs-uri=/vl, tls-verification=false, fast-open=false, tag=TW VLESS WS
+shadowsocks=ss.example.com:8388, method=aes-128-gcm, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, obfs=http, obfs-host=www.example.net, obfs-uri=/, udp-relay=true, fast-open=false, tag=HK SS obfs
+shadowsocks=ssr.example.com:8443, method=chacha20-ietf, password=ssr-node-pass, ssr-protocol=auth_chain_a, ssr-protocol-param=7:3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, obfs=http_simple, obfs-host=www.example.net, fast-open=false, tag=HK SSR
+trojan=t1.example.com:443, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, over-tls=true, tls-host=t1.example.com, tls-verification=true, fast-open=false, tag=US Trojan
+trojan=t2.example.com:443, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, obfs=wss, obfs-host=t2.example.com, obfs-uri=/tj, tls-verification=true, fast-open=false, tag=US Trojan WS
+anytls=anytls.example.com:8443, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, over-tls=true, tls-host=anytls.example.com, tls-verification=true, udp-relay=true, fast-open=false, tag=HK AnyTLS
+vless=relay.example.com:8443, method=none, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, obfs=over-tls, obfs-host=www.example.org, reality-base64-pubkey=PUBLIC_KEY_BASE64URL, reality-hex-shortid=0123abcd, vless-flow=xtls-rprx-vision, fast-open=false, tag=🇺🇸 US Relay
+shadowsocks=[2001:db8::10]:8388, method=chacha20-ietf-poly1305, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, udp-relay=true, fast-open=false, tag=IPv6 SS
+vmess=vh.example.com:80, method=chacha20-ietf-poly1305, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, obfs=http, obfs-host=www.example.net, obfs-uri=/index, aead=true, fast-open=false, tag=VMess HTTP Header

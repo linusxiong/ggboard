@@ -1,0 +1,59 @@
+[General]
+skip-proxy = 192.168.0.0/16,10.0.0.0/8,172.16.0.0/12,localhost,*.local
+dns-server = system,223.5.5.5,119.29.29.29
+proxy-test-url = http://www.gstatic.com/generate_204
+
+[Proxy]
+剩余流量：97 GB = Shadowsocks,127.0.0.1,1080,aes-128-gcm,"3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",udp=true
+套餐到期：2027-01-01 = Shadowsocks,127.0.0.1,1080,aes-128-gcm,"3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",udp=true
+距离下次重置剩余：10 天 = Shadowsocks,127.0.0.1,1080,aes-128-gcm,"3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",udp=true
+🇭🇰 HK VMess WS = VMess,hk1.example.com,443,auto,"3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",transport=ws,path=/ws,host=cdn.example.com,over-tls=true,sni=hk1.example.com,skip-cert-verify=false,alterId=0,udp=true
+JP VMess TCP = VMess,192.0.2.10,10086,auto,"3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",transport=tcp,alterId=0,udp=true
+🇺🇸 US VLESS Reality = VLESS,us1.example.com,443,"3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",transport=tcp,flow=xtls-rprx-vision,over-tls=true,sni=www.example.org,skip-cert-verify=false,public-key=PUBLIC_KEY_BASE64URL,short-id=0123abcd,udp=true
+TW VLESS WS = VLESS,tw1.example.com,443,"3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",transport=ws,path=/vl,host=tw1.example.com,over-tls=true,sni=tw1.example.com,skip-cert-verify=true,udp=true
+HK SS obfs = Shadowsocks,ss.example.com,8388,aes-128-gcm,"3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",obfs-name=http,obfs-host=www.example.net,obfs-uri=/,udp=true
+JP SS2022， Premium = Shadowsocks,ss2022.example.com,8389,2022-blake3-aes-128-gcm,"YjVkODdhNWRlMWEzNWIyMg==:M2IxYjZmNWUtN2MyYS00ZA==",udp=true
+HK SSR = ShadowsocksR,ssr.example.com,8443,chacha20-ietf,"ssr-node-pass",protocol=auth_chain_a,protocol-param=7:3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f,obfs=http_simple,obfs-param=www.example.net,udp=true
+US Trojan = Trojan,t1.example.com,443,"3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",transport=tcp,sni=t1.example.com,skip-cert-verify=false,udp=true
+US Trojan WS = Trojan,t2.example.com,443,"3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",transport=ws,path=/tj,host=t2.example.com,sni=t2.example.com,skip-cert-verify=false,udp=true
+JP Hysteria2 Hop = Hysteria2,hy2.example.com,20000,"3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",sni=hy2.example.com,skip-cert-verify=false,salamander-password=obfs-pass-456,server-ports="20000:30000",hop-interval=30,download-bandwidth=500,udp=true
+SG Hysteria2 = Hysteria2,198.51.100.20,8443,"3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",sni=hy2s.example.com,skip-cert-verify=true,udp=true
+HK AnyTLS = AnyTLS,anytls.example.com,8443,"3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",sni=anytls.example.com,skip-cert-verify=false,udp=true
+JP AnyTLS Reality = AnyTLS,anytlsr.example.com,443,"3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",sni=www.example.org,skip-cert-verify=false,public-key=PUBLIC_KEY_BASE64URL,short-id=0123abcd,udp=true
+🇺🇸 US Relay = VLESS,relay.example.com,8443,"3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",transport=tcp,flow=xtls-rprx-vision,over-tls=true,sni=www.example.org,skip-cert-verify=false,public-key=PUBLIC_KEY_BASE64URL,short-id=0123abcd,udp=true
+IPv6 SS = Shadowsocks,2001:db8::10,8388,chacha20-ietf-poly1305,"3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",udp=true
+VMess HTTP Header = VMess,vh.example.com,80,auto,"3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",transport=http,path=/index,host=www.example.net,alterId=0,udp=true
+
+[Proxy Group]
+Proxy = select,auto,剩余流量：97 GB,套餐到期：2027-01-01,距离下次重置剩余：10 天,🇭🇰 HK VMess WS,JP VMess TCP,🇺🇸 US VLESS Reality,TW VLESS WS,HK SS obfs,JP SS2022， Premium,HK SSR,US Trojan,US Trojan WS,JP Hysteria2 Hop,SG Hysteria2,HK AnyTLS,JP AnyTLS Reality,🇺🇸 US Relay,IPv6 SS,VMess HTTP Header
+AI = select,Proxy,JP VMess TCP,🇺🇸 US VLESS Reality,TW VLESS WS,JP SS2022， Premium,US Trojan,US Trojan WS,JP Hysteria2 Hop,SG Hysteria2,JP AnyTLS Reality,🇺🇸 US Relay
+Streaming = select,Proxy,🇭🇰 HK VMess WS,JP VMess TCP,🇺🇸 US VLESS Reality,TW VLESS WS,HK SS obfs,JP SS2022， Premium,HK SSR,US Trojan,US Trojan WS,JP Hysteria2 Hop,SG Hysteria2,HK AnyTLS,JP AnyTLS Reality,🇺🇸 US Relay,IPv6 SS,VMess HTTP Header
+Telegram = select,Proxy,🇭🇰 HK VMess WS,JP VMess TCP,🇺🇸 US VLESS Reality,TW VLESS WS,HK SS obfs,JP SS2022， Premium,HK SSR,US Trojan,US Trojan WS,JP Hysteria2 Hop,SG Hysteria2,HK AnyTLS,JP AnyTLS Reality,🇺🇸 US Relay,IPv6 SS,VMess HTTP Header
+Microsoft = select,DIRECT,Proxy
+Apple = select,DIRECT,Proxy
+auto = url-test,🇭🇰 HK VMess WS,JP VMess TCP,🇺🇸 US VLESS Reality,TW VLESS WS,HK SS obfs,JP SS2022， Premium,HK SSR,US Trojan,US Trojan WS,JP Hysteria2 Hop,SG Hysteria2,HK AnyTLS,JP AnyTLS Reality,🇺🇸 US Relay,IPv6 SS,VMess HTTP Header,url=http://www.gstatic.com/generate_204,interval=300,tolerance=50
+
+[Rule]
+DOMAIN,panel.example.com,DIRECT
+GEOIP,CN,DIRECT
+FINAL,Proxy
+
+[Remote Rule]
+https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/AdvertisingLite/AdvertisingLite.list, policy=REJECT, tag=ads-classical, enabled=true
+https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/AdvertisingLite/AdvertisingLite_Domain.list, policy=REJECT, tag=ads-domain, enabled=true
+https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/Lan/Lan.list, policy=DIRECT, tag=lan-classical, enabled=true
+https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/OpenAI/OpenAI.list, policy=AI, tag=openai-classical, enabled=true
+https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/Claude/Claude.list, policy=AI, tag=claude-classical, enabled=true
+https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/Gemini/Gemini.list, policy=AI, tag=gemini-classical, enabled=true
+https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/Telegram/Telegram.list, policy=Telegram, tag=telegram-classical, enabled=true
+https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/YouTube/YouTube.list, policy=Streaming, tag=youtube-classical, enabled=true
+https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/Netflix/Netflix.list, policy=Streaming, tag=netflix-classical, enabled=true
+https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/Disney/Disney.list, policy=Streaming, tag=disney-classical, enabled=true
+https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/Spotify/Spotify.list, policy=Streaming, tag=spotify-classical, enabled=true
+https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/Microsoft/Microsoft.list, policy=Microsoft, tag=microsoft-classical, enabled=true
+https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/Apple/Apple.list, policy=Apple, tag=apple-classical, enabled=true
+https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/Apple/Apple_Domain.list, policy=Apple, tag=apple-domain, enabled=true
+https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/Proxy/Proxy.list, policy=Proxy, tag=gfw-classical, enabled=true
+https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/Proxy/Proxy_Domain.list, policy=Proxy, tag=gfw-domain, enabled=true
+https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/ChinaMax/ChinaMax.list, policy=DIRECT, tag=cn-classical, enabled=true
+https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Loon/ChinaMax/ChinaMax_Domain.list, policy=DIRECT, tag=cn-domain, enabled=true

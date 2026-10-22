@@ -1,0 +1,222 @@
+mixed-port: 7890
+allow-lan: false
+mode: rule
+log-level: info
+dns:
+  enable: true
+  ipv6: false
+  enhanced-mode: redir-host
+  default-nameserver:
+    - "223.5.5.5"
+    - "119.29.29.29"
+  nameserver:
+    - "https://dns.alidns.com/dns-query"
+    - "https://doh.pub/dns-query"
+  fallback:
+    - "https://1.1.1.1/dns-query"
+    - "https://dns.google/dns-query"
+  fallback-filter:
+    geoip: true
+    geoip-code: CN
+    ipcidr:
+      - "240.0.0.0/4"
+proxies:
+  - name: "剩余流量：97 GB"
+    type: ss
+    server: "127.0.0.1"
+    port: 1080
+    cipher: aes-128-gcm
+    password: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+  - name: "套餐到期：2027-01-01"
+    type: ss
+    server: "127.0.0.1"
+    port: 1080
+    cipher: aes-128-gcm
+    password: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+  - name: "距离下次重置剩余：10 天"
+    type: ss
+    server: "127.0.0.1"
+    port: 1080
+    cipher: aes-128-gcm
+    password: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+  - name: "🇭🇰 HK VMess WS"
+    type: vmess
+    server: hk1.example.com
+    port: 443
+    uuid: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    alterId: 0
+    cipher: auto
+    udp: true
+    tls: true
+    servername: hk1.example.com
+    network: ws
+    ws-opts:
+      path: /ws
+      headers:
+        Host: cdn.example.com
+  - name: "JP VMess TCP"
+    type: vmess
+    server: "192.0.2.10"
+    port: 10086
+    uuid: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    alterId: 0
+    cipher: auto
+    udp: true
+  - name: "HK SS obfs"
+    type: ss
+    server: ss.example.com
+    port: 8388
+    cipher: aes-128-gcm
+    password: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+    plugin: obfs
+    plugin-opts:
+      mode: http
+      host: www.example.net
+  - name: "HK SSR"
+    type: ssr
+    server: ssr.example.com
+    port: 8443
+    cipher: chacha20-ietf
+    password: ssr-node-pass
+    obfs: http_simple
+    protocol: auth_chain_a
+    obfs-param: www.example.net
+    protocol-param: "7:3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+  - name: "US Trojan"
+    type: trojan
+    server: t1.example.com
+    port: 443
+    password: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+    sni: t1.example.com
+  - name: "US Trojan WS"
+    type: trojan
+    server: t2.example.com
+    port: 443
+    password: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+    sni: t2.example.com
+    network: ws
+    ws-opts:
+      path: /tj
+      headers:
+        Host: t2.example.com
+  - name: "US Trojan gRPC"
+    type: trojan
+    server: t3.example.com
+    port: 443
+    password: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+    sni: t3.example.com
+    skip-cert-verify: true
+    network: grpc
+    grpc-opts:
+      grpc-service-name: trojan-grpc
+  - name: "IPv6 SS"
+    type: ss
+    server: "2001:db8::10"
+    port: 8388
+    cipher: chacha20-ietf-poly1305
+    password: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    udp: true
+  - name: "VMess HTTP Header"
+    type: vmess
+    server: vh.example.com
+    port: 80
+    uuid: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    alterId: 0
+    cipher: auto
+    udp: true
+    network: http
+    http-opts:
+      method: GET
+      path:
+        - /index
+      headers:
+        Host:
+          - www.example.net
+proxy-groups:
+  - name: Proxy
+    type: select
+    proxies:
+      - auto
+      - "剩余流量：97 GB"
+      - "套餐到期：2027-01-01"
+      - "距离下次重置剩余：10 天"
+      - "🇭🇰 HK VMess WS"
+      - "JP VMess TCP"
+      - "HK SS obfs"
+      - "HK SSR"
+      - "US Trojan"
+      - "US Trojan WS"
+      - "US Trojan gRPC"
+      - "IPv6 SS"
+      - "VMess HTTP Header"
+  - name: AI
+    type: select
+    proxies:
+      - Proxy
+      - "JP VMess TCP"
+      - "US Trojan"
+      - "US Trojan WS"
+      - "US Trojan gRPC"
+  - name: Streaming
+    type: select
+    proxies:
+      - Proxy
+      - "🇭🇰 HK VMess WS"
+      - "JP VMess TCP"
+      - "HK SS obfs"
+      - "HK SSR"
+      - "US Trojan"
+      - "US Trojan WS"
+      - "US Trojan gRPC"
+      - "IPv6 SS"
+      - "VMess HTTP Header"
+  - name: Telegram
+    type: select
+    proxies:
+      - Proxy
+      - "🇭🇰 HK VMess WS"
+      - "JP VMess TCP"
+      - "HK SS obfs"
+      - "HK SSR"
+      - "US Trojan"
+      - "US Trojan WS"
+      - "US Trojan gRPC"
+      - "IPv6 SS"
+      - "VMess HTTP Header"
+  - name: Microsoft
+    type: select
+    proxies:
+      - DIRECT
+      - Proxy
+  - name: Apple
+    type: select
+    proxies:
+      - DIRECT
+      - Proxy
+  - name: auto
+    type: url-test
+    proxies:
+      - "🇭🇰 HK VMess WS"
+      - "JP VMess TCP"
+      - "HK SS obfs"
+      - "HK SSR"
+      - "US Trojan"
+      - "US Trojan WS"
+      - "US Trojan gRPC"
+      - "IPv6 SS"
+      - "VMess HTTP Header"
+    url: "http://www.gstatic.com/generate_204"
+    interval: 300
+    tolerance: 50
+rules:
+  - DOMAIN,panel.example.com,DIRECT
+  - GEOIP,CN,DIRECT
+  - MATCH,Proxy

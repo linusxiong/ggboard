@@ -29,7 +29,7 @@ Ticket {"id","user_id","subject","level","status","reply_status","created_at","u
 | GET | `/guest/plans` | — | `[Plan]` where show=true & sell=true (prices only; no capacity leak) |
 | ANY | `/guest/payment/notify/:gateway/:uuid` | gateway-specific | gateway-specific body (plugin returns it) |
 | GET | `/guest/payment/return/:trade_no` | — | 302 → `/orders/:trade_no` |
-| GET | `/guest/rulesets/catalog` | — | catalog (see `docs/SUBSCRIPTION.md`) |
+| GET | `/guest/rulesets/catalog` | — | public catalog `{sources, categories, templates, mirrors, clients, defaults, editable}` (see `docs/SUBSCRIPTION.md`; no URL templates) |
 
 ## Passport 🔓 (`/passport`) — rate limited
 | method | path | req | res |
@@ -52,13 +52,13 @@ password limit lockout (`password_limit_*`); register-by-ip limit.
 | GET | `/user/stats` | — | `{pending_orders, open_tickets, notices_count, invite_count, commission_pending}` |
 | GET | `/user/subscription` | — | `{subscribe_url, token, plan, transfer_enable, u, d, expired_at, next_reset_at, reset_day, device_limit, speed_limit}` |
 | POST | `/user/subscription/reset` | — | `{subscribe_url, token}` (new uuid + token) |
-| GET | `/user/subscription/preview?client=clash&...` | same query as client subscribe | `text/plain` body of generated config |
+| GET | `/user/subscription/preview?client=clash-meta&...` | same query as client subscribe (`client` = format or client name, default `clash-meta`) | `text/plain` body of generated config (base64 formats decoded), header `X-Subscription-Format` |
 | GET | `/user/traffic-logs` | `page`, `page_size` | `[{record_at, node_id, node_name, rate, u, d}]` |
 | GET | `/user/nodes` | — | `[{id,name,type,tags,rate,host,port,is_online,sort}]` (host/port only when `show_info_to_user`=true; default true) |
 | POST | `/user/logout` | — | `true` (client discards; server no-op) |
 ### Rule profile
-| GET | `/user/rule-profile` | — | `RuleProfile` (defaults if none) |
-| PUT | `/user/rule-profile` | `RuleProfile` | `RuleProfile` |
+| GET | `/user/rule-profile` | — | `RuleProfile` (defaults if none) + `customized`, `editable`, `effective` (see `docs/SUBSCRIPTION.md`) |
+| PUT | `/user/rule-profile` | `RuleProfile` (omitted parts filled from its template) | same view as GET; 400 field errors; 403 when `allow_user_rule_profile=false` |
 | GET | `/user/rulesets/catalog` | — | same as guest catalog |
 ### Shop
 | GET | `/user/plans` | — | `[Plan]` (show=true; includes current plan even if hidden, with `sell/renew` flags) |
@@ -88,10 +88,10 @@ password limit lockout (`password_limit_*`); register-by-ip limit.
 | GET | `/user/knowledge/:id` | — | `{id,title,body,category,language,updated_at}` body with `{{siteName}} {{subscribeUrl}} {{urlEncodeSubscribeUrl}} {{safeBase64SubscribeUrl}}` replaced |
 
 ## Client subscription 🔓 (token)
-`GET /api/v1/client/subscribe?token=<token>[&flag=clash][&types=vmess,vless][&filter=HK,JP][&profile=standard][&source=blackmatrix7][&cats=openai,telegram][&mirror=1]`
+`GET|HEAD /api/v1/client/subscribe?token=<token>[&flag=clash][&types=vmess,vless][&filter=HK,JP][&emoji=0][&list=1][&profile=standard][&source=blackmatrix7][&cats=openai,telegram][&final=Proxy][&mirror=1]`
 - Detects client from `flag` or `User-Agent` (see `docs/SUBSCRIPTION.md`). Headers: `subscription-userinfo`, `profile-update-interval`, `content-disposition`, `profile-web-page-url`, `ETag`.
-- Invalid/banned/expired-with-no-traffic → still 200 with info-only nodes when `show_info_to_server_enable`, else empty.
-- Also mounted at `GET /s/:token` (short link) — same handler.
+- Unknown/malformed token → 403 (no detail). Banned/expired/out-of-traffic users → 200 with info-only nodes when `show_info_to_server_enable`, else a config without proxies. Invalid overrides → 400. Rate limit 120/h per token (burst 30) → 429.
+- Also mounted at `GET|HEAD /s/:token` (short link) — same handler and rate-limit bucket; the token is redacted from access logs.
 
 ## Node APIs 🤖 — see `docs/NODE_PROTOCOLS.md`
 - XrayR/V2bX: `GET /server/UniProxy/config`, `GET /server/UniProxy/user`, `POST /server/UniProxy/push`, `POST /server/UniProxy/alive`, `GET /server/UniProxy/alivelist` (query `token`, `node_id`, `node_type`).
@@ -159,8 +159,8 @@ password limit lockout (`password_limit_*`); register-by-ip limit.
 | GET | `/admin/settings` | — | `{"<group>": {"<key>": value}}` all groups |
 | PUT | `/admin/settings` | `{"<key>": value, ...}` | `true` |
 | POST | `/admin/settings/mail/test` | `{email*}` | `true` |
-| GET | `/admin/rulesets` | — | `{builtin: catalog, custom: {...}}` |
-| PUT | `/admin/rulesets` | `{custom:{sources?,categories?,templates?}}` (merged over builtin) | `true` |
+| GET | `/admin/rulesets` | — | `{builtin: catalog, custom: {...}, effective: merged catalog}` |
+| PUT | `/admin/rulesets` | `{custom:{sources?,categories?,templates?,mirrors?} \| null}` (merged over builtin by id; validated; `null` resets) | `true` |
 | GET | `/admin/system/status` | — | `{version, go_version, uptime, db_driver, started_at, scheduler:[{name,spec,last_run,last_error}], mail_queue, cache}` |
 | GET | `/admin/system/logs?level=&limit=` | — | `[{time,level,msg,attrs}]` (in-memory ring buffer, last 1000) |
 
