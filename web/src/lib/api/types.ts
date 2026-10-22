@@ -1544,3 +1544,11 @@ export interface TelegramBindCode {
   /** `https://t.me/<bot>?start=<code>` */
   deep_link: string
 }
+
+// ---- Payment icons (FE-I) ------------------------------------------------------------------------
+/**
+ * `Payment.icon` / `PaymentMethod.icon` (a plain string on the wire, ≤ 255 chars): `''` (none),
+ * `preset:<id>` (a built-in mark, `components/icons/payments`), an image URL / `/path` / `data:image/…`,
+ * or a single emoji. Unknown values render a neutral fallback glyph.
+ */
+export type PaymentIconValue = string

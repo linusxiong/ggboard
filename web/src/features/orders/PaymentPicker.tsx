@@ -1,7 +1,13 @@
-/** Payment method picker (`GET /user/payment-methods`): icon, name and the handling-fee hint. */
+/**
+ * Payment method picker (`GET /user/payment-methods`): icon, name and the handling-fee hint, plus the
+ * small "icon + name" views of the chosen method used by the order page.
+ * Icons: `preset:<id>` marks, image URLs, emoji or a neutral fallback (`components/icons/payments`).
+ */
 import { Radio, RadioGroup } from '@heroui/react'
-import { CreditCard } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { PaymentIcon } from '@/components/icons/payments'
 import { useT } from '@/i18n'
+import { paymentMethodsQuery } from '@/lib/api/queries'
 import type { ID, PaymentMethod } from '@/lib/api/types'
 import { cx } from '@/lib/cn'
 import { useFormatMoney } from '@/features/shop/site'
@@ -30,7 +36,8 @@ export function PaymentPicker({ methods, value, onChange, total, isDisabled }: P
       {methods.map((method) => {
         const fee = handlingFee(method, total)
         return (
-          <Radio key={method.id} value={String(method.id)} className="group w-full">
+          // mt-0: HeroUI gives vertical-group radios `mt-4`, which doubled the row gap of this grid.
+          <Radio key={method.id} value={String(method.id)} className="group mt-0 w-full">
             <Radio.Content
               className={cx(
                 'flex w-full items-center gap-3 rounded-[14px] bg-fill-quaternary px-4 py-3 ring-1 ring-transparent transition-[box-shadow,background-color]',
@@ -38,7 +45,7 @@ export function PaymentPicker({ methods, value, onChange, total, isDisabled }: P
                 'data-focus-visible:ring-2 data-focus-visible:ring-tint',
               )}
             >
-              <MethodIcon icon={method.icon} />
+              <PaymentIcon icon={method.icon} size={32} />
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-subhead font-semibold text-label">{method.name}</span>
                 <span className="text-footnote text-label-secondary">
@@ -56,20 +63,33 @@ export function PaymentPicker({ methods, value, onChange, total, isDisabled }: P
   )
 }
 
-function MethodIcon({ icon }: { icon: string }) {
-  const isUrl = /^(https?:)?\/\//.test(icon) || icon.startsWith('/') || icon.startsWith('data:image/')
+/** "[icon] name" of the method being paid with (checkout result card). */
+export function PaymentMethodBadge({
+  method,
+  className,
+}: {
+  method: Pick<PaymentMethod, 'name' | 'icon'>
+  className?: string
+}) {
   return (
-    <span
-      className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-elevated text-label-secondary"
-      aria-hidden="true"
-    >
-      {isUrl ? (
-        <img src={icon} alt="" width={24} height={24} loading="lazy" className="size-6 object-contain" />
-      ) : icon && Array.from(icon).length <= 2 ? (
-        <span className="text-headline">{icon}</span>
-      ) : (
-        <CreditCard className="size-5" />
-      )}
+    <span className={cx('inline-flex min-w-0 items-center gap-2', className)}>
+      <PaymentIcon icon={method.icon} size={24} />
+      <span className="truncate text-subhead font-semibold text-label">{method.name}</span>
+    </span>
+  )
+}
+
+/**
+ * The order's payment method (summary row): its name, with the icon when the method is still offered
+ * (`/user/payment-methods`, cached 5 min and shared with the picker).
+ */
+export function OrderPaymentMethod({ payment }: { payment: { id: ID; name: string } }) {
+  const methods = useQuery(paymentMethodsQuery())
+  const icon = methods.data?.find((m) => m.id === payment.id)?.icon
+  return (
+    <span className="inline-flex max-w-full min-w-0 items-center justify-end gap-2">
+      {icon ? <PaymentIcon icon={icon} size={20} /> : null}
+      <span className="truncate">{payment.name}</span>
     </span>
   )
 }

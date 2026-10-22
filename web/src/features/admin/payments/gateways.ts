@@ -1,3 +1,4 @@
+import { type PaymentIconId, presetForGateway } from '@/components/icons/payments'
 import type { GatewayField, Payment, PaymentGateway } from '@/lib/api/types'
 
 /** Gateways whose provider must be configured with our notify URL as a webhook endpoint. */
@@ -74,4 +75,37 @@ export function notifyUrlFor(
     (typeof window !== 'undefined' ? window.location.origin : '')
   ).replace(/\/+$/, '')
   return `${base}/api/v1/guest/payment/notify/${payment.gateway}/${payment.uuid}`
+}
+
+/**
+ * Icon preset suggested for a new payment: from the gateway config where it says what is paid with
+ * (EPay `type`, Stripe `payment_methods`, Epusdt `currency_type`), else the registry's `defaultFor`.
+ */
+export function defaultIconPreset(
+  gateway: string,
+  config: Readonly<Record<string, string>> = {},
+): PaymentIconId | null {
+  const value = (key: string) => (config[key] ?? '').trim().toLowerCase()
+  switch (gateway) {
+    case 'epay': {
+      const type = value('type')
+      if (type === 'alipay') return 'alipay'
+      if (type === 'wxpay' || type === 'wechat') return 'wechat'
+      if (type.startsWith('usdt')) return 'usdt'
+      return 'epay'
+    }
+    case 'stripe': {
+      const method = value('payment_methods')
+      if (method === 'card') return 'card'
+      if (method === 'alipay') return 'alipay'
+      if (method === 'wechat_pay') return 'wechat'
+      return 'stripe'
+    }
+    case 'epusdt': {
+      const type = value('currency_type')
+      return !type || type.startsWith('usdt') ? 'usdt' : 'crypto'
+    }
+    default:
+      return presetForGateway(gateway)?.id ?? null
+  }
 }

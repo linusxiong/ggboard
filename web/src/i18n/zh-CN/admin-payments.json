@@ -64,5 +64,12 @@
     "stripe": "Secret key：sk_live_… / sk_test_…，或具有 Checkout Sessions 写权限的受限密钥 rk_…。\n在 Stripe 后台 → 开发者 → Webhooks 添加端点，URL 填下方回调地址，事件选择 checkout.session.completed 与 checkout.session.async_payment_succeeded，然后把签名密钥 whsec_… 填到 Webhook signing secret。\n收款币种与站点币种不同时，请填写汇率。支付宝/微信支付需先在 Stripe 后台开启。",
     "coinbase": "Coinbase Business（Commerce 已于 2026-03-31 关闭，仅支持美国与新加坡商户），以 USDC 结算。\n在 CDP 创建 ECDSA 类型的 API Key，填写其名称（organizations/…/apiKeys/…）与 PEM 私钥。\n用 cdp data webhooks subscriptions create 创建 checkout.payment.* 事件的 Webhook，目标 URL 填下方回调地址，再把返回的 secret 填入 Webhook secret。汇率 = 每单位站点货币对应的 USDC。",
     "btcpay": "填写 BTCPay Server 地址、Store ID（商店 → 设置 → 常规）以及拥有 btcpay.store.cancreateinvoice 与 btcpay.store.canviewinvoices 权限的 API Key。\n在商店 → 设置 → Webhooks 新建 Webhook，Payload URL 填下方回调地址，并把 Secret 填入 Webhook secret。"
+  },
+  "icons": {
+    "label": "图标",
+    "hint": "选择内置图标，或使用自定义图片。新建时会按网关自动选择。",
+    "custom": "自定义 URL",
+    "customHint": "正方形 SVG / PNG 地址（https:// 或 / 开头），也可以填一个 Emoji。",
+    "customInvalid": "请输入 https:// 或 / 开头的图片地址，或单个 Emoji"
   }
 }

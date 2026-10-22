@@ -39,9 +39,10 @@ const vendorGroups = [
     priority: 12,
   },
   {
-    // Chrome shared by every page (native HeroUI-styled buttons, toggles, logo, inline icons).
+    // Chrome shared by every page (native HeroUI-styled buttons, toggles, logo, inline icons). Only
+    // `icons/inline` — `icons/payments/` must stay with the payments / order chunks that use it.
     name: 'chrome',
-    test: /[\\/]src[\\/](components[\\/](native[\\/]NativeButton|icons[\\/]|ThemeToggle|LocaleToggle|Logo)|lib[\\/]button)/,
+    test: /[\\/]src[\\/](components[\\/](native[\\/]NativeButton|icons[\\/]inline\.|ThemeToggle|LocaleToggle|Logo)|lib[\\/]button)/,
     priority: 14,
   },
   {

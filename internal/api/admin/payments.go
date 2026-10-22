@@ -2,7 +2,11 @@ package admin
 
 import (
 	"errors"
+	"net/url"
+	"regexp"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -112,7 +116,7 @@ func (in *adminPaymentInput) apply(p *model.Payment) {
 		p.Name = *in.Name
 	}
 	if in.Icon != nil {
-		p.Icon = *in.Icon
+		p.Icon = strings.TrimSpace(*in.Icon)
 	}
 	if in.Config != nil {
 		cfg := model.JSONObject[string]{}
@@ -138,12 +142,46 @@ func (in *adminPaymentInput) apply(p *model.Payment) {
 	}
 }
 
-// adminValidatePayment checks the gateway, required config fields, the notify domain and the gateway's own
+// presetIconRe matches a built-in icon reference (`preset:<id>`); the ids live in the web app's registry
+// (web/src/components/icons/payments), so any well-formed id is accepted and unknown ones render a fallback.
+var presetIconRe = regexp.MustCompile(`^preset:[a-z0-9_-]{1,32}$`)
+
+// validPaymentIcon reports whether s is an accepted Payment.icon: empty, `preset:<id>`, an http(s) URL with a
+// host, a path starting with "/", a `data:image/` URI, or a single emoji / symbol (at most 16 code points, no
+// ASCII letters, whitespace or control characters). Length (≤ 255) is checked by the binding.
+func validPaymentIcon(s string) bool {
+	switch {
+	case s == "":
+		return true
+	case strings.HasPrefix(s, "preset:"):
+		return presetIconRe.MatchString(s)
+	case strings.ContainsFunc(s, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }):
+		return false
+	}
+	lower := strings.ToLower(s)
+	switch {
+	case strings.HasPrefix(lower, "https://"), strings.HasPrefix(lower, "http://"):
+		u, err := url.Parse(s)
+		return err == nil && u.Host != ""
+	case strings.HasPrefix(s, "/"), strings.HasPrefix(lower, "data:image/"):
+		return true
+	}
+	if !utf8.ValidString(s) || utf8.RuneCountInString(s) > 16 {
+		return false
+	}
+	return !strings.ContainsFunc(s, func(r rune) bool { return r < utf8.RuneSelf && unicode.IsLetter(r) })
+}
+
+// adminValidatePayment checks the gateway, required config fields, the notify domain, the icon (only when the
+// request sets it, so a PATCH of other fields never fails on an imported legacy value) and the gateway's own
 // configuration rules.
-func adminValidatePayment(a *app.App, p *model.Payment) error {
+func adminValidatePayment(a *app.App, p *model.Payment, checkIcon bool) error {
 	e := commerceFieldErrs{}
 	if p.Name == "" {
 		e.add("name", "is required")
+	}
+	if checkIcon && !validPaymentIcon(p.Icon) {
+		e.add("icon", "must be preset:<id>, an http(s) URL, a /path, a data:image URI or a single emoji")
 	}
 	gw, ok := payment.Get(p.Gateway)
 	if !ok {
@@ -186,7 +224,7 @@ func adminCreatePayment(a *app.App) gin.HandlerFunc {
 		}
 		p := &model.Payment{UUID: strings.ReplaceAll(uuid.NewString(), "-", "")}
 		in.apply(p)
-		if err := adminValidatePayment(a, p); err != nil {
+		if err := adminValidatePayment(a, p, in.Icon != nil); err != nil {
 			httpx.Fail(c, err)
 			return
 		}
@@ -236,7 +274,7 @@ func adminUpdatePayment(a *app.App) gin.HandlerFunc {
 			return
 		}
 		in.apply(p)
-		if err := adminValidatePayment(a, p); err != nil {
+		if err := adminValidatePayment(a, p, in.Icon != nil); err != nil {
 			httpx.Fail(c, err)
 			return
 		}

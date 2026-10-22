@@ -1,8 +1,14 @@
 import { Alert, Button, Drawer, Spinner } from '@heroui/react'
 import { useQueryClient } from '@tanstack/react-query'
-import { ImageOff } from 'lucide-react'
 import { type FormEvent, useState } from 'react'
 import { CopyButton } from '@/components/CopyButton'
+import {
+  isValidPaymentIcon,
+  parsePaymentIcon,
+  PaymentIcon,
+  type PaymentIconId,
+  presetIconValue,
+} from '@/components/icons/payments'
 import { FormError } from '@/components/form'
 import { MoneyInput } from '@/features/admin/orders/MoneyInput'
 import { ComboInput } from '@/features/admin/settings/inputs/ComboInput'
@@ -23,6 +29,7 @@ import { toast } from '@/lib/toast'
 import {
   configToStrings,
   defaultConfig,
+  defaultIconPreset,
   fieldSuggestions,
   KNOWN_GATEWAYS,
   notifyUrlFor,
@@ -30,6 +37,7 @@ import {
   WEBHOOK_GATEWAYS,
 } from './gateways'
 import { DrawerClose } from '@/components/feedback/DrawerClose'
+import { CUSTOM_ICON, IconPicker } from './IconPicker'
 
 export interface PaymentSheetProps {
   isOpen: boolean
@@ -46,7 +54,9 @@ export interface PaymentSheetProps {
 interface Values {
   gateway: string
   name: string
-  icon: string
+  /** Icon picker: a preset id, `CUSTOM_ICON` (→ `iconUrl`) or null (no icon). */
+  iconChoice: string | null
+  iconUrl: string
   notify_domain: string
   handling_fee_fixed: number | null
   handling_fee_percent: number | null
@@ -55,6 +65,19 @@ interface Values {
 }
 
 type Errors = Record<string, string | undefined>
+
+/** The stored `Payment.icon` for the picker state. */
+function iconValue(v: Pick<Values, 'iconChoice' | 'iconUrl'>): string {
+  if (v.iconChoice === CUSTOM_ICON) return v.iconUrl.trim()
+  return v.iconChoice ? presetIconValue(v.iconChoice as PaymentIconId) : ''
+}
+
+/** Picker state for a stored icon: known presets select their tile, anything else is "custom". */
+function iconState(icon: string): Pick<Values, 'iconChoice' | 'iconUrl'> {
+  const parsed = parsePaymentIcon(icon)
+  if (parsed.kind === 'preset' && parsed.preset) return { iconChoice: parsed.id, iconUrl: '' }
+  return icon.trim() ? { iconChoice: CUSTOM_ICON, iconUrl: icon } : { iconChoice: null, iconUrl: '' }
+}
 
 function initialValues(
   payment: Payment | null | undefined,
@@ -65,7 +88,7 @@ function initialValues(
     return {
       gateway: payment.gateway,
       name: payment.name,
-      icon: payment.icon ?? '',
+      ...iconState(payment.icon ?? ''),
       notify_domain: payment.notify_domain ?? '',
       handling_fee_fixed: payment.handling_fee_fixed ?? 0,
       handling_fee_percent: payment.handling_fee_percent ?? 0,
@@ -77,15 +100,17 @@ function initialValues(
     }
   }
   const gateway = gateways.find((g) => g.name === gw)
+  const config = defaultConfig(gateway)
   return {
     gateway: gateway?.name ?? '',
     name: gateway?.label ?? '',
-    icon: '',
+    iconChoice: gateway ? defaultIconPreset(gateway.name, config) : null,
+    iconUrl: '',
     notify_domain: '',
     handling_fee_fixed: 0,
     handling_fee_percent: 0,
     enabled: true,
-    config: defaultConfig(gateway),
+    config,
   }
 }
 
@@ -112,6 +137,8 @@ function PaymentSheetInner({
   const [formError, setFormError] = useState<string>()
   const [submitting, setSubmitting] = useState(false)
   const [justCreated, setJustCreated] = useState(false)
+  // A new payment's icon follows the gateway (and its config) until the admin picks one.
+  const [iconAuto, setIconAuto] = useState(!initialPayment)
 
   const gateway = gateways.find((g) => g.name === values.gateway)
   const isEdit = saved !== null
@@ -121,25 +148,42 @@ function PaymentSheetInner({
     setErrors((e) => (e[key] ? { ...e, [key]: undefined } : e))
   }
   const setConfig = (key: string, value: string) => {
-    setValues((v) => ({ ...v, config: { ...v.config, [key]: value } }))
+    setValues((v) => {
+      const config = { ...v.config, [key]: value }
+      return iconAuto && !saved
+        ? { ...v, config, iconChoice: defaultIconPreset(v.gateway, config) }
+        : { ...v, config }
+    })
     setErrors((e) => (e[`config.${key}`] ? { ...e, [`config.${key}`]: undefined } : e))
   }
   const chooseGateway = (name: string | null) => {
     const next = gateways.find((g) => g.name === name)
+    const config = defaultConfig(next)
     setValues((v) => ({
       ...v,
       gateway: next?.name ?? '',
       name: !v.name || gateways.some((g) => g.label === v.name) ? (next?.label ?? '') : v.name,
-      config: defaultConfig(next),
+      config,
+      ...(iconAuto ? { iconChoice: next ? defaultIconPreset(next.name, config) : null, iconUrl: '' } : {}),
     }))
     setErrors({})
+  }
+  const chooseIcon = (choice: string) => {
+    setIconAuto(false)
+    setValues((v) => ({ ...v, iconChoice: choice }))
+    setErrors((e) => (e.icon ? { ...e, icon: undefined } : e))
+  }
+  const setIconUrl = (url: string) => {
+    setValues((v) => ({ ...v, iconUrl: url }))
+    setErrors((e) => (e.icon ? { ...e, icon: undefined } : e))
   }
 
   const validate = (): Errors => {
     const e: Errors = {}
     if (!values.gateway) e.gateway = t('form.gatewayRequired')
     if (!values.name.trim()) e.name = t('form.nameRequired')
-    if (values.icon && !/^(https?:\/\/|\/)/.test(values.icon)) e.icon = t('form.urlInvalid')
+    if (values.iconChoice === CUSTOM_ICON && !isValidPaymentIcon(values.iconUrl))
+      e.icon = t('icons.customInvalid')
     if (values.notify_domain && !/^https?:\/\/[^/\s]+$/.test(values.notify_domain.replace(/\/+$/, '')))
       e.notify_domain = t('form.domainInvalid')
     const pct = values.handling_fee_percent ?? 0
@@ -161,7 +205,7 @@ function PaymentSheetInner({
       if (!msg) continue
       if (key.startsWith('config.')) next[key] = msg
       else if (configKeys.has(key)) next[`config.${key}`] = msg
-      else if (key in values) next[key] = msg
+      else if (key in values || key === 'icon') next[key] = msg
       else unmatched ??= `${key}: ${msg}`
     }
     setErrors(next)
@@ -179,7 +223,7 @@ function PaymentSheetInner({
     const input: PaymentInput = {
       gateway: values.gateway,
       name: values.name.trim(),
-      icon: values.icon.trim(),
+      icon: iconValue(values),
       config: Object.fromEntries(Object.entries(values.config).map(([k, v]) => [k, v.trim()])),
       notify_domain: values.notify_domain.trim().replace(/\/+$/, ''),
       handling_fee_fixed: values.handling_fee_fixed ?? 0,
@@ -306,21 +350,16 @@ function PaymentSheetInner({
                   isRequired
                   error={errors.name}
                   description={t('form.nameHint')}
+                  // Live preview: the icon users will see next to this name.
+                  startContent={<PaymentIcon icon={iconValue(values)} size={24} />}
                 />
-                <div className="flex items-end gap-3">
-                  <TextInput
-                    label={t('form.icon')}
-                    name="icon"
-                    type="url"
-                    value={values.icon}
-                    onChange={(v) => set('icon', v)}
-                    placeholder="https://"
-                    error={errors.icon}
-                    description={t('form.iconHint')}
-                    className="min-w-0 flex-1"
-                  />
-                  <IconPreview src={values.icon} label={t('form.iconPreview')} />
-                </div>
+                <IconPicker
+                  choice={values.iconChoice}
+                  customValue={values.iconUrl}
+                  onChoiceChange={chooseIcon}
+                  onCustomChange={setIconUrl}
+                  error={errors.icon}
+                />
                 <TextInput
                   label={t('form.notifyDomain')}
                   name="notify_domain"
@@ -428,29 +467,4 @@ export function GatewayFieldInput({ gateway, field, value, onChange, error }: Ga
       )
     }
   }
-}
-
-function IconPreview({ src, label }: { src: string; label: string }) {
-  const [failed, setFailed] = useState<string | null>(null)
-  const ok = src && /^(https?:\/\/|\/)/.test(src) && failed !== src
-  return (
-    <div
-      className="mb-6 flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-fill-tertiary"
-      aria-label={label}
-      role="img"
-    >
-      {ok ? (
-        <img
-          src={src}
-          alt=""
-          width={40}
-          height={40}
-          className="size-10 object-contain"
-          onError={() => setFailed(src)}
-        />
-      ) : (
-        <ImageOff className="size-4 text-label-secondary" aria-hidden />
-      )}
-    </div>
-  )
 }

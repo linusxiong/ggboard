@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CreditCard, Ellipsis, Plus } from 'lucide-react'
 import { type ReactNode, useMemo, useState } from 'react'
 import { CopyButton } from '@/components/CopyButton'
+import { PaymentIcon } from '@/components/icons/payments'
 import { EmptyState } from '@/components/EmptyState'
 import { confirm } from '@/components/feedback/confirm'
 import { Money } from '@/components/Formatters'
@@ -159,20 +160,7 @@ export function PaymentsPage() {
                     if (next) sortMutation.mutate(next)
                   }}
                 />
-                <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-fill-tertiary">
-                  {p.icon ? (
-                    <img
-                      src={p.icon}
-                      alt=""
-                      width={40}
-                      height={40}
-                      loading="lazy"
-                      className="size-10 object-contain"
-                    />
-                  ) : (
-                    <CreditCard className="size-5 text-label-secondary" aria-hidden />
-                  )}
-                </span>
+                <PaymentIcon icon={p.icon} size={40} />
                 <div className="min-w-0 flex-1 basis-48">
                   <p className="flex flex-wrap items-center gap-2 text-headline text-label">
                     {p.name}

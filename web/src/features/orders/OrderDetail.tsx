@@ -24,7 +24,7 @@ import { SiteMoney } from '@/features/shop/SiteMoney'
 import { AmountBreakdown } from './AmountBreakdown'
 import { CheckoutResultView } from './CheckoutResultView'
 import { OrderTimeline } from './OrderTimeline'
-import { PaymentPicker } from './PaymentPicker'
+import { OrderPaymentMethod, PaymentMethodBadge, PaymentPicker } from './PaymentPicker'
 import { redirectToGateway } from './redirect'
 import { chargedAmount, handlingFee, ORDER_TYPE_KEY, paymentDeadline } from './status'
 import { formatCountdown, useCountdown } from './useCountdown'
@@ -64,7 +64,11 @@ export function OrderDetail({ order }: { order: Order }) {
                 <DateTime value={order.paid_at} />
               </Info>
             ) : null}
-            {order.payment ? <Info label={t('detail.payment')}>{order.payment.name}</Info> : null}
+            {order.payment ? (
+              <Info label={t('detail.payment')}>
+                <OrderPaymentMethod payment={order.payment} />
+              </Info>
+            ) : null}
           </dl>
         </Card>
         <Card title={t('detail.amounts')}>
@@ -301,6 +305,7 @@ function PaymentSection({ order, polling }: { order: Order; polling: OrderPollin
           </Button>
         }
       >
+        {method ? <PaymentMethodBadge method={method} className="self-center" /> : null}
         <CheckoutResultView
           result={result}
           amount={amount}

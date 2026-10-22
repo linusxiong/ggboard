@@ -220,7 +220,7 @@ A user can hold at most one order in status 0 or 1. "Paid" for statistics means 
 | uuid | varchar(32) unique, not null | 32 hex characters; part of the notify URL `/api/v1/guest/payment/notify/:gateway/:uuid` |
 | gateway | varchar(32) not null | registered gateway name (`epay`, `epusdt`, `alipay_f2f`, `stripe`, `coinbase`, `btcpay`) |
 | name | varchar(191) not null | |
-| icon | varchar(255) | |
+| icon | varchar(255) | `""`, `preset:<id>` (built-in mark), image URL / `/path` / `data:image/…`, or one emoji — see [API.md › Payment icons](API.md#payment-icons) |
 | config | json map[string]string | gateway settings; secret, admin only |
 | notify_domain | varchar(255) | overrides `app_url` for callback URLs |
 | handling_fee_fixed | int64 | cents |
