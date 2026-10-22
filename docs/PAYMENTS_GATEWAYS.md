@@ -112,7 +112,7 @@ headers or JWTs, EPay/Epusdt sign strings (they end with the key), or raw Alipay
 - `CallbackNo` → `orders.callback_no`.
 
 | gateway | `PayResult.Type` | `CallbackNo` | success response (also used to ack non-payment events) |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | epay | `url` | `trade_no` param | `200 text/plain success` |
 | epusdt | `url` | `trade_id` | `200 text/plain ok` |
 | alipay_f2f | `qrcode` | `trade_no` param | `200 text/plain success` |
@@ -129,7 +129,7 @@ Sources: 彩虹易支付 (Caihong EPay) mirror `github.com/itxve/epay` (`submit.
 `plugins-core/Epay/Plugin.php`; GM Pay v2.0.0 `wiki/API.md`.
 
 | key | label | type | req | description |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `url` | 网关地址 | text | ✓ | Base URL, e.g. `https://pay.example.com`. No `/submit.php`, no trailing `/`. |
 | `pid` | 商户 ID | text | ✓ | Merchant id (numeric on Caihong). |
 | `key` | 商户密钥 | password | ✓ | MD5 key. |
@@ -151,7 +151,7 @@ Return `PayResult{url}` = `<url>/submit.php?` + `url.Values.Encode()`. Encoding 
 also accepts the same fields as a POST form.
 
 | param | value |
-|---|---|
+| --- | --- |
 | `pid` | cfg.pid |
 | `type` | cfg.type; omit when empty |
 | `out_trade_no` | trade_no (`mapi.php` requires `^[A-Za-z0-9._\-\|]+$`) |
@@ -239,7 +239,7 @@ Server compatibility:
 - GM Pay ≥ v2: incompatible; use §2.5.
 
 | key | label | type | req | description |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `api_url` | API 地址 | text | ✓ | Base URL, e.g. `https://usdt.example.com`. |
 | `api_token` | API Token | password | ✓ | BEpusdt: 系统管理 → 基本设置 → API 设置 → 对接令牌. |
 | `currency_type` | 交易类型 | text (default `usdt.trc20`) | – | Sent as `trade_type`: `usdt.trc20`, `usdc.trc20`, `tron.trx`, `usdt.erc20`, `usdt.polygon`, `usdt.bep20`, `usdt.solana`, `usdt.ton`, `usdt.arbitrum`, `usdc.base`, … Legacy epusdt ignores it. |
@@ -336,7 +336,7 @@ Sources: `alipay/alipay-sdk-java-all` master (`AlipaySignature.java` `getSignCon
 `AlipayTradePrecreateModel.java`, `AlipayTradePrecreateResponse.java`); Xboard `AlipayF2f/library/AlipayF2F.php`.
 
 | key | label | type | req | description |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `app_id` | APPID | text | ✓ | Open Platform app id; the app must have 当面付 signed. |
 | `private_key` | 应用私钥 | textarea | ✓ | RSA ≥ 2048 app private key: PKCS#1 or PKCS#8, PEM or bare base64. |
 | `alipay_public_key` | 支付宝公钥 | textarea | ✓ | The **Alipay** public key (not 应用公钥): PEM or bare base64 X.509 SPKI. |
@@ -369,7 +369,7 @@ public keys start `MIIBIjAN`. Parse at config save so the admin sees errors, and
 `POST <gateway>`, `Content-Type: application/x-www-form-urlencoded;charset=utf-8`, with these fields:
 
 | field | value |
-|---|---|
+| --- | --- |
 | `app_id` | cfg.app_id |
 | `method` | `alipay.trade.precreate` |
 | `format` / `charset` / `sign_type` / `version` | `JSON` / `utf-8` / `RSA2` / `1.0` |
@@ -451,7 +451,7 @@ Install with `go get github.com/stripe/stripe-go/v87@v87.0.0`. After that, `stri
 "2026-09-30.endive"`.
 
 | key | label | type | req | description |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `secret_key` | Secret key | password | ✓ | `sk_live_…`/`sk_test_…`, or a restricted `rk_…` with Checkout Sessions write. |
 | `webhook_secret` | Webhook signing secret | password | ✓ | `whsec_…` of the endpoint that targets the notify URL. |
 | `currency` | Currency | text | – | ISO 4217, lowercased. Defaults to the site currency. |
@@ -577,7 +577,7 @@ fetch returns 403).
 Settlement is in **USDC** on Base (`network` defaults to `base`), and a Coinbase Business account is required.
 
 | key | label | type | req | description |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `api_key_name` | CDP API key name | text | ✓ | `organizations/{org_id}/apiKeys/{key_id}` (JWT `kid` and `sub`). |
 | `api_key_secret` | CDP API key secret | textarea | ✓ | ECDSA P-256 PEM (`-----BEGIN EC PRIVATE KEY-----`; literal `\n` accepted). Create the key as **ECDSA**: Ed25519 is undocumented here, and Coinbase App APIs reject it. |
 | `webhook_secret` | Webhook secret | password | ✓ | The `secret` returned when creating the webhook subscription (the sample shows `metadata.secret`). |
@@ -673,7 +673,7 @@ Sources: `btcpayserver/btcpayserver` v2.4.5, 2026-10-06 (`swagger.template.invoi
 `BTCPay.php`.
 
 | key | label | type | req | description |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `server_url` | Server URL | text | ✓ | e.g. `https://btcpay.example.com`. A trailing `/` is optional (Xboard required one). |
 | `store_id` | Store ID | text | ✓ | Store → Settings → General. |
 | `api_key` | API key | password | ✓ | Account → API keys, with `btcpay.store.cancreateinvoice` + `btcpay.store.canviewinvoices` (scope with `:<storeId>`). |
@@ -710,7 +710,7 @@ webhook secret over the **raw body bytes**. Don't `trim()` the body first, as Xb
 plus type-specific fields:
 
 | `type` | extra fields | action |
-|---|---|---|
+| --- | --- | --- |
 | `InvoiceSettled` | `manuallyMarked`, `overPaid` | **paid**, after the confirmation GET |
 | `InvoiceProcessing` | `overPaid` | Paid in full, awaiting confirmations: GET, usually ack. |
 | `InvoiceReceivedPayment`, `InvoicePaymentSettled` | `afterExpiration`, `paymentMethodId`, `payment` | GET; paid only if `Settled`. Log `afterExpiration=true`. |

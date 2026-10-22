@@ -23,7 +23,7 @@ Conventions:
 ### 1.1 Mounts
 
 | client | auth | paths (exact) |
-|---|---|---|
+| --- | --- | --- |
 | XrayR (`PanelType: NewV2board`), V2bX | query `token`, `node_id`, `node_type` | `/api/v1/server/UniProxy/{config,user,push,alive,alivelist,status}`: root only (clients hard-code `ApiHost + "/api/v1/server/UniProxy/..."`) |
 | soga (`type=soga-v1`) | headers `API-KEY`, `NODE-ID`, `NODE-TYPE` | `/api/v1/{node,users,audit_rules,white_list,traffic,alive_ip,audit_log,status}` **and** the same handlers under `/soga/api/v1/...` |
 
@@ -82,7 +82,7 @@ Check them in this order:
 5. Resolve P (§5.3), set `LastCheckAt(P) = now` (§5.1), and continue.
 
 | failure | Xboard (reference) | **ggboard** |
-|---|---|---|
+| --- | --- | --- |
 | token missing or wrong, or `server_token` unset | 422 `{"message":"Invalid token","errors":{"token":["Invalid token"]}}` (Laravel validation under ForceJson) | **403** `{"code":"forbidden","message":"invalid token"}` |
 | node_id missing or not a uint64 > 0; bad node_type | 422 | **400** `{"code":"validation_failed","message":"node_id must be a positive integer"}` (or `unsupported node_type …`) |
 | node not found / type mismatch | `ApiException` default code 400 → `Handler::render` → `fail([400,msg])` → **HTTP 400** `{"status":"fail","message":"Server does not exist","data":null,"error":null}` (not 500) | **400** `{"code":"validation_failed","message":"server is not exist"}`, or `"node 3 is vless, requested vmess"` |
@@ -119,7 +119,7 @@ all of them must exist.
 Returns 200 with a bare JSON object (no envelope) and an `ETag`, or 304 (§6.6). Keys present for **every** type:
 
 | key | type | value |
-|---|---|---|
+| --- | --- | --- |
 | `protocol` | string | `P.type` |
 | `listen_ip` | string | `"0.0.0.0"` |
 | `server_port` | int | `P.server_port`. Must be > 0 (XrayR errors with "server port must > 0"). |
@@ -142,7 +142,7 @@ The key must be **present** for vmess, vless and trojan (`null` is fine):
 #### 2.1.1 shadowsocks
 
 | key | type | mapping |
-|---|---|---|
+| --- | --- | --- |
 | `cipher` | string | `ps.cipher` (required by admin validation) |
 | `server_key` | string\|null | 2022 ciphers: `ps.server_key` if set, otherwise derived (§4). `null` for other ciphers. |
 | `obfs` | string\|null | `ps.obfs` (`plain`\|`http`\|`tls`), or `null` if empty. XrayR maps `http` to a TCP http header using `obfs_settings.path` (default `/`) [fork key]. |
@@ -172,7 +172,7 @@ characters are base64-encoded.
 #### 2.1.2 vmess
 
 | key | type | mapping |
-|---|---|---|
+| --- | --- | --- |
 | `tls` | int | `ps.tls` (0\|1), default 0. The backend terminates TLS with its own local certificate. |
 | `tls_settings` | object | `{"server_name":ts.server_name or "","allow_insecure":ts.allow_insecure or false}` |
 | `tlsSettings` | object | **same value** as `tls_settings`. V2bX (vmess/vless) uses `tlsSettings` instead of `tls_settings` when it is present; sending both keeps panels that emit either spelling interchangeable. XrayR ignores it. |
@@ -197,7 +197,7 @@ V2bX xray rejects `http`/`h2` ("the network type is not vail").
 #### 2.1.3 vless
 
 | key | type | mapping |
-|---|---|---|
+| --- | --- | --- |
 | `tls` | int | `ps.tls`: 0 none, 1 tls (local certificate), 2 reality |
 | `flow` | string | `ps.flow`, `""` if unset |
 | `server_name` | string | `ts.server_name` |
@@ -210,7 +210,7 @@ V2bX xray rejects `http`/`h2` ("the network type is not vail").
 **Reality object** (`tls == 2`):
 
 | key | type | mapping |
-|---|---|---|
+| --- | --- | --- |
 | `server_name` | string | `ts.server_name`. XrayR and V2bX use `[server_name]` as `ServerNames`. |
 | `dest` | string | **host only**: the host part of `ts.dest` (`net.SplitHostPort`, or the raw value if it has no port). Falls back to `ts.server_name` when `ts.dest` is empty. |
 | `server_port` | **string** | the port part of `ts.dest`, else `ts.server_port`, else `"443"` |
@@ -251,7 +251,7 @@ For tls 2 (reality), see the full transcript in §7.1.
 #### 2.1.4 trojan
 
 | key | type | mapping |
-|---|---|---|
+| --- | --- | --- |
 | `server_name` | string | `ps.server_name` |
 | `tls` | int | `1` (constant: trojan is always TLS) |
 | `tls_settings` | object | `{"server_name":ps.server_name,"allow_insecure":ps.allow_insecure}` |
@@ -267,7 +267,7 @@ XrayR always builds TLS over TCP and reads only `host` and `server_name` [parseT
 #### 2.1.5 hysteria (v1 and v2; V2bX `NodeType` `hysteria` or `hysteria2`)
 
 | key | type | mapping |
-|---|---|---|
+| --- | --- | --- |
 | `version` | int | `ps.version`, default 2 |
 | `server_name` | string | `ps.server_name` |
 | `tls_settings` | object | `{"server_name","allow_insecure"}`. The backend uses its local certificate. |
@@ -399,6 +399,7 @@ Body: `{"<uid>":["1.2.3.4","2001:db8::1"], ...}`. V2bX sends it every push inter
 `DeviceOnlineMinTraffic`.
 
 For each uid:
+
 1. Normalise each IP: strip `:port`, and turn `[v6]:port` into `v6`. Addresses longer than 64 bytes are dropped.
 2. Deduplicate; keep at most 256 addresses per user and node (memory bound of the online store).
 3. **Replace** the IP set stored for `(uid, P)` with this list, stamped `now` (Xboard `setDevices`). Users not in the body
@@ -453,7 +454,7 @@ Optional keys appear only in these cases:
   `{"host":ns.host,"path":ns.path,"mode":ns.mode or "auto","extra":ns.extra or {}}`.
 
 | soga type | `config` keys (mapping) |
-|---|---|
+| --- | --- |
 | vmess | `port`, `stream_type`, `tls_type` (`ps.tls` 0→`"none"`, 1→`"tls"`), optional keys |
 | trojan | `port`, `stream_type`, optional keys. There is no `tls_type`; trojan always uses TLS with the certificate from soga's config. |
 | ss | `port`; `cipher` = `ps.cipher`; `password` = the 2022 **node key** (base64, §4) for 2022 ciphers, otherwise `""`; `obfs`: `plain`/`""`→`"plain"`, `http`→`"simple_obfs_http"`, `tls`→`"simple_obfs_tls"`; when obfs ≠ plain also `path` = `obfs_settings.path` and `host` = `obfs_settings.host` |
@@ -491,7 +492,7 @@ Returns a JSON array sorted by id, using the §2.2 selection, with an ETag. `[]`
 Each element also carries type-specific credential fields (§4):
 
 | NODE-TYPE | credential fields |
-|---|---|
+| --- | --- |
 | vmess, vless | `"uuid": uuid` |
 | trojan, hysteria, anytls, shadowsocksr, shadowsocks (non-2022) | `"password": uuid` |
 | shadowsocks 2022 | `"password": base64(uuid[:16])` for aes-128, `base64(uuid[:32])` otherwise (user PSK, §4) |
@@ -560,7 +561,7 @@ Body: `{"cpu":23.5,"mem":{"total":int,"used":int},"swap":{...},"disk":{...},"upt
 ## 4. Credential and key derivation (one helper: `model.UserCredentials(u, P)`)
 
 | node type | UniProxy sends | backend derives (verified) | soga `/users` | subscription credential |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | vmess / vless | `uuid` | id = uuid | `uuid` | uuid |
 | trojan | `uuid` | password = uuid (XrayR userbuilder; V2bX sing user.go) | `password`=uuid | uuid |
 | shadowsocks AEAD | `uuid` | password = uuid (XrayR `Passwd = UUID`; V2bX core/xray/ss.go) | `password`=uuid | uuid |
@@ -806,7 +807,7 @@ HTTP/1.1 200 OK
 Further POSTs to the same path prefix with the same headers:
 
 | request | body | response |
-|---|---|---|
+| --- | --- | --- |
 | `POST /soga/api/v1/alive_ip` | `[{"id":1,"ips":["203.0.113.7","198.51.100.9"]}]` | `{"code":0,"message":""}` |
 | `POST /soga/api/v1/audit_log` | `[{"user_id":1,"audit_id":1000}]` | `{"code":0,"message":""}`; logged as route 1, entry 0 |
 | `POST /soga/api/v1/status` | `{"cpu":12.5,"mem":{"total":2147483648,"used":734003200},"swap":{"total":0,"used":0},"disk":{"total":42949672960,"used":10737418240},"uptime":86400}` | `{"code":0,"message":""}` |

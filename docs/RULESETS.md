@@ -34,7 +34,7 @@ Top-level keys, always in this order:
 ### Source
 
 | field | type | meaning |
-|---|---|---|
+| --- | --- | --- |
 | `name` | string | Upstream repo name for display, e.g. `blackmatrix7/ios_rule_script` |
 | `homepage` | url | Repo page |
 | `license` | string | License note (SPDX id + remark). All sources are referenced by URL only. |
@@ -49,7 +49,7 @@ Source ids: `blackmatrix7` (order 10), `metacubex` (20), `loyalsoldier` (30), `s
 ### Format keys
 
 | key | consumed by | behavior | format | sources |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `clash` | clash-meta, stash | classical | yaml (bm7, Loyalsoldier), text (ACL4SSR) | blackmatrix7, loyalsoldier, acl4ssr |
 | `clash_classical` | clash-meta, stash (standalone alternative) | classical | yaml | blackmatrix7 (split lists only) |
 | `clash_domain` | clash-meta, stash | domain | yaml / text | blackmatrix7 (split), loyalsoldier, metacubex, dustinwin |
@@ -88,7 +88,7 @@ For sing-box keys, `behavior` is informational: a `.srs` describes itself. It do
 ### RuleRef
 
 | field | meaning |
-|---|---|
+| --- | --- |
 | `name` | File name for name-based sources (blackmatrix7, loyalsoldier, acl4ssr). It may include a sub-path (ACL4SSR `Ruleset/OpenAi`). |
 | `behavior` | Behavior of the `name` file. It is informational for bm7 and ACL4SSR (`classical`), and authoritative for Loyalsoldier, where `clash`, `clash_domain` and `clash_ipcidr` share one template. The lint enforces that `behavior` matches the key. |
 | `geosite` / `geoip` | Domain-set and IP-set names for geo-style sources (metacubex, sagernet, dustinwin). One RuleRef can carry both. |
@@ -120,7 +120,7 @@ URL expansion: `url = sources[s].urls[k].replace("{name}", ref[sources[s].url_me
   group the template lacks (e.g. `steam` → `Games` under `standard`), the renderer routes it to `final`.
 
 | template | categories | groups | final | geoip_cn_direct |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `none` | none | Proxy, auto | Proxy | false |
 | `minimal` | lan, cn → DIRECT | Proxy, auto | Proxy | true |
 | `standard` | ads, lan, openai, claude, gemini, telegram, youtube, netflix, disney, spotify, microsoft, apple, gfw, cn | Proxy, AI, Streaming, Telegram, Microsoft, Apple, auto | Proxy | true |
@@ -161,6 +161,19 @@ backward compatible: sketch field names and shapes still parse.
 
 ## How each format consumes the catalog
 
+**Which profile.** A user has up to 10 named rule profiles (docs/SUBSCRIPTION.md → *Multiple profiles*).
+`engine.EffectiveProfile` picks the one a request uses from `?profile=`:
+
+1. a **slug** of one of the user's profiles selects that profile;
+2. otherwise a catalog **template id** keeps the original meaning of `?profile=`: the default profile with that template's
+   categories, groups and `final` (its stored source, mirror, DNS and node operations are kept);
+3. anything else (or no parameter) selects the **default profile**, never an error.
+
+With `allow_user_rule_profile=false` everyone gets `ruleset_default_template`, whatever is stored or requested. The
+profile's node operations (`nodes`: filters, rename, emoji, sort, limit, with the region table in docs/SUBSCRIPTION.md →
+*Node operations*) shape the proxy list before groups and rules are resolved; they never change which rule sets are used.
+`source`, `cats`, `final` and `mirror` then override the selected profile for that request.
+
 1. **Enabled categories** come from the profile's `categories`, or the template's when the profile has none.
    `cats=` narrows them. Sort them by category `order`, never by map order. Resolve each target (see the template rules).
 2. **Choose a source per category.** Candidates are tried in this order:
@@ -173,7 +186,7 @@ backward compatible: sketch field names and shapes still parse.
 3. **Pick keys per RuleRef**, in array order, from its `formats`:
 
    | client format | keys used |
-   |---|---|
+   | --- | --- |
    | clash-meta | If any `clash_mrs_*` key is present, use only those. Otherwise use every present key of `clash`, `clash_domain`, `clash_ipcidr`. Never use `clash_classical` together with them. |
    | stash | Every present key of `clash`, `clash_domain`, `clash_ipcidr` (no mrs). |
    | singbox | `singbox` and `singbox_ipcidr` when present, otherwise `singbox_source` and `singbox_source_ipcidr`. |
@@ -223,7 +236,7 @@ Other formats:
 `ip:` marks the geoip / IP-set name.
 
 | category | target | blackmatrix7 | metacubex | loyalsoldier | sagernet | acl4ssr | dustinwin |
-|---|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- | --- |
 | `ads` | REJECT | `AdvertisingLite` | `category-ads-all` | `reject` | `category-ads-all` | `BanAD`, `BanProgramAD` | `ads` |
 | `lan` | DIRECT | `Lan` | `private` / ip:`private` | `private`, `lancidr` | `private` | `LocalAreaNetwork` | `private` / ip:`privateip` |
 | `applications` | DIRECT | — | — | `applications` | — | — | — |
@@ -260,7 +273,7 @@ Other formats:
 Coverage per client (any source):
 
 | client | categories | missing |
-|---|---|---|
+| --- | --- | --- |
 | clash-meta, stash | 32/32 | — |
 | singbox, surge, surfboard, loon (and the unused shadowrocket keys) | 31/32 | `applications`. Loyalsoldier publishes PROCESS-NAME rules only for Clash. |
 | quantumultx | 30/32 | `applications`, `ai`. bm7 has no aggregate AI list. |
@@ -270,7 +283,7 @@ Coverage per client (any source):
 ## Mirrors
 
 | id | prefix | status 2026-10-21 |
-|---|---|---|
+| --- | --- | --- |
 | `direct` | `""` | — |
 | `ghfast` | `https://ghfast.top/` | 200 + content OK. Successor of `mirror.ghproxy.com`. |
 | `gh-proxy` | `https://gh-proxy.com/` | 200 + content OK |
@@ -280,7 +293,7 @@ Coverage per client (any source):
 Rejected candidates:
 
 | prefix | reason |
-|---|---|
+| --- | --- |
 | `mirror.ghproxy.com` | NXDOMAIN (the service moved to ghfast.top) |
 | `ghproxy.cc` | expired TLS certificate |
 | `github.moeyy.xyz` | NXDOMAIN |
@@ -312,7 +325,8 @@ Public mirrors come and go. Re-verify them on every catalog refresh, and keep `d
   - a mirror `prefix` is `""` or an http(s) URL ending in `/`.
 - An invalid stored value is ignored at render time (the built-in catalog is used), so subscriptions never break.
 - Related settings (group `subscribe`): `allow_user_rule_profile` (default `true`; `false` forces everyone onto
-  `ruleset_default_template` and makes `PUT /user/rule-profile` answer 403), `ruleset_default_template` (`standard`),
+  `ruleset_default_template` and makes every profile write — `PUT /user/rule-profile`, `/user/rule-profiles*` — answer
+  403), `ruleset_default_template` (`standard`),
   `ruleset_default_source` (`blackmatrix7`), `ruleset_mirror` (`""`).
 
 ---
@@ -376,7 +390,7 @@ Method:
   The body must start with `payload:`.
 
 | pass | combinations | unique URLs | 200 | removed (404) | errors | lint |
-|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- |
 | 1, candidate (every plausible key) | 763 | 670 | 506 | **164** | 0 | split flags only, which is expected before pruning |
 | 2, final `catalog.json` | 599 | 506 | **506** | 0 | 0 | 0 errors |
 

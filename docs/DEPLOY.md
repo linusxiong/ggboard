@@ -200,6 +200,11 @@ PostgreSQL / MySQL 连接池：最多 32 个连接、8 个空闲、单连接最�
 3. **设置 → 节点通讯**：首次启动已自动生成 32 位 `server_token`，填进 XrayR / V2bX / soga（见 [NODE_PROTOCOLS.md](NODE_PROTOCOLS.md)）。
 4. **设置 → 邮件**：默认驱动 `log`（只写日志）；切到 `smtp` 后用“发送测试邮件”验证。
 5. **设置 → 安全**：建议开启 `admin_mfa_required`，见 [SECURITY.md](../SECURITY.md)。
+6. **设置 → Telegram**（可选）：填 BotFather 的 Bot Token 和管理员 Chat ID（在机器人对话里发 `/id` 获取），保存后点
+   “设置 Webhook”与“发送测试消息”。Telegram 只接受 HTTPS 的 webhook（端口 443、80、88 或 8443），所以 `app_url` 必须是
+   公网可达的 `https://` 地址；反向代理要放行 `POST /api/v1/guest/telegram/webhook/<密钥>`（不要对它加认证或缓存）。
+   详见 [ADMIN_GUIDE.md](ADMIN_GUIDE.md) 的 Telegram 一节。
+7. **设置 → 订阅**（可选）：`subscribe_leak_max_ips` 大于 0 时开启订阅泄露检测，见 [SECURITY.md](../SECURITY.md)。
 
 ## 7. 备份 / Backups
 

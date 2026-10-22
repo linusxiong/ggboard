@@ -7,7 +7,8 @@ docs/ARCHITECTURE.md describes the runtime; this page is the API you program aga
 ## 0. Package layout
 
 ```text
-cmd/ggboard/            main.go + blank imports: plugins_payment.go, jobs_maintenance.go, import.go
+cmd/ggboard/            main.go + blank imports: plugins_payment.go, plugins_notify.go, jobs_maintenance.go, import.go;
+                        wire_leak.go (subscription.LeakHook → mail + notify)
 internal/
   api/{guest,passport,user,admin,client,node}   one Register(r, a) per package
   app/ (+ online/, traffic/)                    dependency container, runtime node state, traffic accumulator
@@ -16,12 +17,13 @@ internal/
   captcha/     none / turnstile / recaptcha / hcaptcha
   cli/         cobra root: serve, migrate, admin, version (+ registered subcommands)
   config/      viper configuration
-  db/          gorm open (sqlite/postgres/mysql) and AutoMigrate
+  db/          gorm open (sqlite/postgres/mysql), AutoMigrate and idempotent schema upgrades (upgrade.go)
   httpx/       engine, middleware, responses, errors, binding, pagination, rate limits, gzip
   importer/xboard/                              `ggboard import xboard`
   logx/        slog handler + ring buffer for /admin/system/logs
   mail/ (+ templates/)                          queue, smtp/log drivers, zh-CN/en templates
   model/       every GORM model, enums, typed protocol settings, credentials
+  notify/ (+ telegram/, notifytest/, telegram/telegramtest/)   notification queue, events, Telegram bot driver
   payment/ (+ gateways/{epay,epusdt,alipay_f2f,stripe,coinbase,btcpay,gwutil})
   plugin/      generic Registry[T]
   router/      assembles engine + API packages + SPA
@@ -29,7 +31,7 @@ internal/
   service/{account,adminuser,content,invite,maintenance,mfa,node,order,plan,stat,ticket,user}
   settings/    typed key/value settings (defs.go is the key list)
   static/      embedded SPA (dist/ copied by `make web`)
-  subscription/ (+ engine/, formats/, rulesets/, fixture/)
+  subscription/ (+ engine/, formats/, rulesets/, guard/, fixture/)   guard = age keys, access log, leak detection
   testutil/    test app, router, users, request helpers
 ```
 
@@ -75,7 +77,7 @@ import cycle. A new API package needs one line in `router.Packages`.
 ## 2. `internal/httpx`
 
 | need | API |
-|---|---|
+| --- | --- |
 | success / list | `httpx.OK(c, data)` → `{"data":…}` (`OK(c, true)` for empty successes); `httpx.Created(c, data)` → 201; `httpx.List(c, items, total)` → `{"data":[…],"total":N}` (nil → `[]`) |
 | errors | `httpx.Fail(c, err)` aborts. `*httpx.Error{Status, Code, Message, Errors}`. Constructors: `BadRequest`, `FieldError(field, msg)`, `Unauthorized`, `PaymentFailed`, `Forbidden`, `NotFound`, `Conflict`, `PayloadTooLarge`, `RateLimited`, `Internal(err)`, `NewError(status, code, msg)`, `Validation(err)`. Modifiers: `.WithField(f, msg)`, `.WithCause(err)`. `httpx.AsError(err)` converts any error |
 | automatic mapping | `gorm.ErrRecordNotFound` → 404, `gorm.ErrDuplicatedKey` → 409, `*http.MaxBytesError` → 413. Validator/JSON errors and any error with `FieldErrors() map[string][]string` → 400. Everything else → 500; the cause is logged, never sent |
@@ -87,7 +89,8 @@ import cycle. A new API package needs one line in `router.Packages`.
 
 Global middleware: request id → access log → security headers → CORS (only when configured) → gzip → recovery → body limit.
 
-- The access log records the route pattern (`c.FullPath()`), never the query string. Unmatched requests log their literal path.
+- The access log records the route pattern (`httpx.LogPath(c)`, i.e. `c.FullPath()`), never the query string; so do the
+  `rate limited`, `request failed` and `panic recovered` lines. Unmatched requests log their literal path.
 - gzip only touches compressible bodies of at least 1 KiB and skips handlers that set `Content-Encoding`.
 - `account.Fail` / `RetryError` add `Retry-After` to the service-level 429s (code cooldown, password lockout, MFA failures).
 
@@ -141,11 +144,14 @@ after the scheduler, newest first; nil after `Close` — the notification queue 
 
 - Reads: `a.Settings.String/Int/Int64/Bool/Strings/Duration(key, unit)/JSON(key, &dst)/Get(key)/All()`.
 - Writes: `a.Settings.Set(map[string]any)` / `SetContext(ctx, …)` validates against `defs.go`. Unknown keys, wrong types,
-  enum and range violations become `settings.FieldErrors`, which `httpx.Fail` renders as 400. `nil` resets a key.
+  enum, option, range and `MinLen` violations become `settings.FieldErrors`, which `httpx.Fail` renders as 400. `nil` resets
+  a key to its default, except the generated secrets `server_token` and `telegram_webhook_secret`, which get a fresh
+  random value.
 - Admin metadata: `AllGrouped()` (secrets included, hidden keys excluded) and `settings.Groups()` (UI metadata, group order
-  site, register, subscribe, order, invite, server, email, frontend, app, security).
-- Helpers: `settings.IsSecret(key)` (`server_token`, `email_password`, `captcha_secret`), `settings.Lookup(key)`,
-  `settings.Defaults`, `settings.SortedKeys()`, `settings.RandomToken(n)` (alphanumeric).
+  site, register, subscribe, order, invite, server, email, frontend, app, security, telegram).
+- Helpers: `settings.IsSecret(key)` (`server_token`, `email_password`, `captcha_secret`, `telegram_bot_token`,
+  `telegram_webhook_secret`), `settings.Lookup(key)`, `settings.Defaults`, `settings.SortedKeys()`,
+  `settings.RandomToken(n)` (alphanumeric).
 - The hidden JSON key `rulesets_custom` stores admin rule-set overrides.
 - Reads never hit the database: the snapshot is swapped after each successful `Set`; `Reload(ctx)` re-reads it.
 
@@ -186,8 +192,8 @@ Brand (`app_name`, `app_url`, `logo`) and locale (`default_locale`, zh-CN/en) co
 - Subcommands: put `func init() { cli.Register(func(a *app.App) *cobra.Command { … }) }` in your package, plus a file in
   `cmd/ggboard/` that blank-imports it (e.g. `import.go` → `internal/importer/xboard`). `a` is initialized (config
   loaded, DB migrated) before `RunE`, unless the command sets the `cli.AnnotationNoApp` annotation.
-- Plugin packages are blank-imported the same way (`cmd/ggboard/plugins_payment.go` → `internal/payment/gateways`).
-  Subscription formats are linked by `internal/api/client`.
+- Plugin packages are blank-imported the same way (`cmd/ggboard/plugins_payment.go` → `internal/payment/gateways`,
+  `cmd/ggboard/plugins_notify.go` → `internal/notify/telegram`). Subscription formats are linked by `internal/api/client`.
 
 ## 8. Domain helpers
 
@@ -338,11 +344,11 @@ tok := testutil.Login(t, a, admin)                               // JWT for Do(.
   `.golangci.yml` when installed, otherwise `go vet` + a gofmt check.
 
 | make target | what |
-|---|---|
+| --- | --- |
 | `make build` | static binary `bin/ggboard` (`CGO_ENABLED=0`, version from `git describe`) embedding `internal/static/dist` |
 | `make run` | `go run ./cmd/ggboard serve` |
 | `make test` | Go tests with the race detector |
 | `make lint` | golangci-lint, or `go vet` + gofmt |
 | `make web` | `pnpm -C web install && pnpm -C web build`, then copy `web/dist` into `internal/static/dist` |
-| `make e2e` | `scripts/e2e.sh`: build, start on a random port, smoke-test `/healthz`, `/api/v1/guest/config` and `/` |
+| `make e2e` | `scripts/e2e.sh` (build, start on a random port, smoke-test `/healthz`, `/api/v1/guest/config` and `/`), then `scripts/e2e-full.sh` (the main API flows end to end; `BASE=…` runs it against a running server) |
 | `make tidy` / `make clean` | `go mod tidy` / remove `bin` and the copied frontend |

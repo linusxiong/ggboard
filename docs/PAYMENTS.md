@@ -162,7 +162,7 @@ generated from it and pre-fills `Field.Default`); every admin payment response c
 ## Built-in gateways
 
 | name | label | config fields | pay | notify |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `epay` | 易支付 (EPay); also GM Pay v2's EPay endpoint | url, pid, key, type (free text; suggestions alipay/wxpay/qqpay) | GET `<url>/submit.php?…&sign=md5(sorted k=v + key)&sign_type=MD5` → `url` | GET or form POST; verify MD5 (excluding sign/sign_type), `pid`; `trade_status=TRADE_SUCCESS`; respond `success` |
 | `epusdt` | Epusdt / BEpusdt (legacy protocol) | api_url, api_token, currency_type (free text, default `usdt.trc20`) | POST `/api/v1/order/create-transaction` JSON `{amount, order_id, notify_url, redirect_url, trade_type, fiat?, signature}` (MD5 of sorted `k=v` + token) → `payment_url` | POST JSON; verify signature, `status==2`; respond `ok` |
 | `alipay_f2f` | 支付宝当面付 (Alipay F2F) | app_id, private_key, alipay_public_key, sandbox (`0`/`1`) | `alipay.trade.precreate` (RSA2) → `qrcode` | form POST; verify RSA2 sign, `app_id`; `trade_status` in (TRADE_SUCCESS, TRADE_FINISHED); respond `success` |
@@ -174,3 +174,11 @@ All gateway HTTP calls use one shared `net/http` client (15 s timeout, TLS verif
 `stripe-go/v87`. Alipay F2F is CNY-only (config rejected for other site currencies). EPay/Epusdt accept `http://` base
 URLs with a WARN; BTCPay requires `https://`. Each gateway has unit tests with `httptest` fixtures and the signature
 vectors of `PAYMENTS_GATEWAYS.md`.
+
+## Display icons
+
+A payment's `icon` is display-only and gateway-independent: `""`, `preset:<id>` (16 original marks in
+`web/src/components/icons/payments`, e.g. `preset:alipay`, `preset:wechat`, `preset:usdt`), an image URL or one emoji.
+The admin console preselects the gateway's default when a payment is created (EPay by its `type`, Epusdt by
+`currency_type`, Stripe by `payment_methods`). The accepted values and the default mapping are in
+[API.md › Payment icons](API.md#payment-icons); a new gateway needs no icon code (unknown presets render a neutral card glyph).

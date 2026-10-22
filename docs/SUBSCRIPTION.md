@@ -3,7 +3,7 @@
 Packages (all under `internal/subscription`):
 
 | package | role |
-|---|---|
+| --- | --- |
 | `subscription` | `Format` registry, `DetectFormat`, `RenderContext`, `RuleProfile`, catalog types, `AvailableNodes`, `Proxy` (decoded node + credentials), info nodes, policy-group resolution |
 | `subscription/rulesets` | embedded `catalog.json`, admin overrides (`rulesets_custom`), profile decode/validate/resolve, per-format rule plan, public catalog view |
 | `subscription/formats` | one file per output format, registered from `init()` (blank-import the package) |
@@ -24,7 +24,7 @@ on the proxy). The per-group list is cached for 5 s (`subscription_nodes` namesp
 ## Client detection (`flag` query or User-Agent, case-insensitive, first match wins)
 
 | flag/UA contains | format | node types rendered |
-|---|---|---|
+| --- | --- | --- |
 | `clash.meta`, `mihomo`, `clashmeta`, `clash-verge`, `clash verge`, `verge`, `flclash`, `clash nyanpasu`, `clashx meta` | `clash-meta` | all 9 (mihomo YAML). Skipped: AnyTLS+REALITY (mihomo has none), unknown ss plugins |
 | `stash` | `stash` | ss (no chacha20-2022), ssr, vmess, vless (incl. reality/xhttp), trojan, hysteria v1/v2, tuic. No anytls/mieru (Stash docs list them since 2026, kept off for older Stash builds) |
 | `clash` (plain), `clashforandroid`, `clashx` | `clash` (classic core) | ss (no 2022 ciphers, no shadow-tls), ssr, vmess (tcp/ws/grpc/h2/tcp-http), trojan (tcp/ws/grpc) |
@@ -151,6 +151,7 @@ RuleProfile {
   "nodes": NodeOps                   // node operations, see "Node operations" (always present; defaults change nothing)
 }
 ```
+
 Stored in `rule_profiles.data` as a **complete** profile: `PUT /user/rule-profile` fills omitted parts from the chosen template
 (`categories`, `groups`, `final`, `geoip_cn_direct`; `source` from `ruleset_default_source`, `mirror` `default`, `dns` `default`)
 and validates strictly (400 with field errors): known template/source/categories (unknown JSON fields rejected); 1–32 groups,
@@ -329,7 +330,7 @@ and what ggboard offers instead:
 | Flag Operator (add / remove; TW flag optionally replaced) | `emoji: add` / `strip` (flags are never replaced) |
 | Regex Rename / Regex Delete Operator | `rename` (an empty `replace` deletes) |
 | Sort Operator (asc / desc / random), Regex Sort Operator | `sort: name` (natural) / `region`; no random order (stable configs and ETags) |
-| Handle Duplicate Operator (delete / rename by fields) | `dedupe` (protocol + host + port); duplicate names always get ` 2`, ` 3`, … |
+| Handle Duplicate Operator (delete / rename by fields) | `dedupe` (protocol + host + port); duplicate names always get `<name> 2`, `<name> 3`, … |
 | Quick Setting Operator (udp, tfo, skip-cert-verify, …) | not offered: transport settings belong to the node, set by the admin |
 | Resolve Domain Operator | not offered: no DNS lookups on every render; clients resolve |
 | Script Filter / Script Operator / Conditional Filter | not offered: no user scripts on the server |
@@ -432,7 +433,9 @@ mihomo v1.19.33 source `component/age/age.go`, `adapter/provider/provider.go` (`
   (template `notify`, `default_locale`): the counts and, after a rotation, the new subscription link; the button opens
   `<app_url>/subscription`. Because rows carry the token tag, a rotated or reset token starts a fresh count, also after a
   restart. Nothing happens when the token changed before the check.
-- Integrators replace `subscription.LeakHook` (for example to fan out to Telegram) and may call
+- The `ggboard` binary sets `subscription.LeakHook` in `cmd/ggboard/wire_leak.go` to `DefaultLeakHook` followed by
+  `notify.EmitSubscriptionLeak`, so administrators also get the `subscription_leak` notification (Telegram, when it is in
+  `telegram_events`; the user is told by mail only). Integrators may replace the hook and call
   `subscription.DefaultLeakHook` from the replacement; `nil` disables the notification (a rotation still happens).
 
 ## Catalog

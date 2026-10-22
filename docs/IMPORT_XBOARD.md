@@ -19,7 +19,7 @@ Target schema: `docs/DATA_MODEL.md` (`internal/model`). Notation: `ts(x)` = `tim
 ### 1.1 DSN (`--dsn "<scheme>://<rest>"`)
 
 | scheme | Go driver | `<rest>` | example |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `mysql://` | `github.com/go-sql-driver/mysql` | go-sql-driver DSN, or URL form `user:pass@host[:3306]/db` | `mysql://xboard:secret@tcp(127.0.0.1:3306)/xboard`, `mysql://xboard:secret@127.0.0.1:3306/xboard` |
 | `postgres://`, `postgresql://` | `pgx/v5/stdlib` | whole URL, unchanged | `postgres://xboard:secret@127.0.0.1:5432/xboard?sslmode=disable` |
 | `sqlite://`, `sqlite3://` | `github.com/glebarez/sqlite` (pure Go) | file path (`sqlite://rel/path` is relative to the working directory) | `sqlite:///srv/xboard/database/database.sqlite` |
@@ -63,7 +63,7 @@ With `--driver mysql|postgres|sqlite`, `--dsn` may be a raw driver DSN without a
 - **Columns**: `information_schema.columns`, or `PRAGMA table_info(t)` on sqlite.
 
 | probe | meaning |
-|---|---|
+| --- | --- |
 | `v2_user` or `v2_settings` missing | fatal: "not an Xboard database" |
 | `v2_server` exists and no `v2_server_<proto>` table exists | **upstream** flavor |
 | any of `v2_server_{shadowsocks,vmess,trojan,vless,hysteria}` exists and `v2_server` does not | **legacy** flavor |
@@ -134,13 +134,11 @@ each table is inserted in one pass. The result is the same as the two passes abo
 
 - **Default**: abort with exit 1, writing nothing, if any of these target tables has rows: users, plans, server_groups, nodes,
   node_routes, orders, payments, coupons, invite_codes, commission_logs, tickets, ticket_messages, notices, knowledge,
-  stat_users, stat_nodes, stats, rule_profiles, passkeys, user_mfa (second factors are keyed by user id, so leftovers would
-  attach to the imported user that receives the same id).
+  stat_users, stat_nodes, stats, rule_profiles, subscription_keys, subscription_access, passkeys, user_mfa (second factors
+  and age keys are keyed by user id, so leftovers would attach to the imported user that receives the same id).
   - Run the import right after `ggboard migrate` and **before** `ggboard admin create`. Imported `is_admin` users stay admins.
   - The `settings` table is allowed to be non-empty, because defaults are seeded on boot.
-  - Not in the list: `user_mfa` and `passkeys` (and `mail_logs`, which is keyed by email). They are neither checked nor
-    cleared, so `--force` on a panel that already had users keeps their 2FA and passkey rows, keyed by user ids that the
-    import then reuses. Delete them by hand before a `--force` run (tracked as a code bug).
+  - Not in the list: `mail_logs` (keyed by email, kept as history).
 - **`--force`**: inside the same transaction, `DELETE FROM` all the tables above (children first), then import. Imported
   settings keys are upserted. Other settings keys are not touched.
 - **No upsert-by-id mode**. Rows deleted in Xboard would linger, and node remaps are not stable between runs. To refresh,
@@ -158,7 +156,7 @@ each table is inserted in one pass. The result is the same as the two passes abo
 ### 4.2 plans ← `v2_plan`
 
 | ours | L | U | conversion |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | id | id | id | keep |
 | group_id | group_id (NOT NULL) | group_id (nullable) | NULL or unknown group → 0, W "plan grants no group" |
 | name, content | name, content | same | `content` NULL → `""` |
@@ -186,7 +184,7 @@ kept, because L lets users buy it for free; W.
 ### 4.3 node_routes ← `v2_server_route`
 
 | ours | L / U | conversion |
-|---|---|---|
+| --- | --- | --- |
 | id, remarks | id, remarks | verbatim |
 | match | match (text) | `parseStringList`. Usually a JSON array, but can be a JSON object (because of `array_filter`) or a newline/comma list from pre-JSON v2board |
 | action | action | `block`, `dns` verbatim. U also allows `direct` and `proxy`: **skip** such a route with W and drop it from every node's `route_ids` |
@@ -198,7 +196,7 @@ kept, because L lets users buy it for free; W.
 **Common columns**:
 
 | ours | L | U | conversion |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | id | §3.2 | id | |
 | type | table suffix | type | U: normalise `v2ray→vmess`, `hysteria2→hysteria`. U `socks`, `naive`, `http` → skip node, W |
 | name, host | same | same | verbatim |
@@ -234,7 +232,7 @@ kept, because L lets users buy it for free; W.
 **protocol_settings from L columns**:
 
 | type | ours |
-|---|---|
+| --- | --- |
 | shadowsocks | `cipher` = cipher. A cipher outside our enum (L also allowed `aes-192-gcm`) is kept, with W.<br>`obfs` = `"http"` if obfs = `http`, else `"plain"`.<br>`obfs_settings` = JSON(obfs_settings) `{path,host}` when http.<br>`plugin` = `""`, `plugin_opts` = `""`.<br>`server_key` = K(n) for 2022 ciphers only. |
 | vmess | `network` = network. `kcp`, `quic` and `domainsocket` are kept with `show=false`, W.<br>`network_settings` = JSON(`networkSettings`), verbatim (already Xray style).<br>`tls` = tls (0/1).<br>`tls_settings` = `{server_name: tlsSettings.serverName ?? tlsSettings.server_name, allow_insecure: flexBool(tlsSettings.allowInsecure ?? .allow_insecure)}`. L stores **camelCase** keys here.<br>`rules`, `ruleSettings` and `dnsSettings` are dropped (W if non-empty). |
 | trojan | `network` = network ?? `"tcp"`.<br>`network_settings` = JSON(`networkSettings`). The column name is camelCase.<br>`server_name` = server_name.<br>`allow_insecure` = `flexBool(allow_insecure)`. |
@@ -245,7 +243,7 @@ kept, because L lets users buy it for free; W.
 `ech` and `encryption` produce W only when `enabled`/`open` is true.
 
 | type | ours |
-|---|---|
+| --- | --- |
 | shadowsocks | `cipher`, `obfs` (NULL → `"plain"`), `obfs_settings`, `plugin` ?? `""`, `plugin_opts` ?? `""`.<br>`server_key` = K(n) for 2022 ciphers. U sends no key for chacha20-2022; ours does. |
 | vmess | `network`, `network_settings`, `tls`, `tls_settings{server_name, allow_insecure}`.<br>Dropped: `rules`, `multiplex`, `utls`, `tls_settings.ech`. |
 | trojan | `network` ?? `"tcp"`, `network_settings`.<br>`server_name` = `tls_settings.server_name` ?: `server_name`. U's 2026-04-22 migration made `tls_settings` authoritative.<br>`allow_insecure` = `tls_settings.allow_insecure` OR `allow_insecure`.<br>If `tls=2` (reality): `show=false`, W. Our trojan has no reality. |
@@ -258,7 +256,7 @@ kept, because L lets users buy it for free; W.
 ### 4.5 users ← `v2_user` (L = U, plus U-only columns)
 
 | ours | source | conversion |
-|---|---|---|
+| --- | --- | --- |
 | id | id | keep |
 | email | email | `lower(trim())`. Collisions: §5. U lower-cases emails on write; L does not |
 | password_hash | password, password_algo, password_salt | §4.5.1 |
@@ -280,7 +278,7 @@ kept, because L lets users buy it for free; W.
 | remind_expire, remind_traffic | same (nullable tinyint) | `flexBool`; **NULL → false** (Xboard checks `if ($user->remind_expire)`) |
 | last_login_at | last_login_at | NULL → null, else `ts()` |
 | last_login_ip | last_login_ip (int, never written by Xboard) | `""` |
-| telegram_id | telegram_id | verbatim |
+| telegram_id | telegram_id | verbatim (the chat id the Xboard bot bound; the same bot token keeps reaching it). `telegram_username` stays null: Xboard does not store it |
 | remarks | remarks | NULL → `""` |
 | password_version | — | 0 |
 | created_at, updated_at | int | `ts()` |
@@ -292,7 +290,7 @@ Dropped columns: `t` (last traffic time); U-only `online_count`, `last_online_at
 Xboard's `Helper::multiPasswordVerify` works like this. U added `sha256salt`.
 
 | `password_algo` (trimmed) | Xboard verify | stored `password_hash` |
-|---|---|---|
+| --- | --- | --- |
 | NULL, `""`, unknown | PHP `password_verify` | verbatim if it starts with `$2` (bcrypt `$2y$`, which our bcrypt verifier accepts) or `$argon2id$` (PHP `PASSWORD_ARGON2ID`, same PHC string as ours). Otherwise `!xb-unusable`, W ("user must reset password") |
 | `md5` | `md5(pw)` | `xb$md5$$<hash>` |
 | `sha256` | `sha256(pw)` | `xb$sha256$$<hash>` |
@@ -318,7 +316,7 @@ the imported effective setting `reset_traffic_method` when the plan's value is N
 resets these users), or `expired_at` ≤ now. Otherwise:
 
 | M | next_reset_at |
-|---|---|
+| --- | --- |
 | 0 | `Date(now.Y, now.M+1, 1, 00:00:00, L)`. Go's normalisation avoids Carbon's `addMonth` overflow on the 31st |
 | 1 | `d=E.Day`, `t=E.Clock`.<br>Candidate: `Date(now.Y, now.M, min(d, lastDay(now.Y,now.M)), t)`. If the candidate is after now, use it.<br>Otherwise `Date(Y', M', min(d, lastDay(Y',M')), t)` for the next month |
 | 3 | `Date(now.Y+1, 1, 1, 00:00:00, L)` |
@@ -345,7 +343,7 @@ A row whose `invite_user_id` is not an imported user is still imported, with W. 
 ### 4.8 coupons ← `v2_coupon`
 
 | ours | source | conversion |
-|---|---|---|
+| --- | --- | --- |
 | id, name | same | |
 | code | code (string(255), **not unique** in Xboard) | longer than 64 characters, or a duplicate (keep the lowest id; compared case-insensitively, see §4.6) → skip, W |
 | type, value | type (1 fixed cents, 2 percent), value | verbatim; a type other than 1 or 2 → skip, W |
@@ -361,7 +359,7 @@ A row whose `invite_user_id` is not an imported user is still imported, with W. 
 **Common columns**:
 
 | ours | source | conversion |
-|---|---|---|
+| --- | --- | --- |
 | id | id | keep |
 | uuid | uuid (8 random mixed-case chars, from `randomChar(8)`) | verbatim. Keeping it keeps the notify path suffix. Empty or a case-insensitive duplicate → new random uuid, W |
 | gateway | payment (class name) | table below |
@@ -380,7 +378,7 @@ U only: if `v2_plugins` has a row for the gateway's plugin `code` (`epay`, `alip
 **Gateway mapping**:
 
 | Xboard `payment` | ours | config key map | after import |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `EPay` | `epay` | `url` (rtrim `/`), `pid`, `key`, `type` (a value not in `alipay/wxpay/qqpay/""` is kept, W) | works. The notify URL is sent with each order |
 | `EpusdtPay` | `epusdt` | `epusdt_pay_url`→`api_url`, `epusdt_pay_apitoken`→`api_token`, `currency_types`→`currency_type` (empty → `usdt.trc20`) | works |
 | `AlipayF2F` | `alipay_f2f` | `app_id`, `private_key`, `public_key`→`alipay_public_key`, `sandbox`=`"0"` (a `0`/`1` select, PAYMENTS_GATEWAYS.md §4). `product_name` dropped, W | works |
@@ -437,7 +435,7 @@ U's "optimised" table has the same columns; only `value` became `mediumtext`.
   `config/v2board.php`, which the importer cannot read; the operator must check the summary.
 
 | ours | Xboard source | rule |
-|---|---|---|
+| --- | --- | --- |
 | `app_name` `app_description` `app_url` `logo` `tos_url` `currency` `currency_symbol` | same names | verbatim strings |
 | `stop_register` `email_verify` `email_whitelist_enable` `invite_force` `register_limit_by_ip_enable` `password_limit_enable` | same | bool |
 | `register_limit_count` `register_limit_expire` `password_limit_count` `password_limit_expire` `try_out_plan_id` | same | int. `try_out_plan_id` must be an imported plan, else 0, W |
@@ -462,7 +460,8 @@ U's "optimised" table has the same columns; only `value` became `mediumtext`.
 | `windows_*`, `macos_*`, `android_*` (`_version`, `_download_url`) | same | verbatim |
 
 Explicitly dropped (listed in the summary): `force_https`, `secure_path`, `frontend_admin_path`, `safe_mode_enable`,
-`email_gmail_limit_enable`, `frontend_theme*`, `email_template` (template sets differ), `telegram_*`, `new_order_event_id`,
+`email_gmail_limit_enable`, `frontend_theme*`, `email_template` (template sets differ), `telegram_*` (the ggboard bot has its
+own settings group: re-enter them, §7 step 5), `new_order_event_id`,
 `renew_order_event_id`, `change_order_event_id`, `try_out_enable`, `server_ws_enable`, `server_ws_url`,
 `ticket_must_wait_reply`, `recaptcha_v3_*`, `subscribe_template_*`, `subscribe_path` (W if ≠ `"s"`: our short link is
 fixed at `/s/:token`).
@@ -474,7 +473,7 @@ fixed at `/s/:token`).
   `1729440000` → `2024-10-21`; using UTC would give the 20th.
 
 | ours | source | conversion |
-|---|---|---|
+| --- | --- | --- |
 | stats | `v2_stat` | the count/total columns map one to one. `transfer_used_total` (varchar) → int64. The record_at unique index is missing on sqlite: on duplicates, the highest id wins |
 | stat_nodes | `v2_stat_server` | `node_id`:<br>L: `nodeMap[(normType(server_type), server_id)]`.<br>U: the `v2_server` row with that `id` and type, else the one with that `code` and type.<br>No match → drop (counted). Then sum u/d per (node_id, date) |
 | stat_users | `v2_stat_user` | `node_id = 0`; Xboard records no server. (A fork whose `v2_stat_user` has `server_id` [+ `server_type`] maps it like stat_nodes; unmapped → 0.) Aggregate per (user_id, node_id, date). Drop users that were not imported |
@@ -486,7 +485,7 @@ rounded to 2 decimals; for U, raw = `charged/rate`, skipping rate 0; nothing der
 ### 4.15 Skipped tables
 
 | table(s) | reason |
-|---|---|
+| --- | --- |
 | `v2_order` | requirement: no historical orders |
 | `v2_log`, `v2_admin_audit_log`, `v2_mail_log`, `v2_server_log`, `v2_traffic_reset_logs`, `failed_jobs` | operational logs with no value after cutover |
 | `v2_tutorial` | from old v2board (`migrate:fromV2b`); replaced by knowledge |
@@ -499,7 +498,7 @@ rounded to 2 decimals; for U, raw = `charged/rate`, skipping rate 0; nothing der
 ## 5. Validation and edge cases
 
 | case | handling |
-|---|---|
+| --- | --- |
 | `plan_id` → deleted plan | `plan_id` = NULL, W. `transfer_enable`/`expired_at` kept; `next_reset_at` null (Xboard's reset job also skips them) |
 | `group_id` NULL | kept NULL; the user sees no nodes, as in Xboard |
 | `expired_at` in the past, or 0 | kept as expired (§4.5); `next_reset_at` null |
@@ -581,8 +580,16 @@ next: docs/IMPORT_XBOARD.md §7 post-import checklist
    `subscribe_url` lists the domains users already have.
 4. **Logins.** Log in as one bcrypt and one md5/sha256 user (if any); the hash upgrades to argon2id. Users with unusable
    hashes must use "forgot password".
-5. **Settings.** Send a test mail (`/admin/settings/mail/test`); re-check captcha keys; re-set dropped items you need
-   (theme, Telegram). Xboard's `secure_path` no longer applies: restrict `/admin` at the proxy if you relied on it.
+5. **Settings.** Send a test mail (`/admin/settings/mail/test`); re-check captcha keys; re-set dropped items you need.
+   Xboard's `secure_path` no longer applies: restrict `/admin` at the proxy if you relied on it.
+   **Telegram**: Xboard's Telegram settings (`telegram_bot_enable`, `telegram_bot_token`, `telegram_discuss_link`, …) are
+   not imported. Under
+   Settings → Telegram enter the **same** bot token (imported `telegram_id`s are chats of that bot; another bot cannot
+   message them first), `telegram_discuss_link`, and `telegram_admin_chat_ids` (Xboard notified every admin with a
+   `telegram_id`; ggboard notifies the listed chats: send `/id` to the bot, or copy the admin's `telegram_id`). Then
+   **Set webhook** (replaces Xboard's `/api/v1/guest/telegram/webhook?access_token=…`, which is a 404 on ggboard) and
+   **Send test message**. Xboard's bot commands (`/bind`, `/traffic`, `/getlatesturl`, ticket replies) do not exist; users
+   who were bound stay bound, new bindings use one-time codes (docs/ADMIN_GUIDE.md, docs/USER_GUIDE.md).
 6. **Content.** Knowledge articles that use access blocks (W) work as in Xboard; the warning is informational (§4.12).
 7. **Keep the Xboard DB** as a read-only backup. The importer never modifies it.
 
@@ -615,7 +622,7 @@ Status as of 2026-10-22: 1, 2 and 5 are implemented; 3, 6 (scheduler zone) and 7
 **Fixtures.** Commit SQL, not binary `.sqlite` files, in `internal/importer/xboard/testdata/`.
 
 | file | contents |
-|---|---|
+| --- | --- |
 | `legacy_schema.sql` | SQLite DDL transcribed from the 33 L migrations. Booleans are `INTEGER`, `bigInteger()` columns `BIGINT` (SQLite does not care; PostgreSQL rejects 100 GiB in an `integer` when the suite loads the seed there). **No** `v2_stat_user` / `v2_stat` unique indexes on sqlite, matching the migrations |
 | `upstream_schema.sql` | the result of running all U migrations: `v2_server`, `prices` JSON, `next_reset_at`, gift-card tables, `v2_subscribe_templates`, `v2_plugins`, `v2_server_machine`, `surplus_credit`, `last_reply_user_id` |
 | `legacy_seed.sql`, `upstream_seed.sql` | fake data on `example.com` |
