@@ -36,7 +36,15 @@ GG Bond（猪猪侠谐音）是一个 **简洁、美观、高性能** 的代理�
     （`username`/`email`、`current-password`、`new-password`、`one-time-code`、Passkey 条件式 UI `webauthn`）、
     `name`/`id`/`<label>`、`type="password"`、`inputmode`；Passkey 使用 discoverable credential（`residentKey: required`）；
     后端提供 `/.well-known/change-password` 与 `/.well-known/passkey-endpoints`。
-17. 开源项目（GPL-3.0），可以 commit / push 到 GitHub；**绝不提交任何个人信息、密钥、服务器地址**，
+17. **Telegram 机器人**（可插拔通知）：订单创建/支付、工单、提现、订阅泄露告警推送给管理员；
+    **每次管理员/员工登录都推送登录消息**（邮箱、方式、IP、UA、时间）；用户可绑定 Telegram 接收自己的通知。
+18. **注册安全**：邮箱验证码才能注册、注册开关、邮箱后缀白名单，后台设置清晰可用；各类表单填写要便利
+    （无 +/- 步进器、价格按元填写、标签式列表输入、Enter 提交、内联校验）。
+19. **订阅防泄露**：mihomo 1.19.27+ 的 **age 加密订阅**（面板用用户公钥加密，客户端持 `AGE-SECRET-KEY`），
+    订阅访问日志、异常 IP 数告警/自动轮换 token、仅轮换 token 的操作。
+20. **参考 Sub-Store 打磨自定义订阅**：多套订阅配置（profile）、节点处理流水线（正则过滤/重命名/地区/类型/
+    前后缀/旗帜 emoji/排序/去重/数量上限）、实时预览。
+21. 开源项目（GPL-3.0），可以 commit / push 到 GitHub；**绝不提交任何个人信息、密钥、服务器地址**，
     `.gitignore` 必须配置好。
 
 ---
