@@ -9,11 +9,12 @@ import (
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/auth"
 	"github.com/linusxiong/ggboard/internal/httpx"
+	mfasvc "github.com/linusxiong/ggboard/internal/service/mfa"
 )
 
 // Register mounts the package's routes on the root router r (paths include httpx.APIPrefix).
 func Register(r gin.IRouter, a *app.App) {
-	g := r.Group(httpx.APIPrefix+"/admin", auth.RequireStaff(a))
+	g := r.Group(httpx.APIPrefix+"/admin", auth.RequireStaff(a), mfasvc.AdminGate(a))
 	registerStats(g, a)     // admin/stats.go     (BE-E1)
 	registerUsers(g, a)     // admin/users.go     (BE-E1)
 	registerSettings(g, a)  // admin/settings.go  (BE-E1)
