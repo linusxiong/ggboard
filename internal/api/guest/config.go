@@ -50,6 +50,7 @@ type Config struct {
 	Downloads            Downloads     `json:"downloads"`
 	Locales              []string      `json:"locales"`
 	PasskeyEnabled       bool          `json:"passkey_enabled"` // a WebAuthn RP can be derived (app_url or passkey_rp_id)
+	AllowUserRuleProfile bool          `json:"allow_user_rule_profile"` // users may customize their subscription rule profile
 }
 
 // PublicConfig builds the public site configuration from settings. email_whitelist_suffix is empty unless
@@ -82,6 +83,7 @@ func PublicConfig(st *settings.Service) Config {
 		Downloads:            Downloads{Windows: dl("windows"), MacOS: dl("macos"), Android: dl("android"), IOS: dl("ios")},
 		Locales:              append([]string(nil), Locales...),
 		PasskeyEnabled:       mfasvc.PasskeyEnabled(st),
+		AllowUserRuleProfile: st.Bool("allow_user_rule_profile"),
 	}
 }
 

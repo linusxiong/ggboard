@@ -18,7 +18,7 @@ func TestConfigShape(t *testing.T) {
 	raw := testutil.Decode[map[string]json.RawMessage](t, rec)
 	want := []string{"app_name", "app_description", "app_url", "logo", "tos_url", "currency", "currency_symbol",
 		"register_enabled", "email_verify", "email_whitelist_suffix", "invite_force", "captcha", "downloads", "locales",
-		"passkey_enabled"}
+		"passkey_enabled", "allow_user_rule_profile"}
 	var got []string
 	for k := range raw {
 		got = append(got, k)
