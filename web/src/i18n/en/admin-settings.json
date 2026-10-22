@@ -45,6 +45,10 @@
     "security": {
       "title": "Security",
       "hint": "Security options."
+    },
+    "telegram": {
+      "title": "Telegram",
+      "hint": "Bot notifications and account linking."
     }
   },
   "keys": {
@@ -85,35 +89,35 @@
       "hint": "When off, the user node list hides hosts and ports."
     },
     "stop_register": {
-      "label": "Disable sign-ups",
-      "hint": "New users cannot register while this is on."
+      "label": "Allow sign-ups",
+      "hint": "When off, new users can’t register. Existing accounts are unaffected."
     },
     "email_verify": {
-      "label": "Require email verification",
-      "hint": "Sign-up requires an email verification code."
+      "label": "Email verification",
+      "hint": "Sign-up requires a code sent to the address."
     },
     "email_whitelist_enable": {
       "label": "Email domain allow-list",
-      "hint": "Only addresses with the suffixes below may register."
+      "hint": "Only the domains listed below may register."
     },
     "email_whitelist_suffix": {
       "label": "Allowed email domains",
-      "hint": "For example gmail.com, outlook.com."
+      "hint": "Press Return or comma to add; paste a list to add several. Shown under the email field on the sign-up page."
     },
     "invite_force": {
       "label": "Require an invite code",
-      "hint": "Registration needs a valid invite code."
+      "hint": "Sign-up needs a valid invite code."
     },
     "register_limit_by_ip_enable": {
       "label": "Limit sign-ups per IP",
-      "hint": "Caps registrations from one IP within a time window."
+      "hint": "Caps how many accounts one IP can create within a time window."
     },
     "register_limit_count": {
       "label": "Sign-ups per IP",
-      "hint": "Registrations allowed per window."
+      "hint": "Accounts one IP may create per window."
     },
     "register_limit_expire": {
-      "label": "Sign-up window (minutes)",
+      "label": "Time window",
       "hint": ""
     },
     "password_limit_enable": {
@@ -125,7 +129,7 @@
       "hint": ""
     },
     "password_limit_expire": {
-      "label": "Lock duration (minutes)",
+      "label": "Lock duration",
       "hint": ""
     },
     "try_out_plan_id": {
@@ -133,7 +137,7 @@
       "hint": "Plan granted to new users on sign-up."
     },
     "try_out_hour": {
-      "label": "Trial length (hours)",
+      "label": "Trial length",
       "hint": ""
     },
     "captcha_provider": {
@@ -142,11 +146,11 @@
     },
     "captcha_site_key": {
       "label": "Site key",
-      "hint": ""
+      "hint": "Public key, sent to the browser."
     },
     "captcha_secret": {
       "label": "Secret key",
-      "hint": ""
+      "hint": "Server-side key, never leaves the server."
     },
     "subscribe_url": {
       "label": "Subscription URLs",
@@ -195,7 +199,7 @@
       "direct": "Direct (GitHub)"
     },
     "subscribe_update_interval": {
-      "label": "Update interval (hours)",
+      "label": "Update interval",
       "hint": "Suggested auto-update interval for clients."
     },
     "allow_user_rule_profile": {
@@ -203,11 +207,11 @@
       "hint": "When off, everyone uses the default template."
     },
     "order_timeout_minutes": {
-      "label": "Order timeout (minutes)",
+      "label": "Order timeout",
       "hint": "Unpaid orders are cancelled after this time."
     },
     "invite_commission": {
-      "label": "Commission rate (%)",
+      "label": "Commission rate",
       "hint": "Share of each payment credited to the inviter."
     },
     "invite_gen_limit": {
@@ -243,15 +247,15 @@
       "hint": "Splits commission across inviter levels."
     },
     "commission_distribution_l1": {
-      "label": "Level 1 (%)",
+      "label": "Level 1",
       "hint": ""
     },
     "commission_distribution_l2": {
-      "label": "Level 2 (%)",
+      "label": "Level 2",
       "hint": ""
     },
     "commission_distribution_l3": {
-      "label": "Level 3 (%)",
+      "label": "Level 3",
       "hint": ""
     },
     "server_token": {
@@ -259,11 +263,11 @@
       "hint": "Shared secret node backends (XrayR / V2bX / soga) use to connect."
     },
     "server_pull_interval": {
-      "label": "Pull interval (seconds)",
+      "label": "Pull interval",
       "hint": "How often nodes fetch users and config."
     },
     "server_push_interval": {
-      "label": "Push interval (seconds)",
+      "label": "Push interval",
       "hint": "How often nodes report traffic and status."
     },
     "server_white_list": {
@@ -378,6 +382,46 @@
     "mfa_issuer": {
       "label": "Authenticator issuer",
       "hint": "Issuer name shown in authenticator apps. Empty = site name."
+    },
+    "subscribe_age_optional": {
+      "label": "Allow opting out of encryption",
+      "hint": "With age encryption on, adding ?age=0 to a subscription link still returns plaintext."
+    },
+    "subscribe_age_strict": {
+      "label": "Strict encryption",
+      "hint": "With encryption on, formats that can’t be age-encrypted are refused (406) instead of served in plaintext."
+    },
+    "subscribe_leak_max_ips": {
+      "label": "Leak detection threshold",
+      "hint": "Triggers when one subscription is fetched from more distinct IPs (IPv6 per /64) within 24 hours; 0 = off."
+    },
+    "subscribe_leak_action": {
+      "label": "When triggered",
+      "hint": ""
+    },
+    "telegram_bot_token": {
+      "label": "Bot token",
+      "hint": "From @BotFather. Leave empty to turn Telegram off."
+    },
+    "telegram_webhook_secret": {
+      "label": "Webhook secret",
+      "hint": "Part of the webhook URL (16+ characters); set the webhook again after changing it."
+    },
+    "telegram_admin_chat_ids": {
+      "label": "Admin chat IDs",
+      "hint": "Chats that get admin notifications: user or group IDs (groups are negative) or @channel. Press Return to add."
+    },
+    "telegram_events": {
+      "label": "Events",
+      "hint": "Selected events are sent to the admin chats above."
+    },
+    "telegram_user_notify": {
+      "label": "User notifications",
+      "hint": "Users who linked Telegram get expiry and traffic reminders there."
+    },
+    "telegram_discuss_link": {
+      "label": "Community link",
+      "hint": "Telegram group link shown to users (optional)."
     }
   },
   "enums": {
@@ -413,6 +457,20 @@
     "default_locale": {
       "zh-CN": "简体中文",
       "en": "English"
+    },
+    "telegram_events": {
+      "order_new": "New order",
+      "order_paid": "Order paid",
+      "order_cancel": "Order cancelled",
+      "admin_login": "Admin sign-in",
+      "ticket_new": "New ticket",
+      "ticket_reply": "Ticket reply",
+      "withdraw": "Withdrawal request",
+      "subscription_leak": "Subscription leak"
+    },
+    "subscribe_leak_action": {
+      "notify": "Notify admins only",
+      "rotate": "Notify and rotate the link"
     }
   },
   "validation": {
@@ -426,7 +484,10 @@
     "save": "Save",
     "discard": "Discard",
     "saved": "“{group}” saved",
-    "nothing": "Nothing to save"
+    "nothing": "Nothing to save",
+    "clean": "All changes saved",
+    "dirty": "Unsaved changes",
+    "shortcut": "⌘S to save"
   },
   "server": {
     "regenerate": "Regenerate token",
@@ -458,7 +519,9 @@
     "hide": "Hide",
     "empty": "None",
     "addTo": "Add to {label}",
-    "addPlaceholder": "Type and press Enter"
+    "addPlaceholder": "Type and press Return or comma",
+    "remove": "Remove {item}",
+    "add": "Add"
   },
   "urlList": {
     "empty": "None configured; the site URL is used.",
@@ -550,5 +613,158 @@
       "addToJson": "Add to overrides JSON",
       "added": "Added to the JSON — remember to save"
     }
-  }
+  },
+  "units": {
+    "minutes": "min",
+    "hours": "hours",
+    "seconds": "s",
+    "times": "times",
+    "percent": "%",
+    "codes": "codes",
+    "ips": "IPs"
+  },
+  "enumHints": {
+    "captcha_provider": {
+      "none": "No CAPTCHA.",
+      "turnstile": "Free, by Cloudflare — no image puzzles.",
+      "recaptcha": "Google reCAPTCHA v2/v3.",
+      "hcaptcha": "Privacy-focused image challenge."
+    },
+    "subscribe_leak_action": {
+      "notify": "Sends an alert; the user’s subscription keeps working.",
+      "rotate": "Rotates the user’s token; the old link stops working immediately."
+    }
+  },
+  "sections": {
+    "site": {
+      "identity": {
+        "title": "Identity",
+        "caption": "Name, description and address."
+      },
+      "region": {
+        "title": "Language & currency",
+        "caption": "For new visitors, emails and prices."
+      },
+      "privacy": {
+        "title": "Node details",
+        "caption": "What users can see about nodes."
+      }
+    },
+    "register": {
+      "signup": {
+        "title": "Sign-up",
+        "caption": "Who can register and what it takes."
+      },
+      "trial": {
+        "title": "Trial",
+        "caption": "Plan given to new users automatically."
+      },
+      "protection": {
+        "title": "Abuse protection",
+        "caption": "Limits bulk sign-ups and password guessing."
+      },
+      "captcha": {
+        "title": "CAPTCHA",
+        "caption": "Checked on sign-up, sign-in and email codes."
+      }
+    },
+    "subscribe": {
+      "links": {
+        "title": "Subscription hosts",
+        "caption": "Domains clients fetch from, and how often."
+      },
+      "plans": {
+        "title": "Plan changes",
+        "caption": "Switching plans and traffic resets."
+      },
+      "content": {
+        "title": "Content & reminders",
+        "caption": "What subscriptions show, and default reminders."
+      },
+      "rules": {
+        "title": "Routing rules",
+        "caption": "Default template, rule source and mirror."
+      },
+      "protection": {
+        "title": "Leak protection",
+        "caption": "Encrypted subscriptions and unusual-fetch detection."
+      }
+    },
+    "invite": {
+      "codes": {
+        "title": "Invite codes"
+      },
+      "commission": {
+        "title": "Commission"
+      },
+      "withdraw": {
+        "title": "Withdrawals"
+      },
+      "distribution": {
+        "title": "Multi-level"
+      }
+    },
+    "server": {
+      "auth": {
+        "title": "Authentication",
+        "caption": "Token node backends use to connect."
+      },
+      "sync": {
+        "title": "Sync",
+        "caption": "Pull/push frequency, device limits and allow-list."
+      }
+    },
+    "email": {
+      "delivery": {
+        "title": "Delivery",
+        "caption": "Choose SMTP, then fill in the server."
+      },
+      "sender": {
+        "title": "Sender"
+      },
+      "reminders": {
+        "title": "Reminder emails"
+      }
+    },
+    "other": {
+      "title": "More"
+    },
+    "telegram": {
+      "bot": {
+        "title": "Bot",
+        "caption": "Bot credentials and webhook."
+      },
+      "admins": {
+        "title": "Admin notifications",
+        "caption": "Selected events are pushed to the admin chats."
+      },
+      "users": {
+        "title": "Users",
+        "caption": "Personal reminders after linking, and the community link."
+      }
+    }
+  },
+  "register": {
+    "smtpHint": "Codes are sent by email — configure SMTP under “Email” and send a test message first.",
+    "logWarning": "Email delivery is set to “log only”, so codes are not actually sent.",
+    "openEmail": "Email settings",
+    "domainInvalid": "Enter a domain, e.g. gmail.com"
+  },
+  "telegram": {
+    "title": "Connection",
+    "caption": "Save first, then send a test message or point the webhook at this site.",
+    "test": "Send test message",
+    "webhook": "Set webhook",
+    "done": "Done",
+    "unsaved": "Save the Telegram settings before testing.",
+    "chatInvalid": "Enter a numeric chat ID or an @username",
+    "regenerateSecret": "Regenerate secret",
+    "regenerateSecretTitle": "Regenerate the webhook secret?",
+    "regenerateSecretHint": "After saving, the old webhook URL stops working — set the webhook again.",
+    "sentSummary": "Sent {sent}, failed {failed}",
+    "webhookOk": "Webhook set: {url}",
+    "webhookFailed": "Failed: {description}",
+    "chatFailed": "{chat}: {error}"
+  },
+  "nav": "Settings groups"
 }

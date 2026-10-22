@@ -1,0 +1,614 @@
+/*
+ * HeroUI skin for the signed-in app (imported by `AppShell`, so the public pages never download it).
+ * Same layer as theme.css' global part (`gg-overrides`, after HeroUI's `components`). Colors are
+ * tokens only. Order: surfaces → controls → collections → overlays → feedback.
+ */
+@layer gg-overrides {
+  /* ------------------------------------------------------------------ surfaces */
+  .card {
+    border-radius: var(--radius-card);
+    box-shadow: var(--card-shadow);
+    padding: 20px;
+    gap: 12px;
+  }
+  .card__title {
+    font-size: var(--text-headline);
+    line-height: var(--text-headline--line-height);
+    font-weight: 600;
+    letter-spacing: -0.024em;
+    color: var(--label);
+  }
+  .card__description {
+    font-size: var(--text-subhead);
+    line-height: var(--text-subhead--line-height);
+    color: var(--label-secondary);
+  }
+  .separator {
+    background-color: var(--hairline);
+  }
+  .separator--horizontal {
+    height: 0.5px;
+  }
+  .separator--vertical {
+    width: 0.5px;
+  }
+
+  /* ------------------------------------------------------------------ switches (iOS proportions) */
+  .switch {
+    --switch-control-bg: var(--fill);
+    --switch-control-bg-hover: var(--fill);
+    --switch-control-bg-pressed: var(--fill);
+    --switch-control-bg-checked: var(--sys-green);
+    --switch-control-bg-checked-hover: var(--sys-green);
+  }
+  .switch__control {
+    width: 44px;
+    height: 26px;
+    border-radius: 999px;
+  }
+  .switch__thumb {
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    margin-inline-start: 2px;
+    background-color: var(--tint-foreground);
+    box-shadow:
+      0 3px 8px rgb(0 0 0 / 0.15),
+      0 1px 1px rgb(0 0 0 / 0.16),
+      0 0 0 0.5px rgb(0 0 0 / 0.04);
+  }
+  .switch[data-selected='true'] .switch__thumb,
+  .switch[aria-checked='true'] .switch__thumb {
+    margin-inline-start: calc(100% - 24px);
+    background-color: var(--tint-foreground);
+  }
+  @media (min-width: 768px) {
+    .switch__control {
+      width: 38px;
+      height: 22px;
+    }
+    .switch__thumb {
+      width: 18px;
+      height: 18px;
+    }
+    .switch[data-selected='true'] .switch__thumb,
+    .switch[aria-checked='true'] .switch__thumb {
+      margin-inline-start: calc(100% - 20px);
+    }
+  }
+  .switch__content {
+    font-size: var(--text-subhead);
+    line-height: var(--text-subhead--line-height);
+    font-weight: 500;
+    color: var(--label);
+  }
+  .switch > [data-slot='description'],
+  .switch > [data-slot='field-error'] {
+    padding-inline-start: calc(38px + 0.75rem);
+  }
+  @media (max-width: 767px) {
+    .switch > [data-slot='description'],
+    .switch > [data-slot='field-error'] {
+      padding-inline-start: calc(44px + 0.75rem);
+    }
+  }
+
+  /* Settings-style row: title + caption on the left, switch on the right (`<SwitchRow>`). */
+  .switch.switch-row {
+    position: relative;
+    display: block;
+    width: 100%;
+    padding-inline-end: 60px;
+  }
+  .switch.switch-row .switch__content {
+    position: static;
+    display: flex;
+    min-height: 26px;
+  }
+  .switch.switch-row .switch__control {
+    position: absolute;
+    inset-inline-end: 0;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .switch.switch-row > [data-slot='description'],
+  .switch.switch-row > [data-slot='field-error'] {
+    display: block;
+    margin-top: 2px;
+    padding-inline-start: 0;
+  }
+
+  /* ------------------------------------------------------------------ select popovers, menus, lists */
+  .select__indicator {
+    color: var(--label-secondary);
+  }
+  .popover,
+  .select__popover,
+  .dropdown__popover {
+    border-radius: 14px;
+    background-color: var(--overlay);
+    box-shadow: var(--float-shadow);
+  }
+  .menu-item,
+  .list-box-item {
+    min-height: 36px;
+    border-radius: 8px;
+    font-size: var(--text-subhead);
+    gap: 10px;
+  }
+  @media (min-width: 768px) {
+    .menu-item,
+    .list-box-item {
+      min-height: 32px;
+    }
+  }
+  .menu-item[data-focused='true'],
+  .menu-item[data-hovered='true'],
+  .list-box-item[data-focused='true'],
+  .list-box-item[data-hovered='true'] {
+    background-color: var(--fill-tertiary);
+  }
+  .menu-item--danger,
+  .list-box-item--danger {
+    color: var(--label-red);
+  }
+  .list-box-item__indicator {
+    color: var(--label-blue);
+  }
+  .list-box-item .description {
+    padding-inline: 0;
+  }
+
+  /* ------------------------------------------------------------------ tabs (segmented control) */
+  .tabs__list {
+    border-radius: 9px;
+    background-color: var(--fill-tertiary);
+    padding: 2px;
+  }
+  .tabs__tab {
+    min-height: 30px;
+    border-radius: 7px;
+    font-size: var(--text-subhead);
+    font-weight: 500;
+    color: var(--label);
+  }
+  .tabs__indicator {
+    border-radius: 7px;
+    background-color: var(--segment);
+    box-shadow:
+      0 3px 8px rgb(0 0 0 / 0.12),
+      0 3px 1px rgb(0 0 0 / 0.04),
+      0 0 0 0.5px rgb(0 0 0 / 0.04);
+  }
+
+  /* ------------------------------------------------------------------ chips, tags, badges */
+  .chip {
+    border-radius: 999px;
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+  .chip--sm {
+    min-height: 20px;
+    padding-inline: 7px;
+  }
+  .chip--md {
+    min-height: 24px;
+    padding-inline: 9px;
+  }
+  .tag {
+    border-radius: 999px;
+    background-color: var(--fill-tertiary);
+    color: var(--label);
+    font-size: var(--text-footnote);
+  }
+  .badge {
+    font-weight: 600;
+  }
+
+  /* ------------------------------------------------------------------ avatars (Contacts-style monogram) */
+  .avatar__fallback {
+    background-image: linear-gradient(180deg, var(--sys-gray2), var(--sys-gray));
+    color: var(--tint-foreground);
+    font-weight: 600;
+  }
+
+  /* ------------------------------------------------------------------ tables
+     Hairline rows, no zebra, no column dividers; sticky header inside a scroll view on desktop. */
+  .table__content {
+    font-size: var(--text-subhead);
+  }
+  .table-root--secondary .table__column,
+  .table__column {
+    background-color: var(--bg-grouped-secondary);
+    padding: 10px 16px;
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--label-secondary);
+    box-shadow: inset 0 -0.5px 0 var(--hairline);
+    white-space: nowrap;
+  }
+  .table-root--secondary .table__column {
+    border-radius: 0;
+  }
+  .table__column::after {
+    content: none;
+  }
+  .table__cell {
+    padding: 11px 16px;
+    vertical-align: middle;
+    color: var(--label);
+  }
+  .table-root--secondary .table__row .table__cell {
+    border-bottom: 0;
+    box-shadow: inset 0 -0.5px 0 color-mix(in srgb, var(--hairline) 70%, transparent);
+  }
+  .table-root--secondary .table__row:last-child .table__cell {
+    box-shadow: none;
+  }
+  .table-root--secondary .table__row:hover .table__cell,
+  .table-root--secondary .table__row[data-hovered='true'] .table__cell {
+    background-color: var(--fill-quaternary);
+  }
+  .table__footer {
+    box-shadow: inset 0 0.5px 0 var(--hairline);
+    padding: 8px 12px;
+  }
+  @media (min-width: 768px) {
+    .gg-table .table__scroll-container {
+      max-height: max(420px, calc(100dvh - 15rem));
+      overflow: auto;
+      overscroll-behavior: contain;
+    }
+    .gg-table .table__column {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+  }
+
+  /* ------------------------------------------------------------------ pagination */
+  .pagination__summary {
+    font-size: var(--text-footnote);
+    color: var(--label-secondary);
+  }
+  .pagination__link {
+    min-width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    font-size: var(--text-footnote);
+    font-weight: 500;
+  }
+  .pagination__link[data-active='true'],
+  .pagination__link[aria-current='page'] {
+    background-color: var(--tint);
+    color: var(--tint-foreground);
+  }
+
+  /* ------------------------------------------------------------------ dialogs and sheets */
+  .modal__dialog,
+  .alert-dialog__dialog {
+    border-radius: 20px;
+    padding: 24px;
+    background-color: var(--overlay);
+    box-shadow: var(--float-shadow);
+  }
+  .modal__heading,
+  .alert-dialog__heading {
+    font-size: var(--text-title3);
+    line-height: var(--text-title3--line-height);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--label);
+  }
+  .modal__body,
+  .alert-dialog__body {
+    font-size: var(--text-subhead);
+    line-height: 1.45;
+    color: var(--label);
+  }
+  .modal__footer,
+  .alert-dialog__footer {
+    gap: 8px;
+  }
+  .modal__close-trigger,
+  .drawer__close-trigger {
+    border-radius: 999px;
+    background-color: var(--fill-tertiary);
+    color: var(--label-secondary);
+  }
+
+  /* Phones: dialogs become Apple sheets — attached to the bottom edge, with a grabber. */
+  @media (max-width: 639px) {
+    .modal__container {
+      padding: 8px 0 0;
+    }
+    .modal__dialog[data-placement='auto'],
+    .modal__dialog[data-placement='bottom'] {
+      border-end-start-radius: 0;
+      border-end-end-radius: 0;
+      border-start-start-radius: 14px;
+      border-start-end-radius: 14px;
+      padding: 22px 20px calc(20px + env(safe-area-inset-bottom));
+      max-height: calc(100dvh - 24px);
+    }
+    .modal__dialog[data-placement='auto']::before,
+    .modal__dialog[data-placement='bottom']::before {
+      content: '';
+      position: absolute;
+      top: 6px;
+      left: 50%;
+      width: 36px;
+      height: 5px;
+      margin-left: -18px;
+      border-radius: 999px;
+      background-color: var(--label-tertiary);
+    }
+    .modal__container[data-entering='true'] {
+      animation: gg-sheet-up 320ms var(--ease-apple-out) both;
+    }
+  }
+  @keyframes gg-sheet-up {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: none;
+    }
+  }
+
+  /* Drawers: floating inspector panel on desktop, bottom sheet (handle) on phones. */
+  .drawer__dialog {
+    padding: 0;
+    background-color: var(--overlay);
+    box-shadow: var(--float-shadow);
+  }
+  .drawer__content--right .drawer__dialog,
+  .drawer__content--left .drawer__dialog {
+    width: 100%;
+  }
+  @media (min-width: 640px) {
+    .drawer__content--right .drawer__dialog,
+    .drawer__content--left .drawer__dialog {
+      height: calc(100% - 16px);
+      margin: 8px;
+      border-radius: 18px;
+      overflow: hidden;
+    }
+  }
+  .drawer__content--bottom .drawer__dialog {
+    border-start-start-radius: 14px;
+    border-start-end-radius: 14px;
+    max-height: calc(100dvh - 24px);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .drawer__handle {
+    padding: 6px 0 0;
+  }
+  .drawer__handle > * {
+    width: 36px;
+    height: 5px;
+    border-radius: 999px;
+    background-color: var(--label-tertiary);
+  }
+  .drawer__header {
+    gap: 2px;
+    padding: 20px 64px 12px 24px;
+  }
+  .drawer__heading {
+    font-size: var(--text-title3);
+    line-height: var(--text-title3--line-height);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--label);
+  }
+  .drawer__body {
+    margin: 0;
+    padding: 8px 24px 24px;
+    font-size: var(--text-subhead);
+    line-height: 1.45;
+    color: var(--label);
+  }
+  .drawer__header + .drawer__body {
+    margin-top: 0;
+  }
+  .drawer__footer {
+    gap: 8px;
+    padding: 12px 24px;
+    box-shadow: inset 0 0.5px 0 var(--hairline);
+    background-color: var(--overlay);
+  }
+  .drawer__close-trigger {
+    top: 18px;
+    inset-inline-end: 18px;
+  }
+
+  /* ------------------------------------------------------------------ feedback */
+  .alert {
+    border-radius: 14px;
+    padding: 12px 14px;
+    gap: 10px;
+  }
+  .alert__title {
+    font-size: var(--text-subhead);
+    font-weight: 600;
+  }
+  .alert__description {
+    font-size: var(--text-footnote);
+    line-height: 1.125rem;
+  }
+  .skeleton {
+    border-radius: 8px;
+    background-color: var(--fill-tertiary);
+  }
+  .spinner {
+    color: var(--label-secondary);
+  }
+}
+
+/* ------------------------------------------------------------------ app form controls (TagInput, affixes) */
+@layer gg-overrides {
+  .gg-field {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .gg-field[data-disabled] {
+    opacity: var(--disabled-opacity);
+  }
+  .gg-field__control {
+    background-color: var(--field-background);
+    color: var(--field-foreground);
+    transition:
+      background-color 150ms var(--ease-apple-out),
+      box-shadow 150ms var(--ease-apple-out);
+  }
+  .gg-field__control:hover:not(:focus-within) {
+    background-color: var(--field-hover);
+  }
+  .gg-field__control:focus-within {
+    box-shadow: 0 0 0 2px var(--focus);
+  }
+  .gg-field__control[data-invalid] {
+    background-color: color-mix(in srgb, var(--sys-red) 7%, var(--field-background));
+    box-shadow: 0 0 0 1px var(--label-red);
+  }
+  .gg-field__control[data-invalid]:focus-within {
+    box-shadow: 0 0 0 2px var(--label-red);
+  }
+  .gg-tags {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    min-height: var(--field-h);
+    padding: 5px 6px;
+    cursor: text;
+  }
+  .gg-tags__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-width: 100%;
+  }
+  .gg-tags__input {
+    flex: 1 1 8rem;
+    min-width: 6rem;
+    height: calc(var(--field-h) - 10px);
+    padding-inline: 6px;
+    background: transparent;
+    outline: none;
+    font-size: var(--field-fs);
+    color: inherit;
+  }
+  .gg-tags__input::placeholder {
+    color: var(--field-placeholder);
+  }
+  .gg-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    max-width: 100%;
+    height: calc(var(--field-h) - 12px);
+    padding-inline: 10px 4px;
+    border-radius: 999px;
+    background-color: var(--bg-grouped-secondary);
+    box-shadow:
+      0 0 0 0.5px var(--card-border),
+      0 1px 1px rgb(0 0 0 / 0.04);
+    font-size: var(--text-footnote);
+    font-weight: 500;
+    color: var(--label);
+  }
+  .gg-tag--armed {
+    background-color: var(--tint);
+    color: var(--tint-foreground);
+  }
+  .gg-tag__remove {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    color: var(--label-secondary);
+    cursor: pointer;
+  }
+  .gg-tag__remove svg {
+    width: 12px;
+    height: 12px;
+  }
+  .gg-tag__remove:hover {
+    background-color: var(--fill-tertiary);
+    color: var(--label);
+  }
+  .gg-tag--armed .gg-tag__remove {
+    color: inherit;
+  }
+  .gg-suggestion {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 26px;
+    padding-inline: 10px;
+    border-radius: 999px;
+    background-color: var(--fill-quaternary);
+    color: var(--label-blue);
+    font-size: var(--text-footnote);
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 150ms var(--ease-apple-out);
+  }
+  .gg-suggestion:hover {
+    background-color: var(--fill-tertiary);
+  }
+}
+
+/* ------------------------------------------------------------------ toggle chips (`<ChipSelect>`) */
+@layer gg-overrides {
+  .gg-chip-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    padding-inline: 12px;
+    border-radius: 999px;
+    background-color: var(--fill-tertiary);
+    color: var(--label);
+    font-size: var(--text-footnote);
+    font-weight: 500;
+    cursor: pointer;
+    transition:
+      background-color 150ms var(--ease-apple-out),
+      color 150ms var(--ease-apple-out),
+      transform 150ms var(--ease-apple-out);
+  }
+  .gg-chip-toggle:hover {
+    background-color: var(--fill-secondary);
+  }
+  .gg-chip-toggle:active {
+    transform: scale(0.97);
+  }
+  .gg-chip-toggle[aria-pressed='true'] {
+    background-color: var(--tint);
+    color: var(--tint-foreground);
+  }
+  .gg-chip-toggle__check {
+    width: 0;
+    height: 12px;
+    opacity: 0;
+    transition:
+      width 150ms var(--ease-apple-out),
+      opacity 150ms var(--ease-apple-out);
+  }
+  .gg-chip-toggle[aria-pressed='true'] .gg-chip-toggle__check {
+    width: 12px;
+    opacity: 1;
+  }
+  .gg-chip-toggle:disabled {
+    opacity: var(--disabled-opacity);
+    cursor: default;
+  }
+}

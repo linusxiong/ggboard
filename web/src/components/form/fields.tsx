@@ -25,8 +25,12 @@ import {
 } from '@heroui/react'
 import type { ReactNode } from 'react'
 import type { AnyFieldApi } from '@tanstack/react-form'
+import { cx } from '@/lib/cn'
 import { useFieldContext, useFormContext } from './context'
 import { fieldErrorMessage } from './fieldError'
+import { TagInput, type TagInputProps } from './TagInput'
+import { FieldAffix, SelectItemContent } from './parts'
+import { labelWithUnit } from './unit'
 
 /** Remove a server-side error once the user changes the value. */
 function clearServerError(field: AnyFieldApi) {
@@ -163,7 +167,12 @@ export interface NumberFieldProps extends BaseFieldProps {
   maxValue?: number
   step?: number
   formatOptions?: Intl.NumberFormatOptions
-  /** Show −/+ steppers (default true). */
+  /** Unit shown inside the field, after the number (GB, Mbps, 天, %). Also read out with the label. */
+  unit?: ReactNode
+  /** Shown before the number (currency symbol: `¥` → `¥ 15.00`). */
+  prefix?: ReactNode
+  placeholder?: string
+  /** Show −/+ steppers (default false — plain numeric input, arrow keys still step). */
   steppers?: boolean
 }
 
@@ -177,7 +186,10 @@ export function NumberField({
   maxValue,
   step,
   formatOptions,
-  steppers = true,
+  unit,
+  prefix,
+  placeholder,
+  steppers = false,
 }: NumberFieldProps) {
   const field = useFieldContext<number | null>()
   const error = fieldErrorMessage(field.state.meta)
@@ -201,10 +213,12 @@ export function NumberField({
       validationBehavior="aria"
       className={className}
     >
-      <Label>{label}</Label>
+      <Label>{labelWithUnit(label, unit)}</Label>
       <HeroNumberField.Group>
         {steppers ? <HeroNumberField.DecrementButton /> : null}
-        <HeroNumberField.Input className="w-full" />
+        {prefix ? <FieldAffix start>{prefix}</FieldAffix> : null}
+        <HeroNumberField.Input className="w-full" placeholder={placeholder} />
+        {unit ? <FieldAffix>{unit}</FieldAffix> : null}
         {steppers ? <HeroNumberField.IncrementButton /> : null}
       </HeroNumberField.Group>
       {description && !error ? <Description>{description}</Description> : null}
@@ -216,6 +230,8 @@ export function NumberField({
 export interface SelectOption {
   value: string
   label: ReactNode
+  /** Second line in the list (what the option does). */
+  description?: ReactNode
   /** Plain text for type-ahead when `label` is not a string. */
   textValue?: string
   isDisabled?: boolean
@@ -270,8 +286,7 @@ export function SelectField({
               id={option.value}
               textValue={option.textValue ?? (typeof option.label === 'string' ? option.label : option.value)}
             >
-              {option.label}
-              <ListBox.ItemIndicator />
+              <SelectItemContent label={option.label} description={option.description} />
             </ListBox.Item>
           ))}
         </ListBox>
@@ -280,9 +295,12 @@ export function SelectField({
   )
 }
 
-export type SwitchFieldProps = Omit<BaseFieldProps, 'isRequired'>
+export interface SwitchFieldProps extends Omit<BaseFieldProps, 'isRequired'> {
+  /** `row` (default): title + caption left, switch right (Settings style). `inline`: switch first. */
+  layout?: 'row' | 'inline'
+}
 
-export function SwitchField({ label, description, isDisabled, className }: SwitchFieldProps) {
+export function SwitchField({ label, description, isDisabled, className, layout = 'row' }: SwitchFieldProps) {
   const field = useFieldContext<boolean>()
   const error = fieldErrorMessage(field.state.meta)
   return (
@@ -297,7 +315,7 @@ export function SwitchField({ label, description, isDisabled, className }: Switc
       onBlur={field.handleBlur}
       isInvalid={Boolean(error)}
       isDisabled={isDisabled}
-      className={className}
+      className={cx(layout === 'row' && 'switch-row', className)}
     >
       {/* HeroUI ≥ 3.2 anatomy: Control inside Content, plain-text label, Description/FieldError as siblings */}
       <Switch.Content>
@@ -309,6 +327,28 @@ export function SwitchField({ label, description, isDisabled, className }: Switc
       {description ? <Description>{description}</Description> : null}
       <FieldError>{error}</FieldError>
     </Switch>
+  )
+}
+
+export type TagsFieldProps = Omit<TagInputProps, 'value' | 'onChange' | 'name' | 'error' | 'onBlur'>
+
+/** String-list field (chips + input): Enter/comma adds, paste splits, Backspace removes. */
+export function TagsField(props: TagsFieldProps) {
+  const field = useFieldContext<string[]>()
+  const error = fieldErrorMessage(field.state.meta)
+  return (
+    <TagInput
+      {...props}
+      name={field.name}
+      id={field.name}
+      value={field.state.value ?? []}
+      onChange={(next) => {
+        field.handleChange(next)
+        clearServerError(field)
+      }}
+      onBlur={field.handleBlur}
+      error={error}
+    />
   )
 }
 

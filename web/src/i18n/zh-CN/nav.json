@@ -37,5 +37,10 @@
     "rulesets": "规则集",
     "system": "系统状态"
   },
-  "more": "更多"
+  "more": "更多",
+  "sections": {
+    "ops": "运营",
+    "content": "内容",
+    "system": "系统"
+  }
 }

@@ -1,0 +1,185 @@
+/* Toasts — loaded with the lazy ToastHost chunk. Colors come from theme.css tokens. */
+@layer components {
+  .gg-toaster {
+    position: fixed;
+    z-index: 100;
+    inset-inline: 0;
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+    padding-inline: 16px;
+    /* Phones: above the home indicator, or above the tab bar inside the app shell. */
+    bottom: calc(env(safe-area-inset-bottom) + 16px);
+  }
+  :root:has([data-tabbar]) .gg-toaster {
+    bottom: calc(env(safe-area-inset-bottom) + 72px);
+  }
+
+  .gg-toaster__list {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    max-width: 420px;
+  }
+
+  @media (min-width: 768px) {
+    .gg-toaster {
+      bottom: auto;
+      top: calc(env(safe-area-inset-top) + 14px);
+    }
+    :root:has([data-tabbar]) .gg-toaster {
+      bottom: auto;
+    }
+    /* Newest closest to the edge it comes from. */
+    .gg-toaster__list {
+      flex-direction: column-reverse;
+    }
+  }
+
+  .gg-toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 100%;
+    min-height: 44px;
+    padding: 9px 8px 9px 12px;
+    border-radius: 14px;
+    background-color: var(--material-thick);
+    -webkit-backdrop-filter: saturate(180%) blur(24px);
+    backdrop-filter: saturate(180%) blur(24px);
+    box-shadow:
+      0 0 0 0.5px var(--material-border),
+      var(--toast-shadow);
+    color: var(--label);
+    animation: gg-toast-in-up 420ms cubic-bezier(0.2, 1.2, 0.35, 1) both;
+  }
+  @media (min-width: 768px) {
+    .gg-toast {
+      animation-name: gg-toast-in-down;
+    }
+  }
+  .gg-toast[data-leaving] {
+    animation: gg-toast-out 200ms var(--ease-apple-out) both;
+  }
+
+  .gg-toast__icon {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    color: var(--tint-foreground);
+  }
+  .gg-toast__icon circle[r='0.4'] {
+    fill: currentColor;
+  }
+  .gg-toast[data-tone='success'] .gg-toast__icon-bg {
+    fill: var(--sys-green);
+  }
+  .gg-toast[data-tone='error'] .gg-toast__icon-bg {
+    fill: var(--sys-red);
+  }
+  .gg-toast[data-tone='warning'] .gg-toast__icon-bg {
+    fill: var(--sys-orange);
+  }
+  .gg-toast[data-tone='info'] .gg-toast__icon-bg {
+    fill: var(--sys-blue);
+  }
+
+  .gg-toast__spinner {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    border: 2px solid var(--fill);
+    border-top-color: var(--label-secondary);
+    animation: gg-spin 800ms linear infinite;
+  }
+
+  .gg-toast__text {
+    min-width: 0;
+    flex: 1;
+  }
+  .gg-toast__title {
+    font-size: 0.9375rem;
+    line-height: 1.25rem;
+    font-weight: 500;
+    letter-spacing: -0.016em;
+    overflow-wrap: anywhere;
+  }
+  .gg-toast__description {
+    margin-top: 1px;
+    font-size: 0.8125rem;
+    line-height: 1.125rem;
+    color: var(--label-secondary);
+    overflow-wrap: anywhere;
+  }
+
+  .gg-toast__close {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    color: var(--label-secondary);
+    cursor: pointer;
+    transition: background-color 150ms var(--ease-apple-out);
+  }
+  .gg-toast__close:hover {
+    background-color: var(--fill-tertiary);
+  }
+
+  @keyframes gg-toast-in-down {
+    from {
+      opacity: 0;
+      transform: translateY(-24px) scale(0.92);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes gg-toast-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(24px) scale(0.92);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes gg-toast-out {
+    to {
+      opacity: 0;
+      transform: scale(0.94);
+    }
+  }
+  @keyframes gg-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gg-toast,
+    .gg-toast[data-leaving] {
+      animation-name: gg-toast-fade;
+      animation-duration: 160ms;
+      animation-timing-function: linear;
+    }
+    .gg-toast[data-leaving] {
+      animation-direction: reverse;
+    }
+    @keyframes gg-toast-fade {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+  }
+}

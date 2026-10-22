@@ -14,17 +14,39 @@ import { createFormHook } from '@tanstack/react-form'
 import type { AnyFormApi } from '@tanstack/react-form'
 import { isApiError } from '@/lib/api/client'
 import { fieldContext, formContext } from './context'
-import { NumberField, SelectField, SubmitButton, SwitchField, TextAreaField, TextField } from './fields'
+import {
+  NumberField,
+  SelectField,
+  SubmitButton,
+  SwitchField,
+  TagsField,
+  TextAreaField,
+  TextField,
+} from './fields'
+import { focusFirstInvalid } from './focus'
 
-export const { useAppForm, withForm, withFieldGroup } = createFormHook({
+const hook = createFormHook({
   fieldContext,
   formContext,
-  fieldComponents: { TextField, TextAreaField, NumberField, SelectField, SwitchField },
+  fieldComponents: { TextField, TextAreaField, NumberField, SelectField, SwitchField, TagsField },
   formComponents: { SubmitButton },
 })
 
+/**
+ * `createFormHook`'s `useAppForm`, plus inline validation UX: when a submit fails validation, the
+ * first invalid field is scrolled into view and focused (override with your own `onSubmitInvalid`).
+ */
+export const useAppForm: typeof hook.useAppForm = (options) =>
+  hook.useAppForm({ onSubmitInvalid: () => focusFirstInvalid(), ...options })
+export const { withForm, withFieldGroup } = hook
+
 export { FormError } from '@/components/FormError'
 export type { SelectOption } from './fields'
+export { FieldAffix, SelectItemContent } from './parts'
+export { labelWithUnit } from './unit'
+export { TagInput } from './TagInput'
+export { splitTagText } from './tags'
+export { focusFirstInvalid } from './focus'
 export { useFieldContext, useFormContext } from './context'
 
 /**
@@ -37,6 +59,7 @@ export function applyServerErrors(form: AnyFormApi, error: unknown): string | un
   const entries = Object.entries(error.errors)
   if (entries.length === 0) return error.message
   let unmatched: string | undefined
+  let matched = false
   for (const [name, messages] of entries) {
     const message = messages[0]
     if (!message) continue
@@ -46,9 +69,11 @@ export function applyServerErrors(form: AnyFormApi, error: unknown): string | un
         isTouched: true,
         errorMap: { ...meta.errorMap, onServer: message },
       }))
+      matched = true
     } else {
       unmatched ??= message
     }
   }
+  if (matched) focusFirstInvalid()
   return unmatched
 }

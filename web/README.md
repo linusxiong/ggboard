@@ -153,25 +153,49 @@ const form = useAppForm({ defaultValues: { email: '' }, onSubmit: async ({ value
 </form>
 ```
 
-Field components: `TextField` (types, `startContent`/`endContent`), `TextAreaField`, `NumberField`, `SelectField`
-(`options: {value,label}[]`), `SwitchField` (HeroUI ≥ 3.2 anatomy). All render a visible `<Label>`, `name`/`id`, `isInvalid` +
-`<FieldError>`; server errors (`applyServerErrors`/`submitError`) clear as soon as the field changes.
+Field components: `TextField` (types, `startContent`/`endContent`), `TextAreaField`, `NumberField` (plain numeric input,
+no steppers: `unit="GB"` / `prefix="¥"` adornments, money as decimal units with `minimumFractionDigits: 2` — never cents),
+`SelectField` (`options: {value,label,description?}[]`), `SwitchField` (Settings-style row: title + caption left, switch
+right; `layout="inline"` for the old look), `TagsField` (string lists as chips). All render a visible 13 px label,
+`name`/`id`, `isInvalid` + 13 px error text; server errors (`applyServerErrors`/`submitError`) clear as soon as the field
+changes. `useAppForm` scrolls to and focuses the first invalid field after a failed submit (and after server field
+errors) — never stealing focus the user already moved. Long forms: `<SaveBar dirty saving …/>`
+(`@/components/form/SaveBar`, sticky glass capsule above the tab bar). Admin forms with runtime-defined fields use the
+controlled twins in `features/admin/settings/inputs/Controlled.tsx` (same props, `unit`/`prefix` too).
+
+Token field: `<TagInput label value onChange normalize? validate? suggestions?/>` (`@/components/form/TagInput`) —
+Enter / comma / semicolon adds, paste splits a list, Backspace selects then removes the last chip, chips have remove
+buttons, `suggestions` render as "+ item" chips. Fixed option sets (e.g. `telegram_events`) use `<ChipSelect>`
+(`@/components/form/ChipSelect`, toggle chips with `aria-pressed`).
+
+Admin settings (`features/admin/settings`): metadata-driven (`GET /admin/settings` `groups`), laid out by
+`layout.ts` — sidebar icon per group, titled sections, dependent keys nested under their switch/select and hidden while
+it is off, units per key. Unknown keys and groups still render (trailing section / generic group), so backend additions
+never disappear; the `telegram` group adds test / webhook actions (`TelegramActions.tsx`).
 
 Public auth pages use `NativeField` / `NativeButton` + `useLiteForm` instead (HeroUI's CSS classes on native elements, no
 React Aria JS) — see "Performance".
 
 ## Feedback
 
-- Toast: `import { toast } from '@/lib/toast'` → `toast.success(msg)`, `toast.danger(errorMessage(e))`, `toast.promise(p, {…})`.
-  Lazy HeroUI toast — **never** import `toast` from `@heroui/react`.
+- Toast: `import { toast } from '@/lib/toast'` → `toast(msg)`, `toast.success(msg)`, `toast.error(errorMessage(e))`
+  (`danger` = alias), `toast.info`, `toast.warning`, `toast.promise(p, {loading, success, error})`, `toast.dismiss(id)`;
+  options `{ description, timeout (ms, 0 = sticky), id }`. Own renderer (no HeroUI toast): Apple capsules (14 px radius,
+  thick material + hairline + soft shadow, status symbol, 15 px medium text), spring in from the top on desktop / from
+  the bottom above the tab bar on phones, 3.2–4 s auto-dismiss (paused on hover/focus/hidden tab), max 3 (a repeated
+  message refreshes instead of stacking), dismiss button + Esc, `role="status"`, reduced-motion → fade. The store is a
+  ~1 KB module in the entry; `components/feedback/ToastHost.tsx` (+ `toast.css`) loads lazily. **Never** import
+  `toast` from `@heroui/react`.
 - Confirm: `if (await confirm({ title, description, tone: 'danger' })) …` (`@/components/feedback/confirm`), or the
   controlled `<ConfirmDialog isOpen onOpenChange onConfirm={() => mutation.mutateAsync()} />` (pending state, keeps open on error).
 - `errorMessage(e)` (`@/lib/errors`) → localized text for transport errors, server text for business errors.
 
 ## Shared components (`src/components`)
 
-`PageShell`, `EmptyState`, `LoadingPage`/`Spinner`, `ErrorBoundary`, `RouteError`, `NotFound`, `StatCard` (numbers count up after idle),
-`TrafficBar` (ARIA meter), `Money`/`Traffic`/`DateTime` (`Formatters.tsx`, Intl based; raw functions in `lib/format.ts`),
+`PageShell` (Large Title 34/700 + 15 px subtitle, 1120 px max width, 32 px between sections), `Section` (titled group +
+caption + card), `EmptyState` (ContentUnavailableView style), `LoadingPage`/`Spinner`, `ErrorBoundary`, `RouteError`,
+`NotFound`, `StatCard` (symbol badge + label, large tabular value; numbers count up after idle), `TrafficBar` and
+`TrafficRing` (ARIA meters), `Money`/`Traffic`/`DateTime` (`Formatters.tsx`, Intl based; raw functions in `lib/format.ts`),
 `CopyButton` (+ `lib/clipboard.ts`), `QRCode` (lazy `qrcode`, SVG), `Markdown` (lazy `marked` + `dompurify`),
 `ThemeToggle`, `LocaleToggle`, `Logo`, `Captcha` (Turnstile / reCAPTCHA / hCaptcha script loaded only when enabled; the
 backend CSP must allow the provider when it is on; `LazyCaptcha` defers it), `AriaProviders` (React Aria router + locale, rendered by
@@ -190,15 +214,33 @@ backend CSP must allow the provider when it is on; `LazyCaptcha` defers it), `Ar
 
 ## Design tokens (Apple HIG → HeroUI → Tailwind)
 
-| use                  | classes / variables                                                                                                                                   |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| page / card / nested | `bg-canvas` (systemGroupedBackground), `bg-elevated` / `surface-card` (card + radius + shadow), `bg-elevated-secondary`, `inset-group`                |
-| text                 | `text-label`, `text-label-secondary` (AA-safe 80 %), `text-label-tertiary`, `text-label-blue/green/orange/red` (HIG increased-contrast, for text)     |
-| raw system colors    | `bg-system-blue` … `text-system-gray-6` — **icons, dots, progress only** (they fail 4.5:1 as text)                                                    |
-| fills / lines        | `bg-fill(-secondary/-tertiary/-quaternary)`, `border-hairline`, `hairline-t/-b`, `glass glass-border-b` (frosted bars)                                |
-| type                 | `text-large-title`, `text-title1/2/3`, `text-headline`, `text-body`, `text-callout`, `text-subhead`, `text-footnote`, `text-caption`, `text-caption2` |
-| radii / motion       | `rounded-card` 18 px, `rounded-button` 12 px, `rounded-input` 10 px, `ease-apple-out`, `animate-enter` (not on LCP elements)                          |
-| HeroUI               | `bg-background`, `bg-surface`, `text-muted`, `bg-accent` (= `--tint` #006EF8, white text 4.58:1), `text-danger` … all mapped to the tokens above      |
+| use                  | classes / variables                                                                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| page / card / nested | `bg-canvas` (systemGroupedBackground), `bg-elevated` / `surface-card` (card + radius + shadow), `bg-elevated-secondary`, `inset-group`                 |
+| text                 | `text-label`, `text-label-secondary` (AA-safe 80 %), `text-label-tertiary`, `text-label-blue/green/orange/red` (HIG increased-contrast, for text)      |
+| raw system colors    | `bg-system-blue` … `text-system-gray-6` — **icons, dots, progress only** (they fail 4.5:1 as text)                                                     |
+| fills / lines        | `bg-fill(-secondary/-tertiary/-quaternary)`, `border-hairline`, `hairline-t/-b`, `glass glass-border-b` (frosted bars)                                 |
+| type                 | `text-large-title`, `text-title1/2/3`, `text-headline`, `text-body`, `text-callout`, `text-subhead`, `text-footnote`, `text-caption`, `text-caption2`  |
+| radii / motion       | `rounded-card` 20 px, `rounded-button` 12 px, `rounded-input` 10 px, `ease-apple-out`, `animate-enter` (not on LCP elements)                           |
+| layout               | `max-w-page` (1120 px), `surface-card` (20 px radius, hairline + soft shadow), `inset-group` / `separated` (hairline rows; `[--separator-inset:20px]`) |
+| controls             | `--field-h` 44 → 38 px (≥ md), `--field-fs` 17 → 15 px, `field-affix(--start)` units, `bg-selection` (tinted pill), `--material-thick` (toasts)        |
+| HeroUI               | `bg-background`, `bg-surface`, `text-muted`, `bg-accent` (= `--tint` #006EF8, white text 4.58:1), `text-danger` … all mapped to the tokens above       |
+
+Component skin (`styles/theme.css` global part + `styles/app.css`, which `AppShell` imports so public pages never load it),
+all in the `gg-overrides` layer after HeroUI's `components` layer:
+
+- **Buttons — four roles**: `primary` (filled tint), `secondary` (`--fill-secondary` grey, label text), `tertiary`
+  (plain tint text), `danger` (red); `ghost` for chrome icons. 44/38 px (sm 36/32, lg 50/44), 17/15 px semibold, icon-only
+  36 px; pressed = 0.98 scale + dim; disabled 40 %; every `isPending`/`pending` button gets an inline spinner.
+- **Fields**: fill style (`--fill-tertiary`), 10 px radius, 2 px tint focus ring, placeholder `--label-tertiary`,
+  invalid = red tint + ring; labels 13 px semibold, helper/error 13 px.
+- **Switches** iOS proportions + systemGreen; **tabs** segmented control; **menus/selects** 14 px popovers with grey
+  highlight; **tables** hairline rows, no zebra/dividers, sticky header inside a scroll view (`gg-table`), end-aligned
+  numbers tabular; **dialogs** 20 px radius, Title3 headings, bottom sheets with a grabber on phones (`FormDrawer`:
+  floating inspector on desktop, `Drawer.Handle` sheet on phones); **chips** capsules; **avatars** Contacts-style
+  monogram gradient; lucide icons at 1.75 stroke.
+- Navigation: sidebar 15 px items / 20 px icons, tinted pill for the active item, admin sections (`nav.ts` `section`:
+  运营 / 内容 / 系统), collapsible; glass top bar; phone tab bar (`data-tabbar`, 50 px + safe area).
 
 No hex colors in components. Dark mode follows the OS; `useUiStore().setTheme('light'|'dark'|'system')` forces it via
 `<html data-theme>`; `dark:` utilities honour both. Links that look like buttons: `buttonClass({ variant, size })`.

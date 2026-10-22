@@ -17,6 +17,8 @@ import {
   TextField,
 } from '@heroui/react'
 import type { ReactNode } from 'react'
+import { FieldAffix, SelectItemContent } from '@/components/form/parts'
+import { labelWithUnit } from '@/components/form/unit'
 import { cx } from '@/lib/cn'
 
 interface BaseProps {
@@ -159,6 +161,12 @@ export interface NumberInputProps extends BaseProps {
   maxValue?: number
   step?: number
   formatOptions?: Intl.NumberFormatOptions
+  /** Unit inside the field after the number (分钟, GB, %). */
+  unit?: ReactNode
+  /** Shown before the number (currency symbol). */
+  prefix?: ReactNode
+  placeholder?: string
+  /** −/+ steppers; off by default (plain numeric input). */
   steppers?: boolean
 }
 
@@ -176,7 +184,10 @@ export function NumberInput({
   maxValue,
   step,
   formatOptions,
-  steppers = true,
+  unit,
+  prefix,
+  placeholder,
+  steppers = false,
 }: NumberInputProps) {
   return (
     <NumberField
@@ -194,10 +205,12 @@ export function NumberInput({
       validationBehavior="aria"
       className={className}
     >
-      <Label>{label}</Label>
+      <Label>{labelWithUnit(label, unit)}</Label>
       <NumberField.Group>
         {steppers ? <NumberField.DecrementButton /> : null}
-        <NumberField.Input className="w-full" />
+        {prefix ? <FieldAffix start>{prefix}</FieldAffix> : null}
+        <NumberField.Input className="w-full" placeholder={placeholder} />
+        {unit ? <FieldAffix>{unit}</FieldAffix> : null}
         {steppers ? <NumberField.IncrementButton /> : null}
       </NumberField.Group>
       {description && !error ? <Description>{description}</Description> : null}
@@ -209,6 +222,8 @@ export function NumberInput({
 export interface SelectInputOption {
   value: string
   label: ReactNode
+  /** Second line in the list. */
+  description?: ReactNode
   textValue?: string
 }
 
@@ -261,8 +276,7 @@ export function SelectInput({
               id={o.value}
               textValue={o.textValue ?? (typeof o.label === 'string' ? o.label : o.value)}
             >
-              {o.label}
-              <ListBox.ItemIndicator />
+              <SelectItemContent label={o.label} description={o.description} />
             </ListBox.Item>
           ))}
         </ListBox>
@@ -319,8 +333,7 @@ export function MultiSelectInput({
               id={o.value}
               textValue={o.textValue ?? (typeof o.label === 'string' ? o.label : o.value)}
             >
-              {o.label}
-              <ListBox.ItemIndicator />
+              <SelectItemContent label={o.label} description={o.description} />
             </ListBox.Item>
           ))}
         </ListBox>
@@ -332,6 +345,8 @@ export function MultiSelectInput({
 export interface SwitchInputProps extends Omit<BaseProps, 'isRequired'> {
   value: boolean
   onChange: (value: boolean) => void
+  /** `row` (default): title + caption left, switch right. `inline`: switch first. */
+  layout?: 'row' | 'inline'
 }
 
 export function SwitchInput({
@@ -343,6 +358,7 @@ export function SwitchInput({
   className,
   value,
   onChange,
+  layout = 'row',
 }: SwitchInputProps) {
   return (
     <Switch
@@ -352,7 +368,7 @@ export function SwitchInput({
       onChange={onChange}
       isInvalid={Boolean(error)}
       isDisabled={isDisabled}
-      className={className}
+      className={cx(layout === 'row' && 'switch-row', className)}
     >
       <Switch.Content>
         <Switch.Control>

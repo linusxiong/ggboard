@@ -52,7 +52,7 @@ describe('plan form', () => {
         ...values,
         prices: { ...values.prices, monthly: null, quarterly: 99.5 },
         reset_traffic_method: '4',
-        tags: 'a，b, a',
+        tags: ['a', ' b ', 'a'],
       },
       'CNY',
     )

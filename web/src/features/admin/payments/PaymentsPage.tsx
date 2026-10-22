@@ -142,7 +142,7 @@ export function PaymentsPage() {
           />
         </div>
       ) : (
-        <ul aria-label={t('title')} className="inset-group">
+        <ul aria-label={t('title')} className="inset-group shadow-card">
           {list.map((p, i) => {
             const url = notifyUrlFor(p, appUrl)
             return (

@@ -1,12 +1,12 @@
 import { lazy, Suspense, useSyncExternalStore } from 'react'
 import { useIdle } from '@/lib/motion'
-import { toastHost } from '@/lib/toast'
+import { toastStore } from '@/lib/toast'
 
 const ToastHost = lazy(() => import('./ToastHost'))
 
-/** Mounts the HeroUI toast region the first time a toast is requested (or after idle). */
+/** Mounts the toast region the first time a toast is requested (or after idle, so it is ready). */
 export function ToastMount() {
-  const requested = useSyncExternalStore(toastHost.subscribe, toastHost.isRequested, () => false)
+  const requested = useSyncExternalStore(toastStore.subscribe, toastStore.isRequested, () => false)
   const idle = useIdle(5000)
   if (!requested && !idle) return null
   return (

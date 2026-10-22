@@ -50,7 +50,9 @@
   "traffic": {
     "used": "已用 {used} / 共 {total}",
     "remaining": "剩余 {value}",
-    "label": "流量使用"
+    "label": "流量使用",
+    "usedLabel": "已用",
+    "ofTotal": "共 {total}"
   },
   "periods": {
     "monthly": "月付",

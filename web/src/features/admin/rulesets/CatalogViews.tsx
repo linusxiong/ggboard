@@ -267,7 +267,7 @@ interface MirrorsViewProps {
 export function MirrorsView({ mirrors, customIds, locale }: MirrorsViewProps) {
   const t = useT('admin-settings')
   return (
-    <ul className="inset-group" aria-label={t('rulesets.tabs.mirrors')}>
+    <ul className="inset-group shadow-card" aria-label={t('rulesets.tabs.mirrors')}>
       {mirrors.map((m) => (
         <li key={m.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
           <span className="text-subhead text-label">{localized(m.name, locale, m.id)}</span>

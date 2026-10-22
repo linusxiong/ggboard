@@ -2,12 +2,14 @@ import { Button } from '@heroui/react'
 import { RefreshCw } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { confirm } from '@/components/feedback/confirm'
+import { ChipSelect } from '@/components/form/ChipSelect'
 import { useT } from '@/i18n'
 import type { RulesetCatalogFull, SettingDef } from '@/lib/api/types'
 import { ComboInput } from './inputs/ComboInput'
 import { NumberInput, SelectInput, SwitchInput, TextAreaInput, TextInput } from './inputs/Controlled'
 import { SecretInput } from './inputs/SecretInput'
 import { TagInput } from './inputs/TagInput'
+import { DEPENDS_ON, UNITS } from './layout'
 import { randomToken } from './settingsMeta'
 import { UrlListEditor } from './UrlListEditor'
 
@@ -39,29 +41,17 @@ const URL_KEYS = new Set([
   'macos_download_url',
   'android_download_url',
   'ios_download_url',
+  'telegram_discuss_link',
 ])
 const TEXTAREA_KEYS = new Set(['app_description', 'frontend_footer_html'])
 const MONO_KEYS = new Set(['server_white_list', 'captcha_site_key', 'email_host', 'ruleset_mirror'])
 
-/** Keys that only matter when another setting is on; shown disabled otherwise. */
-const ENABLED_WHEN: Record<string, (v: Record<string, unknown>) => boolean> = {
-  email_whitelist_suffix: (v) => v.email_whitelist_enable === true,
-  register_limit_count: (v) => v.register_limit_by_ip_enable === true,
-  register_limit_expire: (v) => v.register_limit_by_ip_enable === true,
-  password_limit_count: (v) => v.password_limit_enable === true,
-  password_limit_expire: (v) => v.password_limit_enable === true,
-  try_out_hour: (v) => Number(v.try_out_plan_id) > 0,
-  captcha_site_key: (v) => v.captcha_provider !== 'none',
-  captcha_secret: (v) => v.captcha_provider !== 'none',
-  commission_distribution_l1: (v) => v.commission_distribution_enable === true,
-  commission_distribution_l2: (v) => v.commission_distribution_enable === true,
-  commission_distribution_l3: (v) => v.commission_distribution_enable === true,
-  email_host: (v) => v.email_driver === 'smtp',
-  email_port: (v) => v.email_driver === 'smtp',
-  email_encryption: (v) => v.email_driver === 'smtp',
-  email_username: (v) => v.email_driver === 'smtp',
-  email_password: (v) => v.email_driver === 'smtp',
-}
+/** Domains for the email allow-list quick-add chips. */
+const DOMAIN_SUGGESTIONS = ['gmail.com', 'outlook.com', 'icloud.com', 'qq.com', '163.com', 'hotmail.com']
+const DOMAIN_RE = /^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i
+const domain = (v: string) => v.trim().replace(/^@+/, '').toLowerCase()
+/** Telegram chat: numeric id (groups are negative) or a public @username. */
+const CHAT_RE = /^(-?\d{1,20}|@[A-Za-z][A-Za-z0-9_]{3,31})$/
 
 const str = (v: unknown): string =>
   v === null || v === undefined
@@ -86,11 +76,55 @@ export function SettingField({ def, value, onChange, error, ctx }: SettingFieldP
   const translatedHint = t(hintKey)
   const description: ReactNode =
     translatedHint === hintKey ? def.description || undefined : translatedHint || def.description || undefined
-  const isDisabled = ENABLED_WHEN[def.key] ? !ENABLED_WHEN[def.key]!(ctx.values) : false
+  const dependency = DEPENDS_ON[def.key]
+  const isDisabled = dependency ? !dependency.when(ctx.values) : false
   const common = { label, name: def.key, description, error, isDisabled }
+  const unit = UNITS[def.key] ? t(`units.${UNITS[def.key]}`) : undefined
 
   // ------------------------------------------------------------ key-specific editors
   switch (def.key) {
+    case 'stop_register':
+      // Shown as the positive "开放注册" switch: on = registration open = stop_register false.
+      return <SwitchInput {...common} value={value !== true} onChange={(open) => onChange(!open)} />
+    case 'email_whitelist_suffix':
+      return (
+        <TagInput
+          {...common}
+          value={strings(value)}
+          onChange={onChange}
+          normalize={domain}
+          validate={(d) => (DOMAIN_RE.test(d) ? undefined : t('register.domainInvalid'))}
+          suggestions={DOMAIN_SUGGESTIONS}
+          placeholder="example.com"
+        />
+      )
+    case 'captcha_provider':
+      return (
+        <SelectInput
+          {...common}
+          value={str(value || 'none')}
+          onChange={(v) => onChange(v ?? 'none')}
+          options={(def.options?.length ? def.options : ['none', 'turnstile', 'recaptcha', 'hcaptcha']).map(
+            (o) => ({
+              value: o,
+              label: t(`enums.captcha_provider.${o}`),
+              description: t(`enumHints.captcha_provider.${o}`),
+            }),
+          )}
+        />
+      )
+    case 'commission_withdraw_limit':
+      return (
+        <NumberInput
+          {...common}
+          value={num(value)}
+          onChange={onChange}
+          minValue={def.min}
+          prefix={str(ctx.values.currency_symbol) || undefined}
+          step={1}
+          formatOptions={{ maximumFractionDigits: 0, useGrouping: false }}
+        />
+      )
     case 'reset_traffic_method':
       return (
         <SelectInput
@@ -178,6 +212,58 @@ export function SettingField({ def, value, onChange, error, ctx }: SettingFieldP
           }))}
         />
       )
+    case 'telegram_admin_chat_ids':
+      return (
+        <TagInput
+          {...common}
+          value={strings(value)}
+          onChange={onChange}
+          monospace
+          validate={(c) => (CHAT_RE.test(c) ? undefined : t('telegram.chatInvalid'))}
+          placeholder="123456789"
+        />
+      )
+    case 'subscribe_leak_action':
+      return (
+        <SelectInput
+          {...common}
+          value={str(value || 'notify')}
+          onChange={(v) => onChange(v ?? 'notify')}
+          options={(def.options?.length ? def.options : ['notify', 'rotate']).map((o) => ({
+            value: o,
+            label: t(`enums.subscribe_leak_action.${o}`),
+            description: t(`enumHints.subscribe_leak_action.${o}`),
+          }))}
+        />
+      )
+    case 'telegram_webhook_secret':
+      return (
+        <SecretInput
+          {...common}
+          value={str(value)}
+          onChange={onChange}
+          actions={
+            <Button
+              size="sm"
+              variant="ghost"
+              isIconOnly
+              aria-label={t('telegram.regenerateSecret')}
+              onPress={() =>
+                void confirm({
+                  title: t('telegram.regenerateSecretTitle'),
+                  description: t('telegram.regenerateSecretHint'),
+                  confirmLabel: t('telegram.regenerateSecret'),
+                  tone: 'danger',
+                }).then((ok) => {
+                  if (ok) onChange(randomToken(32))
+                })
+              }
+            >
+              <RefreshCw className="size-4" aria-hidden />
+            </Button>
+          }
+        />
+      )
     case 'server_token':
       return (
         <SecretInput
@@ -245,10 +331,25 @@ export function SettingField({ def, value, onChange, error, ctx }: SettingFieldP
           minValue={def.min}
           maxValue={def.max !== undefined && def.max < 2_147_483_647 ? def.max : undefined}
           step={1}
+          unit={unit}
           formatOptions={{ maximumFractionDigits: 0, useGrouping: false }}
         />
       )
     case 'strings':
+      // A fixed option set (e.g. telegram_events) is a multi-select of toggle chips.
+      if (def.options?.length)
+        return (
+          <ChipSelect
+            {...common}
+            value={strings(value)}
+            onChange={onChange}
+            options={def.options.map((o) => {
+              const k = `enums.${def.key}.${o}`
+              const text = t(k)
+              return { value: o, label: text === k ? o : text }
+            })}
+          />
+        )
       return (
         <TagInput {...common} value={strings(value)} onChange={onChange} monospace={MONO_KEYS.has(def.key)} />
       )

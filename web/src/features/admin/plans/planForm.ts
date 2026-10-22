@@ -10,7 +10,7 @@ import {
   type PlanPeriod,
   type ResetTrafficMethod,
 } from '@/lib/api/types'
-import { centsToUnits, joinList, parseList, unitsToCents } from '../shared/units'
+import { centsToUnits, parseList, unitsToCents } from '../shared/units'
 
 /** `follow` = null (use the `reset_traffic_method` setting). */
 export type ResetChoice = 'follow' | '0' | '1' | '2' | '3' | '4'
@@ -27,8 +27,8 @@ export interface PlanFormValues {
   /** Currency units per period; `null` = not offered. */
   prices: Record<PlanPeriod, number | null>
   reset_traffic_method: ResetChoice
-  /** Comma separated. */
-  tags: string
+  /** Edited as chips (`TagsField`). */
+  tags: string[]
   content: string
   show: boolean
   sell: boolean
@@ -54,7 +54,7 @@ export function planToValues(plan: Plan | null | undefined, currency: string): P
       plan?.reset_traffic_method === null || plan?.reset_traffic_method === undefined
         ? 'follow'
         : (String(plan.reset_traffic_method) as ResetChoice),
-    tags: joinList(plan?.tags),
+    tags: [...(plan?.tags ?? [])],
     content: plan?.content ?? '',
     show: plan?.show ?? true,
     sell: plan?.sell ?? true,
@@ -83,7 +83,7 @@ export function valuesToPlanInput(values: PlanFormValues, currency: string): Pla
       values.reset_traffic_method === 'follow'
         ? null
         : (Number(values.reset_traffic_method) as ResetTrafficMethod),
-    tags: parseList(values.tags),
+    tags: parseList(values.tags.join('\n')),
     content: values.content,
     show: values.show,
     sell: values.sell,

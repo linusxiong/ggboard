@@ -7,10 +7,10 @@
 
 | 主题 | 条目 |
 | --- | --- |
-| Shell / zsh / 命令行工具 | 2, 7, 8, 9, 11, 17, 22, 23, 52, 64, 65, 91, 93, 94, 95, 108, 110, 114 |
+| Shell / zsh / 命令行工具 | 2, 7, 8, 9, 11, 17, 22, 23, 52, 64, 65, 91, 93, 94, 95, 108, 110, 114, 115, 116 |
 | Go | 21, 30, 31, 33, 34, 35, 37, 38, 39, 40, 41, 44, 45, 46, 47, 48, 49, 50, 53, 57, 61, 62, 63, 97, 98, 99, 102, 112 |
 | GORM / SQLite / 数据库 | 18, 19, 20, 42, 54, 55, 96 |
-| 前端（React / HeroUI / Vite / Vitest / pnpm） | 3, 15, 16, 24, 25, 26, 27, 28, 29, 58, 66, 67, 68, 69, 70, 71, 72, 74, 75, 76, 77, 80, 81, 82, 83, 84, 85, 86, 100, 101, 103, 104, 105, 106 |
+| 前端（React / HeroUI / Vite / Vitest / pnpm） | 3, 15, 16, 24, 25, 26, 27, 28, 29, 58, 66, 67, 68, 69, 70, 71, 72, 74, 75, 76, 77, 80, 81, 82, 83, 84, 85, 86, 100, 101, 103, 104, 105, 106, 117, 118, 119, 120, 121, 122, 123, 124 |
 | 文档 / 契约 / 协作流程 | 1, 4, 5, 6, 10, 12, 13, 14, 32, 36, 43, 51, 56, 59, 60, 73, 78, 79, 87, 88, 89, 90, 92, 107, 109, 111, 113 |
 
 同一问题被多个 agent 分别记录过（均保留原文，便于对照）：
@@ -843,3 +843,73 @@ Vitest 缓存 `import.meta.glob` 结果 67 / 72 / 77 / 85；`useLiteForm` 抢焦
 - **根因**：mysql 客户端在容器里默认用 latin1 输出。
 - **修复**：所有查询加 `--default-character-set=utf8mb4`；比对脚本改用 `JSON_ARRAYAGG` 输出 JSON 再解析。
 - **规则**：读含中文的库先确认客户端字符集；`??` 先怀疑客户端，不要先怀疑数据。
+
+### 115. （FE-P 设计打磨）第二个 dev server 选了别人正在用的端口，`kill $(lsof -t …)` 差点误杀其他 agent 的进程
+
+- **现象**：为公开页另起 `vite --port 5181`，`lsof -t` 返回两个 PID：一个是我的，另一个是 `fe-subscription` worktree 的 mock dev server（监听另一地址族）。`kill $PID` 因为变量里有两行而报 `illegal pid`，什么都没杀掉——纯属侥幸。
+- **根因**：启动前没 `lsof` 检查端口；`--strictPort` 只对同一地址族生效；用模式/端口反查 PID 再 kill。
+- **修复**：只 kill 自己那个 PID（命令行里带 `fe-polish` 的），改用 5186；对方进程未受影响。
+- **规则**：开端口前 `lsof -nP -iTCP:<port> -sTCP:LISTEN` 看 IPv4 和 IPv6；kill 前逐个 `ps -o pid,command -p <pid>` 确认是自己启动的；永远不要 `kill $(lsof -t …)`（同 #22、#110）。
+
+### 116. （FE-P）用 Python 按 `s.index('}\n')` 截取代码块，命中了 JSX 里的 `{children}\n`，把 fields.tsx 切坏
+
+- **现象**：把 `FieldAffix`/`SelectItemContent` 挪到新文件后，`tsc` 报一串 TS1128/TS17008，两个文件都残缺。
+- **根因**：结尾锚点 `}\n` 在 JSX 表达式里也会出现（同 #88 的 `---`）。
+- **修复**：按完整的上下文片段（`steppers?: boolean\n}\n\n    </span>…`）手工修复，再整体写出新文件。
+- **规则**：脚本搬代码时用唯一的整行锚点（下一个 `export ` 声明、完整的函数体文本），搬完立刻 `tsc -b`，失败就先看 diff 再动手。
+
+### 117. （FE-P）手机上单列 grid 被横向滚动的子元素撑宽，整页出现横向溢出
+
+- **现象**：设置页 `grid md:grid-cols-[220px_minmax(0,1fr)]` 在 375 px 下，分组卡片右侧的开关被挤出屏幕。
+- **根因**：md 以下没有 `grid-template-columns`，隐式列按内容（可横向滚动的分组胶囊条）自动加宽；grid item 默认 `min-width: auto`。
+- **修复**：基础类加 `grid-cols-[minmax(0,1fr)]`。
+- **规则**：任何“桌面多列、手机单列”的 grid，只要子元素可能横向滚动或很长（代码、URL、胶囊条），手机端也要显式写 `grid-cols-[minmax(0,1fr)]`；375 px 截图逐页看一遍。
+
+### 118. （FE-P）sr-only 单位文字的前导空格被可访问名称计算吞掉
+
+- **现象**：`<Label>{label}<span className="sr-only"> ({unit})</span></Label>` 在测试里的名称是 “Update interval(hours)”，按 “Update interval (hours)” 查不到。
+- **根因**：dom-accessibility-api 对内联元素的文本先 trim 再拼接，元素内的前导空格不算。
+- **修复**：空格放到元素外：`{label} <span className="sr-only">({unit})</span>`。
+- **规则**：拼接可访问名称时，分隔空格写在兄弟文本节点里，不要写在 sr-only 元素内部。
+
+### 119. （FE-P）放在字段描述里的可点按钮在 blur 校验后消失，点击落空
+
+- **现象**：注册页把邮箱白名单做成 `@gmail.com` 快捷按钮放进 `NativeField` 的 `description`。按下按钮 → 邮箱框 blur 校验失败 → 描述被错误信息替换 → click 落在空处，邮箱没补全。
+- **根因**：`NativeField` 在 invalid 时隐藏 description；mousedown 先触发 blur。
+- **修复**：快捷按钮移到字段外常驻，并 `onMouseDown={(e) => e.preventDefault()}` 保持焦点。
+- **规则**：可交互的辅助控件不要放进“出错就隐藏”的描述区；点按辅助按钮不应让输入框失焦。
+
+### 120. （FE-P）label 同时命名 input、group 和 list，`getByLabelText` 匹配到三个元素
+
+- **现象**：TagInput 测试 `getByLabelText('Domains')` 报 multiple elements。
+- **根因**：`<label for>` 命名 input，同一个 label id 又被 `role="group"` 和 `<ul>` 的 `aria-labelledby` 引用。
+- **修复**：测试改用 `getByRole('textbox', { name: 'Domains' })`。
+- **规则**：一个标签命名多个元素时，按 role + name 查询（同 #71 的思路）。
+
+### 121. （FE-P）差点让 settings 页为两个展示组件背上整个 TanStack Form
+
+- **现象**：设置页的受控输入从 `@/components/form`（桶文件）导入 `FieldAffix`，而桶文件顶层执行 `createFormHook`，会把 `@tanstack/react-form` 拉进 settings chunk。
+- **根因**：展示组件和表单运行时放在同一模块。
+- **修复**：抽出无依赖的 `components/form/parts.tsx`、`unit.tsx`，受控输入直接从这两个文件导入。
+- **规则**：被多个区域复用的纯展示片段放进零依赖模块；导入共享组件时看一眼它的模块顶层副作用（同 #100 的桶文件问题）。
+
+### 122. （FE-P）store 用方法简写，传给 `useSyncExternalStore` 被 `unbound-method` 拦下
+
+- **现象**：`toastStore.subscribe(cb) {…}` 作为回调传入，eslint 报 `@typescript-eslint/unbound-method`。
+- **根因**：方法简写在类型上带隐式 `this`，脱离对象调用有风险。
+- **修复**：store 的成员一律写成箭头函数属性。
+- **规则**：要被当作回调传递的对象成员写成箭头属性（`subscribe: (cb) => …`）。
+
+### 123. （FE-P）新加的“选中态浅色底”只在白底上算过对比度，放到灰色画布上 4.43:1 不达标（重犯 #104）
+
+- **现象**：`ui:smoke --axe` 报设置页左侧分组列表的选中项 `color-contrast`：`#0062cc` on `#d5e2f7` = 4.43。同一个 `bg-selection` 在侧边栏（白底）上是 4.92，所以只在设置页出现。
+- **根因**：`--selection-tint`（tint 12%）叠加在 `#F2F2F7` 画布上比叠加在白卡片上更暗；文字用了按纯色背景校验的 `--label-blue`。
+- **修复**：选中态文字改用为浅色底准备的 `--label-blue-soft`（画布 5.2、白底 5.76、深色 5.6+），并用脚本把新颜色组合在白底 / 画布 / 深色卡片上都算了一遍。
+- **规则**：同 #104：任何半透明底 + 文字的组合，要分别叠加到它可能出现的每一种底色（白卡片、`#F2F2F7` 画布、`#1C1C1E`/`#000`）上算最差值；浅着色底上的文字一律用 `*-soft` 标签色。
+
+### 124. （FE-P）手机仿真下横向溢出不会体现在 `scrollWidth - innerWidth`，ui-smoke 一直没发现仪表盘溢出
+
+- **现象**：截图时发现 375 px 下底部 tab bar 不见了。探测得 `innerWidth` = 624（仪表盘）/ 417（订阅页），`visualViewport` 才是 375；`ui:smoke` 的 overflow 检查（`scrollWidth - innerWidth`）结果为 0。根源是 7 天流量图在 `grid lg:grid-cols-5` 里：手机端没有列模板，隐式列按图表的回退宽度（560 px）撑开（同 #117），这个问题在打磨前就存在。
+- **根因**：开启 `isMobile` 仿真后，内容溢出会把布局视口加宽（为了缩放适配），`innerWidth` 跟着变大，“溢出量”恒为 0；grid item 默认 `min-width: auto`。
+- **修复**：全局 base 规则 `:where(.grid) > * { min-width: 0 }`（零优先级，工具类可覆盖），订阅页等同类问题一并消失；`scripts/ui-smoke.mjs` 改为用 `max(scrollWidth, innerWidth) - 仿真宽度` 判断；临时探测脚本逐页确认 `innerWidth` = 375。
+- **规则**：手机端溢出要和设备宽度比，不要和 `innerWidth` 比；“固定的 tab bar 不在屏幕底部”就是布局视口被撑宽的信号。

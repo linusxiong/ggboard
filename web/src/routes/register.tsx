@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { UserX } from '@/components/icons/inline'
 import { useRef, useState } from 'react'
-import { EmailCodeButton } from '@/components/auth/EmailCodeButton'
+import { EmailCodeButton, type EmailCodeResult } from '@/components/auth/EmailCodeButton'
 import type { CaptchaHandle } from '@/components/Captcha'
 import { LazyCaptcha } from '@/components/LazyCaptcha'
 import { FormError } from '@/components/FormError'
@@ -44,6 +44,7 @@ function RegisterPage() {
   const finish = useFinishAuth(search.redirect)
   const [formError, setFormError] = useState<string | undefined>()
   const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+  const [codeSentTo, setCodeSentTo] = useState<string>()
   const captchaRef = useRef<CaptchaHandle>(null)
 
   const whitelist = config?.email_whitelist_suffix ?? []
@@ -64,13 +65,20 @@ function RegisterPage() {
 
   if (config && !config.register_enabled) {
     return (
-      <AuthLayout title={t('register.title')}>
-        <div className="flex flex-col items-center gap-3 py-4 text-center">
-          <UserX className="size-8 text-label-secondary" strokeWidth={1.75} />
-          <p className="text-headline text-label">{t('register.closed')}</p>
-          <Link to="/login" className={buttonClass({ variant: 'secondary' })}>
-            {t('register.login')}
-          </Link>
+      <AuthLayout
+        title={t('register.closedTitle')}
+        subtitle={t('register.closedHint')}
+        icon={<UserX strokeWidth={1.5} />}
+      >
+        <div className="flex flex-col items-center gap-5 text-center">
+          <div className="flex w-full flex-col gap-2">
+            <Link to="/login" className={buttonClass({ size: 'lg', fullWidth: true })}>
+              {t('register.login')}
+            </Link>
+            <Link to="/" className={buttonClass({ variant: 'tertiary', fullWidth: true })}>
+              {t('register.home')}
+            </Link>
+          </div>
         </div>
       </AuthLayout>
     )
@@ -103,6 +111,24 @@ function RegisterPage() {
   /** Validates the email field before sending a code; returns it when valid. */
   const emailForCode = () => (form.validateField('email') ? undefined : form.values.email.trim())
 
+  const onCodeResult = (result: EmailCodeResult) => {
+    if (result.ok) {
+      setCodeSentTo(result.email)
+      form.setError('email_code', undefined)
+    } else {
+      setCodeSentTo(undefined)
+      form.setError('email_code', result.message)
+    }
+  }
+
+  /** Whitelist chip: completes the address with that domain (keeps what was typed before "@"). */
+  const pickDomain = (domain: string) => {
+    const local = form.values.email.split('@')[0]?.trim() ?? ''
+    form.setValues((v) => ({ ...v, email: local ? `${local}@${domain}` : '' }))
+    form.setError('email', undefined)
+    document.getElementById(local ? 'register-password' : 'register-email')?.focus()
+  }
+
   return (
     <AuthLayout
       title={t('register.title')}
@@ -124,6 +150,7 @@ function RegisterPage() {
         <FormError message={formError} />
         <NativeField
           {...form.field('email')}
+          id="register-email"
           label={t('fields.email')}
           type="email"
           inputMode="email"
@@ -131,11 +158,30 @@ function RegisterPage() {
           autoCapitalize="none"
           spellCheck={false}
           placeholder={t('fields.emailPlaceholder')}
-          description={
-            whitelist.length > 0 ? t('register.whitelist', { suffixes: whitelist.join(', ') }) : undefined
-          }
           required
         />
+        {whitelist.length > 0 ? (
+          <div
+            role="group"
+            aria-label={t('register.whitelistLabel')}
+            className="-mt-2 flex flex-wrap items-center gap-1.5 px-0.5 text-footnote text-label-secondary"
+          >
+            <span aria-hidden="true">{t('register.whitelistLabel')}</span>
+            {whitelist.map((domain) => (
+              <button
+                key={domain}
+                type="button"
+                aria-label={t('register.useDomain', { domain })}
+                // Keep focus in the email field (no blur validation between press and click).
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => pickDomain(domain)}
+                className="rounded-full bg-fill-tertiary px-2 py-0.5 font-medium text-label transition-colors hover:bg-fill-secondary"
+              >
+                @{domain}
+              </button>
+            ))}
+          </div>
+        ) : null}
         {captchaEnabled && captcha ? (
           <LazyCaptcha
             ref={captchaRef}
@@ -152,18 +198,25 @@ function RegisterPage() {
             autoComplete="one-time-code"
             maxLength={12}
             required
+            description={
+              codeSentTo ? (
+                <span className="text-label-green">{t('code.sentTo', { email: codeSentTo })}</span>
+              ) : undefined
+            }
             end={
               <EmailCodeButton
                 purpose="register"
                 getEmail={emailForCode}
                 captcha={captchaToken}
                 onSent={() => captchaRef.current?.reset()}
+                onResult={onCodeResult}
               />
             }
           />
         ) : null}
         <NativeField
           {...form.field('password')}
+          id="register-password"
           label={t('fields.password')}
           type="password"
           autoComplete="new-password"

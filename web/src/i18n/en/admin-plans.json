@@ -49,24 +49,25 @@
     "groupPlaceholder": "Choose a group",
     "groupHint": "Buyers get the nodes of this group",
     "tags": "Tags",
-    "tagsPlaceholder": "Recommended, Popular",
-    "tagsHint": "Separate with commas",
+    "tagsPlaceholder": "Popular, new…",
+    "tagsHint": "Press Return or comma to add",
     "show": "Show",
     "showHint": "Listed in the shop",
     "sell": "Sell",
     "sellHint": "New purchases allowed",
     "renew": "Renew",
     "renewHint": "Existing users may renew",
-    "transfer": "Traffic (GB)",
+    "transfer": "Traffic",
     "transferHint": "Traffic per period",
     "resetMethod": "Traffic reset",
-    "speedLimit": "Speed limit (Mbps)",
-    "deviceLimit": "Device limit",
-    "capacityLimit": "Max subscribers",
+    "speedLimit": "Speed limit",
+    "deviceLimit": "Devices",
+    "capacityLimit": "Max users",
     "capacityHint": "Leave empty for no limit on concurrent holders",
     "unlimitedHint": "Leave empty for unlimited",
     "content": "Description (Markdown)",
-    "contentHint": "Markdown, shown on the shop card"
+    "contentHint": "Markdown, shown on the shop card",
+    "tagRemove": "Remove tag {item}"
   },
   "reset": {
     "follow": "Follow system setting",
@@ -78,5 +79,10 @@
   },
   "errors": {
     "required": "{field} is required"
-  }
+  },
+  "units": {
+    "devices": "devices",
+    "users": "users"
+  },
+  "priceOff": "Not offered"
 }

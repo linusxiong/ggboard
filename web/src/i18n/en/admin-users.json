@@ -121,21 +121,21 @@
     "remarks": "Remarks",
     "plan": "Plan",
     "group": "Group",
-    "transfer": "Traffic quota (GB)",
+    "transfer": "Traffic quota",
     "gbHint": "1 GB = 1024³ bytes",
     "expiredAt": "Expires at",
     "expiredAtHint": "Local time; clear it for no expiry",
-    "upload": "Used upload (GB)",
-    "download": "Used download (GB)",
-    "speedLimit": "Speed limit (Mbps)",
+    "upload": "Used upload",
+    "download": "Used download",
+    "speedLimit": "Speed limit",
     "deviceLimit": "Device limit",
     "unlimitedHint": "Leave empty for unlimited",
     "balance": "Balance",
     "commissionBalance": "Commission balance",
     "commissionType": "Commission mode",
-    "commissionRate": "Commission rate (%)",
+    "commissionRate": "Commission rate",
     "followSystemHint": "Leave empty to use the system setting",
-    "discount": "Personal discount (%)",
+    "discount": "Personal discount",
     "discountHint": "Percent off every order; empty for none",
     "banned": "Banned",
     "bannedHint": "Blocks sign-in and node access",
@@ -184,5 +184,8 @@
     "contentHint": "Markdown; the mail queue sends it in the background",
     "send": "Queue mail",
     "queued": "Queued {count} e-mails"
+  },
+  "units": {
+    "devices": "devices"
   }
 }

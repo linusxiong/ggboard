@@ -74,7 +74,7 @@ function DashboardPage() {
     >
       <title>{`${t('title')} · GG Bond`}</title>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <QueryStatus query={sub} minHeight={292}>
             {(data) => <PlanCard sub={data} />}
@@ -117,7 +117,7 @@ function DashboardPage() {
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-5">
+      <div className="grid gap-4 lg:grid-cols-5">
         <section
           className="surface-card flex flex-col gap-4 p-6 lg:col-span-3"
           aria-labelledby="traffic-title"

@@ -1,7 +1,8 @@
 import { Drawer } from '@heroui/react'
-import type { FormEvent, ReactNode } from 'react'
+import { type FormEvent, type ReactNode, useCallback } from 'react'
 import { cx } from '@/lib/cn'
 import { DrawerClose } from '@/components/feedback/DrawerClose'
+import { useIsDesktop } from '@/hooks/useMediaQuery'
 
 interface FormDrawerProps {
   isOpen: boolean
@@ -21,7 +22,10 @@ interface FormDrawerProps {
 
 const WIDTH = { md: 'sm:w-[28rem]', lg: 'sm:w-[36rem]', xl: 'sm:w-[48rem]' }
 
-/** Right-hand sheet used for create/edit forms and detail panels. */
+/**
+ * Sheet for create/edit forms and detail panels: a floating inspector on the right on desktop, a
+ * bottom sheet with a grabber on phones. Title 20/600, footer pinned with a hairline.
+ */
 export function FormDrawer({
   isOpen,
   onOpenChange,
@@ -33,16 +37,38 @@ export function FormDrawer({
   isDismissable = true,
   onSubmit,
 }: FormDrawerProps) {
+  const desktop = useIsDesktop()
+  // Forms on desktop: put the caret in the first field once the sheet has opened (phones skip it —
+  // the keyboard would cover the sheet).
+  const isForm = Boolean(onSubmit)
+  const autoFocusFirst = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (!node || !isForm || !desktop) return
+      const timer = window.setTimeout(() => {
+        if (node.contains(document.activeElement) && document.activeElement !== node) return
+        node
+          .querySelector<HTMLElement>(
+            'input:not([type="hidden"]):not([disabled]):not([readonly]), textarea:not([disabled])',
+          )
+          ?.focus({ preventScroll: true })
+      }, 80)
+      return () => window.clearTimeout(timer)
+    },
+    [isForm, desktop],
+  )
   const content = (
     <>
-      <Drawer.Body>{children}</Drawer.Body>
+      <Drawer.Body>
+        <div ref={autoFocusFirst}>{children}</div>
+      </Drawer.Body>
       {footer ? <Drawer.Footer>{footer}</Drawer.Footer> : null}
     </>
   )
   return (
     <Drawer.Backdrop isOpen={isOpen} onOpenChange={onOpenChange} isDismissable={isDismissable}>
-      <Drawer.Content placement="right">
+      <Drawer.Content placement={desktop ? 'right' : 'bottom'}>
         <Drawer.Dialog className={cx('w-full max-w-full', WIDTH[size])}>
+          {desktop ? null : <Drawer.Handle />}
           <DrawerClose />
           <Drawer.Header>
             <Drawer.Heading>{title}</Drawer.Heading>

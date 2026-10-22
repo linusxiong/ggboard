@@ -30,7 +30,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 export function PlanSheet({ plan, isOpen, onOpenChange }: PlanSheetProps) {
   const t = useT(['admin-plans', 'common'])
-  const { currency } = useSite()
+  const { currency, symbol } = useSite()
   const groups = useQuery(adminGroupsQuery())
   const [formError, setFormError] = useState<string>()
   const [contentTab, setContentTab] = useState<'edit' | 'preview'>('edit')
@@ -61,7 +61,8 @@ export function PlanSheet({ plan, isOpen, onOpenChange }: PlanSheetProps) {
         ? t('errors.required', { field: label })
         : undefined,
   })
-  const money = { style: 'currency', currency } as const
+  // Decimal currency units (15 → 15.00), never cents; the symbol is an adornment.
+  const money = { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false } as const
 
   return (
     <FormDrawer
@@ -104,14 +105,15 @@ export function PlanSheet({ plan, isOpen, onOpenChange }: PlanSheetProps) {
           </div>
           <form.AppField name="tags">
             {(f) => (
-              <f.TextField
+              <f.TagsField
                 label={t('fields.tags')}
                 placeholder={t('fields.tagsPlaceholder')}
                 description={t('fields.tagsHint')}
+                removeLabel={(item) => t('fields.tagRemove', { item })}
               />
             )}
           </form.AppField>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="separated flex flex-col rounded-[14px] bg-fill-quaternary px-4 [&>*]:py-3">
             <form.AppField name="show">
               {(f) => <f.SwitchField label={t('fields.show')} description={t('fields.showHint')} />}
             </form.AppField>
@@ -132,6 +134,7 @@ export function PlanSheet({ plan, isOpen, onOpenChange }: PlanSheetProps) {
                   label={t('fields.transfer')}
                   minValue={0}
                   step={1}
+                  unit="GB"
                   description={t('fields.transferHint')}
                   isRequired
                 />
@@ -151,6 +154,8 @@ export function PlanSheet({ plan, isOpen, onOpenChange }: PlanSheetProps) {
                   label={t('fields.speedLimit')}
                   minValue={0}
                   step={1}
+                  unit="Mbps"
+                  placeholder={t('common:values.unlimited')}
                   description={t('fields.unlimitedHint')}
                 />
               )}
@@ -161,6 +166,8 @@ export function PlanSheet({ plan, isOpen, onOpenChange }: PlanSheetProps) {
                   label={t('fields.deviceLimit')}
                   minValue={0}
                   step={1}
+                  unit={t('units.devices')}
+                  placeholder={t('common:values.unlimited')}
                   description={t('fields.unlimitedHint')}
                 />
               )}
@@ -171,6 +178,8 @@ export function PlanSheet({ plan, isOpen, onOpenChange }: PlanSheetProps) {
                   label={t('fields.capacityLimit')}
                   minValue={0}
                   step={1}
+                  unit={t('units.users')}
+                  placeholder={t('common:values.unlimited')}
                   description={t('fields.capacityHint')}
                 />
               )}
@@ -188,8 +197,9 @@ export function PlanSheet({ plan, isOpen, onOpenChange }: PlanSheetProps) {
                     label={t(`common:periods.${period}`)}
                     minValue={0}
                     step={0.01}
+                    prefix={symbol ?? currency}
+                    placeholder={t('priceOff')}
                     formatOptions={money}
-                    steppers={false}
                   />
                 )}
               </form.AppField>

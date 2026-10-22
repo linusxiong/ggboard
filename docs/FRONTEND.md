@@ -35,7 +35,7 @@ There is **no schema library** (no Zod): search params and form fields are valid
 | Tables | `DataTable`, `createDataTableColumns<T>()`, `dataTableFeatures`, `parseSort`, `toSortParam`, `pageWindow` from `@/components/data-table` | server pagination and sort, mobile cards, skeletons |
 | Forms | `useAppForm`, `withForm`, `withFieldGroup`, `FormError`, `applyServerErrors` from `@/components/form`; `submitError` from `@/components/form/submitError` | field comps: `TextField`, `TextAreaField`, `NumberField`, `SelectField`, `SwitchField`, plus `SubmitButton` |
 | Public auth forms | `NativeField`, `NativeButton` (`@/components/native/*`), `useLiteForm`, `useFinishAuth`, `useCooldown` (`@/hooks/*`), `@/lib/validators` | native elements with HeroUI CSS classes and no React Aria JS (first-load budget) |
-| Toast / confirm | `toast` from `@/lib/toast` (lazy HeroUI toast), `confirm()` from `@/components/feedback/confirm`, `ConfirmDialog` from `@/components/feedback/ConfirmDialog` | **never** import `toast` from `@heroui/react` directly, because that loads it eagerly |
+| Toast / confirm | `toast` from `@/lib/toast` (own Apple-style toasts: tiny store in the entry, lazy renderer), `confirm()` from `@/components/feedback/confirm`, `ConfirmDialog` from `@/components/feedback/ConfirmDialog` | **never** import `toast` from `@heroui/react` (not used any more; it would load eagerly) |
 | Theme / locale | `useUiStore` (`theme`, `setTheme`, `cycleTheme`, `locale`), `@/lib/theme` (`applyTheme`, `useResolvedTheme`), `ThemeToggle` | **do not** use HeroUI `useTheme` (see §3.1) |
 | Auth state | `useAuthStore` (`token`, `user`, `hydrated`, `login(token,user)`, `setUser`, `logout`), `isAdmin(u)`, `isStaff(u)` | persisted under `gg-auth` |
 | Links that look like buttons | `buttonClass({ variant, size })` from `@/lib/button` | `<Link to="/plans" className={buttonClass()}>` |
@@ -223,8 +223,8 @@ const dlg = useOverlayState()                                                   
   </Tabs.List></Tabs.ListContainer>
   <Tabs.Panel id="pending">…</Tabs.Panel><Tabs.Panel id="paid">…</Tabs.Panel>
 </Tabs>
-// toasts: import { toast } from '@/lib/toast', which wraps the HeroUI API: toast(msg, opts), toast.success / info / warning / danger,
-// toast.promise(p, { loading, success, error }), toast.update(id, msg, { variant, timeout }), toast.close(id). Default timeout 4 s; timeout: 0 = persistent.
+// toasts: import { toast } from '@/lib/toast' (own renderer, not HeroUI's): toast(msg, opts), toast.success / info / warning / error (= danger),
+// toast.promise(p, { loading, success, error }), toast.dismiss(id); opts { description, timeout (ms; 0 = persistent), id }. Default 3.2–4 s, max 3.
 ```
 
 ---

@@ -121,21 +121,21 @@
     "remarks": "备注",
     "plan": "套餐",
     "group": "权限组",
-    "transfer": "总流量（GB）",
+    "transfer": "总流量",
     "gbHint": "1 GB = 1024³ 字节",
     "expiredAt": "到期时间",
     "expiredAtHint": "按本地时区填写；清空表示永不过期",
-    "upload": "已用上行（GB）",
-    "download": "已用下行（GB）",
-    "speedLimit": "限速（Mbps）",
-    "deviceLimit": "设备数限制",
+    "upload": "已用上行",
+    "download": "已用下行",
+    "speedLimit": "限速",
+    "deviceLimit": "设备数",
     "unlimitedHint": "留空表示不限",
     "balance": "余额",
     "commissionBalance": "佣金余额",
     "commissionType": "返佣方式",
-    "commissionRate": "返佣比例（%）",
+    "commissionRate": "返佣比例",
     "followSystemHint": "留空则使用系统设置",
-    "discount": "专属折扣（%）",
+    "discount": "专属折扣",
     "discountHint": "下单时减免的百分比，留空表示无",
     "banned": "封禁",
     "bannedHint": "禁止登录与使用节点",
@@ -184,5 +184,8 @@
     "contentHint": "支持 Markdown；邮件由后台队列异步发送",
     "send": "加入发送队列",
     "queued": "已加入队列：{count} 封邮件"
+  },
+  "units": {
+    "devices": "台"
   }
 }

@@ -149,7 +149,7 @@
       "count": "生成数量",
       "type": "类型",
       "amount": "减免金额",
-      "percent": "折扣比例（%）",
+      "percent": "折扣比例",
       "value": "优惠",
       "usage": "已用 / 总量",
       "validity": "有效期",

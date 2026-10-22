@@ -20,7 +20,7 @@ interface StatCardProps {
   static?: boolean
 }
 
-/** KPI tile used on dashboards. */
+/** KPI tile used on dashboards: symbol badge + label, large tabular value, optional hint. */
 export function StatCard({
   label,
   value,
@@ -36,19 +36,22 @@ export function StatCard({
   const text = numeric ? (format ? format(value) : String(value)) : null
 
   return (
-    <section className={cx('surface-card flex flex-col gap-3 p-5', className)}>
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-subhead text-label-secondary">{label}</h3>
+    <section className={cx('surface-card flex flex-col gap-2 p-5', className)}>
+      <div className="flex items-center gap-2.5">
         {icon ? (
           <span
-            className={cx('flex size-8 items-center justify-center rounded-[10px] text-white', accent)}
+            className={cx(
+              'flex size-7 shrink-0 items-center justify-center rounded-[8px] text-white [&_svg]:size-4',
+              accent,
+            )}
             aria-hidden="true"
           >
             {icon}
           </span>
         ) : null}
+        <h3 className="min-w-0 truncate text-subhead font-medium text-label-secondary">{label}</h3>
       </div>
-      <p className="text-title2 tabular text-label">
+      <p className="mt-1 text-title1 font-semibold tabular tracking-tight text-label">
         {numeric && animate && !isStatic ? (
           <Suspense fallback={text}>
             <CountUp to={value} duration={0.8} formatter={format} />
