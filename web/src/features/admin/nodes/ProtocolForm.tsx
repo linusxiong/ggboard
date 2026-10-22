@@ -230,6 +230,7 @@ function VmessFields() {
           path="tls"
           label={tp('tls')}
           options={[0, 1].map((v) => ({ value: v, label: tp(`tlsModes.${v}`) }))}
+          fallback={0}
           description={tp('tlsLocalCert')}
         />
         {tls === 1 ? <TlsBasics /> : null}
@@ -250,6 +251,7 @@ function VlessFields() {
             path="tls"
             label={tp('tls')}
             options={[0, 1, 2].map((v) => ({ value: v, label: tp(`tlsModes.${v}`) }))}
+            fallback={0}
           />
           <PSelect
             path="flow"
@@ -307,7 +309,7 @@ function ShadowsocksFields() {
   return (
     <>
       <Section title={tp('sections.cipher')}>
-        <PSelect path="cipher" label={tp('cipher')} options={opts(SS_CIPHERS)} />
+        <PSelect path="cipher" label={tp('cipher')} options={opts(SS_CIPHERS)} fallback="aes-128-gcm" />
         {isSs2022(cipher) ? (
           <PText
             path="server_key"
@@ -333,6 +335,7 @@ function ShadowsocksFields() {
           path="obfs"
           label={tp('obfs')}
           options={['plain', 'http', 'tls'].map((v) => ({ value: v, label: tp(`obfsModes.${v}`) }))}
+          fallback="plain"
         />
         {obfs !== 'plain' ? (
           <Grid>
@@ -362,11 +365,11 @@ function ShadowsocksRFields() {
   return (
     <Section title={tp('sections.cipher')}>
       <Grid>
-        <PSelect path="cipher" label={tp('cipher')} options={opts(SSR_CIPHERS)} />
+        <PSelect path="cipher" label={tp('cipher')} options={opts(SSR_CIPHERS)} fallback="chacha20-ietf" />
         <PText path="password" label={tp('ssrPassword')} mono description={tp('ssrPasswordHint')} />
-        <PSelect path="protocol" label={tp('protocol')} options={opts(SSR_PROTOCOLS)} />
+        <PSelect path="protocol" label={tp('protocol')} options={opts(SSR_PROTOCOLS)} fallback="origin" />
         <PText path="protocol_param" label={tp('protocolParam')} mono />
-        <PSelect path="obfs" label={tp('obfs')} options={opts(SSR_OBFS)} />
+        <PSelect path="obfs" label={tp('obfs')} options={opts(SSR_OBFS)} fallback="plain" />
         <PText path="obfs_param" label={tp('obfsParam')} mono />
       </Grid>
       <PSelect
@@ -405,6 +408,7 @@ function HysteriaFields() {
           path="version"
           label={tp('version')}
           options={[2, 1].map((v) => ({ value: v, label: tp(`versions.${v}`) }))}
+          fallback={2}
         />
         <Grid>
           <PNumber path="up_mbps" label={tp('upMbps')} description={tp('bandwidthHint')} />
@@ -426,6 +430,7 @@ function HysteriaFields() {
             { value: 'plain', label: tp('hyObfs.plain') },
             { value: 'salamander', label: version === 1 ? tp('hyObfs.v1') : tp('hyObfs.salamander') },
           ]}
+          fallback="plain"
         />
         {obfs !== 'plain' ? <PText path="obfs_password" label={tp('obfsPassword')} mono isRequired /> : null}
       </Section>
@@ -452,6 +457,7 @@ function AnyTlsFields() {
           path="tls"
           label={tp('tls')}
           options={[1, 2].map((v) => ({ value: v, label: tp(`tlsModes.${v}`) }))}
+          fallback={1}
         />
         <PText path="server_name" label={tp('serverName')} placeholder="www.example.com" />
         {tls === 1 ? (
@@ -502,7 +508,7 @@ function MieruFields() {
   return (
     <Section title={tp('sections.basics')}>
       <Grid>
-        <PSelect path="transport" label={tp('transport')} options={opts(['TCP', 'UDP'])} />
+        <PSelect path="transport" label={tp('transport')} options={opts(['TCP', 'UDP'])} fallback="TCP" />
         <PSelect
           path="multiplexing"
           label={tp('multiplexing')}
@@ -523,8 +529,18 @@ function TuicFields() {
     <>
       <Section title={tp('sections.basics')}>
         <Grid>
-          <PSelect path="congestion_control" label={tp('congestion')} options={opts(TUIC_CONGESTION)} />
-          <PSelect path="udp_relay_mode" label={tp('udpRelay')} options={opts(TUIC_UDP_RELAY)} />
+          <PSelect
+            path="congestion_control"
+            label={tp('congestion')}
+            options={opts(TUIC_CONGESTION)}
+            fallback="bbr"
+          />
+          <PSelect
+            path="udp_relay_mode"
+            label={tp('udpRelay')}
+            options={opts(TUIC_UDP_RELAY)}
+            fallback="native"
+          />
         </Grid>
         <PSwitch path="zero_rtt_handshake" label={tp('zeroRtt')} />
       </Section>

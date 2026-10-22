@@ -17,7 +17,7 @@
     "unlimitedSpeed": "不限速",
     "buy": "立即购买",
     "renew": "续费",
-    "buyNamed": "购买 {name}",
+    "buyNamed": "立即购买 {name}",
     "renewNamed": "续费 {name}",
     "soldOut": "已售罄",
     "notForSale": "暂停销售",

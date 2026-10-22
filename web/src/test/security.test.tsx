@@ -67,7 +67,7 @@ describe('profile → security', () => {
 
   it('2FA wizard: setup → QR + secret → code → backup codes (copy / download)', async () => {
     const fetchMock = mockApi({
-      'GET /guest/config': GUEST_CONFIG,
+      'GET /guest/config': { ...GUEST_CONFIG, passkey_enabled: true },
       'GET /user/me': TEST_USER,
       'GET /user/security': () => overview,
       'POST /user/security/totp/setup': {
@@ -134,7 +134,7 @@ describe('profile → security', () => {
     }
     webauthn.startRegistration.mockResolvedValueOnce(CREDENTIAL)
     const fetchMock = mockApi({
-      'GET /guest/config': GUEST_CONFIG,
+      'GET /guest/config': { ...GUEST_CONFIG, passkey_enabled: true },
       'GET /user/me': TEST_USER,
       'GET /user/security': () => overview,
       'POST /user/security/passkeys/begin': { challenge_id: 'ch-1', options: OPTIONS },
@@ -165,7 +165,7 @@ describe('profile → security', () => {
       Object.assign(new Error('cancelled'), { name: 'NotAllowedError' }),
     )
     const fetchMock = mockApi({
-      'GET /guest/config': GUEST_CONFIG,
+      'GET /guest/config': { ...GUEST_CONFIG, passkey_enabled: true },
       'GET /user/me': TEST_USER,
       'GET /user/security': () => overview,
       'POST /user/security/passkeys/begin': { challenge_id: 'ch-2', options: OPTIONS },

@@ -39,6 +39,15 @@ export function base64Url(text: string): string {
 }
 
 /**
+ * Node-list resources: Quantumult X `[server_remote]` and Loon node subscriptions (`loon://import?sub=`) expect
+ * proxy lines only, while `/client/subscribe` renders a full config for those clients unless `list=1`
+ * (docs/SUBSCRIPTION.md → overrides). The flag pins the format whatever User-Agent the client sends.
+ */
+export function nodeListUrl(url: string, flag: 'quantumultx' | 'loon'): string {
+  return withSubscribeQuery(url, { flag, list: 1 })
+}
+
+/**
  * Builds the deep link that opens `client` and imports `url`.
  * `name` labels the profile where the client supports it (Clash, sing-box, Shadowrocket, Quantumult X).
  */
@@ -57,11 +66,12 @@ export function importLink(client: ImportClient, url: string, name = ''): string
     case 'surge':
       return `surge:///install-config?url=${u}`
     case 'quantumultx': {
-      const resource = { server_remote: [name ? `${url}, tag=${name}` : url] }
+      const list = nodeListUrl(url, 'quantumultx')
+      const resource = { server_remote: [name ? `${list}, tag=${name}` : list] }
       return `quantumult-x:///add-resource?remote-resource=${encodeURIComponent(JSON.stringify(resource))}`
     }
     case 'loon':
-      return `loon://import?sub=${u}`
+      return `loon://import?sub=${encodeURIComponent(nodeListUrl(url, 'loon'))}`
   }
 }
 
@@ -74,6 +84,10 @@ export interface SubscribeOverrides {
   cats?: readonly string[]
   final?: string
   mirror?: 0 | 1
+  /** Force the output format (`quantumultx`, `loon`, …) instead of User-Agent detection. */
+  flag?: string
+  /** `1` = proxy lines only (surge, surfboard, loon, quantumultx). */
+  list?: 0 | 1
 }
 
 /** Adds/replaces override params on the subscription URL (keeps `token` and anything else). */

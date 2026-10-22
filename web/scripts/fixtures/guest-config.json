@@ -1,21 +1,38 @@
 {
   "app_name": "GG Bond",
-  "app_description": "简洁、美观、高性能的代理面板",
-  "app_url": "https://panel.example.com",
+  "app_description": "",
+  "app_url": "",
   "logo": "",
   "tos_url": "",
   "currency": "CNY",
   "currency_symbol": "¥",
   "register_enabled": true,
-  "email_verify": true,
+  "email_verify": false,
   "email_whitelist_suffix": [],
   "invite_force": false,
-  "captcha": { "provider": "none", "site_key": "" },
-  "downloads": {
-    "windows": { "url": "", "version": "" },
-    "macos": { "url": "", "version": "" },
-    "android": { "url": "", "version": "" },
-    "ios": { "url": "", "version": "" }
+  "captcha": {
+    "provider": "none",
+    "site_key": ""
   },
-  "locales": ["zh-CN", "en"]
+  "downloads": {
+    "windows": {
+      "url": "",
+      "version": ""
+    },
+    "macos": {
+      "url": "",
+      "version": ""
+    },
+    "android": {
+      "url": "",
+      "version": ""
+    },
+    "ios": {
+      "url": "",
+      "version": ""
+    }
+  },
+  "locales": ["zh-CN", "en"],
+  "passkey_enabled": false,
+  "allow_user_rule_profile": true
 }

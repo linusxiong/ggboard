@@ -747,7 +747,12 @@ export interface RulesetCategory {
   name?: LocalizedText
   default_target: string
   order: number
-  rules: Record<string, RulesetRuleRef>
+  /** Public catalog (`/guest|user/rulesets/catalog`): ids of the sources that publish this category. */
+  sources?: string[]
+  /** Public catalog: clients that can render it. */
+  clients?: string[]
+  /** Full catalog only (admin builtin / embedded catalog.json): source id → rule reference. */
+  rules?: Record<string, RulesetRuleRef>
 }
 export interface RulesetTemplate {
   id: string

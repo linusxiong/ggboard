@@ -231,8 +231,14 @@ See `AGENTS.md` §7.
 - Files under `assets/` (content-hashed) get `Cache-Control: public, max-age=31536000, immutable`. Everything else,
   including `index.html` and `sw.js`, gets `no-cache` with a sha256 ETag.
 - `.br`/`.gz` siblings (emitted by `vite-plugin-compression2`) are served when `Accept-Encoding` allows.
+- Public routes are prerendered at build time (`web/scripts/prerender.mjs`, run by `pnpm build` when a Chrome/Chromium
+  binary is available; the Docker web stage installs Chromium): `/` → `index.html`, `/login` → `login/index.html`,
+  `/register`, `/forgot`. A snapshot page paints before any JS: it loads only CSS plus a tiny `assets/boot-*.js`, which
+  starts the app after the first paint; the app replaces the snapshot with an identical tree in one commit (no hydration,
+  see `web/src/main.tsx`). Snapshot forms are inert until then and typed values are carried over.
 - Fallbacks:
-  - Unknown GET/HEAD paths fall back to `index.html`.
+  - `<path>/index.html` (prerendered) is served when present; other unknown GET/HEAD paths fall back to `spa.html`
+    (the plain shell), else `index.html`.
   - Missing asset-like paths (with an extension, or under `assets/`) return 404.
   - `/api/*` and `/soga/*` return a JSON 404.
   - Without a built frontend, a small "Frontend not built" page is served.

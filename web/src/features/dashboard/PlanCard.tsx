@@ -12,19 +12,20 @@ import { planState } from './format'
 
 const STATE_COLOR = { active: 'success', expired: 'danger', depleted: 'warning', none: 'default' } as const
 
+/** One `<dt>`/`<dd>` group (a `<dl>` allows exactly one wrapping `<div>`): the icon lives inside the `<dt>`. */
 function Fact({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {
   return (
-    <div className="flex min-w-0 items-start gap-3">
-      <span
-        className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-fill-tertiary text-label-secondary"
-        aria-hidden="true"
-      >
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <dt className="text-footnote text-label-secondary">{label}</dt>
-        <dd className="text-subhead text-label">{children}</dd>
-      </div>
+    <div className="relative min-w-0 ps-11">
+      <dt className="text-footnote text-label-secondary">
+        <span
+          className="absolute start-0 top-0.5 flex size-8 items-center justify-center rounded-[10px] bg-fill-tertiary text-label-secondary"
+          aria-hidden="true"
+        >
+          {icon}
+        </span>
+        {label}
+      </dt>
+      <dd className="text-subhead text-label">{children}</dd>
     </div>
   )
 }

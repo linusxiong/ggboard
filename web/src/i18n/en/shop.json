@@ -17,7 +17,7 @@
     "unlimitedSpeed": "No speed limit",
     "buy": "Buy now",
     "renew": "Renew",
-    "buyNamed": "Buy {name}",
+    "buyNamed": "Buy now: {name}",
     "renewNamed": "Renew {name}",
     "soldOut": "Sold out",
     "notForSale": "Not for sale",

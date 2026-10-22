@@ -11,6 +11,7 @@ import { useOrderActions } from './actions'
 import { CommissionStatusChip, OrderStatusChip, OrderTypeLabel } from './chips'
 import { COMMISSION_STATUSES } from './search'
 import { useCurrency } from './useCurrency'
+import { DrawerClose } from '@/components/feedback/DrawerClose'
 
 interface OrderDetailDrawerProps {
   /** Order to show (`null` closes the drawer). */
@@ -48,7 +49,7 @@ export function OrderDetailDrawer({ orderId, preview, onClose }: OrderDetailDraw
     <Drawer.Backdrop isOpen={isOpen} onOpenChange={(open) => !open && onClose()}>
       <Drawer.Content placement="right">
         <Drawer.Dialog className="sm:w-[28rem]">
-          <Drawer.CloseTrigger />
+          <DrawerClose />
           <Drawer.Header>
             <Drawer.Heading>{t('detail.title')}</Drawer.Heading>
             {order ? (

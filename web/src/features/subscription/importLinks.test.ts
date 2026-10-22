@@ -13,7 +13,10 @@ describe('import deep links', () => {
       `sing-box://import-remote-profile?url=${enc}#GG%20Bond`,
     )
     expect(importLink('surge', URL_)).toBe(`surge:///install-config?url=${enc}`)
-    expect(importLink('loon', URL_)).toBe(`loon://import?sub=${enc}`)
+    const loon = new URL(decodeURIComponent(importLink('loon', URL_).slice('loon://import?sub='.length)))
+    expect(loon.searchParams.get('flag')).toBe('loon')
+    expect(loon.searchParams.get('list')).toBe('1')
+    expect(loon.searchParams.get('y')).toBe('1')
   })
 
   it('Shadowrocket: base64url (no padding) of the URL + remark', () => {
@@ -24,16 +27,26 @@ describe('import deep links', () => {
     expect(atob(encoded.replace(/-/g, '+').replace(/_/g, '/'))).toBe(URL_)
   })
 
-  it('Quantumult X: url-encoded JSON {server_remote:[url, tag=name]}', () => {
+  it('Quantumult X: url-encoded JSON {server_remote:[url&flag=quantumultx&list=1, tag=name]}', () => {
+    // [server_remote] takes proxy lines only: the backend renders them with list=1 (full config otherwise).
+    const list = 'https://panel.example.com/s/abc123?flag=quantumultx&y=1&list=1'
     const link = importLink('quantumultx', URL_, 'GG Bond')
     const prefix = 'quantumult-x:///add-resource?remote-resource='
     expect(link.startsWith(prefix)).toBe(true)
     const json = JSON.parse(decodeURIComponent(link.slice(prefix.length))) as { server_remote: string[] }
-    expect(json).toEqual({ server_remote: [`${URL_}, tag=GG Bond`] })
+    expect(json).toEqual({ server_remote: [`${list}, tag=GG Bond`] })
     const bare = JSON.parse(
       decodeURIComponent(importLink('quantumultx', URL_).slice(prefix.length)),
     ) as unknown
-    expect(bare).toEqual({ server_remote: [URL_] })
+    expect(bare).toEqual({ server_remote: [list] })
+    const plain = 'https://panel.example.com/api/v1/client/subscribe?token=t0k'
+    expect(
+      (
+        JSON.parse(decodeURIComponent(importLink('quantumultx', plain).slice(prefix.length))) as {
+          server_remote: string[]
+        }
+      ).server_remote[0],
+    ).toBe(`${plain}&flag=quantumultx&list=1`)
   })
 
   it('base64Url is UTF-8 safe', () => {

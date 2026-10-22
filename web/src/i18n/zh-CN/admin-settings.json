@@ -362,6 +362,22 @@
     "ios_version": {
       "label": "iOS 版本号",
       "hint": ""
+    },
+    "passkey_rp_id": {
+      "label": "通行密钥 RP ID",
+      "hint": "WebAuthn 依赖方 ID（域名，不含端口）。留空则使用「站点地址」的主机名；IP 地址无法使用通行密钥。"
+    },
+    "passkey_origins": {
+      "label": "通行密钥额外来源",
+      "hint": "允许发起通行密钥登录的其他来源（如 https://www.example.com）。站点地址的来源始终允许。"
+    },
+    "admin_mfa_required": {
+      "label": "管理员必须启用两步验证",
+      "hint": "开启后，未启用两步验证或通行密钥的管理员与客服无法访问后台接口。"
+    },
+    "mfa_issuer": {
+      "label": "验证器显示名称",
+      "hint": "身份验证器 App 中显示的发行方名称，留空则使用站点名称。"
     }
   },
   "enums": {

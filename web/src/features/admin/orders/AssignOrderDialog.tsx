@@ -12,6 +12,7 @@ import { toast } from '@/lib/toast'
 import { useLocale } from '@/i18n'
 import { MoneyInput } from './MoneyInput'
 import { splitUserQuery } from './query'
+import { ModalClose } from '@/components/feedback/ModalClose'
 
 interface AssignOrderDialogProps {
   isOpen: boolean
@@ -70,7 +71,7 @@ export function AssignOrderDialog({ isOpen, onOpenChange, plans, currency, symbo
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
       <Modal.Container size="md">
         <Modal.Dialog>
-          <Modal.CloseTrigger />
+          <ModalClose />
           <Modal.Header>
             <Modal.Heading>{t('assign.title')}</Modal.Heading>
             <p className="text-subhead text-label-secondary">{t('assign.description')}</p>

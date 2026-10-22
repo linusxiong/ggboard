@@ -12,6 +12,7 @@ import { qk } from '@/lib/api/queries'
 import type { AdminKnowledge, AdminKnowledgeDetail, KnowledgeInput } from '@/lib/api/types'
 import { toast } from '@/lib/toast'
 import { ACCESS_END, ACCESS_START, KNOWLEDGE_PLACEHOLDERS, LANGUAGE_SUGGESTIONS } from './knowledge'
+import { ModalClose } from '@/components/feedback/ModalClose'
 
 interface KnowledgeDialogProps {
   isOpen: boolean
@@ -36,7 +37,7 @@ export function KnowledgeDialog(props: KnowledgeDialogProps) {
     <Modal.Backdrop isOpen={props.isOpen} onOpenChange={props.onOpenChange}>
       <Modal.Container size="lg" scroll="inside">
         <Modal.Dialog>
-          <Modal.CloseTrigger />
+          <ModalClose />
           <Modal.Header>
             <Modal.Heading>{id ? t('knowledge.editTitle') : t('knowledge.createTitle')}</Modal.Heading>
           </Modal.Header>

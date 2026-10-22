@@ -42,7 +42,7 @@
     "plan": "Plan",
     "period": "Period",
     "type": "Type",
-    "total_amount": "Amount paid",
+    "total_amount": "Order amount",
     "handling_amount": "Handling fee",
     "discount_amount": "Discount",
     "surplus_amount": "Upgrade credit",

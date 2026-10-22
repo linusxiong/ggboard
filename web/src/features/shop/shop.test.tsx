@@ -58,14 +58,14 @@ describe('shop', () => {
     ).toBeInTheDocument()
     // Current plan, sold-out plan and the reset-traffic add-on.
     expect(screen.getByText('当前套餐')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '购买 Holiday' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '立即购买 Holiday' })).toBeDisabled()
     expect(screen.getByRole('heading', { name: '流量重置包' })).toBeInTheDocument()
 
     // Pick the quarterly price on Lite → per-month equivalent and saving.
     await u.click(screen.getByRole('radio', { name: /季付/ }))
     expect(screen.getByText('约 ¥13.33/月')).toBeInTheDocument()
     expect(screen.getByText('省 11%')).toBeInTheDocument()
-    await u.click(screen.getByRole('button', { name: '购买 Lite' }))
+    await u.click(screen.getByRole('button', { name: '立即购买 Lite' }))
 
     const dialog = await screen.findByRole('dialog', {}, { timeout: 4000 })
     expect(within(dialog).getByText('季付')).toBeInTheDocument()
@@ -117,7 +117,7 @@ describe('shop', () => {
     const { router } = renderApp('/shop', user)
     const u = userEvent.setup()
 
-    await u.click(await screen.findByRole('button', { name: '购买 Lite' }, { timeout: 4000 }))
+    await u.click(await screen.findByRole('button', { name: '立即购买 Lite' }, { timeout: 4000 }))
     const dialog = await screen.findByRole('dialog', {}, { timeout: 4000 })
     await u.click(within(dialog).getByRole('button', { name: '提交订单' }))
 

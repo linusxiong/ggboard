@@ -13,6 +13,7 @@ import { adminApi } from '@/lib/api'
 import { qk } from '@/lib/api/queries'
 import type { AdminNotice, NoticeInput } from '@/lib/api/types'
 import { toast } from '@/lib/toast'
+import { ModalClose } from '@/components/feedback/ModalClose'
 
 interface NoticeDialogProps {
   isOpen: boolean
@@ -57,7 +58,7 @@ function NoticeDialogInner({ isOpen, onOpenChange, notice }: NoticeDialogProps) 
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
       <Modal.Container size="lg" scroll="inside">
         <Modal.Dialog>
-          <Modal.CloseTrigger />
+          <ModalClose />
           <Modal.Header>
             <Modal.Heading>{notice ? t('notices.editTitle') : t('notices.createTitle')}</Modal.Heading>
           </Modal.Header>

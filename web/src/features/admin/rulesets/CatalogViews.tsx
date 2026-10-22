@@ -37,7 +37,7 @@ export function SourcesView({ sources, customIds, locale }: SourcesViewProps) {
       {list.map(([id, s]) => (
         <li key={id} className="surface-card p-5">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-headline text-label">{s.name}</h3>
+            <h2 className="text-headline text-label">{s.name}</h2>
             <Chip size="sm" variant="soft" className="font-mono">
               {id}
             </Chip>
@@ -64,7 +64,12 @@ export function SourcesView({ sources, customIds, locale }: SourcesViewProps) {
             <p className="mt-1 text-subhead text-label-secondary">{localized(s.description, locale, '')}</p>
           ) : null}
           {s.license ? <p className="mt-1 text-footnote text-label-secondary">{s.license}</p> : null}
-          <div className="mt-3 overflow-x-auto">
+          <div
+            className="mt-3 overflow-x-auto rounded-[8px] focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
+            tabIndex={0}
+            role="region"
+            aria-label={t('rulesets.urlTemplatesOf', { name: s.name })}
+          >
             <table className="w-full text-footnote">
               <caption className="sr-only">{t('rulesets.urlTemplatesOf', { name: s.name })}</caption>
               <thead>
@@ -202,7 +207,7 @@ export function TemplatesView({ templates, customIds, locale }: TemplatesViewPro
         return (
           <li key={tpl.id} className="surface-card flex flex-col gap-3 p-5">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-headline text-label">{localized(tpl.name, locale, tpl.id)}</h3>
+              <h2 className="text-headline text-label">{localized(tpl.name, locale, tpl.id)}</h2>
               <Chip size="sm" variant="soft" className="font-mono">
                 {tpl.id}
               </Chip>
@@ -231,9 +236,9 @@ export function TemplatesView({ templates, customIds, locale }: TemplatesViewPro
               </div>
             ) : null}
             <div>
-              <h4 className="mb-1 text-footnote font-semibold text-label-secondary">
+              <h3 className="mb-1 text-footnote font-semibold text-label-secondary">
                 {t('rulesets.groups')}
-              </h4>
+              </h3>
               <ul className="flex flex-col gap-0.5 text-footnote">
                 {tpl.groups.map((g) => (
                   <li key={g.name} className="flex flex-wrap gap-x-2">

@@ -22,11 +22,11 @@ function niceStep(span: number, count: number): number {
  * Rounded y-axis ticks from 0 (or the negative minimum) to at least `max`.
  * `niceTicks(0, 87)` → `[0, 25, 50, 75, 100]`.
  */
-export function niceTicks(min: number, max: number, count = 4): number[] {
+export function niceTicks(min: number, max: number, count = 4, minStep = 0): number[] {
   const lo = Math.min(0, min)
   let hi = Math.max(0, max)
   if (hi === lo) hi = lo + 1
-  const step = niceStep(hi - lo, count)
+  const step = Math.max(minStep, niceStep(hi - lo, count))
   const start = Math.floor(lo / step) * step
   const ticks: number[] = []
   for (let v = start; v < hi + step / 2; v += step) {
@@ -39,11 +39,12 @@ export function niceTicks(min: number, max: number, count = 4): number[] {
 
 /**
  * Ticks that are round in `unit` (e.g. 1024³ for traffic so the axis reads 50 GB, 100 GB…),
- * returned in raw units.
+ * returned in raw units. Raw values are whole numbers (bytes, cents, counts), so a step is never below one
+ * raw unit: an all-zero series gets `[0, 1]` instead of 0.25-steps that format as "0 B, 0 B, 1 B, 1 B, 1 B".
  */
 export function niceTicksIn(min: number, max: number, unit = 1, count = 4): number[] {
   const u = unit > 0 ? unit : 1
-  return niceTicks(min / u, max / u, count).map((v) => v * u)
+  return niceTicks(min / u, max / u, count, 1 / u).map((v) => v * u)
 }
 
 /** Largest power of 1024 not above `max` (≥ 1): the unit `formatBytes` will display. */

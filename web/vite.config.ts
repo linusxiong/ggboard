@@ -31,6 +31,14 @@ const vendorGroups = [
     priority: 15,
   },
   {
+    // Query factories: dynamically imported by route loaders (entry) AND statically by lazy chunks, so
+    // without a group Rolldown hoists them into the entry chunk — and React Query with them (+10 KB gz on
+    // the public pages). Lower priority than `app` so shared API modules stay where they were.
+    name: 'queries',
+    test: /[\\/]src[\\/]lib[\\/]api[\\/]queries\./,
+    priority: 12,
+  },
+  {
     // Chrome shared by every page (native HeroUI-styled buttons, toggles, logo, inline icons).
     name: 'chrome',
     test: /[\\/]src[\\/](components[\\/](native[\\/]NativeButton|icons[\\/]|ThemeToggle|LocaleToggle|Logo)|lib[\\/]button)/,

@@ -1,18 +1,17 @@
 /**
- * Below-the-fold landing sections (features + plans), split from the route chunk so the
- * hero renders with the smallest possible first-load bundle. Files in `-landing/` are ignored
- * by the route generator (`-` prefix).
+ * Below-the-fold landing plans, split from the route chunk so the hero renders with the smallest possible
+ * first-load bundle (the features grid is static and ships with the route: see Features.tsx). Files in
+ * `-landing/` are ignored by the route generator (`-` prefix).
  */
 import { Link } from '@tanstack/react-router'
 import { type ReactNode, use } from 'react'
 import { Money } from '@/components/Formatters'
-import { Check, MonitorSmartphone, Route as RouteIcon, ShieldCheck } from './icons'
-import { BlurText, SpotlightCard, WhenIdle } from '@/components/reactbits'
+import { Check } from './icons'
+import { BlurText, WhenIdle } from '@/components/reactbits'
 import { useT } from '@/i18n'
 import { guestPlansResource } from '@/lib/publicData'
 import { PLAN_PERIODS, type Plan, type PlanPeriod } from '@/lib/api/types'
 import { buttonClass } from '@/lib/button'
-import { useResolvedTheme } from '@/lib/theme'
 
 interface SectionsProps {
   signedIn: boolean
@@ -21,59 +20,7 @@ interface SectionsProps {
 }
 
 export default function LandingSections({ signedIn, currency, symbol }: SectionsProps) {
-  return (
-    <>
-      <Features />
-      <Plans signedIn={signedIn} currency={currency} symbol={symbol} />
-    </>
-  )
-}
-
-const FEATURES = [
-  { key: 'protocols', icon: ShieldCheck, tint: 'bg-system-blue' },
-  { key: 'rules', icon: RouteIcon, tint: 'bg-system-indigo' },
-  { key: 'clients', icon: MonitorSmartphone, tint: 'bg-system-green' },
-] as const
-
-function Features() {
-  const t = useT('landing')
-  const theme = useResolvedTheme()
-  return (
-    <section aria-labelledby="features-title" className="mx-auto max-w-6xl px-4 pb-20 sm:px-6">
-      <h2 id="features-title" className="mb-8 text-center text-title1 text-label">
-        {t('features.title')}
-      </h2>
-      <ul className="grid gap-4 md:grid-cols-3">
-        {FEATURES.map(({ key, icon: Icon, tint }) => {
-          const body = (
-            <>
-              <span
-                className={`mb-4 flex size-10 items-center justify-center rounded-[12px] text-white ${tint}`}
-                aria-hidden="true"
-              >
-                <Icon className="size-5" />
-              </span>
-              <h3 className="text-headline text-label">{t(`features.items.${key}.title`)}</h3>
-              <p className="mt-2 text-subhead text-label-secondary">{t(`features.items.${key}.body`)}</p>
-            </>
-          )
-          return (
-            <li key={key}>
-              <WhenIdle
-                fallback={
-                  <div className="surface-card relative isolate h-full overflow-hidden p-6">{body}</div>
-                }
-              >
-                <SpotlightCard theme={theme} className="surface-card h-full !rounded-card !p-6">
-                  {body}
-                </SpotlightCard>
-              </WhenIdle>
-            </li>
-          )
-        })}
-      </ul>
-    </section>
-  )
+  return <Plans signedIn={signedIn} currency={currency} symbol={symbol} />
 }
 
 function firstPrice(plan: Plan): { period: PlanPeriod; cents: number } | null {
@@ -123,7 +70,7 @@ function Plans({ signedIn, currency, symbol }: SectionsProps) {
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="text-title3 text-label">{plan.name}</h3>
                       {plan.tags[0] ? (
-                        <span className="rounded-full bg-accent-soft px-2.5 py-0.5 text-caption font-semibold text-label-blue">
+                        <span className="rounded-full bg-accent-soft px-2.5 py-0.5 text-caption font-semibold text-label-blue-soft">
                           {plan.tags[0]}
                         </span>
                       ) : null}

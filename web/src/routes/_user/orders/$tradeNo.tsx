@@ -5,17 +5,20 @@ import { PageShell } from '@/components/PageShell'
 import { OrderDetail } from '@/features/orders/OrderDetail'
 import { OrderStatusChip } from '@/features/orders/OrderStatusChip'
 import { loadNamespaces, useT } from '@/i18n'
-import { guestConfigQuery, orderQuery } from '@/lib/api/queries'
+import { orderQuery } from '@/lib/api/queries'
 import { buttonClass } from '@/lib/button'
 
 /** Order detail — also the payment return target (`/guest/payment/return/:trade_no` → 302 here). */
 export const Route = createFileRoute('/_user/orders/$tradeNo')({
-  loader: ({ context, params }) =>
-    Promise.all([
+  // Loaders stay in the entry chunk (only components are split): import the query factories lazily.
+  loader: async ({ context, params }) => {
+    const q = await import('@/lib/api/queries')
+    return Promise.all([
       loadNamespaces(['orders', 'common']),
-      context.queryClient.query(orderQuery(params.tradeNo)),
-      context.queryClient.query({ ...guestConfigQuery(), staleTime: 'static' }).catch(() => null),
-    ]),
+      context.queryClient.query(q.orderQuery(params.tradeNo)),
+      context.queryClient.query({ ...q.guestConfigQuery(), staleTime: 'static' }).catch(() => null),
+    ])
+  },
   component: OrderDetailPage,
 })
 

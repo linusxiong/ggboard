@@ -1,6 +1,7 @@
 import { Drawer } from '@heroui/react'
 import type { FormEvent, ReactNode } from 'react'
 import { cx } from '@/lib/cn'
+import { DrawerClose } from '@/components/feedback/DrawerClose'
 
 interface FormDrawerProps {
   isOpen: boolean
@@ -42,7 +43,7 @@ export function FormDrawer({
     <Drawer.Backdrop isOpen={isOpen} onOpenChange={onOpenChange} isDismissable={isDismissable}>
       <Drawer.Content placement="right">
         <Drawer.Dialog className={cx('w-full max-w-full', WIDTH[size])}>
-          <Drawer.CloseTrigger />
+          <DrawerClose />
           <Drawer.Header>
             <Drawer.Heading>{title}</Drawer.Heading>
             {subtitle ? <p className="text-footnote text-label-secondary">{subtitle}</p> : null}

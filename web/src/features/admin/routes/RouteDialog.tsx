@@ -8,6 +8,7 @@ import { qk } from '@/lib/api/queries'
 import type { NodeRoute } from '@/lib/api/types'
 import { useAdminMutation } from '../shared/useAdminMutation'
 import { checkMatch, MAX_MATCH, routeToValues, valuesToRouteInput } from './routeForm'
+import { ModalClose } from '@/components/feedback/ModalClose'
 
 interface RouteDialogProps {
   /** `null` = create. */
@@ -52,7 +53,7 @@ export function RouteDialog({ route, isOpen, onOpenChange }: RouteDialogProps) {
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
       <Modal.Container size="md" scroll="inside">
         <Modal.Dialog>
-          <Modal.CloseTrigger />
+          <ModalClose />
           <Modal.Header>
             <Modal.Heading>{route ? t('routes.edit') : t('routes.create')}</Modal.Heading>
           </Modal.Header>

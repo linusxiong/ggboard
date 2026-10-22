@@ -1,6 +1,7 @@
 // Package static serves the embedded single-page app (web/dist copied to internal/static/dist by
-// `make web`): precompressed .br/.gz siblings, immutable caching for hashed assets, no-cache index.html with
-// a CSP, and SPA fallback for every non-API path.
+// `make web`): precompressed .br/.gz siblings, immutable caching for hashed assets, no-cache HTML with a CSP,
+// prerendered public routes (`/login` → login/index.html, written by web/scripts/prerender.mjs) and SPA
+// fallback (spa.html — the plain shell — when present, else index.html) for every other non-API path.
 package static
 
 import (
@@ -139,6 +140,10 @@ func Mount(e *gin.Engine, a *app.App) error {
 // are cached as immutable. Files copied from web/public keep their names and are revalidated.
 const ImmutablePrefix = "assets/"
 
+// ShellFile is the plain SPA shell (no prerendered markup) that web/scripts/prerender.mjs keeps next to the
+// prerendered pages; index.html then holds the landing page snapshot, so deep links must not get it.
+const ShellFile = "spa.html"
+
 // NewHandler indexes fsys (content types, ETags, precompressed siblings).
 func NewHandler(fsys fs.FS) (*Handler, error) {
 	h := &Handler{fsys: fsys, files: map[string]*file{}}
@@ -211,8 +216,9 @@ func isAPIPath(p string) bool {
 	return p == "/api" || strings.HasPrefix(p, "/api/") || strings.HasPrefix(p, "/soga/")
 }
 
-// Serve handles one request: API paths get a JSON 404, existing files are served, missing asset-like paths
-// get 404 and everything else falls back to index.html.
+// Serve handles one request: API paths get a JSON 404, existing files are served, a directory with a
+// prerendered index.html is served from it (`/login` → login/index.html), missing asset-like paths get 404
+// and everything else falls back to the SPA shell (spa.html, else index.html).
 func (h *Handler) Serve(c *gin.Context) {
 	p := c.Request.URL.Path
 	if isAPIPath(p) || (c.Request.Method != http.MethodGet && c.Request.Method != http.MethodHead) {
@@ -233,9 +239,13 @@ func (h *Handler) Serve(c *gin.Context) {
 			c.String(http.StatusNotFound, "404 not found")
 			return
 		}
-		if f, ok = h.files["index.html"]; !ok {
-			notBuilt(c)
-			return
+		if f, ok = h.files[name+"/index.html"]; !ok {
+			if f, ok = h.files[ShellFile]; !ok {
+				if f, ok = h.files["index.html"]; !ok {
+					notBuilt(c)
+					return
+				}
+			}
 		}
 	}
 	h.serveFile(c, f)

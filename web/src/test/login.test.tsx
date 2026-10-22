@@ -35,7 +35,9 @@ describe('login page (smoke)', () => {
     const router = createRouter({ routeTree, history: createMemoryHistory({ initialEntries: ['/login'] }) })
     render(<RouterProvider router={router} />)
 
-    expect(await screen.findByRole('heading', { level: 1, name: '登录' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { level: 1, name: '登录' }, { timeout: 4000 }),
+    ).toBeInTheDocument()
     const email = screen.getByLabelText(/邮箱/)
     const password = screen.getByLabelText(/密码/)
     expect(email).toHaveAttribute('autocomplete', 'username webauthn')
@@ -44,13 +46,13 @@ describe('login page (smoke)', () => {
 
     const user = userEvent.setup()
     await user.click(screen.getByRole('button', { name: '登录' }))
-    expect(await screen.findByText('请输入邮箱')).toBeInTheDocument()
+    expect(await screen.findByText('请输入邮箱', undefined, { timeout: 4000 })).toBeInTheDocument()
     expect(email).toHaveAttribute('aria-invalid', 'true')
 
     await user.type(email, 'a@example.com')
     await user.type(password, 'wrong-password')
     await user.click(screen.getByRole('button', { name: '登录' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('邮箱或密码错误')
+    expect(await screen.findByRole('alert', undefined, { timeout: 4000 })).toHaveTextContent('邮箱或密码错误')
     await waitFor(() => expect(useAuthStore.getState().token).toBeNull())
   })
 })

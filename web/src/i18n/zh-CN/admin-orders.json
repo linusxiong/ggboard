@@ -42,7 +42,7 @@
     "plan": "套餐",
     "period": "周期",
     "type": "类型",
-    "total_amount": "实付金额",
+    "total_amount": "订单金额",
     "handling_amount": "手续费",
     "discount_amount": "优惠金额",
     "surplus_amount": "折抵金额",

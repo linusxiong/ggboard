@@ -15,6 +15,7 @@ import { regenerateBackupCodes, totpDisable, totpEnable, totpSetup } from '@/lib
 import { toast } from '@/lib/toast'
 import { CODE_OR_BACKUP_RE, securityKey, TOTP_RE, useSecurityError } from './api'
 import { BackupCodesView, PlainField, TotpField, UsernameHint } from './shared'
+import { ModalClose } from '@/components/feedback/ModalClose'
 
 const QRCode = lazy(() => import('@/components/QRCode').then((m) => ({ default: m.QRCode })))
 
@@ -126,7 +127,7 @@ function Frame({
     >
       <Modal.Container size="md" scroll="inside">
         <Modal.Dialog>
-          {dismissable ? <Modal.CloseTrigger /> : null}
+          {dismissable ? <ModalClose /> : null}
           <Modal.Header>
             <Modal.Heading>{title}</Modal.Heading>
           </Modal.Header>
@@ -161,6 +162,9 @@ function EnableDialog({ email, appName, onClose }: { email: string; appName: str
   const [pending, setPending] = useState(false)
   const [saved, setSaved] = useState(false)
   const started = useRef(false)
+  // The field auto-submits at 6 digits; Enter (or a password manager filling + submitting) must not POST
+  // the same code again — the second call answers 409 "already enabled" (or 400 "step reused").
+  const inFlight = useRef(false)
 
   useEffect(() => {
     if (started.current) return
@@ -174,10 +178,12 @@ function EnableDialog({ email, appName, onClose }: { email: string; appName: str
   }, [mapError, queryClient])
 
   const verify = async (value = code) => {
+    if (inFlight.current || codes) return
     if (!TOTP_RE.test(value)) {
       setErrors({ code: t('totp.codeInvalid') })
       return
     }
+    inFlight.current = true
     setPending(true)
     try {
       const result = await totpEnable(value)
@@ -188,6 +194,7 @@ function EnableDialog({ email, appName, onClose }: { email: string; appName: str
       setErrors(mapError(error))
       setCode('')
     } finally {
+      inFlight.current = false
       setPending(false)
     }
   }
