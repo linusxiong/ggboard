@@ -6,6 +6,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/linusxiong/ggboard/internal/subscription"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -191,6 +193,7 @@ func registerNodes(g *gin.RouterGroup, a *app.App) {
 			return
 		}
 		svc.Invalidate()
+		subscription.InvalidateNodes(a)
 		v, err := loadAdminNodeView(db, svc, n.ID)
 		if err != nil {
 			httpx.Fail(c, err)
@@ -220,6 +223,7 @@ func registerNodes(g *gin.RouterGroup, a *app.App) {
 			return
 		}
 		svc.Invalidate()
+		subscription.InvalidateNodes(a)
 		httpx.OK(c, true)
 	})
 
@@ -265,6 +269,7 @@ func registerNodes(g *gin.RouterGroup, a *app.App) {
 			return
 		}
 		svc.Invalidate()
+		subscription.InvalidateNodes(a)
 		v, err := loadAdminNodeView(db, svc, id)
 		if err != nil {
 			httpx.Fail(c, err)
@@ -295,6 +300,7 @@ func registerNodes(g *gin.RouterGroup, a *app.App) {
 		}
 		a.Online.Forget(id)
 		svc.Invalidate()
+		subscription.InvalidateNodes(a)
 		httpx.OK(c, true)
 	})
 
@@ -314,6 +320,7 @@ func registerNodes(g *gin.RouterGroup, a *app.App) {
 			return
 		}
 		svc.Invalidate()
+		subscription.InvalidateNodes(a)
 		v, err := loadAdminNodeView(db, svc, cp.ID)
 		if err != nil {
 			httpx.Fail(c, err)

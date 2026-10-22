@@ -5,6 +5,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/linusxiong/ggboard/internal/subscription"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
@@ -113,6 +115,7 @@ func registerGroups(g *gin.RouterGroup, a *app.App) {
 			return
 		}
 		nodesvc.New(a).Invalidate()
+		subscription.InvalidateNodes(a)
 		httpx.OK(c, true)
 	})
 }

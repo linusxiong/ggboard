@@ -72,9 +72,15 @@ func AccessLog() gin.HandlerFunc {
 		if status >= http.StatusInternalServerError {
 			level = slog.LevelError
 		}
+		// Log the route pattern (e.g. /s/:token) so secrets carried in path params never reach the log;
+		// unmatched requests (404) have no pattern and log their literal path.
+		path := c.FullPath()
+		if path == "" {
+			path = c.Request.URL.Path
+		}
 		Logger(c).Log(c.Request.Context(), level, "http",
 			"method", c.Request.Method,
-			"path", c.Request.URL.Path,
+			"path", path,
 			"status", status,
 			"latency", time.Since(start).String(),
 			"ip", c.ClientIP(),
