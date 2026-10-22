@@ -65,8 +65,13 @@ export function useLiteForm<V extends Values>(initial: V, validators: LiteValida
     if (submitting) return
     const formEl = event.currentTarget as HTMLFormElement
     if (!validateAll()) {
-      // Focus the first invalid control once the error state has rendered.
-      requestAnimationFrame(() => formEl.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus())
+      // Focus the first invalid control once the error state has rendered — unless the user has
+      // already moved focus (typing into a field in that frame would otherwise jump to the next one).
+      const activeAtSubmit = document.activeElement
+      requestAnimationFrame(() => {
+        if (document.activeElement !== activeAtSubmit) return
+        formEl.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+      })
       return
     }
     setSubmitting(true)

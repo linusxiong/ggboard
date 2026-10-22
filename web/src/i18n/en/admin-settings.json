@@ -1,0 +1,538 @@
+{
+  "title": "Settings",
+  "description": "Global configuration: site, sign-up, subscription, invites, node connection, email and more. Each group saves separately.",
+  "groupsLabel": "Settings groups",
+  "loadFailed": "Couldn’t load settings",
+  "unsaved": "Unsaved changes",
+  "unsavedHint": "Unsaved changes (⌘/Ctrl+S to save)",
+  "groups": {
+    "site": {
+      "title": "Site",
+      "hint": "Name, URL, currency and language."
+    },
+    "register": {
+      "title": "Sign-up & sign-in",
+      "hint": "Registration, email verification, invites, trials and CAPTCHA."
+    },
+    "subscribe": {
+      "title": "Subscription",
+      "hint": "Subscription hosts, traffic reset and default routing rules."
+    },
+    "order": {
+      "title": "Orders",
+      "hint": "Order timeout and related options."
+    },
+    "invite": {
+      "title": "Invites & commission",
+      "hint": "Invite codes, commission and withdrawals."
+    },
+    "server": {
+      "title": "Node connection",
+      "hint": "Token and intervals node backends use to connect."
+    },
+    "email": {
+      "title": "Email",
+      "hint": "SMTP delivery and reminder emails."
+    },
+    "frontend": {
+      "title": "Appearance",
+      "hint": "Accent color, background, support link and footer."
+    },
+    "app": {
+      "title": "Client apps",
+      "hint": "Download links and versions per platform."
+    },
+    "security": {
+      "title": "Security",
+      "hint": "Security options."
+    }
+  },
+  "keys": {
+    "app_name": {
+      "label": "Site name",
+      "hint": "Used in page titles, emails and subscription file names."
+    },
+    "app_description": {
+      "label": "Site description",
+      "hint": "Shown on the landing page and used as the meta description."
+    },
+    "app_url": {
+      "label": "Site URL",
+      "hint": "Public URL of the panel (no trailing /), used for subscription links, payment callbacks and email links."
+    },
+    "logo": {
+      "label": "Logo URL",
+      "hint": "Optional; SVG recommended."
+    },
+    "tos_url": {
+      "label": "Terms of service URL",
+      "hint": "Linked on the sign-up page; hidden when empty."
+    },
+    "currency": {
+      "label": "Currency code",
+      "hint": "ISO 4217 code such as CNY or USD."
+    },
+    "currency_symbol": {
+      "label": "Currency symbol",
+      "hint": "For example ¥ or $."
+    },
+    "default_locale": {
+      "label": "Default language",
+      "hint": "Used for new visitors and emails."
+    },
+    "show_info_to_user": {
+      "label": "Show node addresses to users",
+      "hint": "When off, the user node list hides hosts and ports."
+    },
+    "stop_register": {
+      "label": "Disable sign-ups",
+      "hint": "New users cannot register while this is on."
+    },
+    "email_verify": {
+      "label": "Require email verification",
+      "hint": "Sign-up requires an email verification code."
+    },
+    "email_whitelist_enable": {
+      "label": "Email domain allow-list",
+      "hint": "Only addresses with the suffixes below may register."
+    },
+    "email_whitelist_suffix": {
+      "label": "Allowed email domains",
+      "hint": "For example gmail.com, outlook.com."
+    },
+    "invite_force": {
+      "label": "Require an invite code",
+      "hint": "Registration needs a valid invite code."
+    },
+    "register_limit_by_ip_enable": {
+      "label": "Limit sign-ups per IP",
+      "hint": "Caps registrations from one IP within a time window."
+    },
+    "register_limit_count": {
+      "label": "Sign-ups per IP",
+      "hint": "Registrations allowed per window."
+    },
+    "register_limit_expire": {
+      "label": "Sign-up window (minutes)",
+      "hint": ""
+    },
+    "password_limit_enable": {
+      "label": "Lock after failed logins",
+      "hint": "Temporarily blocks sign-in after repeated wrong passwords."
+    },
+    "password_limit_count": {
+      "label": "Allowed failures",
+      "hint": ""
+    },
+    "password_limit_expire": {
+      "label": "Lock duration (minutes)",
+      "hint": ""
+    },
+    "try_out_plan_id": {
+      "label": "Trial plan",
+      "hint": "Plan granted to new users on sign-up."
+    },
+    "try_out_hour": {
+      "label": "Trial length (hours)",
+      "hint": ""
+    },
+    "captcha_provider": {
+      "label": "CAPTCHA",
+      "hint": "Protects sign-up, sign-in and email codes."
+    },
+    "captcha_site_key": {
+      "label": "Site key",
+      "hint": ""
+    },
+    "captcha_secret": {
+      "label": "Secret key",
+      "hint": ""
+    },
+    "subscribe_url": {
+      "label": "Subscription URLs",
+      "hint": "Alternative subscription hosts; the first is shown by default. Empty uses the site URL."
+    },
+    "plan_change_enable": {
+      "label": "Allow plan changes",
+      "hint": "When off, users can only renew their current plan."
+    },
+    "reset_traffic_method": {
+      "label": "Default traffic reset",
+      "hint": "Used when a plan does not set its own."
+    },
+    "surplus_enable": {
+      "label": "Upgrade credit",
+      "hint": "Credits the remaining value of the current plan when switching plans."
+    },
+    "show_info_to_server_enable": {
+      "label": "Show plan info in subscriptions",
+      "hint": "Adds remaining traffic and expiry entries to the node list."
+    },
+    "show_protocol_to_server_enable": {
+      "label": "Show protocol in node names",
+      "hint": "Appends the protocol to node names in subscriptions."
+    },
+    "default_remind_expire": {
+      "label": "Expiry reminders on by default",
+      "hint": "Default for new users."
+    },
+    "default_remind_traffic": {
+      "label": "Traffic reminders on by default",
+      "hint": "Default for new users."
+    },
+    "ruleset_default_template": {
+      "label": "Default routing template",
+      "hint": "Rule template used when users have not customised theirs."
+    },
+    "ruleset_default_source": {
+      "label": "Default rule-set source",
+      "hint": "Preferred open-source rule repository."
+    },
+    "ruleset_mirror": {
+      "label": "Rule-set mirror",
+      "hint": "GitHub raw proxy prefix; empty means direct.",
+      "placeholder": "Direct (leave empty)",
+      "direct": "Direct (GitHub)"
+    },
+    "subscribe_update_interval": {
+      "label": "Update interval (hours)",
+      "hint": "Suggested auto-update interval for clients."
+    },
+    "allow_user_rule_profile": {
+      "label": "Allow custom routing",
+      "hint": "When off, everyone uses the default template."
+    },
+    "order_timeout_minutes": {
+      "label": "Order timeout (minutes)",
+      "hint": "Unpaid orders are cancelled after this time."
+    },
+    "invite_commission": {
+      "label": "Commission rate (%)",
+      "hint": "Share of each payment credited to the inviter."
+    },
+    "invite_gen_limit": {
+      "label": "Invite codes per user",
+      "hint": "Maximum invite codes a user can create."
+    },
+    "invite_never_expire": {
+      "label": "Invite codes never expire",
+      "hint": "When off, a code is consumed after one use."
+    },
+    "commission_first_time_enable": {
+      "label": "First order only",
+      "hint": "Commission only for the invitee’s first order."
+    },
+    "commission_auto_check_enable": {
+      "label": "Auto-approve commission",
+      "hint": "The scheduler pays commissions automatically."
+    },
+    "commission_withdraw_limit": {
+      "label": "Minimum withdrawal",
+      "hint": "In site currency units."
+    },
+    "commission_withdraw_method": {
+      "label": "Withdrawal methods",
+      "hint": "Options offered when users withdraw."
+    },
+    "withdraw_close_enable": {
+      "label": "Disable withdrawals",
+      "hint": "Commission can only be moved to balance."
+    },
+    "commission_distribution_enable": {
+      "label": "Three-level distribution",
+      "hint": "Splits commission across inviter levels."
+    },
+    "commission_distribution_l1": {
+      "label": "Level 1 (%)",
+      "hint": ""
+    },
+    "commission_distribution_l2": {
+      "label": "Level 2 (%)",
+      "hint": ""
+    },
+    "commission_distribution_l3": {
+      "label": "Level 3 (%)",
+      "hint": ""
+    },
+    "server_token": {
+      "label": "Server token",
+      "hint": "Shared secret node backends (XrayR / V2bX / soga) use to connect."
+    },
+    "server_pull_interval": {
+      "label": "Pull interval (seconds)",
+      "hint": "How often nodes fetch users and config."
+    },
+    "server_push_interval": {
+      "label": "Push interval (seconds)",
+      "hint": "How often nodes report traffic and status."
+    },
+    "server_white_list": {
+      "label": "soga white list",
+      "hint": "White-list rules sent to soga, one per entry."
+    },
+    "device_limit_mode": {
+      "label": "Device limit mode",
+      "hint": ""
+    },
+    "email_driver": {
+      "label": "Mail driver",
+      "hint": "“Log only” never sends real email."
+    },
+    "email_host": {
+      "label": "SMTP host",
+      "hint": ""
+    },
+    "email_port": {
+      "label": "SMTP port",
+      "hint": ""
+    },
+    "email_encryption": {
+      "label": "Encryption",
+      "hint": ""
+    },
+    "email_username": {
+      "label": "SMTP username",
+      "hint": ""
+    },
+    "email_password": {
+      "label": "SMTP password",
+      "hint": ""
+    },
+    "email_from_address": {
+      "label": "From address",
+      "hint": ""
+    },
+    "email_from_name": {
+      "label": "From name",
+      "hint": "Defaults to the site name."
+    },
+    "email_template": {
+      "label": "Email template",
+      "hint": "The built-in template is “default”."
+    },
+    "remind_mail_enable": {
+      "label": "Send expiry and traffic reminders",
+      "hint": ""
+    },
+    "frontend_accent": {
+      "label": "Accent color",
+      "hint": "Hex color such as #007AFF.",
+      "picker": "Pick a color"
+    },
+    "frontend_background_url": {
+      "label": "Sign-in background",
+      "hint": "Optional."
+    },
+    "frontend_customer_service_url": {
+      "label": "Customer service URL",
+      "hint": "Support link in the user area."
+    },
+    "frontend_footer_html": {
+      "label": "Footer HTML",
+      "hint": "Sanitised and shown in the footer."
+    },
+    "windows_download_url": {
+      "label": "Windows download URL",
+      "hint": ""
+    },
+    "windows_version": {
+      "label": "Windows version",
+      "hint": ""
+    },
+    "macos_download_url": {
+      "label": "macOS download URL",
+      "hint": ""
+    },
+    "macos_version": {
+      "label": "macOS version",
+      "hint": ""
+    },
+    "android_download_url": {
+      "label": "Android download URL",
+      "hint": ""
+    },
+    "android_version": {
+      "label": "Android version",
+      "hint": ""
+    },
+    "ios_download_url": {
+      "label": "iOS download URL",
+      "hint": ""
+    },
+    "ios_version": {
+      "label": "iOS version",
+      "hint": ""
+    }
+  },
+  "enums": {
+    "reset_traffic_method": {
+      "0": "Monthly on the 1st",
+      "1": "Monthly on the purchase day",
+      "2": "Never",
+      "3": "Yearly on Jan 1",
+      "4": "Yearly on the purchase day"
+    },
+    "device_limit_mode": {
+      "0": "Strict (online IPs)",
+      "1": "Relaxed (same subnet counts once)"
+    },
+    "try_out_plan_id": {
+      "0": "No trial"
+    },
+    "captcha_provider": {
+      "none": "Off",
+      "turnstile": "Cloudflare Turnstile",
+      "recaptcha": "Google reCAPTCHA",
+      "hcaptcha": "hCaptcha"
+    },
+    "email_driver": {
+      "log": "Log only (no delivery)",
+      "smtp": "SMTP"
+    },
+    "email_encryption": {
+      "ssl": "SSL",
+      "tls": "STARTTLS",
+      "none": "None"
+    },
+    "default_locale": {
+      "zh-CN": "简体中文",
+      "en": "English"
+    }
+  },
+  "validation": {
+    "json": "Invalid JSON",
+    "number": "Enter a number",
+    "min": "Must be at least {min}",
+    "max": "Must be at most {max}",
+    "fix": "Fix the highlighted fields first"
+  },
+  "save": {
+    "save": "Save",
+    "discard": "Discard",
+    "saved": "“{group}” saved",
+    "nothing": "Nothing to save"
+  },
+  "server": {
+    "regenerate": "Regenerate token",
+    "regenerateTitle": "Regenerate the server token?",
+    "regenerateHint": "Once saved, the old token stops working: update every node backend (XrayR / V2bX / soga) or they will disconnect.",
+    "snippetsTitle": "Node backend snippets",
+    "snippetsHint": "Replace NodeID / node_id with the node’s ID from the Nodes page; the copy button includes the real token."
+  },
+  "email": {
+    "test": "Send test email",
+    "testTitle": "Send a test email",
+    "testTo": "Recipient",
+    "testHint": "Uses the saved mail settings.",
+    "testUnsaved": "Email settings have unsaved changes; the test uses the saved configuration.",
+    "testSend": "Send",
+    "testSent": "Test email sent to {email}",
+    "testInvalid": "Enter a valid email"
+  },
+  "subscribe": {
+    "rulesets": "Manage rule sets"
+  },
+  "leave": {
+    "title": "Leave this page?",
+    "hint": "You have unsaved settings; they will be lost.",
+    "confirm": "Discard and leave"
+  },
+  "inputs": {
+    "show": "Show",
+    "hide": "Hide",
+    "empty": "None",
+    "addTo": "Add to {label}",
+    "addPlaceholder": "Type and press Enter"
+  },
+  "urlList": {
+    "empty": "None configured; the site URL is used.",
+    "item": "URL {n}",
+    "up": "Move URL {n} up",
+    "down": "Move URL {n} down",
+    "remove": "Remove URL {n}",
+    "add": "Add URL",
+    "invalid": "Enter a URL starting with http(s)://"
+  },
+  "rulesets": {
+    "title": "Rule sets",
+    "description": "The open-source rule-set catalog used for subscription routing (read-only), plus custom overrides merged over it by id.",
+    "loadFailed": "Couldn’t load rule sets",
+    "active": "Active",
+    "builtinMeta": "Built-in catalog generated on {date} (schema v{version}); below is the effective catalog after custom overrides.",
+    "custom": "Custom",
+    "homepage": "Homepage",
+    "order": "Priority {n}",
+    "urlTemplatesOf": "URL templates of {name}",
+    "formatKey": "Format key",
+    "behavior": "Behavior · format · field",
+    "urlTemplate": "URL template",
+    "category": "Category",
+    "defaultTarget": "Default target",
+    "orderCol": "Order",
+    "sourcesCol": "Rules per source",
+    "final": "Final",
+    "geoipCn": "GEOIP,CN direct",
+    "yes": "Yes",
+    "no": "No",
+    "categoriesCount": "Categories",
+    "groups": "Policy groups",
+    "directPrefix": "(direct, no prefix)",
+    "customTitle": "Custom overrides",
+    "customHint": "Same schema as the built-in catalog: sources merge by key, categories / templates / mirrors by id — an existing id replaces the built-in entry, a new id is appended. Applies to subscriptions generated after saving.",
+    "customJson": "Overrides JSON",
+    "invalid": "Problems found: {count}",
+    "serverRejected": "The server rejected these overrides",
+    "fixIssues": "Fix these problems first",
+    "format": "Format",
+    "revert": "Revert",
+    "save": "Save overrides",
+    "saved": "Overrides saved",
+    "tabs": {
+      "sources": "Sources",
+      "categories": "Categories",
+      "templates": "Templates",
+      "mirrors": "Mirrors",
+      "custom": "Custom overrides"
+    },
+    "issues": {
+      "json": "JSON parse error: {detail}",
+      "root": "The top level must be an object",
+      "unknownKey": "Unknown key “{detail}” (only sources, categories, templates, mirrors)",
+      "expectObject": "Must be an object",
+      "expectArray": "Must be an array",
+      "expectString": "Must be a string",
+      "expectNumber": "Must be a number",
+      "missingId": "Missing id",
+      "badId": "id “{detail}” may only contain lowercase letters, digits, - and _",
+      "duplicateId": "Duplicate id “{detail}”",
+      "missingField": "Missing required field {detail}",
+      "badGroupType": "Invalid group type “{detail}” (select / url-test / fallback / load-balance)",
+      "badPrefix": "Mirror prefix “{detail}” must be an http(s) URL ending with /"
+    },
+    "form": {
+      "mirrorTitle": "Add a mirror",
+      "categoryTitle": "Add a custom category",
+      "categoryHint": "Fill in the file name (name) or geosite / geoip names for each source that publishes the list; empty sources are skipped. To enable it in a template by default, override that template in the JSON too.",
+      "id": "ID",
+      "idHint": "Lowercase letters, digits, - and _.",
+      "categoryIdHint": "Stored in users’ routing profiles — never rename it later.",
+      "idInvalid": "Use lowercase letters, digits, - and _, starting with a letter or digit",
+      "prefix": "Prefix",
+      "prefixHint": "Prepended to https://raw.githubusercontent.com/….",
+      "prefixInvalid": "Enter an http(s) URL ending with /",
+      "nameZh": "Chinese name",
+      "nameEn": "English name",
+      "target": "Default target",
+      "targetHint": "A policy group name, or DIRECT / REJECT.",
+      "targetRequired": "Enter a default target",
+      "order": "Order",
+      "orderHint": "Lower matches first; put specific categories before broad ones.",
+      "refs": "Rules per source",
+      "refName": "File name (name)",
+      "refBehavior": "Behavior",
+      "rulesRequired": "Fill in rules for at least one source",
+      "addToJson": "Add to overrides JSON",
+      "added": "Added to the JSON — remember to save"
+    }
+  }
+}

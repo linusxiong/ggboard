@@ -1086,3 +1086,176 @@ export type SettingsUpdate = Partial<
     FrontendSettings &
     AppSettings
 >
+
+// ---- FE-4 ----
+// Shapes for admin orders/coupons/payments/support/content/settings/rulesets/system that the
+// sketch above lacks (verified against internal/model, internal/settings, internal/scheduler,
+// internal/mail, internal/cache and internal/logx). Interface declarations below merge with the
+// ones above (only optional fields are added).
+
+export interface Order {
+  /** Earlier orders consumed by an upgrade (status 4). */
+  surplus_order_ids?: ID[] | null
+  coupon_id?: ID | null
+  invite_user_id?: ID | null
+  /** Commission amount (cents) owed to the inviter. */
+  commission_balance?: Cents
+}
+
+export interface GatewayField {
+  /** Prefilled value for new payments. */
+  default?: string
+}
+
+export interface Ticket {
+  last_reply_user_id?: ID | null
+}
+
+/** `GET /admin/tickets` filters (backend also accepts `email`). */
+export interface AdminTicketQuery extends AdminTicketFilters {
+  email?: string
+}
+
+/** `GET /admin/knowledge` filters (the admin list is unpaginated). */
+export interface AdminKnowledgeQuery extends ListQuery {
+  language?: string
+  category?: string
+}
+
+/** Value types of `internal/settings` definitions. */
+export type SettingType = 'string' | 'int' | 'int64' | 'bool' | 'strings' | 'json'
+/** One key of `settings.Groups()` (admin-UI metadata). */
+export interface SettingDef {
+  key: string
+  group?: string
+  type: SettingType | (string & {})
+  default?: unknown
+  /** Returned to admins only; masked in logs. */
+  secret?: boolean
+  hidden?: boolean
+  /** Allowed values (enum) for string keys. */
+  options?: string[]
+  /** Inclusive bounds for ints. */
+  min?: number
+  max?: number
+  description?: string
+}
+export interface SettingGroupMeta {
+  name: string
+  keys: SettingDef[]
+}
+/** `GET /admin/settings` → `{"<group>": {"<key>": value}, groups?: [...]}`. */
+export type AdminSettingsResponse = Record<string, unknown> & { groups?: SettingGroupMeta[] }
+/** `PUT /admin/settings` body (flat `{key: value}`; `null` resets a key to its default). */
+export type SettingsPatch = Record<string, unknown>
+
+/** RuleRef as published in `catalog.json` (docs/RULESETS.md). */
+export interface RulesetRuleRefFull extends RulesetRuleRef {
+  split?: boolean
+  formats?: string[]
+}
+export interface RulesetUrlMeta {
+  field: 'name' | 'geosite' | 'geoip' | (string & {})
+  behavior?: RuleBehavior | (string & {})
+  format?: string
+}
+export interface RulesetSourceFull extends RulesetSource {
+  license?: string
+  order?: number
+  description?: LocalizedText
+  url_meta?: Record<string, RulesetUrlMeta>
+  aliases?: Record<string, string>
+}
+export interface RulesetCategoryFull {
+  id: string
+  name?: LocalizedText
+  default_target: string
+  order: number
+  rules: Record<string, RulesetRuleRefFull | RulesetRuleRefFull[]>
+}
+export interface RulesetTemplateFull extends RulesetTemplate {
+  description?: LocalizedText
+}
+export interface RulesetMirror {
+  id: string
+  name?: LocalizedText
+  prefix: string
+}
+export interface RulesetCatalogFull {
+  sources: Record<string, RulesetSourceFull>
+  categories: RulesetCategoryFull[]
+  templates: RulesetTemplateFull[]
+  mirrors?: RulesetMirror[]
+  meta?: { generated_at?: string; version?: number }
+}
+/** Admin overrides (`rulesets_custom`), merged over the built-in catalog by id. */
+export interface RulesetsCustom {
+  sources?: Record<string, Partial<RulesetSourceFull>>
+  categories?: RulesetCategoryFull[]
+  templates?: RulesetTemplateFull[]
+  mirrors?: RulesetMirror[]
+}
+/** `GET /admin/rulesets` */
+export interface AdminRulesetsFull {
+  builtin: RulesetCatalogFull
+  custom: RulesetsCustom | null
+  effective?: RulesetCatalogFull
+}
+
+/** `internal/scheduler.JobStatus`. */
+export interface SchedulerJobStatus {
+  name: string
+  spec: string
+  running?: boolean
+  last_run: ISODateTime | null
+  last_duration?: string
+  /** `""` when the last run succeeded. */
+  last_error: string | null
+  next_run?: ISODateTime | null
+  runs?: number
+  failures?: number
+}
+/** `internal/mail.QueueStats`. */
+export interface MailQueueStats {
+  pending: number
+  sent: number
+  failed: number
+  driver: string
+}
+/** `internal/cache.Stats`. */
+export interface CacheStats {
+  items: number
+  max_items: number
+  hits: number
+  misses: number
+  hit_ratio: number
+}
+/** `GET /admin/system/status` (full shape from the backend contract notes). */
+export interface AdminSystemStatus {
+  version: string
+  go_version: string
+  /** Seconds (number) or a Go duration string. */
+  uptime: number | string
+  db_driver: string
+  started_at: ISODateTime
+  scheduler: SchedulerJobStatus[]
+  mail?: Partial<MailQueueStats>
+  /** Older sketch: pending mail count. */
+  mail_queue?: number
+  cache?: Partial<CacheStats> & Record<string, unknown>
+  online?: { nodes: number; users: number }
+  goroutines?: number
+  /** Bytes. */
+  memory?: { alloc: number; sys: number }
+}
+/** `internal/logx.Entry` (`attrs` is omitted when empty). */
+export interface AdminLogEntry {
+  time: ISODateTime
+  level: string
+  msg: string
+  attrs?: Record<string, unknown> | null
+}
+export interface AdminLogQuery {
+  level?: string
+  limit?: number
+}

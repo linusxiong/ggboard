@@ -192,3 +192,23 @@
 - **根因**：jsdom 的 DOMException 不继承 Error，`err instanceof Error ? err.name : ''` 拿不到 `TimeoutError`。
 - **修复**：改为按结构读取 `name`（`'name' in err`）。
 - **规则**：判断 fetch/abort 的错误类型时，按 `name` 判断，不要依赖 `instanceof Error`。
+
+## 2026-10-22
+
+### 1. （FE-4 管理后台 B）路由文件的 `validateSearch` 依赖把 React Query 拉进了首屏入口
+- **现象**：`/admin/rulesets` 的路由文件从 `features/admin/rulesets/catalog.ts` 导入 `RULESET_TABS`，而该模块顶部 `import { qk } from '@/lib/api/queries'`。`queries.ts` 又导入 `@tanstack/react-query` 和全部 API 模块，结果它们全部进入了 `routeTree` 所在的入口 chunk。登录页冒烟测试也随之变慢、变得不稳定。
+- **根因**：自动代码分割只拆 `component`，`validateSearch`、`loader`、`beforeLoad` 及其 import 都留在入口 chunk。
+- **修复**：把路由选项依赖的常量和解析函数拆成零依赖小模块（`rulesets/tabs.ts`、`orders/search.ts`）；URL → API 的映射（`orders/query.ts`、`tickets/query.ts`）只由组件导入。
+- **规则**：路由文件中除 `component` 以外的代码只能 import 零依赖或已在入口中的模块。每次 `pnpm build` 后用 `grep -o 'assets/[^"]*\.js' dist/index.html` 加 gzip 统计首屏体积，并和改动前对比。
+
+### 2. （FE-4）`git stash -u` 之后 vitest 缓存的 `import.meta.glob` 结果过期，新增 i18n 字典“消失”
+- **现象**：为了对比基线执行了 `git stash push -u` → 跑测试 → `git stash pop`。之后所有用新命名空间的测试都只渲染出 key（`title`、`description`），单独跑也失败。
+- **根因**：vitest 5 的模块缓存 `node_modules/.vitest-cache` 以导入方（`src/i18n/index.ts`）的内容为键，缓存了 glob 展开结果。stash 期间新 JSON 文件不存在，pop 回来后 `index.ts` 内容没变，缓存仍然命中。
+- **修复**：`rm -rf web/node_modules/.vitest-cache`。
+- **规则**：新增或删除 `import.meta.glob` 匹配的文件后，如果测试“看不到”它们，先清 `.vitest-cache`。对比基线时优先用 `git worktree` 或单独 clone，不要用 `stash -u`。
+
+### 3. （FE-4 发现，属基础层）`useLiteForm` 提交失败后用 rAF 聚焦第一个无效字段，抢走用户正在输入的焦点
+- **现象**：并行跑测试时登录冒烟测试大约 60% 失败。调试输出显示 email=`a`、password=`@example.comwrong-password`：输入第一个字符后焦点跳到了密码框。
+- **根因**：空表单提交后，`requestAnimationFrame` 才去找 `[aria-invalid="true"]` 并聚焦。如果在这一帧内用户已经开始在邮箱框输入，邮箱框的错误先被清掉，于是“第一个无效字段”变成了密码框。CPU 越忙，这个竞态越容易出现，真实用户快速输入时也可能遇到。
+- **修复**：记录提交时的 `document.activeElement`，rAF 回调中如果焦点已经变化就不再抢焦点（`src/hooks/useLiteForm.ts`，最小改动）。
+- **规则**：异步（rAF、setTimeout、await 之后）移动焦点前，先确认焦点仍在原位置。测试只在并行时失败，要先打印实际 DOM 状态再下结论，不要直接加大超时。

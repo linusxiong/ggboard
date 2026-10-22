@@ -1,15 +1,24 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { ComingSoon } from '@/components/ComingSoon'
-import { useT } from '@/i18n'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useCallback } from 'react'
+import { OrdersPage } from '@/features/admin/orders/OrdersPage'
+import { type OrderSearch, parseOrderSearch } from '@/features/admin/orders/search'
+import { loadNamespaces } from '@/i18n'
 import { requireAdmin } from '@/lib/guards'
 
-/** Placeholder — replace the component body with the real page (see web/README.md). */
 export const Route = createFileRoute('/_admin/admin/orders')({
   beforeLoad: requireAdmin,
-  component: AdminOrdersPage,
+  validateSearch: parseOrderSearch,
+  loader: () => loadNamespaces(['admin-orders', 'admin-settings']),
+  component: AdminOrdersRoute,
 })
 
-function AdminOrdersPage() {
-  const t = useT('nav')
-  return <ComingSoon title={t('admin.orders')} />
+function AdminOrdersRoute() {
+  const search = Route.useSearch()
+  const navigate = useNavigate({ from: Route.fullPath })
+  const onSearchChange = useCallback(
+    (patch: Partial<OrderSearch>) =>
+      void navigate({ search: (prev) => parseOrderSearch({ ...prev, ...patch }), replace: true }),
+    [navigate],
+  )
+  return <OrdersPage search={search} onSearchChange={onSearchChange} />
 }

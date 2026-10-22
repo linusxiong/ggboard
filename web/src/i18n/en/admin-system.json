@@ -1,0 +1,67 @@
+{
+  "title": "System status",
+  "description": "Runtime status, scheduled jobs, mail queue, cache and logs. Refreshes every 30 seconds.",
+  "loadFailed": "Couldn’t load the system status",
+  "cards": {
+    "panel": "Panel",
+    "version": "Version",
+    "go": "Go version",
+    "db": "Database",
+    "uptime": "Uptime",
+    "startedAt": "Started",
+    "jobs": "Jobs",
+    "jobsOk": "{n}, all healthy",
+    "jobsFailing": "{n} failed last run",
+    "online": "Online",
+    "onlineNodes": "Nodes online",
+    "onlineUsers": "Users online",
+    "mail": "Mail queue",
+    "mailDriver": "Driver",
+    "mailPending": "Pending",
+    "mailSent": "Sent",
+    "mailFailed": "Failed",
+    "cache": "Cache",
+    "cacheItems": "Items",
+    "cacheHitRatio": "Hit ratio",
+    "cacheHits": "Hits / misses",
+    "runtime": "Runtime",
+    "goroutines": "Goroutines",
+    "memAlloc": "Heap allocated",
+    "memSys": "From system"
+  },
+  "scheduler": {
+    "title": "Scheduled jobs",
+    "name": "Job",
+    "spec": "Schedule",
+    "lastRun": "Last run",
+    "nextRun": "Next run",
+    "runs": "Runs",
+    "failures": "{n} failed",
+    "lastError": "Last result",
+    "never": "Never",
+    "running": "Running",
+    "ok": "OK"
+  },
+  "logs": {
+    "title": "Logs",
+    "level": "Level",
+    "levels": {
+      "all": "All",
+      "debug": "Debug",
+      "info": "Info",
+      "warn": "Warn",
+      "error": "Error"
+    },
+    "limit": "Limit",
+    "search": "Search logs",
+    "searchPlaceholder": "Message or attributes",
+    "auto": "Auto-refresh every 10 s",
+    "empty": "No log entries.",
+    "attrs": "{n} attrs",
+    "footer": "Showing {shown} of {total} (the in-memory buffer keeps the last 1000)"
+  },
+  "diagnostics": {
+    "copy": "Copy diagnostics",
+    "copied": "Diagnostics copied — paste them into your bug report"
+  }
+}

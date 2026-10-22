@@ -1,0 +1,538 @@
+{
+  "title": "系统设置",
+  "description": "站点、注册、订阅、邀请、节点通讯、邮件等全局配置。每个分组单独保存。",
+  "groupsLabel": "设置分组",
+  "loadFailed": "设置加载失败",
+  "unsaved": "有未保存的更改",
+  "unsavedHint": "有未保存的更改（⌘/Ctrl+S 保存）",
+  "groups": {
+    "site": {
+      "title": "站点",
+      "hint": "名称、地址、货币与语言。"
+    },
+    "register": {
+      "title": "注册与登录",
+      "hint": "注册开关、邮箱验证、邀请码、试用与人机验证。"
+    },
+    "subscribe": {
+      "title": "订阅",
+      "hint": "订阅地址、流量重置、默认分流规则。"
+    },
+    "order": {
+      "title": "订单",
+      "hint": "订单超时等。"
+    },
+    "invite": {
+      "title": "邀请与佣金",
+      "hint": "邀请码、佣金比例与提现。"
+    },
+    "server": {
+      "title": "节点通讯",
+      "hint": "节点后端连接面板所需的密钥与间隔。"
+    },
+    "email": {
+      "title": "邮件",
+      "hint": "SMTP 发信配置与提醒邮件。"
+    },
+    "frontend": {
+      "title": "前端外观",
+      "hint": "主题色、背景、客服与页脚。"
+    },
+    "app": {
+      "title": "客户端下载",
+      "hint": "各平台客户端的下载地址与版本号。"
+    },
+    "security": {
+      "title": "安全",
+      "hint": "安全相关选项。"
+    }
+  },
+  "keys": {
+    "app_name": {
+      "label": "站点名称",
+      "hint": "显示在页面标题、邮件与订阅文件名中。"
+    },
+    "app_description": {
+      "label": "站点描述",
+      "hint": "用于首页与搜索引擎描述。"
+    },
+    "app_url": {
+      "label": "站点地址",
+      "hint": "面板的访问地址（不含结尾 /），用于订阅链接、支付回调与邮件中的链接。"
+    },
+    "logo": {
+      "label": "Logo 地址",
+      "hint": "可选，建议使用 SVG。"
+    },
+    "tos_url": {
+      "label": "服务条款地址",
+      "hint": "注册页显示的服务条款链接，留空则不显示。"
+    },
+    "currency": {
+      "label": "货币代码",
+      "hint": "ISO 4217 代码，例如 CNY、USD。"
+    },
+    "currency_symbol": {
+      "label": "货币符号",
+      "hint": "例如 ¥、$。"
+    },
+    "default_locale": {
+      "label": "默认语言",
+      "hint": "新访客与邮件使用的语言。"
+    },
+    "show_info_to_user": {
+      "label": "向用户显示节点地址",
+      "hint": "关闭后用户的节点列表不显示主机与端口。"
+    },
+    "stop_register": {
+      "label": "停止注册",
+      "hint": "开启后新用户无法注册。"
+    },
+    "email_verify": {
+      "label": "注册需验证邮箱",
+      "hint": "注册时需要输入邮箱验证码。"
+    },
+    "email_whitelist_enable": {
+      "label": "邮箱后缀白名单",
+      "hint": "只允许下方后缀的邮箱注册。"
+    },
+    "email_whitelist_suffix": {
+      "label": "允许的邮箱后缀",
+      "hint": "例如 gmail.com、outlook.com。"
+    },
+    "invite_force": {
+      "label": "强制邀请码注册",
+      "hint": "没有有效邀请码时不能注册。"
+    },
+    "register_limit_by_ip_enable": {
+      "label": "限制同 IP 注册",
+      "hint": "在一段时间内限制同一 IP 的注册次数。"
+    },
+    "register_limit_count": {
+      "label": "同 IP 注册次数",
+      "hint": "时间窗口内允许的注册次数。"
+    },
+    "register_limit_expire": {
+      "label": "注册限制窗口（分钟）",
+      "hint": ""
+    },
+    "password_limit_enable": {
+      "label": "密码错误锁定",
+      "hint": "多次输错密码后暂时禁止登录。"
+    },
+    "password_limit_count": {
+      "label": "允许错误次数",
+      "hint": ""
+    },
+    "password_limit_expire": {
+      "label": "锁定时长（分钟）",
+      "hint": ""
+    },
+    "try_out_plan_id": {
+      "label": "注册试用套餐",
+      "hint": "新用户注册后自动获得的套餐。"
+    },
+    "try_out_hour": {
+      "label": "试用时长（小时）",
+      "hint": ""
+    },
+    "captcha_provider": {
+      "label": "人机验证",
+      "hint": "用于注册、登录与发送验证码。"
+    },
+    "captcha_site_key": {
+      "label": "站点密钥（Site key）",
+      "hint": ""
+    },
+    "captcha_secret": {
+      "label": "服务端密钥（Secret）",
+      "hint": ""
+    },
+    "subscribe_url": {
+      "label": "订阅地址",
+      "hint": "可配置多个订阅域名，第一个为默认展示；留空使用站点地址。"
+    },
+    "plan_change_enable": {
+      "label": "允许更换套餐",
+      "hint": "关闭后用户只能续费当前套餐。"
+    },
+    "reset_traffic_method": {
+      "label": "默认流量重置方式",
+      "hint": "套餐未单独设置时使用。"
+    },
+    "surplus_enable": {
+      "label": "升级折抵",
+      "hint": "更换套餐时把剩余价值折抵到新订单。"
+    },
+    "show_info_to_server_enable": {
+      "label": "订阅中显示套餐信息",
+      "hint": "在节点列表顶部插入剩余流量与到期时间。"
+    },
+    "show_protocol_to_server_enable": {
+      "label": "节点名称显示协议",
+      "hint": "在订阅的节点名中追加协议类型。"
+    },
+    "default_remind_expire": {
+      "label": "默认开启到期提醒",
+      "hint": "新用户的默认设置。"
+    },
+    "default_remind_traffic": {
+      "label": "默认开启流量提醒",
+      "hint": "新用户的默认设置。"
+    },
+    "ruleset_default_template": {
+      "label": "默认分流模板",
+      "hint": "用户未自定义时使用的规则模板。"
+    },
+    "ruleset_default_source": {
+      "label": "默认规则集来源",
+      "hint": "优先使用的开源规则仓库。"
+    },
+    "ruleset_mirror": {
+      "label": "规则集镜像",
+      "hint": "GitHub raw 加速前缀，留空直连。",
+      "placeholder": "直连（留空）",
+      "direct": "直连 GitHub"
+    },
+    "subscribe_update_interval": {
+      "label": "订阅更新间隔（小时）",
+      "hint": "客户端自动更新订阅的建议间隔。"
+    },
+    "allow_user_rule_profile": {
+      "label": "允许用户自定义分流",
+      "hint": "关闭后所有用户使用默认模板。"
+    },
+    "order_timeout_minutes": {
+      "label": "订单超时（分钟）",
+      "hint": "超时未支付的订单会被自动取消。"
+    },
+    "invite_commission": {
+      "label": "邀请佣金比例（%）",
+      "hint": "被邀请人付款后，邀请人获得的佣金比例。"
+    },
+    "invite_gen_limit": {
+      "label": "邀请码数量上限",
+      "hint": "每位用户最多可生成的邀请码数量。"
+    },
+    "invite_never_expire": {
+      "label": "邀请码永久有效",
+      "hint": "关闭后邀请码使用一次即失效。"
+    },
+    "commission_first_time_enable": {
+      "label": "仅首单返佣",
+      "hint": "只为被邀请人的首笔订单计算佣金。"
+    },
+    "commission_auto_check_enable": {
+      "label": "自动确认佣金",
+      "hint": "定时任务自动把佣金发放给邀请人。"
+    },
+    "commission_withdraw_limit": {
+      "label": "最低提现金额",
+      "hint": "以站点货币为单位。"
+    },
+    "commission_withdraw_method": {
+      "label": "提现方式",
+      "hint": "用户提现时可选择的方式。"
+    },
+    "withdraw_close_enable": {
+      "label": "关闭提现",
+      "hint": "关闭后佣金只能转入余额。"
+    },
+    "commission_distribution_enable": {
+      "label": "三级分销",
+      "hint": "按层级分配佣金。"
+    },
+    "commission_distribution_l1": {
+      "label": "一级比例（%）",
+      "hint": ""
+    },
+    "commission_distribution_l2": {
+      "label": "二级比例（%）",
+      "hint": ""
+    },
+    "commission_distribution_l3": {
+      "label": "三级比例（%）",
+      "hint": ""
+    },
+    "server_token": {
+      "label": "通讯密钥",
+      "hint": "节点后端（XrayR / V2bX / soga）连接面板使用的密钥。"
+    },
+    "server_pull_interval": {
+      "label": "拉取间隔（秒）",
+      "hint": "节点拉取用户列表与配置的间隔。"
+    },
+    "server_push_interval": {
+      "label": "上报间隔（秒）",
+      "hint": "节点上报流量与在线状态的间隔。"
+    },
+    "server_white_list": {
+      "label": "soga 白名单",
+      "hint": "下发给 soga 的白名单规则，每条一个。"
+    },
+    "device_limit_mode": {
+      "label": "设备数限制模式",
+      "hint": ""
+    },
+    "email_driver": {
+      "label": "发信方式",
+      "hint": "“仅记录日志”不会真正发送邮件。"
+    },
+    "email_host": {
+      "label": "SMTP 服务器",
+      "hint": ""
+    },
+    "email_port": {
+      "label": "SMTP 端口",
+      "hint": ""
+    },
+    "email_encryption": {
+      "label": "加密方式",
+      "hint": ""
+    },
+    "email_username": {
+      "label": "SMTP 用户名",
+      "hint": ""
+    },
+    "email_password": {
+      "label": "SMTP 密码",
+      "hint": ""
+    },
+    "email_from_address": {
+      "label": "发件地址",
+      "hint": ""
+    },
+    "email_from_name": {
+      "label": "发件人名称",
+      "hint": "留空使用站点名称。"
+    },
+    "email_template": {
+      "label": "邮件模板",
+      "hint": "内置模板为 default。"
+    },
+    "remind_mail_enable": {
+      "label": "发送到期与流量提醒邮件",
+      "hint": ""
+    },
+    "frontend_accent": {
+      "label": "主题色",
+      "hint": "十六进制颜色，例如 #007AFF。",
+      "picker": "选择颜色"
+    },
+    "frontend_background_url": {
+      "label": "登录页背景图",
+      "hint": "可选。"
+    },
+    "frontend_customer_service_url": {
+      "label": "在线客服地址",
+      "hint": "显示在用户中心的客服入口。"
+    },
+    "frontend_footer_html": {
+      "label": "页脚 HTML",
+      "hint": "会被安全过滤后显示在页脚。"
+    },
+    "windows_download_url": {
+      "label": "Windows 下载地址",
+      "hint": ""
+    },
+    "windows_version": {
+      "label": "Windows 版本号",
+      "hint": ""
+    },
+    "macos_download_url": {
+      "label": "macOS 下载地址",
+      "hint": ""
+    },
+    "macos_version": {
+      "label": "macOS 版本号",
+      "hint": ""
+    },
+    "android_download_url": {
+      "label": "Android 下载地址",
+      "hint": ""
+    },
+    "android_version": {
+      "label": "Android 版本号",
+      "hint": ""
+    },
+    "ios_download_url": {
+      "label": "iOS 下载地址",
+      "hint": ""
+    },
+    "ios_version": {
+      "label": "iOS 版本号",
+      "hint": ""
+    }
+  },
+  "enums": {
+    "reset_traffic_method": {
+      "0": "每月 1 日重置",
+      "1": "按购买日每月重置",
+      "2": "不重置",
+      "3": "每年 1 月 1 日重置",
+      "4": "按购买日每年重置"
+    },
+    "device_limit_mode": {
+      "0": "严格（按在线 IP 数）",
+      "1": "宽松（同一 IP 段视为一台设备）"
+    },
+    "try_out_plan_id": {
+      "0": "不赠送试用"
+    },
+    "captcha_provider": {
+      "none": "关闭",
+      "turnstile": "Cloudflare Turnstile",
+      "recaptcha": "Google reCAPTCHA",
+      "hcaptcha": "hCaptcha"
+    },
+    "email_driver": {
+      "log": "仅记录日志（不发送）",
+      "smtp": "SMTP"
+    },
+    "email_encryption": {
+      "ssl": "SSL",
+      "tls": "STARTTLS",
+      "none": "不加密"
+    },
+    "default_locale": {
+      "zh-CN": "简体中文",
+      "en": "English"
+    }
+  },
+  "validation": {
+    "json": "JSON 格式不正确",
+    "number": "请输入数字",
+    "min": "不能小于 {min}",
+    "max": "不能大于 {max}",
+    "fix": "请先修正标红的字段"
+  },
+  "save": {
+    "save": "保存",
+    "discard": "放弃更改",
+    "saved": "“{group}”已保存",
+    "nothing": "没有需要保存的更改"
+  },
+  "server": {
+    "regenerate": "重新生成密钥",
+    "regenerateTitle": "重新生成通讯密钥？",
+    "regenerateHint": "保存后旧密钥立即失效，所有节点后端（XrayR / V2bX / soga）都需要更新为新密钥，否则会断开连接。",
+    "snippetsTitle": "节点后端配置示例",
+    "snippetsHint": "把 NodeID / node_id 改成“节点”页面中对应节点的 ID；复制按钮会包含真实密钥。"
+  },
+  "email": {
+    "test": "发送测试邮件",
+    "testTitle": "发送测试邮件",
+    "testTo": "收件邮箱",
+    "testHint": "使用已保存的邮件设置发送。",
+    "testUnsaved": "邮件设置有未保存的更改，测试将使用已保存的配置。",
+    "testSend": "发送",
+    "testSent": "测试邮件已发送到 {email}",
+    "testInvalid": "请输入有效的邮箱"
+  },
+  "subscribe": {
+    "rulesets": "管理规则集"
+  },
+  "leave": {
+    "title": "离开此页面？",
+    "hint": "有未保存的设置更改，离开后将丢失。",
+    "confirm": "放弃并离开"
+  },
+  "inputs": {
+    "show": "显示",
+    "hide": "隐藏",
+    "empty": "暂无",
+    "addTo": "添加到 {label}",
+    "addPlaceholder": "输入后按回车添加"
+  },
+  "urlList": {
+    "empty": "未配置，使用站点地址。",
+    "item": "地址 {n}",
+    "up": "上移地址 {n}",
+    "down": "下移地址 {n}",
+    "remove": "删除地址 {n}",
+    "add": "添加地址",
+    "invalid": "请输入 http(s):// 开头的地址"
+  },
+  "rulesets": {
+    "title": "规则集",
+    "description": "订阅分流使用的开源规则集目录（只读），以及按 id 合并到内置目录上的自定义覆盖。",
+    "loadFailed": "规则集加载失败",
+    "active": "已启用",
+    "builtinMeta": "内置目录生成于 {date}（schema v{version}），下列为合并自定义覆盖后的生效目录。",
+    "custom": "自定义",
+    "homepage": "项目主页",
+    "order": "优先级 {n}",
+    "urlTemplatesOf": "{name} 的 URL 模板",
+    "formatKey": "格式",
+    "behavior": "行为 · 格式 · 占位",
+    "urlTemplate": "URL 模板",
+    "category": "分类",
+    "defaultTarget": "默认策略",
+    "orderCol": "顺序",
+    "sourcesCol": "各来源规则",
+    "final": "兜底策略",
+    "geoipCn": "GEOIP,CN 直连",
+    "yes": "是",
+    "no": "否",
+    "categoriesCount": "启用分类",
+    "groups": "策略组",
+    "directPrefix": "（直连，无前缀）",
+    "customTitle": "自定义覆盖",
+    "customHint": "与内置目录结构相同：sources 按键、categories / templates / mirrors 按 id 合并，同 id 会替换内置条目，新 id 会追加。保存后立即对新生成的订阅生效。",
+    "customJson": "覆盖 JSON",
+    "invalid": "发现 {count} 个问题",
+    "serverRejected": "服务器拒绝了这些覆盖",
+    "fixIssues": "请先修正以下问题",
+    "format": "格式化",
+    "revert": "还原",
+    "save": "保存覆盖",
+    "saved": "自定义覆盖已保存",
+    "tabs": {
+      "sources": "来源",
+      "categories": "分类",
+      "templates": "模板",
+      "mirrors": "镜像",
+      "custom": "自定义覆盖"
+    },
+    "issues": {
+      "json": "JSON 解析失败：{detail}",
+      "root": "顶层必须是对象",
+      "unknownKey": "未知字段 “{detail}”（只允许 sources、categories、templates、mirrors）",
+      "expectObject": "应为对象",
+      "expectArray": "应为数组",
+      "expectString": "应为字符串",
+      "expectNumber": "应为数字",
+      "missingId": "缺少 id",
+      "badId": "id “{detail}” 只能包含小写字母、数字、- 与 _",
+      "duplicateId": "重复的 id “{detail}”",
+      "missingField": "缺少必填字段 {detail}",
+      "badGroupType": "策略组类型 “{detail}” 无效（select / url-test / fallback / load-balance）",
+      "badPrefix": "镜像前缀 “{detail}” 必须是以 / 结尾的 http(s) 地址"
+    },
+    "form": {
+      "mirrorTitle": "添加镜像",
+      "categoryTitle": "添加自定义分类",
+      "categoryHint": "为每个提供该规则的来源填写文件名（name）或 geosite / geoip 名称；留空的来源会被跳过。要让模板默认启用它，请在覆盖 JSON 中同时覆盖对应模板。",
+      "id": "ID",
+      "idHint": "小写字母、数字、- 与 _。",
+      "categoryIdHint": "会保存到用户的分流配置中，之后不要修改。",
+      "idInvalid": "ID 只能包含小写字母、数字、- 与 _，且以字母或数字开头",
+      "prefix": "前缀",
+      "prefixHint": "会拼接在 https://raw.githubusercontent.com/… 前面。",
+      "prefixInvalid": "请输入以 / 结尾的 http(s) 地址",
+      "nameZh": "中文名称",
+      "nameEn": "英文名称",
+      "target": "默认策略",
+      "targetHint": "策略组名称，或 DIRECT / REJECT。",
+      "targetRequired": "请填写默认策略",
+      "order": "顺序",
+      "orderHint": "越小越先匹配；具体的分类应排在宽泛分类之前。",
+      "refs": "各来源的规则",
+      "refName": "文件名（name）",
+      "refBehavior": "行为",
+      "rulesRequired": "至少为一个来源填写规则",
+      "addToJson": "写入覆盖 JSON",
+      "added": "已写入 JSON，记得保存覆盖"
+    }
+  }
+}

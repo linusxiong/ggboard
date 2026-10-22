@@ -1,13 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ComingSoon } from '@/components/ComingSoon'
-import { useT } from '@/i18n'
+import { NoticesPage } from '@/features/admin/content/NoticesPage'
+import { loadNamespaces } from '@/i18n'
 
-/** Placeholder — replace the component body with the real page (see web/README.md). */
+/** Staff page (no `requireAdmin`). */
 export const Route = createFileRoute('/_admin/admin/notices')({
-  component: AdminNoticesPage,
+  loader: () => loadNamespaces(['admin-support', 'admin-settings']),
+  component: NoticesPage,
 })
-
-function AdminNoticesPage() {
-  const t = useT('nav')
-  return <ComingSoon title={t('admin.notices')} />
-}

@@ -300,3 +300,48 @@ export const systemStatus = (signal?: AbortSignal) =>
 /** `GET /admin/system/logs?level=&limit=` (in-memory ring buffer, last 1000). */
 export const systemLogs = (query: { level?: string; limit?: number } = {}, signal?: AbortSignal) =>
   api.get<LogEntry[]>('/admin/system/logs', query, o(signal))
+
+// ---- FE-4 ----
+// Endpoints with the full response shapes used by the admin pages (orders … system).
+import type {
+  AdminKnowledgeQuery,
+  AdminLogEntry,
+  AdminLogQuery,
+  AdminRulesetsFull,
+  AdminSettingsResponse,
+  AdminSystemStatus,
+  AdminTicketQuery,
+  RulesetsCustom,
+  SettingsPatch,
+} from './types'
+
+/** `GET /admin/tickets` with the `email` filter. */
+export const ticketList = (query: AdminTicketQuery = {}, signal?: AbortSignal) =>
+  api.list<AdminTicket>('/admin/tickets', query, o(signal))
+
+/** `GET /admin/notices` (unpaginated list). */
+export const noticeList = (signal?: AbortSignal) =>
+  api.list<AdminNotice>('/admin/notices', undefined, o(signal))
+
+/** `GET /admin/knowledge` (unpaginated, no body). */
+export const knowledgeAll = (query: AdminKnowledgeQuery = {}, signal?: AbortSignal) =>
+  api.list<AdminKnowledge>('/admin/knowledge', query, o(signal))
+
+/** `GET /admin/settings` → `{"<group>": {...}, groups: [...]}` */
+export const settingsWithMeta = (signal?: AbortSignal) =>
+  api.get<AdminSettingsResponse>('/admin/settings', undefined, o(signal))
+/** `PUT /admin/settings` — only the changed keys; 400 `errors` is keyed by setting key. */
+export const patchSettings = (values: SettingsPatch) => api.put<true>('/admin/settings', values)
+
+/** `GET /admin/rulesets` → `{builtin, custom, effective}` */
+export const rulesetsFull = (signal?: AbortSignal) =>
+  api.get<AdminRulesetsFull>('/admin/rulesets', undefined, o(signal))
+/** `PUT /admin/rulesets {custom}` — overrides merged by id; 400 with `errors` when invalid. */
+export const saveRulesetsCustom = (custom: RulesetsCustom) => api.put<true>('/admin/rulesets', { custom })
+
+/** `GET /admin/system/status` (full shape). */
+export const systemStatusFull = (signal?: AbortSignal) =>
+  api.get<AdminSystemStatus>('/admin/system/status', undefined, o(signal))
+/** `GET /admin/system/logs?level=&limit=` */
+export const systemLogEntries = (query: AdminLogQuery = {}, signal?: AbortSignal) =>
+  api.get<AdminLogEntry[]>('/admin/system/logs', query, o(signal))
