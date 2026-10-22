@@ -24,8 +24,8 @@ Conventions:
 | soga (`type=soga-v1`) | headers `API-KEY`, `NODE-ID`, `NODE-TYPE` | `/api/v1/{node,users,audit_rules,white_list,traffic,alive_ip,audit_log,status}` **and** the same handlers under `/soga/api/v1/...` |
 
 The settings key `server_token` is the shared secret for both clients (XrayR/V2bX `ApiKey`, soga `webapi_key`).
-Node endpoints use no JWT, no CORS and no user rate limiters. Cap the request body at 32 MiB.
-Set gin `engine.RemoveExtraSlash = true` as a defensive measure: then `.../soga//api/v1/node` still routes if a client joins
+Node endpoints use no JWT, no CORS and no user rate limiters. POST bodies are capped at `httpx.NodeBodyLimit` (8 MiB, about
+250k users per push). `node.Register` sets gin `engine.RemoveExtraSlash = true` as a defensive measure: then `.../soga//api/v1/node` still routes if a client joins
 `webapi_url` naively.
 
 Backend configuration snippets (use placeholders only; never commit real values):
@@ -150,10 +150,12 @@ characters are base64-encoded.
 |---|---|---|
 | `tls` | int | `ps.tls` (0\|1), default 0. The backend terminates TLS with its own local certificate. |
 | `tls_settings` | object | `{"server_name":ts.server_name or "","allow_insecure":ts.allow_insecure or false}` |
+| `tlsSettings` | object | **same value** as `tls_settings`. V2bX (vmess/vless) uses `tlsSettings` instead of `tls_settings` when it is present; sending both keeps panels that emit either spelling interchangeable. XrayR ignores it. |
 ```json
 {"protocol":"vmess","listen_ip":"0.0.0.0","server_port":10086,"host":"v.example.com","network":"ws",
  "networkSettings":{"path":"/ws","headers":{"Host":"v.example.com"}},"network_settings":{"path":"/ws","headers":{"Host":"v.example.com"}},
- "tls":1,"tls_settings":{"server_name":"v.example.com","allow_insecure":false},"base_config":{"push_interval":60,"pull_interval":60},"routes":[]}
+ "tls":1,"tls_settings":{"server_name":"v.example.com","allow_insecure":false},"tlsSettings":{"server_name":"v.example.com","allow_insecure":false},
+ "base_config":{"push_interval":60,"pull_interval":60},"routes":[]}
 ```
 `network_settings` values pass through as stored (xray style, DATA_MODEL). Clients read:
 - ws: `path`, `headers.Host`
@@ -171,6 +173,7 @@ V2bX xray rejects `http`/`h2` ("the network type is not vail").
 | `flow` | string | `ps.flow`, `""` if unset |
 | `server_name` | string | `ts.server_name` |
 | `tls_settings` | object | tls 0 or 1: `{"server_name","allow_insecure"}`. tls 2: the reality object below. |
+| `tlsSettings` | object | **same value** as `tls_settings` (see vmess). |
 | `decryption` | string\|null | `ps.decryption` (§8 delta) when non-empty and not `"none"`, otherwise `null` (upstream key) |
 | `encryption` | string | **only when `decryption` is set**: its first `.`-segment, e.g. `mlkem768x25519plus`. **Omit the key otherwise.** V2bX rejects every non-empty value except `mlkem768x25519plus`, including `"none"` [core/xray/inbound.go]. |
 | `encryption_settings` | object | only alongside `encryption`. Split `decryption` on `.` into `s[0..n-1]`: `{"mode":s[1],"ticket":s[2],"server_padding":join(s[3:n-1],"."),"private_key":s[n-1]}`. V2bX rebuilds `method.mode.ticket[.server_padding].private_key` from these. |
@@ -184,7 +187,7 @@ V2bX xray rejects `http`/`h2` ("the network type is not vail").
 | `server_port` | **string** | the port part of `ts.dest`, else `ts.server_port`, else `"443"` |
 | `private_key`, `public_key`, `short_id` | string | `ts.*`. `short_id` may be `""`. Clients ignore `public_key`. |
 | `allow_insecure` | bool | `ts.allow_insecure` |
-| `xver` | n/a | **Do not emit.** If it is ever added, it must be a JSON *string* such as `"1"`: V2bX declares `xver,string` and fails the whole decode on a number. XrayR's field is unexported and never parsed. |
+| `xver` | string | **Only when `ts.xver` > 0**, as a JSON *string* such as `"1"`: V2bX declares `xver,string` and fails the whole decode on a number. XrayR's field is unexported and never parsed. Absent by default. |
 
 Why `dest` is split into host and port:
 - XrayR builds `Dest = dest + ":" + server_port` [v2board.go].
@@ -196,14 +199,15 @@ Why `dest` is split into host and port:
 tls 1 with TCP and vision:
 ```json
 {"protocol":"vless","listen_ip":"0.0.0.0","server_port":443,"host":"vl.example.com","network":"tcp","networkSettings":null,"network_settings":null,
- "tls":1,"flow":"xtls-rprx-vision","server_name":"vl.example.com","tls_settings":{"server_name":"vl.example.com","allow_insecure":false},"decryption":null,
+ "tls":1,"flow":"xtls-rprx-vision","server_name":"vl.example.com","tls_settings":{"server_name":"vl.example.com","allow_insecure":false},
+ "tlsSettings":{"server_name":"vl.example.com","allow_insecure":false},"decryption":null,
  "base_config":{"push_interval":60,"pull_interval":60},"routes":[]}
 ```
 tls 0 with xhttp and VLESS encryption (`ps.decryption = "mlkem768x25519plus.native.600s.PRIVATE_KEY_BASE64URL"`):
 ```json
 {"protocol":"vless","listen_ip":"0.0.0.0","server_port":8080,"host":"vl.example.com","network":"xhttp",
  "networkSettings":{"path":"/xh","host":"vl.example.com","mode":"auto","extra":{}},"network_settings":{"path":"/xh","host":"vl.example.com","mode":"auto","extra":{}},
- "tls":0,"flow":"","server_name":"","tls_settings":{"server_name":"","allow_insecure":false},
+ "tls":0,"flow":"","server_name":"","tls_settings":{"server_name":"","allow_insecure":false},"tlsSettings":{"server_name":"","allow_insecure":false},
  "decryption":"mlkem768x25519plus.native.600s.PRIVATE_KEY_BASE64URL","encryption":"mlkem768x25519plus",
  "encryption_settings":{"mode":"native","ticket":"600s","server_padding":"","private_key":"PRIVATE_KEY_BASE64URL"},
  "base_config":{"push_interval":60,"pull_interval":60},"routes":[]}
@@ -466,7 +470,7 @@ Store them as given. soga skips users below `submit_alive_ip_min_traffic` KB.
 Body: `[{"user_id":int,"audit_id":int}]`. soga already deduplicates repeated hits of the same rule by the same user.
 
 For each entry, call `slog.Warn("audit rule hit", "node_id",P.id, "user_id",…, "route_id",audit_id/1000, "rule",<entry text>)`.
-Also keep the last 1000 hits in an in-memory ring buffer for the admin node view. Nothing is persisted, because DATA_MODEL
+Also keep the last 1000 hits in an in-memory ring buffer for the admin node view (`GET /admin/nodes/:id/audit`). Nothing is persisted, because DATA_MODEL
 has no audit table.
 
 ### 3.8 `POST /api/v1/status`
@@ -580,7 +584,8 @@ their next poll.
      touching the node. Note also that Xboard bumps `updated_at` on every push.
    - Cache: config per P, and users per (group set, NODE-TYPE shape), each for 60 s (ARCHITECTURE). Writes to nodes, routes
      or settings invalidate the config cache immediately.
-   - gzip middleware may compress the body, but must not change the ETag.
+   - gzip middleware may compress the body. It then marks the ETag weak (`W/"<tag>"`, RFC 9110); clients echo it back and the
+     substring comparison still matches, so the tag itself never changes.
 7. **Bad push/traffic entries**: non-numeric, negative or wrong-length entries are dropped. Unknown uids are ignored.
    Traffic from banned or expired users is still charged (Xboard does the same).
 8. **Several backends with one node id**: traffic is summed. `Online` reflects the latest pusher. The Xboard fork's
@@ -605,12 +610,14 @@ Host: panel.example.com
 
 HTTP/1.1 200 OK
 Content-Type: application/json; charset=utf-8
-ETag: "da2c526571e3da150da26754b75ccc896444170e"
+ETag: "2bb00202abbadb48db07c406a2a1851180f3a03d"
 
 {"protocol":"vless","listen_ip":"0.0.0.0","server_port":443,"host":"hk1.example.com","network":"tcp","networkSettings":null,"network_settings":null,
  "tls":2,"flow":"xtls-rprx-vision","server_name":"www.example.org",
  "tls_settings":{"server_name":"www.example.org","dest":"www.example.org","server_port":"443","public_key":"PUBLIC_KEY_BASE64URL",
                  "private_key":"PRIVATE_KEY_BASE64URL","short_id":"0123abcd","allow_insecure":false},
+ "tlsSettings":{"server_name":"www.example.org","dest":"www.example.org","server_port":"443","public_key":"PUBLIC_KEY_BASE64URL",
+                "private_key":"PRIVATE_KEY_BASE64URL","short_id":"0123abcd","allow_insecure":false},
  "decryption":null,"base_config":{"push_interval":60,"pull_interval":60},
  "routes":[{"id":1,"match":["example-blocked.com"],"action":"block","action_value":""}]}
 ```

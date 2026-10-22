@@ -16,7 +16,9 @@ User (self view) {
 Plan {"id","group_id","name","content","tags","transfer_enable"(GB),"speed_limit","device_limit","capacity_limit",
       "prices":{"monthly":1000,...},"reset_traffic_method","show","sell","renew","sort","created_at","updated_at"}
 Node (admin) {"id","type","name","group_ids","route_ids","parent_id","host","port","server_port","tags","rate","show","sort",
-      "protocol_settings":{...},"status":{"online":3,"last_check_at":"...","last_push_at":"...","load":{...}|null},"created_at","updated_at"}
+      "protocol_settings":{...},"parent":{"id","name"}|null,
+      "status":{"state":"online|idle|offline","online":3,"last_check_at":"...","last_push_at":"...","load":{cpu,mem,swap,disk,uptime}|null,"version":"<backend User-Agent>"},
+      "created_at","updated_at"}   // a child's status is its parent's (docs/NODE_PROTOCOLS.md §5.3)
 Order {"id","trade_no","user_id","plan_id","plan":{...},"type","period","status","commission_status","total_amount","handling_amount",
       "discount_amount","surplus_amount","refund_amount","balance_amount","payment_id","payment":{"id","name"},"callback_no","paid_at","created_at","updated_at"}
 Ticket {"id","user_id","subject","level","status","reply_status","created_at","updated_at","messages":[{"id","user_id","is_me","message","created_at"}]}
@@ -54,7 +56,7 @@ password limit lockout (`password_limit_*`); register-by-ip limit.
 | POST | `/user/subscription/reset` | — | `{subscribe_url, token}` (new uuid + token) |
 | GET | `/user/subscription/preview?client=clash&...` | same query as client subscribe | `text/plain` body of generated config |
 | GET | `/user/traffic-logs` | `page`, `page_size` | `[{record_at, node_id, node_name, rate, u, d}]` |
-| GET | `/user/nodes` | — | `[{id,name,type,tags,rate,host,port,is_online,sort}]` (host/port only when `show_info_to_user`=true; default true) |
+| GET | `/user/nodes` | — | `[{id,name,type,tags,rate,host,port,is_online,sort}]` (show=true nodes of the user's group, by sort, id; host/port only when `show_info_to_user`=true, default true; `[]` when the user is banned, expired or out of traffic, like Xboard) |
 | POST | `/user/logout` | — | `true` (client discards; server no-op) |
 ### Rule profile
 | GET | `/user/rule-profile` | — | `RuleProfile` (defaults if none) |
@@ -120,16 +122,17 @@ password limit lockout (`password_limit_*`); register-by-ip limit.
 | GET,POST | `/admin/plans` | Plan fields | `[Plan + user_count]` / `Plan` |
 | GET,PATCH,DELETE | `/admin/plans/:id` | | |
 | POST | `/admin/plans/sort` | `{ids:[...]}` | `true` |
-| GET,POST | `/admin/groups` | `{name}` | `[{id,name,user_count,plan_count,node_count}]` |
-| PATCH,DELETE | `/admin/groups/:id` | | |
-| GET,POST | `/admin/nodes` | Node fields | `[Node]` (with status) |
-| GET,PATCH,DELETE | `/admin/nodes/:id` | | |
-| POST | `/admin/nodes/:id/copy` | — | `Node` |
-| POST | `/admin/nodes/sort` | `{ids}` | `true` |
-| GET | `/admin/nodes/:id/stats?range=7d` | — | `[{date,u,d}]` |
-| GET | `/admin/nodes/:id/online` | — | `[{user_id,email,ips[]}]` |
-| GET,POST | `/admin/routes` | `{remarks, match[], action, action_value}` | |
-| PATCH,DELETE | `/admin/routes/:id` | | |
+| GET,POST | `/admin/groups` | `{name}` | `[{id,name,user_count,plan_count,node_count,created_at,updated_at}]` |
+| PATCH,DELETE | `/admin/groups/:id` | `{name}` | group with counts / `true` (409 while users, plans or nodes reference it) |
+| GET,POST | `/admin/nodes` | Node fields (`port` may be a number or a string `"443"`, `"20000-30000"`, `"443,8443"`) | `[Node]` (with status) / `Node` |
+| GET,PATCH,DELETE | `/admin/nodes/:id` | PATCH: any subset of Node fields (`parent_id: null` detaches; `protocol_settings` is replaced, not merged) | `Node` / `true` (DELETE 409 while the node has children; stats are kept) |
+| POST | `/admin/nodes/:id/copy` | — | `Node` (`name + " (copy)"`, `show=false`) |
+| POST | `/admin/nodes/sort` | `{ids}` | `true` (sort = position in `ids`) |
+| GET | `/admin/nodes/:id/stats?range=7d` (or `30d`) | — | `[{date,u,d}]` one point per day, oldest first, zero-filled (raw bytes of P) |
+| GET | `/admin/nodes/:id/online` | — | `[{user_id,email,ips[]}]` (alive on P) |
+| GET | `/admin/nodes/:id/audit` | — | `[{at,node_id,user_id,audit_id,route_id,rule}]` soga audit hits of P, newest first (in memory, last 1000 overall) |
+| GET,POST | `/admin/routes` | `{remarks, match[] (1..999), action: "block" or "dns", action_value}` | `[Route]` / `Route` (block: `match` joined by a pipe must compile as a Go regexp; dns: `action_value` required unless `match[0]=="main"`) |
+| PATCH,DELETE | `/admin/routes/:id` | | `Route` / `true` (DELETE 409 while a node references it) |
 ### Orders / coupons / payments
 | GET | `/admin/orders` | `trade_no`,`user_id`,`email`,`status`,`commission_status`,`plan_id`,`payment_id`,`date_from`,`date_to` | `[Order + user.email]` |
 | GET | `/admin/orders/:id` | — | `Order` |
