@@ -10,7 +10,8 @@ export function validateEmail(value: string, whitelist: readonly string[] = []):
   if (!EMAIL_RE.test(email)) return t('auth', 'validation.emailInvalid')
   if (whitelist.length > 0) {
     const domain = email.slice(email.lastIndexOf('@') + 1).toLowerCase()
-    if (!whitelist.some((suffix) => domain === suffix.toLowerCase().replace(/^@/, ''))) return t('auth', 'validation.emailSuffix')
+    if (!whitelist.some((suffix) => domain === suffix.toLowerCase().replace(/^@/, '')))
+      return t('auth', 'validation.emailSuffix')
   }
   return undefined
 }
@@ -21,6 +22,9 @@ export function validatePassword(value: string, min = PASSWORD_MIN): string | un
   return undefined
 }
 
-export function validateRequired(value: string | null | undefined, messageKey = 'validation.codeRequired'): string | undefined {
+export function validateRequired(
+  value: string | null | undefined,
+  messageKey = 'validation.codeRequired',
+): string | undefined {
   return value && value.trim() ? undefined : t('auth', messageKey)
 }

@@ -21,7 +21,16 @@ interface StatCardProps {
 }
 
 /** KPI tile used on dashboards. */
-export function StatCard({ label, value, format, icon, hint, accent = 'bg-system-blue', className, static: isStatic }: StatCardProps) {
+export function StatCard({
+  label,
+  value,
+  format,
+  icon,
+  hint,
+  accent = 'bg-system-blue',
+  className,
+  static: isStatic,
+}: StatCardProps) {
   const animate = useAnimationsReady()
   const numeric = typeof value === 'number'
   const text = numeric ? (format ? format(value) : String(value)) : null

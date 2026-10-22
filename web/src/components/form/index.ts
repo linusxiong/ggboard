@@ -41,7 +41,11 @@ export function applyServerErrors(form: AnyFormApi, error: unknown): string | un
     const message = messages[0]
     if (!message) continue
     if (name in (form.state.values as Record<string, unknown>)) {
-      form.setFieldMeta(name, (meta) => ({ ...meta, isTouched: true, errorMap: { ...meta.errorMap, onServer: message } }))
+      form.setFieldMeta(name, (meta) => ({
+        ...meta,
+        isTouched: true,
+        errorMap: { ...meta.errorMap, onServer: message },
+      }))
     } else {
       unmatched ??= message
     }

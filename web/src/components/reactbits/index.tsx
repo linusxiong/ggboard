@@ -18,7 +18,15 @@ export const BlurText = lazy(() => import('./BlurText'))
 export const SpotlightCard = lazy(() => import('./SpotlightCard'))
 export const CountUp = lazy(() => import('./CountUp'))
 
-export function WhenIdle({ children, fallback, timeout }: { children: ReactNode; fallback: ReactNode; timeout?: number }) {
+export function WhenIdle({
+  children,
+  fallback,
+  timeout,
+}: {
+  children: ReactNode
+  fallback: ReactNode
+  timeout?: number
+}) {
   const ready = useAnimationsReady(timeout)
   if (!ready) return <>{fallback}</>
   return <Suspense fallback={fallback}>{children}</Suspense>

@@ -81,8 +81,8 @@ export function DataTable<TData extends RowData>(props: DataTableProps<TData>) {
 
   const table = useTable({
     features: dataTableFeatures,
-    columns: columns as DataTableColumn<TData>[],
-    data: (data ?? EMPTY) as TData[],
+    columns,
+    data: data ?? EMPTY,
     getRowId: getRowId ? (row, index) => getRowId(row, index) : undefined,
     manualSorting: true,
     manualPagination: true,
@@ -113,7 +113,13 @@ export function DataTable<TData extends RowData>(props: DataTableProps<TData>) {
 
   const pagination =
     total !== undefined && total > 0 ? (
-      <TablePagination page={page} pageCount={pageCount} pageSize={pageSize} total={total} onPageChange={onPageChange} />
+      <TablePagination
+        page={page}
+        pageCount={pageCount}
+        pageSize={pageSize}
+        total={total}
+        onPageChange={onPageChange}
+      />
     ) : null
 
   // ------------------------------------------------------------- mobile cards
@@ -125,7 +131,10 @@ export function DataTable<TData extends RowData>(props: DataTableProps<TData>) {
         ) : rows.length === 0 ? (
           <div className="surface-card">{empty}</div>
         ) : (
-          <ul aria-label={props['aria-label']} className={cx('flex flex-col gap-3', isFetching && 'opacity-60')}>
+          <ul
+            aria-label={props['aria-label']}
+            className={cx('flex flex-col gap-3', isFetching && 'opacity-60')}
+          >
             {rows.map((row) => (
               <li key={row.id} className="surface-card p-4">
                 {renderCard ? (
@@ -155,7 +164,9 @@ export function DataTable<TData extends RowData>(props: DataTableProps<TData>) {
                     })}
                   </dl>
                 )}
-                {rowActions ? <div className="mt-3 flex flex-wrap justify-end gap-2">{rowActions(row.original)}</div> : null}
+                {rowActions ? (
+                  <div className="mt-3 flex flex-wrap justify-end gap-2">{rowActions(row.original)}</div>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -173,7 +184,9 @@ export function DataTable<TData extends RowData>(props: DataTableProps<TData>) {
           aria-label={props['aria-label']}
           aria-busy={isLoading || isFetching || undefined}
           sortDescriptor={sortDescriptor}
-          onSortChange={(d) => onSortChange?.(toSortParam([{ id: String(d.column), desc: d.direction === 'descending' }]))}
+          onSortChange={(d) =>
+            onSortChange?.(toSortParam([{ id: String(d.column), desc: d.direction === 'descending' }]))
+          }
           className={cx('min-w-full', isFetching && !showSkeleton && 'opacity-60 transition-opacity')}
         >
           <Table.Header>
@@ -251,7 +264,6 @@ export function DataTable<TData extends RowData>(props: DataTableProps<TData>) {
       {pagination ? <Table.Footer>{pagination}</Table.Footer> : null}
     </Table>
   )
-
 }
 
 interface TablePaginationProps {
@@ -263,7 +275,13 @@ interface TablePaginationProps {
 }
 
 /** HeroUI Pagination with a locale-aware "1–20 of 135" summary. */
-export function TablePagination({ page: current, pageCount: count, pageSize: size, total: rowsTotal, onPageChange: change }: TablePaginationProps) {
+export function TablePagination({
+  page: current,
+  pageCount: count,
+  pageSize: size,
+  total: rowsTotal,
+  onPageChange: change,
+}: TablePaginationProps) {
   const t = useT('common')
   const locale = useLocale()
   const from = (current - 1) * size + 1

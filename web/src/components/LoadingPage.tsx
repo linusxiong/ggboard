@@ -1,7 +1,15 @@
 import { cx } from '@/lib/cn'
 
 /** Apple-style activity indicator (pure CSS, no JS deps). */
-export function Spinner({ size = 20, className, label }: { size?: number; className?: string; label?: string }) {
+export function Spinner({
+  size = 20,
+  className,
+  label,
+}: {
+  size?: number
+  className?: string
+  label?: string
+}) {
   return (
     <span
       role={label ? 'status' : undefined}
@@ -21,7 +29,13 @@ export function Spinner({ size = 20, className, label }: { size?: number; classN
  * Keeps layout stable (min-height) to avoid CLS. Text is static (no i18n dependency) on purpose:
  * it may render before dictionaries load.
  */
-export function LoadingPage({ fullscreen = false, label = 'Loading…' }: { fullscreen?: boolean; label?: string }) {
+export function LoadingPage({
+  fullscreen = false,
+  label = 'Loading…',
+}: {
+  fullscreen?: boolean
+  label?: string
+}) {
   return (
     <div
       className={cx('flex w-full items-center justify-center', fullscreen ? 'min-h-dvh' : 'min-h-[40vh]')}

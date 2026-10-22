@@ -133,7 +133,9 @@ export function Captcha({ provider, siteKey, onToken, ref, className }: CaptchaP
     <div className={className}>
       <p className="mb-1.5 text-footnote font-medium text-label-secondary">{t('captcha.label')}</p>
       <div ref={container} className="min-h-[65px]" />
-      {state === 'loading' ? <p className="text-footnote text-label-secondary">{t('captcha.loading')}</p> : null}
+      {state === 'loading' ? (
+        <p className="text-footnote text-label-secondary">{t('captcha.loading')}</p>
+      ) : null}
       {state === 'error' ? (
         <p role="alert" className="text-footnote text-label-red">
           {t('captcha.failed')}

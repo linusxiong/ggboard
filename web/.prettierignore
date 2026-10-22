@@ -5,3 +5,4 @@ coverage
 pnpm-lock.yaml
 src/routeTree.gen.ts
 .heroui-css
+public/manifest.webmanifest

@@ -7,7 +7,10 @@
 import type { Locale } from '@/lib/api/types'
 
 const cache = new Map<string, Intl.NumberFormat | Intl.DateTimeFormat | Intl.RelativeTimeFormat>()
-function memo<T extends Intl.NumberFormat | Intl.DateTimeFormat | Intl.RelativeTimeFormat>(key: string, make: () => T): T {
+function memo<T extends Intl.NumberFormat | Intl.DateTimeFormat | Intl.RelativeTimeFormat>(
+  key: string,
+  make: () => T,
+): T {
   let fmt = cache.get(key) as T | undefined
   if (!fmt) {
     fmt = make()
@@ -35,14 +38,16 @@ export function formatMoney(
   const minimumFractionDigits = opts.trimZeros && Number.isInteger(value) ? 0 : digits
   let fmt: Intl.NumberFormat
   try {
-    fmt = memo(`money:${locale}:${code}:${minimumFractionDigits}:${opts.compact ? 1 : 0}`, () =>
-      new Intl.NumberFormat(locale, {
-        style: 'currency',
-        currency: code,
-        minimumFractionDigits,
-        maximumFractionDigits: digits,
-        ...(opts.compact ? { notation: 'compact' as const } : {}),
-      }),
+    fmt = memo(
+      `money:${locale}:${code}:${minimumFractionDigits}:${opts.compact ? 1 : 0}`,
+      () =>
+        new Intl.NumberFormat(locale, {
+          style: 'currency',
+          currency: code,
+          minimumFractionDigits,
+          maximumFractionDigits: digits,
+          ...(opts.compact ? { notation: 'compact' as const } : {}),
+        }),
     )
   } catch {
     // Unknown currency code: fall back to plain number + symbol.
@@ -55,8 +60,14 @@ export function formatMoney(
     .join('')
 }
 
-export function formatNumber(value: number, locale: Locale = 'zh-CN', opts: Intl.NumberFormatOptions = {}): string {
-  return memo(`num:${locale}:${JSON.stringify(opts)}`, () => new Intl.NumberFormat(locale, opts)).format(value)
+export function formatNumber(
+  value: number,
+  locale: Locale = 'zh-CN',
+  opts: Intl.NumberFormatOptions = {},
+): string {
+  return memo(`num:${locale}:${JSON.stringify(opts)}`, () => new Intl.NumberFormat(locale, opts)).format(
+    value,
+  )
 }
 
 export function formatPercent(ratio: number, locale: Locale = 'zh-CN', digits = 0): string {
@@ -79,13 +90,15 @@ export function formatBytes(bytes: number, locale: Locale = 'zh-CN', opts: { dig
     unit++
   }
   const digits = opts.digits ?? (unit === 0 ? 0 : value >= 100 ? 0 : value >= 10 ? 1 : 2)
-  return memo(`bytes:${locale}:${unit}:${digits}`, () =>
-    new Intl.NumberFormat(locale, {
-      style: 'unit',
-      unit: BYTE_UNITS[unit],
-      unitDisplay: 'short',
-      maximumFractionDigits: digits,
-    }),
+  return memo(
+    `bytes:${locale}:${unit}:${digits}`,
+    () =>
+      new Intl.NumberFormat(locale, {
+        style: 'unit',
+        unit: BYTE_UNITS[unit],
+        unitDisplay: 'short',
+        maximumFractionDigits: digits,
+      }),
   ).format(sign * value)
 }
 
@@ -101,7 +114,14 @@ export function toDate(value: string | number | Date | null | undefined): Date |
 export type DateStyle = 'date' | 'datetime' | 'time' | 'short' | 'long'
 const DATE_OPTIONS: Record<DateStyle, Intl.DateTimeFormatOptions> = {
   date: { year: 'numeric', month: '2-digit', day: '2-digit' },
-  datetime: { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false },
+  datetime: {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  },
   time: { hour: '2-digit', minute: '2-digit', hour12: false },
   short: { month: 'short', day: 'numeric' },
   long: { dateStyle: 'long', timeStyle: 'short' },
@@ -115,8 +135,9 @@ export function formatDate(
 ): string {
   const date = toDate(value)
   if (!date) return '—'
-  return memo(`date:${locale}:${style}:${timeZone ?? ''}`, () =>
-    new Intl.DateTimeFormat(locale, { ...DATE_OPTIONS[style], ...(timeZone ? { timeZone } : {}) }),
+  return memo(
+    `date:${locale}:${style}:${timeZone ?? ''}`,
+    () => new Intl.DateTimeFormat(locale, { ...DATE_OPTIONS[style], ...(timeZone ? { timeZone } : {}) }),
   ).format(date)
 }
 

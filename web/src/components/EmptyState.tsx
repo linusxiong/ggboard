@@ -14,7 +14,14 @@ interface EmptyStateProps {
 }
 
 /** Friendly empty/placeholder state (also used for "coming soon" pages). */
-export function EmptyState({ title, description, icon, action, className, compact = false }: EmptyStateProps) {
+export function EmptyState({
+  title,
+  description,
+  icon,
+  action,
+  className,
+  compact = false,
+}: EmptyStateProps) {
   return (
     <div
       className={cx(
@@ -33,9 +40,7 @@ export function EmptyState({ title, description, icon, action, className, compac
         {icon ?? <Inbox className={compact ? 'size-5' : 'size-7'} strokeWidth={1.75} />}
       </div>
       <p className={cx('text-label', compact ? 'text-subhead font-semibold' : 'text-headline')}>{title}</p>
-      {description ? (
-        <p className="max-w-sm text-subhead text-label-secondary">{description}</p>
-      ) : null}
+      {description ? <p className="max-w-sm text-subhead text-label-secondary">{description}</p> : null}
       {action ? <div className="mt-2">{action}</div> : null}
     </div>
   )

@@ -9,7 +9,9 @@
  */
 import type { ReactNode } from 'react'
 
-type ToastModule = typeof import('@heroui/react/toast')
+import type * as HeroToast from '@heroui/react/toast'
+
+type ToastModule = typeof HeroToast
 type Options = Parameters<ToastModule['toast']>[1]
 type Variant = 'default' | 'success' | 'danger' | 'info' | 'warning'
 
@@ -20,9 +22,11 @@ const listeners = new Set<() => void>()
 /** @internal used by ToastMount */
 export const toastHost = {
   isRequested: () => requested,
-  subscribe(cb: () => void) {
+  subscribe: (cb: () => void) => {
     listeners.add(cb)
-    return () => listeners.delete(cb)
+    return () => {
+      listeners.delete(cb)
+    }
   },
 }
 
@@ -42,23 +46,30 @@ function show(variant: Variant, message: ReactNode, options?: Options) {
   })
 }
 
-export const toast = Object.assign((message: ReactNode, options?: Options) => show('default', message, options), {
-  success: (message: ReactNode, options?: Options) => show('success', message, options),
-  danger: (message: ReactNode, options?: Options) => show('danger', message, options),
-  /** Alias of `danger`. */
-  error: (message: ReactNode, options?: Options) => show('danger', message, options),
-  info: (message: ReactNode, options?: Options) => show('info', message, options),
-  warning: (message: ReactNode, options?: Options) => show('warning', message, options),
-  promise<T>(
-    promise: Promise<T>,
-    messages: { loading: ReactNode; success: ReactNode | ((value: T) => ReactNode); error: ReactNode | ((error: unknown) => ReactNode) },
-  ): Promise<T> {
-    void load().then(({ toast: heroToast }) => {
-      heroToast.promise(promise, messages as Parameters<ToastModule['toast']['promise']>[1])
-    })
-    return promise
+export const toast = Object.assign(
+  (message: ReactNode, options?: Options) => show('default', message, options),
+  {
+    success: (message: ReactNode, options?: Options) => show('success', message, options),
+    danger: (message: ReactNode, options?: Options) => show('danger', message, options),
+    /** Alias of `danger`. */
+    error: (message: ReactNode, options?: Options) => show('danger', message, options),
+    info: (message: ReactNode, options?: Options) => show('info', message, options),
+    warning: (message: ReactNode, options?: Options) => show('warning', message, options),
+    promise<T>(
+      promise: Promise<T>,
+      messages: {
+        loading: ReactNode
+        success: ReactNode | ((value: T) => ReactNode)
+        error: ReactNode | ((error: unknown) => ReactNode)
+      },
+    ): Promise<T> {
+      void load().then(({ toast: heroToast }) => {
+        heroToast.promise(promise, messages)
+      })
+      return promise
+    },
   },
-})
+)
 
 export type Toaster = typeof toast
 

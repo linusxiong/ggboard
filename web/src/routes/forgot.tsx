@@ -42,18 +42,23 @@ function ForgotPage() {
     },
   )
 
-  const onSubmit = form.handleSubmit(async (values) => {
+  const submit = async (values: typeof form.values) => {
     setFormError(undefined)
     try {
-      await forgot({ email: values.email.trim(), email_code: values.email_code.trim(), password: values.password })
+      await forgot({
+        email: values.email.trim(),
+        email_code: values.email_code.trim(),
+        password: values.password,
+      })
       toast.success(t('forgot.success'))
       await navigate({ to: '/login', replace: true })
     } catch (error) {
       const { fields, message } = splitAuthError(error)
-      for (const [name, msg] of Object.entries(fields)) if (name in values) form.setError(name as 'email', msg)
+      for (const [name, msg] of Object.entries(fields))
+        if (name in values) form.setError(name as 'email', msg)
       setFormError(message)
     }
-  })
+  }
 
   const emailForCode = () => (form.validateField('email') ? undefined : form.values.email.trim())
 
@@ -67,7 +72,7 @@ function ForgotPage() {
         </Link>
       }
     >
-      <form noValidate className="flex flex-col gap-4" onSubmit={(e) => void onSubmit(e)}>
+      <form noValidate className="flex flex-col gap-4" onSubmit={(e) => void form.handleSubmit(submit)(e)}>
         <FormError message={formError} />
         <NativeField
           {...form.field('email')}
@@ -79,7 +84,12 @@ function ForgotPage() {
           required
         />
         {captchaEnabled && captcha ? (
-          <LazyCaptcha ref={captchaRef} provider={captcha.provider} siteKey={captcha.site_key} onToken={setCaptchaToken} />
+          <LazyCaptcha
+            ref={captchaRef}
+            provider={captcha.provider}
+            siteKey={captcha.site_key}
+            onToken={setCaptchaToken}
+          />
         ) : null}
         <NativeField
           {...form.field('email_code')}

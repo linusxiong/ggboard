@@ -48,7 +48,10 @@ function LandingPage() {
             <Logo withText text={appName} />
           </Link>
           <nav aria-label={t('nav.plans')} className="flex items-center gap-1">
-            <a href="#plans" className="hidden rounded-[10px] px-3 py-1.5 text-subhead text-label hover:bg-fill-quaternary sm:block">
+            <a
+              href="#plans"
+              className="hidden rounded-[10px] px-3 py-1.5 text-subhead text-label hover:bg-fill-quaternary sm:block"
+            >
               {t('nav.plans')}
             </a>
             <LocaleToggle compact />
@@ -111,9 +114,14 @@ function Hero({ signedIn }: { signedIn: boolean }) {
           </GradientText>
         </WhenIdle>
       </h1>
-      <p className="mt-6 max-w-2xl text-body text-label-secondary sm:text-title3 sm:font-normal">{t('hero.subtitle')}</p>
+      <p className="mt-6 max-w-2xl text-body text-label-secondary sm:text-title3 sm:font-normal">
+        {t('hero.subtitle')}
+      </p>
       <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-        <Link to={signedIn ? '/dashboard' : '/register'} className={buttonClass({ size: 'lg', className: 'px-6' })}>
+        <Link
+          to={signedIn ? '/dashboard' : '/register'}
+          className={buttonClass({ size: 'lg', className: 'px-6' })}
+        >
           {t('hero.ctaPrimary')}
         </Link>
         {signedIn ? null : (

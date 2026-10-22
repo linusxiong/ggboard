@@ -15,5 +15,6 @@ export const Route = createFileRoute('/_user')({
 })
 
 function UserLayout() {
-  return <AppShell area="user" items={USER_NAV} />
+  const { queryClient } = Route.useRouteContext()
+  return <AppShell area="user" items={USER_NAV} queryClient={queryClient} />
 }

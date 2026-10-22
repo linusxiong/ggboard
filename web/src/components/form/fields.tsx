@@ -121,7 +121,16 @@ export interface TextAreaFieldProps extends BaseFieldProps {
   maxLength?: number
 }
 
-export function TextAreaField({ label, description, isRequired, isDisabled, className, placeholder, rows = 4, maxLength }: TextAreaFieldProps) {
+export function TextAreaField({
+  label,
+  description,
+  isRequired,
+  isDisabled,
+  className,
+  placeholder,
+  rows = 4,
+  maxLength,
+}: TextAreaFieldProps) {
   const field = useFieldContext<string>()
   const error = fieldErrorMessage(field.state.meta)
   return (
@@ -217,7 +226,15 @@ export interface SelectFieldProps extends BaseFieldProps {
   placeholder?: string
 }
 
-export function SelectField({ label, description, isRequired, isDisabled, className, options, placeholder }: SelectFieldProps) {
+export function SelectField({
+  label,
+  description,
+  isRequired,
+  isDisabled,
+  className,
+  options,
+  placeholder,
+}: SelectFieldProps) {
   const field = useFieldContext<string | null>()
   const error = fieldErrorMessage(field.state.meta)
   return (
@@ -263,7 +280,7 @@ export function SelectField({ label, description, isRequired, isDisabled, classN
   )
 }
 
-export interface SwitchFieldProps extends Omit<BaseFieldProps, 'isRequired'> {}
+export type SwitchFieldProps = Omit<BaseFieldProps, 'isRequired'>
 
 export function SwitchField({ label, description, isDisabled, className }: SwitchFieldProps) {
   const field = useFieldContext<boolean>()
@@ -306,7 +323,13 @@ export interface SubmitButtonProps {
 }
 
 /** Disabled while submitting / when the form cannot submit; shows a spinner while pending. */
-export function SubmitButton({ children, className, fullWidth, size = 'lg', variant = 'primary' }: SubmitButtonProps) {
+export function SubmitButton({
+  children,
+  className,
+  fullWidth,
+  size = 'lg',
+  variant = 'primary',
+}: SubmitButtonProps) {
   const form = useFormContext()
   return (
     <form.Subscribe selector={(s) => [s.isSubmitting, s.canSubmit] as const}>

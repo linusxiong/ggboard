@@ -46,7 +46,9 @@ function LoginPage() {
   const captchaRef = useRef<CaptchaHandle>(null)
   const captcha = config?.captcha
   const captchaEnabled = Boolean(captcha && captcha.provider !== 'none' && captcha.site_key)
-  const [tokenState, setTokenState] = useState<'idle' | 'pending' | 'failed'>(search.token ? 'pending' : 'idle')
+  const [tokenState, setTokenState] = useState<'idle' | 'pending' | 'failed'>(
+    search.token ? 'pending' : 'idle',
+  )
 
   // Admin "login as" one-time link. Tokens are single use: guard against StrictMode double effects.
   const token = search.token
@@ -67,7 +69,7 @@ function LoginPage() {
     },
   )
 
-  const onSubmit = form.handleSubmit(async (values) => {
+  const submit = async (values: typeof form.values) => {
     setFormError(undefined)
     if (captchaEnabled && !captchaToken) {
       setFormError(t('captcha.required'))
@@ -82,11 +84,12 @@ function LoginPage() {
       finish(result, t('messages.loginSuccess'))
     } catch (error) {
       const { fields, message } = splitAuthError(error)
-      for (const [name, msg] of Object.entries(fields)) if (name in values) form.setError(name as 'email', msg)
+      for (const [name, msg] of Object.entries(fields))
+        if (name in values) form.setError(name as 'email', msg)
       setFormError(message)
       captchaRef.current?.reset()
     }
-  })
+  }
 
   return (
     <AuthLayout
@@ -108,12 +111,15 @@ function LoginPage() {
       }
     >
       {tokenState === 'pending' ? (
-        <div className="flex items-center justify-center gap-3 py-6 text-subhead text-label-secondary" role="status">
+        <div
+          className="flex items-center justify-center gap-3 py-6 text-subhead text-label-secondary"
+          role="status"
+        >
           <Spinner />
           {t('login.tokenSigningIn')}
         </div>
       ) : (
-        <form noValidate className="flex flex-col gap-4" onSubmit={(e) => void onSubmit(e)}>
+        <form noValidate className="flex flex-col gap-4" onSubmit={(e) => void form.handleSubmit(submit)(e)}>
           <FormError message={tokenState === 'failed' ? t('login.tokenFailed') : formError} />
           <NativeField
             {...form.field('email')}
@@ -124,14 +130,25 @@ function LoginPage() {
             placeholder={t('fields.emailPlaceholder')}
             required
           />
-          <NativeField {...form.field('password')} label={t('fields.password')} type="password" autoComplete="current-password" required />
+          <NativeField
+            {...form.field('password')}
+            label={t('fields.password')}
+            type="password"
+            autoComplete="current-password"
+            required
+          />
           <div className="-mt-1 flex justify-end">
             <Link to="/forgot" className="text-footnote text-label-blue hover:underline">
               {t('login.forgot')}
             </Link>
           </div>
           {captchaEnabled && captcha ? (
-            <LazyCaptcha ref={captchaRef} provider={captcha.provider} siteKey={captcha.site_key} onToken={setCaptchaToken} />
+            <LazyCaptcha
+              ref={captchaRef}
+              provider={captcha.provider}
+              siteKey={captcha.site_key}
+              onToken={setCaptchaToken}
+            />
           ) : null}
           <NativeButton type="submit" size="lg" fullWidth pending={form.submitting}>
             {t('login.submit')}

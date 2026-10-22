@@ -25,13 +25,24 @@ export interface NativeFieldProps extends Omit<InputHTMLAttributes<HTMLInputElem
   className?: string
 }
 
-export function NativeField({ name, label, description, error, end, required, className, id, ...input }: NativeFieldProps) {
+export function NativeField({
+  name,
+  label,
+  description,
+  error,
+  end,
+  required,
+  className,
+  id,
+  ...input
+}: NativeFieldProps) {
   const auto = useId()
   const inputId = id ?? `${name}-${auto}`
   const descId = `${inputId}-desc`
   const errId = `${inputId}-err`
   const invalid = Boolean(error)
-  const describedBy = cx(description && !invalid ? descId : undefined, invalid ? errId : undefined) || undefined
+  const describedBy =
+    cx(description && !invalid ? descId : undefined, invalid ? errId : undefined) || undefined
 
   const control = (
     <input

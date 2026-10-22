@@ -6,19 +6,21 @@ let rendererPromise: Promise<Renderer> | null = null
 
 /** Loads `marked` + `dompurify` once (separate lazy chunk). */
 function loadRenderer(): Promise<Renderer> {
-  rendererPromise ??= Promise.all([import('marked'), import('dompurify')]).then(([{ marked }, { default: DOMPurify }]) => {
-    DOMPurify.addHook('afterSanitizeAttributes', (node) => {
-      if (node.tagName === 'A' && node.getAttribute('href')?.match(/^https?:\/\//)) {
-        node.setAttribute('target', '_blank')
-        node.setAttribute('rel', 'noopener noreferrer')
-      }
-    })
-    return (source: string) =>
-      DOMPurify.sanitize(marked.parse(source, { async: false, gfm: true, breaks: true }), {
-        USE_PROFILES: { html: true },
-        FORBID_TAGS: ['style', 'iframe', 'form', 'input'],
+  rendererPromise ??= Promise.all([import('marked'), import('dompurify')]).then(
+    ([{ marked }, { default: DOMPurify }]) => {
+      DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+        if (node.tagName === 'A' && node.getAttribute('href')?.match(/^https?:\/\//)) {
+          node.setAttribute('target', '_blank')
+          node.setAttribute('rel', 'noopener noreferrer')
+        }
       })
-  })
+      return (source: string) =>
+        DOMPurify.sanitize(marked.parse(source, { async: false, gfm: true, breaks: true }), {
+          USE_PROFILES: { html: true },
+          FORBID_TAGS: ['style', 'iframe', 'form', 'input'],
+        })
+    },
+  )
   return rendererPromise
 }
 

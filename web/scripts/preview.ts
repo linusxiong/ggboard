@@ -2,8 +2,9 @@
  * `vite preview` that behaves like the Go static server (internal/static):
  *  - serves precompressed `.br` / `.gz` assets with `immutable` caching for hashed files;
  *  - `index.html` is `no-cache`;
- *  - in `--mode lighthouse` it also answers the public `/api/v1/guest/*` endpoints
- *    from fixtures so Lighthouse can audit real pages without the backend.
+ *  - in `--mode lighthouse` it also answers `/api/v1/guest/*`, the passport endpoints and
+ *    `/user/me` from fixtures (demo login: any email/password) so Lighthouse and manual checks
+ *    can exercise real pages without the Go backend.
  *
  * Never part of the production bundle — it only hooks `configurePreviewServer`.
  */
@@ -24,6 +25,8 @@ const MIME: Record<string, string> = {
 }
 
 const fixturesDir = path.resolve(import.meta.dirname, 'fixtures')
+/** Unsigned demo JWT (exp 2100-01-01) — mock mode only, never accepted by the real backend. */
+const MOCK_TOKEN = `eyJhbGciOiJub25lIn0.${Buffer.from(JSON.stringify({ sub: 1, exp: 4102444800 })).toString('base64url')}.mock`
 
 function sendJson(res: ServerResponse, status: number, body: unknown) {
   res.statusCode = status
@@ -42,6 +45,20 @@ function mockApi(req: IncomingMessage, res: ServerResponse): boolean {
       return true
     case '/api/v1/guest/plans':
       sendJson(res, 200, { data: fixture('guest-plans.json') })
+      return true
+    case '/api/v1/passport/login':
+    case '/api/v1/passport/register':
+      sendJson(res, 200, { data: { token: MOCK_TOKEN, user: fixture('user.json') } })
+      return true
+    case '/api/v1/user/logout':
+    case '/api/v1/passport/email/send-code':
+    case '/api/v1/passport/forgot':
+      sendJson(res, 200, { data: true })
+      return true
+    case '/api/v1/user/me':
+      if (req.headers.authorization === `Bearer ${MOCK_TOKEN}`)
+        sendJson(res, 200, { data: fixture('user.json') })
+      else sendJson(res, 401, { code: 'unauthorized', message: 'mock backend: not signed in' })
       return true
     default:
       sendJson(res, 401, { code: 'unauthorized', message: 'mock backend: not signed in' })

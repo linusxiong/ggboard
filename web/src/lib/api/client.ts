@@ -74,7 +74,7 @@ export function buildQuery(query?: QueryParams | object): string {
   const params = new URLSearchParams()
   for (const [key, raw] of Object.entries(query as Record<string, unknown>)) {
     if (raw === undefined || raw === null || raw === '') continue
-    const value = Array.isArray(raw) ? raw.join(',') : String(raw)
+    const value = Array.isArray(raw) ? raw.join(',') : typeof raw === 'string' ? raw : JSON.stringify(raw)
     if (value === '') continue
     params.append(key, value)
   }
@@ -124,7 +124,8 @@ async function send(method: HttpMethod, path: string, opts: RequestOptions = {})
       credentials: 'same-origin',
     })
   } catch (err) {
-    const name = err instanceof Error ? err.name : ''
+    // DOMException is not `instanceof Error` in every runtime; read `name` structurally.
+    const name = typeof err === 'object' && err !== null && 'name' in err ? String(err.name) : ''
     if (name === 'TimeoutError') throw new ApiError(0, { code: 'timeout', message: 'Request timed out' })
     if (name === 'AbortError') throw new ApiError(0, { code: 'aborted', message: 'Request aborted' })
     throw new ApiError(0, { code: 'network', message: err instanceof Error ? err.message : 'Network error' })
@@ -142,7 +143,10 @@ async function send(method: HttpMethod, path: string, opts: RequestOptions = {})
 }
 
 async function toApiError(res: Response): Promise<ApiError> {
-  const fallback: ErrorBody = { code: statusToCode(res.status), message: res.statusText || `HTTP ${res.status}` }
+  const fallback: ErrorBody = {
+    code: statusToCode(res.status),
+    message: res.statusText || `HTTP ${res.status}`,
+  }
   try {
     const text = await res.text()
     if (!text) return new ApiError(res.status, fallback)
@@ -209,7 +213,10 @@ export async function requestPage<T>(path: string, opts?: RequestOptions): Promi
 
 /** Raw text body (e.g. `text/plain` subscription preview, `text/csv` exports). */
 export async function requestText(method: HttpMethod, path: string, opts?: RequestOptions): Promise<string> {
-  const res = await send(method, path, { ...opts, headers: { Accept: 'text/plain, text/csv, */*', ...opts?.headers } })
+  const res = await send(method, path, {
+    ...opts,
+    headers: { Accept: 'text/plain, text/csv, */*', ...opts?.headers },
+  })
   return res.text()
 }
 
@@ -225,8 +232,10 @@ export const api = {
     request<T>('GET', path, { ...opts, query }),
   list: <T>(path: string, query?: RequestOptions['query'], opts?: RequestOptions) =>
     requestPage<T>(path, { ...opts, query }),
-  post: <T>(path: string, body?: unknown, opts?: RequestOptions) => request<T>('POST', path, { ...opts, body }),
+  post: <T>(path: string, body?: unknown, opts?: RequestOptions) =>
+    request<T>('POST', path, { ...opts, body }),
   put: <T>(path: string, body?: unknown, opts?: RequestOptions) => request<T>('PUT', path, { ...opts, body }),
-  patch: <T>(path: string, body?: unknown, opts?: RequestOptions) => request<T>('PATCH', path, { ...opts, body }),
+  patch: <T>(path: string, body?: unknown, opts?: RequestOptions) =>
+    request<T>('PATCH', path, { ...opts, body }),
   delete: <T = true>(path: string, opts?: RequestOptions) => request<T>('DELETE', path, opts),
 }

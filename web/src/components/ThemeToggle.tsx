@@ -16,7 +16,15 @@ export function ThemeToggle({ className }: { className?: string }) {
   const Icon = ICONS[theme]
   const label = t('theme.toggle', { mode: t(`theme.${theme}`) })
   return (
-    <NativeButton iconOnly variant="ghost" size="sm" aria-label={label} title={label} onClick={cycleTheme} className={className}>
+    <NativeButton
+      iconOnly
+      variant="ghost"
+      size="sm"
+      aria-label={label}
+      title={label}
+      onClick={cycleTheme}
+      className={className}
+    >
       <Icon className="size-[18px]" aria-hidden="true" />
     </NativeButton>
   )

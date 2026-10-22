@@ -1,4 +1,10 @@
-import { createColumnHelper, rowPaginationFeature, rowSortingFeature, tableFeatures } from '@tanstack/react-table'
+import {
+  createColumnHelper,
+  metaHelper,
+  rowPaginationFeature,
+  rowSortingFeature,
+  tableFeatures,
+} from '@tanstack/react-table'
 import type { ColumnDef, RowData } from '@tanstack/react-table'
 import type { ReactNode } from 'react'
 
@@ -25,7 +31,7 @@ export interface DataTableColumnMeta {
 export const dataTableFeatures = tableFeatures({
   rowSortingFeature,
   rowPaginationFeature,
-  columnMeta: {} as DataTableColumnMeta,
+  columnMeta: metaHelper<DataTableColumnMeta>(),
 })
 
 export type DataTableFeatures = typeof dataTableFeatures

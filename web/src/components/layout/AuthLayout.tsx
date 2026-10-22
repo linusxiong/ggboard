@@ -22,7 +22,10 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-[10px] focus:bg-elevated focus:px-3 focus:py-2">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-[10px] focus:bg-elevated focus:px-3 focus:py-2"
+      >
         {t('a11y.skipToContent')}
       </a>
       <header className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-4 sm:px-6">
@@ -34,7 +37,10 @@ export function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProp
           <ThemeToggle />
         </div>
       </header>
-      <main id="main" className="flex flex-1 items-start justify-center px-4 pt-[6vh] pb-16 sm:items-center sm:pt-0">
+      <main
+        id="main"
+        className="flex flex-1 items-start justify-center px-4 pt-[6vh] pb-16 sm:items-center sm:pt-0"
+      >
         <div className="w-full max-w-[420px]">
           <div className="surface-card px-6 py-8 sm:px-8">
             <div className="mb-6 text-center">

@@ -96,10 +96,18 @@ export const qk = { guest: guestKeys, user: userKeys, admin: adminKeys }
 // ---------------------------------------------------------------- guest
 
 export const guestConfigQuery = () =>
-  queryOptions({ queryKey: guestConfigKey(), queryFn: ({ signal }) => guestApi.config(signal), staleTime: 10 * MINUTE })
+  queryOptions({
+    queryKey: guestConfigKey(),
+    queryFn: ({ signal }) => guestApi.config(signal),
+    staleTime: 10 * MINUTE,
+  })
 
 export const guestPlansQuery = () =>
-  queryOptions({ queryKey: guestPlansKey(), queryFn: ({ signal }) => guestApi.plans(signal), staleTime: 5 * MINUTE })
+  queryOptions({
+    queryKey: guestPlansKey(),
+    queryFn: ({ signal }) => guestApi.plans(signal),
+    staleTime: 5 * MINUTE,
+  })
 
 export const guestCatalogQuery = () =>
   queryOptions({
@@ -140,7 +148,11 @@ export const userCatalogQuery = () =>
   })
 
 export const userPlansQuery = () =>
-  queryOptions({ queryKey: userKeys.plans(), queryFn: ({ signal }) => userApi.plans(signal), staleTime: 5 * MINUTE })
+  queryOptions({
+    queryKey: userKeys.plans(),
+    queryFn: ({ signal }) => userApi.plans(signal),
+    staleTime: 5 * MINUTE,
+  })
 
 export const userPlanQuery = (id: ID) =>
   queryOptions({ queryKey: userKeys.plan(id), queryFn: ({ signal }) => userApi.plan(id, signal) })
@@ -190,7 +202,10 @@ export const noticesQuery = (q: ListQuery = {}) =>
   })
 
 export const knowledgeIndexQuery = (q: { language?: string; keyword?: string } = {}) =>
-  queryOptions({ queryKey: userKeys.knowledge(q), queryFn: ({ signal }) => userApi.knowledgeIndex(q, signal) })
+  queryOptions({
+    queryKey: userKeys.knowledge(q),
+    queryFn: ({ signal }) => userApi.knowledgeIndex(q, signal),
+  })
 
 export const knowledgeQuery = (id: ID) =>
   queryOptions({ queryKey: userKeys.article(id), queryFn: ({ signal }) => userApi.knowledge(id, signal) })

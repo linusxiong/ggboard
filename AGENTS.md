@@ -28,7 +28,10 @@ GG Bond（猪猪侠谐音）是一个 **简洁、美观、高性能** 的代理�
 12. 大量并行 agent 协作完成；子 agent 全部使用 **Opus，xhigh** 推理强度。
 13. 设计全部遵循 **Apple Human Interface Guidelines** 的设计与颜色规范。
 14. 所有犯过的错误写入 **`MISTAKES.md`（错题本）**，避免重犯。
-15. 开源项目（GPL-3.0），可以 commit / push 到 GitHub；**绝不提交任何个人信息、密钥、服务器地址**，
+15. 登录安全：支持 **2FA（TOTP，备用码）** 与 **Passkey（WebAuthn，可无用户名登录、多设备管理）**。
+    用 Go 标准实现：`github.com/pquerna/otp` 与 `github.com/go-webauthn/webauthn`；前端 `@simplewebauthn/browser`。
+    不引入 better-auth 之类的 Node 认证框架（后端是单个 Go 二进制）。
+16. 开源项目（GPL-3.0），可以 commit / push 到 GitHub；**绝不提交任何个人信息、密钥、服务器地址**，
     `.gitignore` 必须配置好。
 
 ---

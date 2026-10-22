@@ -76,7 +76,7 @@ function RegisterPage() {
     )
   }
 
-  const onSubmit = form.handleSubmit(async (values) => {
+  const submit = async (values: typeof form.values) => {
     setFormError(undefined)
     if (captchaEnabled && !captchaToken) {
       setFormError(t('captcha.required'))
@@ -93,11 +93,12 @@ function RegisterPage() {
       finish(result, t('messages.registerSuccess'))
     } catch (error) {
       const { fields, message } = splitAuthError(error)
-      for (const [name, msg] of Object.entries(fields)) if (name in values) form.setError(name as 'email', msg)
+      for (const [name, msg] of Object.entries(fields))
+        if (name in values) form.setError(name as 'email', msg)
       setFormError(message)
       captchaRef.current?.reset()
     }
-  })
+  }
 
   /** Validates the email field before sending a code; returns it when valid. */
   const emailForCode = () => (form.validateField('email') ? undefined : form.values.email.trim())
@@ -119,7 +120,7 @@ function RegisterPage() {
         </>
       }
     >
-      <form noValidate className="flex flex-col gap-4" onSubmit={(e) => void onSubmit(e)}>
+      <form noValidate className="flex flex-col gap-4" onSubmit={(e) => void form.handleSubmit(submit)(e)}>
         <FormError message={formError} />
         <NativeField
           {...form.field('email')}
@@ -128,11 +129,18 @@ function RegisterPage() {
           inputMode="email"
           autoComplete="email"
           placeholder={t('fields.emailPlaceholder')}
-          description={whitelist.length > 0 ? t('register.whitelist', { suffixes: whitelist.join(', ') }) : undefined}
+          description={
+            whitelist.length > 0 ? t('register.whitelist', { suffixes: whitelist.join(', ') }) : undefined
+          }
           required
         />
         {captchaEnabled && captcha ? (
-          <LazyCaptcha ref={captchaRef} provider={captcha.provider} siteKey={captcha.site_key} onToken={setCaptchaToken} />
+          <LazyCaptcha
+            ref={captchaRef}
+            provider={captcha.provider}
+            siteKey={captcha.site_key}
+            onToken={setCaptchaToken}
+          />
         ) : null}
         {emailVerify ? (
           <NativeField
@@ -172,7 +180,12 @@ function RegisterPage() {
         {config?.tos_url ? (
           <p className="text-center text-footnote text-label-secondary">
             {t('register.agree')}{' '}
-            <a href={config.tos_url} target="_blank" rel="noopener noreferrer" className="text-label-blue hover:underline">
+            <a
+              href={config.tos_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-label-blue hover:underline"
+            >
               {t('register.tos')}
             </a>
           </p>

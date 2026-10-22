@@ -16,7 +16,14 @@ export function Logo({ size = 28, withText = false, text = 'GG Bond', className 
   const gradient = useId()
   return (
     <span className={cx('inline-flex items-center gap-2', className)}>
-      <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" focusable="false" className="shrink-0">
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 64 64"
+        aria-hidden="true"
+        focusable="false"
+        className="shrink-0"
+      >
         <defs>
           <linearGradient id={gradient} x1="0" y1="0" x2="1" y2="1">
             <stop offset="0" stopColor="#0A84FF" />
@@ -28,7 +35,11 @@ export function Logo({ size = 28, withText = false, text = 'GG Bond', className 
         <ellipse cx="25" cy="34" rx="4" ry="5.5" fill="#0A84FF" />
         <ellipse cx="39" cy="34" rx="4" ry="5.5" fill="#5E5CE6" />
       </svg>
-      {withText ? <span className="text-headline tracking-tight text-label">{text}</span> : <span className="sr-only">{text}</span>}
+      {withText ? (
+        <span className="text-headline tracking-tight text-label">{text}</span>
+      ) : (
+        <span className="sr-only">{text}</span>
+      )}
     </span>
   )
 }

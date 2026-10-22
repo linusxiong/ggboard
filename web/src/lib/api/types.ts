@@ -182,15 +182,7 @@ export type PlanInput = Partial<Omit<Plan, 'id' | 'created_at' | 'updated_at'>>
 // ---------------------------------------------------------------- nodes
 
 export type NodeType =
-  | 'vmess'
-  | 'vless'
-  | 'shadowsocks'
-  | 'shadowsocksr'
-  | 'trojan'
-  | 'hysteria'
-  | 'anytls'
-  | 'mieru'
-  | 'tuic'
+  'vmess' | 'vless' | 'shadowsocks' | 'shadowsocksr' | 'trojan' | 'hysteria' | 'anytls' | 'mieru' | 'tuic'
 export const NODE_TYPES: readonly NodeType[] = [
   'vmess',
   'vless',

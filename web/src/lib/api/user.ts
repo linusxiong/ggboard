@@ -71,7 +71,8 @@ export const logout = () => api.post<true>('/user/logout')
 // ---------------------------------------------------------------- rule profile
 
 /** `GET /user/rule-profile` (defaults if none). */
-export const ruleProfile = (signal?: AbortSignal) => api.get<RuleProfile>('/user/rule-profile', undefined, { signal })
+export const ruleProfile = (signal?: AbortSignal) =>
+  api.get<RuleProfile>('/user/rule-profile', undefined, { signal })
 
 /** `PUT /user/rule-profile` */
 export const saveRuleProfile = (profile: RuleProfile) => api.put<RuleProfile>('/user/rule-profile', profile)
@@ -86,7 +87,8 @@ export const rulesetCatalog = (signal?: AbortSignal) =>
 export const plans = (signal?: AbortSignal) => api.get<Plan[]>('/user/plans', undefined, { signal })
 
 /** `GET /user/plans/:id` */
-export const plan = (id: ID, signal?: AbortSignal) => api.get<Plan>(`/user/plans/${id}`, undefined, { signal })
+export const plan = (id: ID, signal?: AbortSignal) =>
+  api.get<Plan>(`/user/plans/${id}`, undefined, { signal })
 
 /** `GET /user/payment-methods` */
 export const paymentMethods = (signal?: AbortSignal) =>
@@ -155,10 +157,12 @@ export const createTicket = (input: { subject: string; level: TicketLevel; messa
   api.post<Ticket>('/user/tickets', input)
 
 /** `GET /user/tickets/:id` (with messages). */
-export const ticket = (id: ID, signal?: AbortSignal) => api.get<Ticket>(`/user/tickets/${id}`, undefined, { signal })
+export const ticket = (id: ID, signal?: AbortSignal) =>
+  api.get<Ticket>(`/user/tickets/${id}`, undefined, { signal })
 
 /** `POST /user/tickets/:id/reply` */
-export const replyTicket = (id: ID, message: string) => api.post<Ticket>(`/user/tickets/${id}/reply`, { message })
+export const replyTicket = (id: ID, message: string) =>
+  api.post<Ticket>(`/user/tickets/${id}/reply`, { message })
 
 /** `POST /user/tickets/:id/close` */
 export const closeTicket = (id: ID) => api.post<true>(`/user/tickets/${id}/close`)

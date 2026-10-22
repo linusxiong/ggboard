@@ -8,8 +8,7 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { type ButtonClassOptions, buttonClass } from '@/lib/button'
 
 export interface NativeButtonProps
-  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'>,
-    Omit<ButtonClassOptions, 'className'> {
+  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'>, Omit<ButtonClassOptions, 'className'> {
   className?: string
   /** Shows a spinner and blocks presses (like HeroUI `isPending`). */
   pending?: boolean

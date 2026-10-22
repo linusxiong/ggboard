@@ -71,14 +71,16 @@ const combined = new Map<string, Promise<void>>()
  * Loads several namespaces. The returned promise is cached per (locale, list) so it is stable
  * across renders (required by React `use`).
  */
-export function loadNamespaces(namespaces: readonly string[], locale: Locale = currentLocale()): Promise<void> {
+export function loadNamespaces(
+  namespaces: readonly string[],
+  locale: Locale = currentLocale(),
+): Promise<void> {
   const key = `${locale}:${namespaces.join(',')}`
   const cached = combined.get(key)
   if (cached) return cached
+  // Kept after success on purpose: React may re-read the same thenable when retrying a render.
   const promise = Promise.all(namespaces.map((ns) => loadNamespace(ns, locale))).then(
-    () => {
-      combined.delete(key)
-    },
+    () => undefined,
     (error: unknown) => {
       combined.delete(key)
       throw error
@@ -169,11 +171,38 @@ export function useT(namespaces: string | readonly string[]): TFunction {
   const locale = useLocale()
   const list = typeof namespaces === 'string' ? [namespaces] : namespaces
   const missing = list.filter((ns) => !dicts.has(id(locale, ns)))
-  if (missing.length > 0) use(loadNamespaces(missing, locale))
+  // Always call `use` (React requires the same call after a suspension resolves): an already
+  // fulfilled thenable returns synchronously, a pending one suspends until the JSON arrives.
+  use((missing.length > 0 ? trackStatus(loadNamespaces(missing, locale)) : READY) as Promise<void>)
   const primary = list[0] ?? 'common'
   const key = list.join('|')
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` captures the namespace list
   return useMemo<TFunction>(() => (k, params) => t(primary, k, params, locale), [primary, locale, key])
+}
+
+type Tracked = Promise<void> & {
+  status?: 'pending' | 'fulfilled' | 'rejected'
+  value?: void
+  reason?: unknown
+}
+
+/** A settled-and-marked thenable: React's `use` reads `status` and returns without suspending. */
+const READY: Tracked = Object.assign(Promise.resolve(), { status: 'fulfilled' as const, value: undefined })
+
+function trackStatus(promise: Tracked): Tracked {
+  if (!promise.status) {
+    promise.status = 'pending'
+    promise.then(
+      () => {
+        promise.status = 'fulfilled'
+      },
+      (reason: unknown) => {
+        promise.status = 'rejected'
+        promise.reason = reason
+      },
+    )
+  }
+  return promise
 }
 
 /** Keeps `<html lang>` in sync with the store. Call once at startup. */

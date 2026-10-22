@@ -16,5 +16,6 @@ export const Route = createFileRoute('/_admin')({
 })
 
 function AdminLayout() {
-  return <AppShell area="admin" items={ADMIN_NAV} />
+  const { queryClient } = Route.useRouteContext()
+  return <AppShell area="admin" items={ADMIN_NAV} queryClient={queryClient} />
 }

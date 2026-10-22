@@ -34,7 +34,11 @@ export class ErrorBoundary extends Component<Props, State> {
       <main className="flex min-h-dvh flex-col items-center justify-center gap-3 px-6 text-center">
         <h1 className="text-title2 text-label">出错了 · Something went wrong</h1>
         <p className="max-w-md text-subhead text-label-secondary">{error.message}</p>
-        <button type="button" className="button button--primary button--md" onClick={() => window.location.reload()}>
+        <button
+          type="button"
+          className="button button--primary button--md"
+          onClick={() => window.location.reload()}
+        >
           重新加载 · Reload
         </button>
       </main>

@@ -4,12 +4,12 @@
  * by the route generator (`-` prefix).
  */
 import { Link } from '@tanstack/react-router'
-import type { ReactNode } from 'react'
+import { type ReactNode, use } from 'react'
 import { Money } from '@/components/Formatters'
 import { Check, MonitorSmartphone, Route as RouteIcon, ShieldCheck } from './icons'
 import { BlurText, SpotlightCard, WhenIdle } from '@/components/reactbits'
 import { useT } from '@/i18n'
-import { getGuestPlans, usePromise } from '@/lib/publicData'
+import { guestPlansResource } from '@/lib/publicData'
 import { PLAN_PERIODS, type Plan, type PlanPeriod } from '@/lib/api/types'
 import { buttonClass } from '@/lib/button'
 import { useResolvedTheme } from '@/lib/theme'
@@ -47,7 +47,10 @@ function Features() {
         {FEATURES.map(({ key, icon: Icon, tint }) => {
           const body = (
             <>
-              <span className={`mb-4 flex size-10 items-center justify-center rounded-[12px] text-white ${tint}`} aria-hidden="true">
+              <span
+                className={`mb-4 flex size-10 items-center justify-center rounded-[12px] text-white ${tint}`}
+                aria-hidden="true"
+              >
                 <Icon className="size-5" />
               </span>
               <h3 className="text-headline text-label">{t(`features.items.${key}.title`)}</h3>
@@ -56,7 +59,11 @@ function Features() {
           )
           return (
             <li key={key}>
-              <WhenIdle fallback={<div className="surface-card relative isolate h-full overflow-hidden p-6">{body}</div>}>
+              <WhenIdle
+                fallback={
+                  <div className="surface-card relative isolate h-full overflow-hidden p-6">{body}</div>
+                }
+              >
                 <SpotlightCard theme={theme} className="surface-card h-full !rounded-card !p-6">
                   {body}
                 </SpotlightCard>
@@ -79,8 +86,9 @@ function firstPrice(plan: Plan): { period: PlanPeriod; cents: number } | null {
 
 function Plans({ signedIn, currency, symbol }: SectionsProps) {
   const t = useT('landing')
-  const { data: plans, pending: isPending, error } = usePromise(getGuestPlans)
-  const isError = Boolean(error)
+  // Suspends (with the section's chunk) until plans arrive: a single reveal, no skeleton swap.
+  const plans = use(guestPlansResource())
+  const isError = plans === null
 
   return (
     <section id="plans" aria-labelledby="plans-title" className="scroll-mt-20 bg-elevated py-20">
@@ -88,7 +96,11 @@ function Plans({ signedIn, currency, symbol }: SectionsProps) {
         <h2 id="plans-title" className="text-center text-title1 text-label">
           {t('plans.title')}
         </h2>
-        <WhenIdle fallback={<p className="mt-2 text-center text-subhead text-label-secondary">{t('plans.subtitle')}</p>}>
+        <WhenIdle
+          fallback={
+            <p className="mt-2 text-center text-subhead text-label-secondary">{t('plans.subtitle')}</p>
+          }
+        >
           <BlurText
             text={t('plans.subtitle')}
             className="mt-2 justify-center text-center text-subhead text-label-secondary"
@@ -98,14 +110,10 @@ function Plans({ signedIn, currency, symbol }: SectionsProps) {
         </WhenIdle>
 
         <div className="mt-10 min-h-[320px]">
-          {isPending ? (
-            <ul className="grid gap-4 md:grid-cols-3" aria-hidden="true">
-              {[0, 1, 2].map((i) => (
-                <li key={i} className="h-[320px] animate-pulse rounded-card bg-fill-quaternary" />
-              ))}
-            </ul>
-          ) : isError || !plans || plans.length === 0 ? (
-            <p className="py-16 text-center text-subhead text-label-secondary">{isError ? t('plans.error') : t('plans.empty')}</p>
+          {isError || plans.length === 0 ? (
+            <p className="py-16 text-center text-subhead text-label-secondary">
+              {isError ? t('plans.error') : t('plans.empty')}
+            </p>
           ) : (
             <ul className="grid gap-4 md:grid-cols-3">
               {plans.map((plan) => {
@@ -129,16 +137,26 @@ function Plans({ signedIn, currency, symbol }: SectionsProps) {
                           trimZeros
                           className="text-large-title text-label"
                         />
-                        <span className="text-subhead text-label-secondary">/ {t(`periodUnit.${price.period}`)}</span>
+                        <span className="text-subhead text-label-secondary">
+                          / {t(`periodUnit.${price.period}`)}
+                        </span>
                       </p>
                     ) : null}
-                    {plan.content ? <p className="mt-3 text-subhead text-label-secondary">{plan.content}</p> : null}
+                    {plan.content ? (
+                      <p className="mt-3 text-subhead text-label-secondary">{plan.content}</p>
+                    ) : null}
                     <ul className="mt-5 flex flex-1 flex-col gap-2 text-subhead text-label">
                       <Feature>{t('plans.traffic', { gb: plan.transfer_enable })}</Feature>
                       <Feature>
-                        {plan.device_limit ? t('plans.devices', { count: plan.device_limit }) : t('plans.unlimitedDevices')}
+                        {plan.device_limit
+                          ? t('plans.devices', { count: plan.device_limit })
+                          : t('plans.unlimitedDevices')}
                       </Feature>
-                      <Feature>{plan.speed_limit ? t('plans.speed', { mbps: plan.speed_limit }) : t('plans.unlimitedSpeed')}</Feature>
+                      <Feature>
+                        {plan.speed_limit
+                          ? t('plans.speed', { mbps: plan.speed_limit })
+                          : t('plans.unlimitedSpeed')}
+                      </Feature>
                     </ul>
                     <Link
                       to={signedIn ? '/shop' : '/register'}
@@ -166,4 +184,3 @@ function Feature({ children }: { children: ReactNode }) {
     </li>
   )
 }
-

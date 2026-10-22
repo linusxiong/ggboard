@@ -19,7 +19,12 @@ interface GuardArgs {
 
 /** Only same-origin absolute paths are accepted as post-login targets (no open redirects). */
 export function safeRedirect(target: unknown, fallback = '/dashboard'): string {
-  if (typeof target !== 'string' || !target.startsWith('/') || target.startsWith('//') || target.startsWith('/\\'))
+  if (
+    typeof target !== 'string' ||
+    !target.startsWith('/') ||
+    target.startsWith('//') ||
+    target.startsWith('/\\')
+  )
     return fallback
   return target
 }
@@ -67,7 +72,10 @@ export async function requireAdmin(args: GuardArgs) {
  * Layout `beforeLoad` helper: runs `guard`, then returns `{ queryClient }` so every child route
  * gets `context.queryClient` (typed) for its loaders.
  */
-export async function withQueryClient<A extends GuardArgs>(args: A, guard: (args: A) => void | Promise<void>) {
+export async function withQueryClient<A extends GuardArgs>(
+  args: A,
+  guard: (args: A) => void | Promise<void>,
+) {
   requireAuth(args)
   const { queryClient } = await import('@/lib/queryClient')
   await guard({ ...args, context: { ...args.context, queryClient } })
@@ -75,7 +83,11 @@ export async function withQueryClient<A extends GuardArgs>(args: A, guard: (args
 }
 
 /** For login/register/forgot: signed-in users go straight to their home (or `?redirect=`). */
-export function redirectIfAuthenticated({ search }: { search: { redirect?: string | undefined; token?: string | undefined } }) {
+export function redirectIfAuthenticated({
+  search,
+}: {
+  search: { redirect?: string | undefined; token?: string | undefined }
+}) {
   const { token, user } = useAuthStore.getState()
   if (token && !search.token) throw redirect({ to: safeRedirect(search.redirect, homeFor(user)) })
 }

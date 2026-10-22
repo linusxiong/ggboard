@@ -3,10 +3,12 @@ import { api } from './client'
 import type { AuthResult, ForgotInput, LoginInput, RegisterInput, SendCodeInput } from './types'
 
 /** `POST /passport/register` → `{token, user}`. 403 when `stop_register`. */
-export const register = (input: RegisterInput) => api.post<AuthResult>('/passport/register', input, { anonymous: true })
+export const register = (input: RegisterInput) =>
+  api.post<AuthResult>('/passport/register', input, { anonymous: true })
 
 /** `POST /passport/login` → `{token, user}`. */
-export const login = (input: LoginInput) => api.post<AuthResult>('/passport/login', input, { anonymous: true })
+export const login = (input: LoginInput) =>
+  api.post<AuthResult>('/passport/login', input, { anonymous: true })
 
 /** `POST /passport/forgot` → `true`. */
 export const forgot = (input: ForgotInput) => api.post<true>('/passport/forgot', input, { anonymous: true })

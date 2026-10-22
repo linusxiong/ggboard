@@ -7,7 +7,10 @@ import { t } from '@/i18n'
  */
 export function errorMessage(error: unknown): string {
   if (isApiError(error)) {
-    if ((error.code === 'validation_failed' || error.code === 'conflict' || error.code === 'forbidden') && error.message)
+    if (
+      (error.code === 'validation_failed' || error.code === 'conflict' || error.code === 'forbidden') &&
+      error.message
+    )
       return error.message
     const key = `errors.${error.code}`
     const text = t('core', key)

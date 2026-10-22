@@ -2,31 +2,8 @@ import { Button } from '@heroui/react'
 import { Check, Copy } from 'lucide-react'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useT } from '@/i18n'
+import { copyText } from '@/lib/clipboard'
 import { toast } from '@/lib/toast'
-
-export async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text)
-    return true
-  } catch {
-    // Fallback for insecure contexts / older WebViews.
-    const el = document.createElement('textarea')
-    el.value = text
-    el.setAttribute('readonly', '')
-    el.style.position = 'fixed'
-    el.style.opacity = '0'
-    document.body.appendChild(el)
-    el.select()
-    let ok = false
-    try {
-      ok = document.execCommand('copy')
-    } catch {
-      ok = false
-    }
-    el.remove()
-    return ok
-  }
-}
 
 interface CopyButtonProps {
   value: string
@@ -39,7 +16,14 @@ interface CopyButtonProps {
   notify?: boolean
 }
 
-export function CopyButton({ value, children, size = 'sm', variant = 'secondary', className, notify = true }: CopyButtonProps) {
+export function CopyButton({
+  value,
+  children,
+  size = 'sm',
+  variant = 'secondary',
+  className,
+  notify = true,
+}: CopyButtonProps) {
   const t = useT('common')
   const [copied, setCopied] = useState(false)
   const timer = useRef<number | undefined>(undefined)

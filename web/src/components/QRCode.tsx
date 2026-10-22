@@ -24,7 +24,12 @@ export function QRCode({ value, size = 192, label, className }: QRCodeProps) {
     let alive = true
     import('qrcode')
       .then((mod) =>
-        mod.toString(value, { type: 'svg', margin: 2, errorCorrectionLevel: 'M', color: { dark: '#000000', light: '#ffffff' } }),
+        mod.toString(value, {
+          type: 'svg',
+          margin: 2,
+          errorCorrectionLevel: 'M',
+          color: { dark: '#000000', light: '#ffffff' },
+        }),
       )
       .then((markup) => {
         if (alive) {

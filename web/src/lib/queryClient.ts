@@ -1,7 +1,8 @@
 /**
- * The app's QueryClient. Loaded lazily by the authenticated layouts (`_user`, `_admin`), which
- * put it into the router context (`context.queryClient` in every child loader) and provide it
- * to React (`QueryClientProvider` in `AppShell`). Public pages never pay for React Query.
+ * The app's QueryClient. Only ever imported dynamically (`withQueryClient` in the `_user` /
+ * `_admin` layouts' `beforeLoad`), which puts it into the router context — `context.queryClient`
+ * in every child loader, `Route.useRouteContext()` in the layout → `QueryClientProvider` in
+ * `AppShell`. Public pages never pay for React Query.
  */
 import { QueryClient } from '@tanstack/react-query'
 import { isApiError } from '@/lib/api/client'
@@ -22,6 +23,3 @@ export function createQueryClient() {
 }
 
 export const queryClient = createQueryClient()
-
-/** For `beforeLoad`: `const { queryClient } = await loadQueryClient()`. */
-export const loadQueryClient = () => import('@/lib/queryClient')

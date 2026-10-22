@@ -14,7 +14,13 @@ export interface ButtonClassOptions {
   className?: string
 }
 
-export function buttonClass({ variant = 'primary', size = 'md', fullWidth, iconOnly, className }: ButtonClassOptions = {}) {
+export function buttonClass({
+  variant = 'primary',
+  size = 'md',
+  fullWidth,
+  iconOnly,
+  className,
+}: ButtonClassOptions = {}) {
   return cx(
     'button',
     `button--${variant}`,

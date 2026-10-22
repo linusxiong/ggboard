@@ -25,6 +25,8 @@ if (!window.matchMedia) {
   })
 }
 
+window.scrollTo = vi.fn()
+
 class IO {
   observe() {}
   unobserve() {}

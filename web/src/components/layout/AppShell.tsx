@@ -5,7 +5,7 @@
  * Renders `<main id="main">` with the route `<Outlet/>` inside a Suspense boundary.
  */
 import { Avatar, Button, Dropdown, Header, Label, Separator } from '@heroui/react'
-import { QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query'
+import { type QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Outlet, useNavigate } from '@tanstack/react-router'
 import { Ellipsis, LogOut, PanelLeftClose, PanelLeftOpen, Shield, UserRound } from 'lucide-react'
 import { Suspense, useEffect } from 'react'
@@ -17,7 +17,6 @@ import { Logo } from '@/components/Logo'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useT } from '@/i18n'
 import { meQuery } from '@/lib/api/queries'
-import { queryClient } from '@/lib/queryClient'
 import * as userApi from '@/lib/api/user'
 import { cx } from '@/lib/cn'
 import { toast } from '@/lib/toast'
@@ -28,9 +27,11 @@ import type { NavItem } from './nav'
 interface AppShellProps {
   area: 'user' | 'admin'
   items: readonly NavItem[]
+  /** From the layout's router context (`withQueryClient` loads React Query lazily). */
+  queryClient: QueryClient
 }
 
-export function AppShell(props: AppShellProps) {
+export function AppShell({ queryClient, ...props }: AppShellProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <AriaProviders>
@@ -40,7 +41,7 @@ export function AppShell(props: AppShellProps) {
   )
 }
 
-function Shell({ area, items }: AppShellProps) {
+function Shell({ area, items }: Omit<AppShellProps, 'queryClient'>) {
   const t = useT(['nav', 'common', 'core'])
   const user = useAuthStore((s) => s.user)
   const token = useAuthStore((s) => s.token)
@@ -99,8 +100,14 @@ function Shell({ area, items }: AppShellProps) {
               )}
               title={collapsed ? (area === 'admin' ? t('userPanel') : t('adminPanel')) : undefined}
             >
-              {area === 'admin' ? <UserRound className="size-4" aria-hidden="true" /> : <Shield className="size-4" aria-hidden="true" />}
-              <span className={collapsed ? 'sr-only' : undefined}>{area === 'admin' ? t('userPanel') : t('adminPanel')}</span>
+              {area === 'admin' ? (
+                <UserRound className="size-4" aria-hidden="true" />
+              ) : (
+                <Shield className="size-4" aria-hidden="true" />
+              )}
+              <span className={collapsed ? 'sr-only' : undefined}>
+                {area === 'admin' ? t('userPanel') : t('adminPanel')}
+              </span>
             </Link>
           ) : (
             <span />
@@ -112,7 +119,11 @@ function Shell({ area, items }: AppShellProps) {
             aria-label={collapsed ? t('expandSidebar') : t('collapseSidebar')}
             onPress={toggleSidebar}
           >
-            {collapsed ? <PanelLeftOpen className="size-[18px]" aria-hidden="true" /> : <PanelLeftClose className="size-[18px]" aria-hidden="true" />}
+            {collapsed ? (
+              <PanelLeftOpen className="size-[18px]" aria-hidden="true" />
+            ) : (
+              <PanelLeftClose className="size-[18px]" aria-hidden="true" />
+            )}
           </Button>
         </div>
       </aside>
@@ -121,7 +132,10 @@ function Shell({ area, items }: AppShellProps) {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="glass glass-border-b sticky top-0 z-30 flex h-14 items-center justify-between gap-3 px-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-2">
-            <Link to={area === 'admin' ? '/admin/dashboard' : '/dashboard'} className="rounded-[10px] md:hidden">
+            <Link
+              to={area === 'admin' ? '/admin/dashboard' : '/dashboard'}
+              className="rounded-[10px] md:hidden"
+            >
               <Logo text={t('core:appName')} />
             </Link>
             <span className="truncate text-headline text-label">
@@ -135,7 +149,11 @@ function Shell({ area, items }: AppShellProps) {
           </div>
         </header>
 
-        <main id="main" tabIndex={-1} className="flex-1 px-4 pt-6 pb-28 outline-none sm:px-6 md:pb-12 lg:px-10">
+        <main
+          id="main"
+          tabIndex={-1}
+          className="flex-1 px-4 pt-6 pb-28 outline-none sm:px-6 md:pb-12 lg:px-10"
+        >
           <Suspense fallback={<LoadingPage />}>
             <Outlet />
           </Suspense>
@@ -158,14 +176,13 @@ function Shell({ area, items }: AppShellProps) {
               <Dropdown>
                 <Button
                   variant="ghost"
-                  className="h-auto w-full flex-col gap-0.5 rounded-none py-2 text-caption2 text-label-secondary"
-                  aria-label={t('common:actions.more')}
+                  className="h-auto w-full flex-col gap-0.5 rounded-none py-2 text-caption2 font-normal text-label-secondary"
                 >
                   <Ellipsis className="size-6" aria-hidden="true" />
-                  <span aria-hidden="true">{t('common:actions.more')}</span>
+                  <span>{t('more')}</span>
                 </Button>
                 <Dropdown.Popover placement="top end">
-                  <Dropdown.Menu aria-label={t('common:actions.more')}>
+                  <Dropdown.Menu aria-label={t('more')}>
                     {more.map((item) => (
                       <Dropdown.Item key={item.to} id={item.to} href={item.to} textValue={t(item.label)}>
                         <item.icon className="size-4 text-label-secondary" aria-hidden="true" />
@@ -266,7 +283,11 @@ function UserMenu({ area }: { area: 'user' | 'admin' }) {
               href={area === 'admin' ? '/dashboard' : '/admin/dashboard'}
               textValue={area === 'admin' ? t('userPanel') : t('adminPanel')}
             >
-              <Shield className="size-4 text-label-secondary" aria-hidden="true" />
+              {area === 'admin' ? (
+                <UserRound className="size-4 text-label-secondary" aria-hidden="true" />
+              ) : (
+                <Shield className="size-4 text-label-secondary" aria-hidden="true" />
+              )}
               <Label>{area === 'admin' ? t('userPanel') : t('adminPanel')}</Label>
             </Dropdown.Item>
           ) : null}

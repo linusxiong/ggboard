@@ -87,10 +87,12 @@ export const users = (query: AdminUserFilters = {}, signal?: AbortSignal) =>
 export const createUser = (input: AdminUserCreateInput) => api.post<AdminUser>('/admin/users', input)
 
 /** `GET /admin/users/:id` (+ stats). */
-export const user = (id: ID, signal?: AbortSignal) => api.get<AdminUserDetail>(`/admin/users/${id}`, undefined, o(signal))
+export const user = (id: ID, signal?: AbortSignal) =>
+  api.get<AdminUserDetail>(`/admin/users/${id}`, undefined, o(signal))
 
 /** `PATCH /admin/users/:id` */
-export const updateUser = (id: ID, input: AdminUserUpdateInput) => api.patch<AdminUser>(`/admin/users/${id}`, input)
+export const updateUser = (id: ID, input: AdminUserUpdateInput) =>
+  api.patch<AdminUser>(`/admin/users/${id}`, input)
 
 /** `DELETE /admin/users/:id` (cascades orders/tickets/stat_users). */
 export const deleteUser = (id: ID) => api.delete(`/admin/users/${id}`)
@@ -110,7 +112,8 @@ export const exportUsers = (filters: Omit<AdminUserFilters, keyof ListQuery> = {
   requestBlob('POST', '/admin/users/export', { body: filters })
 
 /** `POST /admin/users/mail` → `{queued}` */
-export const mailUsers = (input: AdminUserMailInput) => api.post<{ queued: number }>('/admin/users/mail', input)
+export const mailUsers = (input: AdminUserMailInput) =>
+  api.post<{ queued: number }>('/admin/users/mail', input)
 
 /** `POST /admin/users/:id/traffic-reset` */
 export const resetUserTraffic = (id: ID) => api.post<User>(`/admin/users/${id}/traffic-reset`)
@@ -122,7 +125,8 @@ export const plans = (signal?: AbortSignal) => api.get<AdminPlan[]>('/admin/plan
 /** `POST /admin/plans` */
 export const createPlan = (input: PlanInput) => api.post<Plan>('/admin/plans', input)
 /** `GET /admin/plans/:id` */
-export const plan = (id: ID, signal?: AbortSignal) => api.get<AdminPlan>(`/admin/plans/${id}`, undefined, o(signal))
+export const plan = (id: ID, signal?: AbortSignal) =>
+  api.get<AdminPlan>(`/admin/plans/${id}`, undefined, o(signal))
 /** `PATCH /admin/plans/:id` */
 export const updatePlan = (id: ID, input: PlanInput) => api.patch<Plan>(`/admin/plans/${id}`, input)
 /** `DELETE /admin/plans/:id` */
@@ -148,7 +152,8 @@ export const nodes = (signal?: AbortSignal) => api.get<Node[]>('/admin/nodes', u
 /** `POST /admin/nodes` */
 export const createNode = (input: NodeInput) => api.post<Node>('/admin/nodes', input)
 /** `GET /admin/nodes/:id` */
-export const node = (id: ID, signal?: AbortSignal) => api.get<Node>(`/admin/nodes/${id}`, undefined, o(signal))
+export const node = (id: ID, signal?: AbortSignal) =>
+  api.get<Node>(`/admin/nodes/${id}`, undefined, o(signal))
 /** `PATCH /admin/nodes/:id` */
 export const updateNode = (id: ID, input: NodeInput) => api.patch<Node>(`/admin/nodes/${id}`, input)
 /** `DELETE /admin/nodes/:id` */
@@ -182,7 +187,8 @@ export const deleteRoute = (id: ID) => api.delete(`/admin/routes/${id}`)
 export const orders = (query: AdminOrderFilters = {}, signal?: AbortSignal) =>
   api.list<AdminOrder>('/admin/orders', query, o(signal))
 /** `GET /admin/orders/:id` */
-export const order = (id: ID, signal?: AbortSignal) => api.get<AdminOrder>(`/admin/orders/${id}`, undefined, o(signal))
+export const order = (id: ID, signal?: AbortSignal) =>
+  api.get<AdminOrder>(`/admin/orders/${id}`, undefined, o(signal))
 /** `POST /admin/orders` — assign a pending order. */
 export const createOrder = (input: AdminOrderCreateInput) => api.post<Order>('/admin/orders', input)
 /** `POST /admin/orders/:id/paid` — manual confirm → fulfil. */
@@ -216,7 +222,8 @@ export const paymentGateways = (signal?: AbortSignal) =>
 /** `POST /admin/payments` → `Payment` + `notify_url` */
 export const createPayment = (input: PaymentInput) => api.post<Payment>('/admin/payments', input)
 /** `PATCH /admin/payments/:id` */
-export const updatePayment = (id: ID, input: Partial<PaymentInput>) => api.patch<Payment>(`/admin/payments/${id}`, input)
+export const updatePayment = (id: ID, input: Partial<PaymentInput>) =>
+  api.patch<Payment>(`/admin/payments/${id}`, input)
 /** `DELETE /admin/payments/:id` */
 export const deletePayment = (id: ID) => api.delete(`/admin/payments/${id}`)
 /** `POST /admin/payments/sort` */
@@ -228,9 +235,11 @@ export const sortPayments = (ids: ID[]) => api.post<true>('/admin/payments/sort'
 export const tickets = (query: AdminTicketFilters = {}, signal?: AbortSignal) =>
   api.list<AdminTicket>('/admin/tickets', query, o(signal))
 /** `GET /admin/tickets/:id` (with messages). */
-export const ticket = (id: ID, signal?: AbortSignal) => api.get<AdminTicket>(`/admin/tickets/${id}`, undefined, o(signal))
+export const ticket = (id: ID, signal?: AbortSignal) =>
+  api.get<AdminTicket>(`/admin/tickets/${id}`, undefined, o(signal))
 /** `POST /admin/tickets/:id/reply` */
-export const replyTicket = (id: ID, message: string) => api.post<Ticket>(`/admin/tickets/${id}/reply`, { message })
+export const replyTicket = (id: ID, message: string) =>
+  api.post<Ticket>(`/admin/tickets/${id}/reply`, { message })
 /** `POST /admin/tickets/:id/close` */
 export const closeTicket = (id: ID) => api.post<true>(`/admin/tickets/${id}/close`)
 
@@ -252,10 +261,13 @@ export const sortNotices = (ids: ID[]) => api.post<true>('/admin/notices/sort', 
 // ---------------------------------------------------------------- knowledge (staff)
 
 /** `GET /admin/knowledge` (no body). */
-export const knowledgeList = (query: ListQuery & { language?: string; category?: string } = {}, signal?: AbortSignal) =>
-  api.list<AdminKnowledge>('/admin/knowledge', query, o(signal))
+export const knowledgeList = (
+  query: ListQuery & { language?: string; category?: string } = {},
+  signal?: AbortSignal,
+) => api.list<AdminKnowledge>('/admin/knowledge', query, o(signal))
 /** `POST /admin/knowledge` */
-export const createKnowledge = (input: KnowledgeInput) => api.post<AdminKnowledgeDetail>('/admin/knowledge', input)
+export const createKnowledge = (input: KnowledgeInput) =>
+  api.post<AdminKnowledgeDetail>('/admin/knowledge', input)
 /** `GET /admin/knowledge/:id` */
 export const knowledge = (id: ID, signal?: AbortSignal) =>
   api.get<AdminKnowledgeDetail>(`/admin/knowledge/${id}`, undefined, o(signal))
@@ -277,7 +289,8 @@ export const saveSettings = (input: SettingsUpdate) => api.put<true>('/admin/set
 export const testMail = (email: string) => api.post<true>('/admin/settings/mail/test', { email })
 
 /** `GET /admin/rulesets` → `{builtin, custom}` */
-export const rulesets = (signal?: AbortSignal) => api.get<AdminRulesets>('/admin/rulesets', undefined, o(signal))
+export const rulesets = (signal?: AbortSignal) =>
+  api.get<AdminRulesets>('/admin/rulesets', undefined, o(signal))
 /** `PUT /admin/rulesets` — custom overrides merged over builtin. */
 export const saveRulesets = (custom: Partial<RulesetCatalog>) => api.put<true>('/admin/rulesets', { custom })
 
