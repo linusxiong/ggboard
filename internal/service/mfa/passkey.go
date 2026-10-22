@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"slices"
 	"strings"
@@ -36,14 +37,16 @@ type RelyingParty struct {
 
 // RPFromSettings derives the relying party: the id is passkey_rp_id or the host of app_url; the origins are the
 // app_url origin plus passkey_origins (https://<id> when neither gives one); the name is app_name. ok is false
-// when no id can be derived, i.e. passkeys are unavailable.
+// when no id can be derived (or it is an IP address), i.e. passkeys are unavailable.
 func RPFromSettings(st *settings.Service) (RelyingParty, bool) {
 	origin, host := parseOrigin(st.String("app_url"))
 	id := strings.ToLower(strings.TrimSpace(st.String("passkey_rp_id")))
 	if id == "" {
 		id = host
 	}
-	if id == "" {
+	// WebAuthn RP ids are domains: an IP address (app_url http://127.0.0.1:8080) can never register or use a
+	// passkey, so it means "passkeys unavailable" (400 + passkey_enabled=false) instead of a 500 from go-webauthn.
+	if id == "" || net.ParseIP(strings.Trim(id, "[]")) != nil {
 		return RelyingParty{}, false
 	}
 	var origins []string

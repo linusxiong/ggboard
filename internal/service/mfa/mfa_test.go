@@ -186,6 +186,22 @@ func TestRelyingParty(t *testing.T) {
 	if PasskeyEnabled(a.Settings) || AppBaseURL(a.Settings) != "" {
 		t.Fatal("non-http app_url must not enable passkeys")
 	}
+	// An IP address is never a valid RP id (go-webauthn rejects it): passkeys are off, not a 500.
+	for _, set := range []map[string]any{
+		{"app_url": "http://127.0.0.1:18090", "passkey_rp_id": nil},
+		{"app_url": "http://[::1]:8080", "passkey_rp_id": nil},
+		{"app_url": "https://panel.example.com", "passkey_rp_id": "192.0.2.1"},
+	} {
+		if err := a.Settings.Set(set); err != nil {
+			t.Fatal(err)
+		}
+		if PasskeyEnabled(a.Settings) {
+			t.Errorf("%v: IP rp id must disable passkeys", set)
+		}
+		if _, _, err := New(a).webAuthn(); status(err) != http.StatusBadRequest {
+			t.Errorf("%v: webauthn err = %v, want 400", set, err)
+		}
+	}
 }
 
 func TestTOTPLifecycle(t *testing.T) {

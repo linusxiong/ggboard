@@ -18,6 +18,10 @@ describe('chart scales', () => {
     expect(byteUnit(186 * gib)).toBe(gib)
     expect(byteUnit(512)).toBe(1)
     expect(niceTicksIn(0, 186 * gib, gib)).toEqual([0, 50, 100, 150, 200].map((v) => v * gib))
+    // whole raw units: an empty series must not produce duplicate labels (0.25 B → "0 B", "1 B")
+    expect(niceTicksIn(0, 0)).toEqual([0, 1])
+    expect(niceTicksIn(0, 3)).toEqual([0, 1, 2, 3])
+    expect(niceTicksIn(0, 512 * 1024 ** 2, 1024 ** 2)).toEqual([0, 200, 400, 600].map((v) => v * 1024 ** 2))
   })
 
   it('draws columns with a rounded data end and square base', () => {

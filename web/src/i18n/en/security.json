@@ -91,6 +91,7 @@
     "verifyFailed": "The passkey couldn't be verified or the request timed out. Try again.",
     "security": "This passkey doesn't match this address. Open the site on its official domain.",
     "unsupported": "This browser doesn't support passkeys. Use a current Safari, Chrome, Edge or Firefox.",
+    "notConfigured": "Passkeys aren't enabled on this site: an administrator must set the site URL to a domain name (WebAuthn doesn't work with IP addresses).",
     "failed": "Couldn't create the passkey. Try again.",
     "empty": "No passkeys yet",
     "synced": "Synced",

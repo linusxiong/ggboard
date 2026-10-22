@@ -246,9 +246,11 @@ function UserMenu({ area }: { area: 'user' | 'admin' }) {
   const logout = async () => {
     await userApi.logout().catch(() => undefined)
     useAuthStore.getState().logout()
-    queryClient.clear()
     toast(t('loggedOut'))
+    // Leave the shell before clearing the cache: clearing first makes every still-mounted query (e.g. the
+    // profile page's `meQuery`) refetch without a token → a pointless 401 + console error.
     await navigate({ to: '/login', replace: true })
+    queryClient.clear()
   }
 
   return (

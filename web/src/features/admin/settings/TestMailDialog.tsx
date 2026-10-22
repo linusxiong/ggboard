@@ -7,6 +7,7 @@ import { errorMessage } from '@/lib/errors'
 import { toast } from '@/lib/toast'
 import { useAuthStore } from '@/stores/auth'
 import { TextInput } from './inputs/Controlled'
+import { ModalClose } from '@/components/feedback/ModalClose'
 
 interface TestMailDialogProps {
   isOpen: boolean
@@ -43,7 +44,7 @@ export function TestMailDialog({ isOpen, onOpenChange, unsaved }: TestMailDialog
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
       <Modal.Container size="sm">
         <Modal.Dialog>
-          <Modal.CloseTrigger />
+          <ModalClose />
           <Modal.Header>
             <Modal.Heading>{t('email.testTitle')}</Modal.Heading>
           </Modal.Header>

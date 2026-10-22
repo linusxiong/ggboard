@@ -29,6 +29,7 @@ import {
   validateConfig,
   WEBHOOK_GATEWAYS,
 } from './gateways'
+import { DrawerClose } from '@/components/feedback/DrawerClose'
 
 export interface PaymentSheetProps {
   isOpen: boolean
@@ -217,7 +218,7 @@ function PaymentSheetInner({
     <Drawer.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
       <Drawer.Content placement="right">
         <Drawer.Dialog className="sm:w-[34rem]">
-          <Drawer.CloseTrigger />
+          <DrawerClose />
           <Drawer.Header>
             <Drawer.Heading>{isEdit ? t('form.editTitle') : t('form.createTitle')}</Drawer.Heading>
           </Drawer.Header>

@@ -34,8 +34,9 @@ web: ## Build the frontend and copy web/dist into internal/static/dist
 	find $(STATIC) -mindepth 1 ! -name .gitkeep -exec rm -rf {} +
 	cp -R web/dist/. $(STATIC)/
 
-e2e: ## Build, start the server on a random port and smoke-test it
+e2e: ## Build, start the server on a random port: smoke test + full API end-to-end flows
 	./scripts/e2e.sh
+	./scripts/e2e-full.sh
 
 tidy: ## go mod tidy
 	$(GO) mod tidy

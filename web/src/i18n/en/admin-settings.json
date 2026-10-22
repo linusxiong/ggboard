@@ -362,6 +362,22 @@
     "ios_version": {
       "label": "iOS version",
       "hint": ""
+    },
+    "passkey_rp_id": {
+      "label": "Passkey RP ID",
+      "hint": "WebAuthn relying-party ID (a domain, no port). Empty = host of the site URL; passkeys never work on an IP address."
+    },
+    "passkey_origins": {
+      "label": "Extra passkey origins",
+      "hint": "Other origins allowed to use passkeys (e.g. https://www.example.com). The site URL origin is always allowed."
+    },
+    "admin_mfa_required": {
+      "label": "Require 2FA for administrators",
+      "hint": "When on, admins and staff without 2FA or a passkey cannot use the admin API."
+    },
+    "mfa_issuer": {
+      "label": "Authenticator issuer",
+      "hint": "Issuer name shown in authenticator apps. Empty = site name."
     }
   },
   "enums": {

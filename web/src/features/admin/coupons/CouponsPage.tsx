@@ -19,6 +19,7 @@ import { toast } from '@/lib/toast'
 import { CouponFormDialog } from './CouponFormDialog'
 import { validity } from './datetime'
 import type { CouponSearch } from './search'
+import { ModalClose } from '@/components/feedback/ModalClose'
 
 const col = createDataTableColumns<AdminCoupon>()
 const VALIDITY_COLOR = { active: 'success', upcoming: 'accent', expired: 'default' } as const
@@ -267,7 +268,7 @@ export function CouponsPage({ search, onSearchChange }: CouponsPageProps) {
       <Modal.Backdrop isOpen={generated !== null} onOpenChange={(open) => !open && setGenerated(null)}>
         <Modal.Container size="md" scroll="inside">
           <Modal.Dialog>
-            <Modal.CloseTrigger />
+            <ModalClose />
             <Modal.Header>
               <Modal.Heading>{t('coupons.generatedTitle', { count: generated?.length ?? 0 })}</Modal.Heading>
             </Modal.Header>

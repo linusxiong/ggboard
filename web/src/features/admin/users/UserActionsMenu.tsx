@@ -5,6 +5,7 @@ import { useT } from '@/i18n'
 import { buttonClass } from '@/lib/button'
 import type { AdminUser } from '@/lib/api/types'
 import type { UserAction } from './useUserActions'
+import { ModalClose } from '@/components/feedback/ModalClose'
 
 /** "More" dropdown with the admin actions for one user. */
 export function UserActionsMenu({
@@ -71,7 +72,7 @@ export function LoginAsDialog({
     <Modal.Backdrop isOpen={value !== null} onOpenChange={(open) => !open && onClose()}>
       <Modal.Container size="md">
         <Modal.Dialog>
-          <Modal.CloseTrigger />
+          <ModalClose />
           <Modal.Header>
             <Modal.Heading>{t('loginAs.title', { name: value?.email ?? '' })}</Modal.Heading>
           </Modal.Header>

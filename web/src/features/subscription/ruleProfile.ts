@@ -310,9 +310,17 @@ export function sortedSources(catalog: RulesetCatalog): string[] {
     .map(([id]) => id)
 }
 
+/**
+ * Source ids that publish `category`: the public catalog lists them in `sources`; the full catalog (admin view,
+ * embedded catalog.json) keys `rules` by source id.
+ */
+export function categorySources(category: RulesetCategory): string[] {
+  return category.sources ?? Object.keys(category.rules ?? {})
+}
+
 /** Number of categories a source publishes. */
 export function sourceCoverage(catalog: RulesetCatalog, source: string): number {
-  return catalog.categories.filter((c) => source in (c.rules ?? {})).length
+  return catalog.categories.filter((c) => categorySources(c).includes(source)).length
 }
 
 /** The source that will actually serve `category`: the preferred one, else the first by `order` that has it. */
@@ -321,7 +329,7 @@ export function effectiveSource(
   category: RulesetCategory,
   preferred: string,
 ): string | null {
-  const rules = category.rules ?? {}
-  if (preferred in rules) return preferred
-  return sortedSources(catalog).find((id) => id in rules) ?? null
+  const sources = categorySources(category)
+  if (sources.includes(preferred)) return preferred
+  return sortedSources(catalog).find((id) => sources.includes(id)) ?? null
 }

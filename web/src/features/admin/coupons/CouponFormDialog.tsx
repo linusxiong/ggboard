@@ -11,6 +11,7 @@ import { qk } from '@/lib/api/queries'
 import { type AdminCoupon, type AdminPlan, type Coupon, PLAN_PERIODS } from '@/lib/api/types'
 import { toast } from '@/lib/toast'
 import { couponDefaults as defaults, toCouponInput } from './couponForm'
+import { ModalClose } from '@/components/feedback/ModalClose'
 
 interface CouponFormDialogProps {
   isOpen: boolean
@@ -77,7 +78,7 @@ function CouponFormDialogInner({
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
       <Modal.Container size="lg" scroll="inside">
         <Modal.Dialog>
-          <Modal.CloseTrigger />
+          <ModalClose />
           <Modal.Header>
             <Modal.Heading>{isEdit ? t('coupons.editTitle') : t('coupons.createTitle')}</Modal.Heading>
           </Modal.Header>

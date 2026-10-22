@@ -98,7 +98,11 @@ function SecurityPanel({ email }: { email: string }) {
         {(data) => (
           <>
             <TwoFactorCard overview={data} email={email} appName={appName} />
-            <PasskeysCard passkeys={data.passkeys} email={email} />
+            <PasskeysCard
+              passkeys={data.passkeys}
+              email={email}
+              siteEnabled={config.data?.passkey_enabled !== false}
+            />
           </>
         )}
       </QueryStatus>

@@ -17,6 +17,7 @@ import { useAdminMutation } from '../shared/useAdminMutation'
 import { useSite } from '../shared/useSite'
 import type { UserFilterParams } from './filters'
 import { createValuesToInput, EMPTY_CREATE, NONE, randomPassword } from './userForm'
+import { ModalClose } from '@/components/feedback/ModalClose'
 
 interface DialogProps {
   isOpen: boolean
@@ -48,7 +49,7 @@ function DialogFrame({
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange} isDismissable={false}>
       <Modal.Container size={size} scroll="inside">
         <Modal.Dialog>
-          <Modal.CloseTrigger />
+          <ModalClose />
           <Modal.Header>
             <Modal.Heading>{title}</Modal.Heading>
           </Modal.Header>

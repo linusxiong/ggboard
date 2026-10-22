@@ -91,6 +91,7 @@
     "verifyFailed": "通行密钥验证失败或已超时，请重试。",
     "security": "通行密钥与当前网址不匹配，请通过站点正式域名访问。",
     "unsupported": "当前浏览器不支持通行密钥，请使用最新版 Safari、Chrome、Edge 或 Firefox。",
+    "notConfigured": "此站点尚未启用通行密钥：管理员需要把「站点地址」设置为域名（WebAuthn 不支持 IP 地址）。",
     "failed": "创建通行密钥失败，请重试。",
     "empty": "还没有通行密钥",
     "synced": "已同步",

@@ -16,6 +16,7 @@ import {
   renameGroup,
   sameProfile,
   sortedSources,
+  sourceCoverage,
   toggleCategory,
   updateGroup,
   validateProfile,
@@ -108,5 +109,19 @@ describe('rule profile helpers', () => {
     expect(sortedSources(catalog)[0]).toBe('blackmatrix7')
     expect(effectiveSource(catalog, category('applications'), 'blackmatrix7')).toBe('loyalsoldier')
     expect(effectiveSource(catalog, category('openai'), 'metacubex')).toBe('metacubex')
+  })
+
+  it('reads the public catalog shape (categories list `sources`, no `rules`)', () => {
+    // GET /guest|user/rulesets/catalog (docs/SUBSCRIPTION.md): no URL templates, `sources: [...]` per category.
+    const pub: RulesetCatalog = {
+      ...catalog,
+      categories: catalog.categories.map(({ rules, ...c }) => ({ ...c, sources: Object.keys(rules ?? {}) })),
+    }
+    const full = catalog.categories.filter((c) => 'metacubex' in (c.rules ?? {})).length
+    expect(full).toBeGreaterThan(0)
+    expect(sourceCoverage(pub, 'metacubex')).toBe(full)
+    expect(sourceCoverage(catalog, 'metacubex')).toBe(full)
+    const apps = pub.categories.find((c) => c.id === 'applications')!
+    expect(effectiveSource(pub, apps, 'blackmatrix7')).toBe('loyalsoldier')
   })
 })

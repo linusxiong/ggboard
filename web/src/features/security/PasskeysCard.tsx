@@ -18,16 +18,27 @@ import { toast } from '@/lib/toast'
 import { guessDeviceName, loadWebAuthn, supportsWebAuthn, webAuthnFailure } from './webauthn'
 import { securityKey, useSecurityError } from './api'
 import { PlainField, UsernameHint } from './shared'
+import { ModalClose } from '@/components/feedback/ModalClose'
 
 type Dialog =
   { kind: 'add' } | { kind: 'rename'; passkey: Passkey } | { kind: 'delete'; passkey: Passkey } | null
 
 const NAME_MAX = 64
 
-export function PasskeysCard({ passkeys, email }: { passkeys: readonly Passkey[]; email: string }) {
+export function PasskeysCard({
+  passkeys,
+  email,
+  siteEnabled = true,
+}: {
+  passkeys: readonly Passkey[]
+  email: string
+  /** `guest/config.passkey_enabled`: false when the site has no WebAuthn RP (no domain in `app_url`). */
+  siteEnabled?: boolean
+}) {
   const t = useT(['security', 'common'])
   const [dialog, setDialog] = useState<Dialog>(null)
-  const supported = supportsWebAuthn()
+  const browserSupported = supportsWebAuthn()
+  const supported = browserSupported && siteEnabled
   const close = () => setDialog(null)
 
   return (
@@ -55,7 +66,7 @@ export function PasskeysCard({ passkeys, email }: { passkeys: readonly Passkey[]
 
       {supported ? null : (
         <p className="rounded-[12px] bg-fill-quaternary px-4 py-3 text-subhead text-label" role="note">
-          {t('passkeys.unsupported')}
+          {t(siteEnabled ? 'passkeys.unsupported' : 'passkeys.notConfigured')}
         </p>
       )}
 
@@ -149,7 +160,7 @@ function FormDialog({
     >
       <Modal.Container size="sm">
         <Modal.Dialog>
-          <Modal.CloseTrigger />
+          <ModalClose />
           <Modal.Header>
             <Modal.Heading>{title}</Modal.Heading>
           </Modal.Header>
@@ -207,6 +218,8 @@ function AddDialog({ onClose }: { onClose: () => void }) {
         if (err.status === 409) setError(t('passkeys.duplicate'))
         else if (err.status === 401 || err.fieldError('credential') || err.fieldError('challenge_id'))
           setError(t('passkeys.verifyFailed'))
+        // 400 without field errors from `begin`: the site has no WebAuthn RP (app_url is not a domain).
+        else if (err.status === 400 && Object.keys(err.errors).length === 0) setError(t('passkeys.notConfigured'))
         else setError(mapError(err).form ?? mapError(err).name)
       } else if (kind === 'cancelled') setNotice(t('passkeys.cancelled'))
       else if (kind === 'duplicate') setError(t('passkeys.duplicate'))
