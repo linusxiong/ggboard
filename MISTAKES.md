@@ -410,3 +410,9 @@
 ### 6. zsh 下 `grep --include=*.go` 又一次没加引号（重犯第 8 条）
 - **现象**：`grep -rn "_health" --include=*.go internal` 报 `no matches found`，命令没有执行。
 - **规则**：重申：zsh 中所有含 `*` 的参数一律加引号（`--include='*.go'`）；看到 “no matches found” 先怀疑 shell 而不是代码。
+
+### 59. （集成）冒烟测试时旧进程还占着端口，新二进制根本没起来，404 被误判为“路由没合并”
+- **现象**：合并订阅分支后重新 `go build` 并 `./ggboard serve`，`/api/v1/client/subscribe` 仍 404，而 `/s/<token>` 返回 200（其实是 SPA 兜底页）。
+- **根因**：上一轮的 `ggboard serve` 没被 `pkill` 干净，新进程 `bind: address already in use` 退出，旧进程继续应答；没先看 `server.log`。
+- **修复**：`lsof -iTCP:<port> -sTCP:LISTEN` 确认监听进程并 kill，再启动；之后一切正常。
+- **规则**：启动服务后先 `head server.log` 看到 "listening" 再发请求；非 `/api` 路径的 200 可能只是 SPA 兜底，不能当作接口存在的证据。
