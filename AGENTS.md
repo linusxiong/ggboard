@@ -87,32 +87,43 @@ GG Bond（猪猪侠谐音）是一个 **简洁、美观、高性能** 的代理�
 
 ## 3. 仓库结构与所有权（并行开发的冲突防线）
 
-```
-cmd/ggboard/            CLI 入口 (serve / migrate / import / admin)
+```text
+cmd/ggboard/            main.go + 插件汇总导入（plugins_payment.go、plugins_notify.go、jobs_maintenance.go、
+                        import.go）+ wire_leak.go（订阅泄露钩子接 Telegram）
 internal/
-  app/                  依赖容器 (DB, Settings, Cache, Mailer, Logger, Config)
+  app/                  依赖容器 (Cfg, DB, Settings, Cache, KV, Mailer, Log, Online, Traffic, Scheduler, Component)
   config/               viper 配置
-  db/                   gorm 初始化、自动迁移
+  cli/                  cobra 根命令 (serve / migrate / admin / version) + cli.Register 子命令
+  db/                   gorm 初始化、自动迁移、幂等结构升级 (upgrade.go)
   model/                所有 GORM 模型（docs/DATA_MODEL.md 为准）
-  httpx/                gin 引擎、中间件、响应封装、错误类型、分页
+  httpx/                gin 引擎、中间件、响应封装、错误类型、分页、限流
+  router/               组装引擎：各 API 包的 Register + SPA 兜底
   auth/                 JWT、密码哈希、鉴权中间件
-  settings/             键值设置服务（带默认值与缓存）
-  cache/                进程内缓存封装
+  settings/             键值设置服务（defs.go 为键表，带默认值与缓存）
+  cache/                进程内缓存封装 (ristretto + TTLMap)
+  logx/                 slog 处理器 + 日志环形缓冲
   mail/                 邮件接口 + SMTP/log 驱动 + 模板
+  notify/               通知队列与事件；notify/telegram/ Telegram 机器人驱动
+  captcha/              验证码插件 (none / turnstile / recaptcha / hcaptcha)
   scheduler/            cron 任务注册
   plugin/               通用插件注册表
   api/guest/ passport/ user/ admin/ client/ node/   各 API 包，每包一个 Register(r, app)
-  service/<domain>/     业务逻辑（order, plan, user, node, ticket, coupon, invite, stat ...）
+  service/<domain>/     业务逻辑（account, adminuser, content, invite, maintenance, mfa, node, order, plan, stat,
+                        ticket, user）
   payment/              支付网关接口 + registry；payment/gateways/<name>/ 每个插件
-  subscription/         订阅生成：formats/<client>/，rulesets/（catalog.json + 模板引擎）
+  subscription/         订阅生成：formats/（每种客户端一个文件）、rulesets/（catalog.json + 模板引擎）、
+                        engine/（生成与多套订阅配置）、guard/（age 加密、访问日志、泄露检测）、节点处理与地区识别
   importer/xboard/      Xboard 导入器
   static/               嵌入前端产物并提供服务
-web/                    前端
+  testutil/             测试用 App、路由与请求助手
+web/                    前端（见 web/README.md、docs/FRONTEND.md）
 docs/                   契约与设计文档
 deploy/                 Dockerfile、compose、systemd、nginx 示例
+scripts/                e2e.sh（冒烟）、e2e-full.sh（API 全流程，也可作演示数据种子）
 ```
 
-**所有权规则**
+### 所有权规则
+
 - 每个 agent 只改自己被分配的目录/文件；需要改共享文件（`go.mod`、`internal/model/*`、路由总表、
   `web/package.json`、导航配置、i18n 公共词条）时，只做**追加**，并在汇报中明确列出。
 - 不要运行 `go mod tidy`（由集成者统一执行）；需要新依赖用 `go get <mod>@latest` 一次即可。
@@ -171,15 +182,16 @@ deploy/                 Dockerfile、compose、systemd、nginx 示例
 ## 7. 可插拔点（Registry 模式）
 
 | 插件点 | 接口位置 | 内置实现 |
-|---|---|---|
+| --- | --- | --- |
 | 支付网关 | `internal/payment/gateway.go`（`payment.Register`；汇总导入 `internal/payment/gateways/all.go`） | epay, epusdt, alipay_f2f, stripe, coinbase (Business Checkouts), btcpay |
-| 订阅格式 | `internal/subscription/format.go`（`subscription.RegisterFormat`） | clash-meta(mihomo), clash(classic), stash, singbox, surge, surfboard, quantumultx, shadowrocket, loon, v2ray(base64), ssr |
+| 订阅格式 | `internal/subscription/format.go`（`subscription.RegisterFormat`；可选 `SupportsAge()` 声明可 age 加密） | clash-meta(mihomo，唯一支持 age 加密), clash(classic), stash, singbox, surge, surfboard, quantumultx, shadowrocket, loon, v2ray(base64), ssr |
 | 规则集来源 | `internal/subscription/rulesets/catalog.json` | blackmatrix7, Loyalsoldier, MetaCubeX, ACL4SSR, SagerNet(sing-geosite/geoip), DustinWin |
 | 验证码 | `internal/captcha/captcha.go`（`captcha.Register`） | none, turnstile, recaptcha, hcaptcha |
 | 数据导入 | `internal/cli`（`cli.Register` 注册子命令） | `import xboard`（legacy 分表 / upstream 统一表） |
 | 定时任务 | `internal/app/app.go`（`app.RegisterJob`，见 `docs/ARCHITECTURE.md`） | online_cleanup, traffic_flush（`internal/app`）；order_timeout, commission_settle（`service/order`）；traffic_reset, expire_remind, traffic_remind, stats_daily（`service/maintenance`）；subscription_access_flush, subscription_access_prune（`subscription/guard`） |
 | 邮件驱动 | `internal/mail/mailer.go`（`mail.FromSettings` 按 `email_driver` 选择，非 registry） | smtp, log |
 | 通知渠道 | `internal/notify/notify.go`（`notify.Register`；汇总导入 `cmd/ggboard/plugins_notify.go`） | telegram |
+| 订阅泄露钩子 | `internal/subscription/leak.go`（`subscription.LeakHook` 变量，在 `cmd/ggboard/wire_leak.go` 赋值，非 registry） | 日志 + 邮件通知用户（`DefaultLeakHook`）+ Telegram `subscription_leak` 告警管理员 |
 | 节点对接协议 | `internal/api/node/`（同一包内两组路由，非 registry） | xrayr(UniProxy, V2bX 超集), soga-v1 |
 
 新增 registry 类插件 = 新建一个包 + 在 `init()` 里 `Register` + 在汇总文件里加一行空白导入；不改核心代码。
@@ -212,3 +224,7 @@ deploy/                 Dockerfile、compose、systemd、nginx 示例
 - soga 文档（需认证）：`https://aagit.yougotme.cc/soga/soga-v1`，整理版见 `docs/NODE_PROTOCOLS.md`
 - HeroUI：`https://heroui.com/docs`；TanStack：`https://tanstack.com`（reactbits.dev 仅作视觉参考，不复制代码）
 - Apple HIG：`https://developer.apple.com/design/human-interface-guidelines`
+- mihomo age 加密订阅（v1.19.27+）：`https://github.com/MetaCubeX/mihomo/releases/tag/v1.19.27`、
+  `https://wiki.metacubex.one/config/proxy-providers/`（`age-secret-key`），整理版见 `docs/SUBSCRIPTION.md`
+- Sub-Store（节点处理流水线参考）：`https://github.com/sub-store-org/Sub-Store`，对照表见 `docs/SUBSCRIPTION.md`
+- Telegram Bot API：`https://core.telegram.org/bots/api`（`sendMessage`、`getMe`、`setWebhook`）

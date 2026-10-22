@@ -33,8 +33,11 @@ Base path `/api/v1` (exceptions: `/healthz`, `/.well-known/*`, the short subscri
 
 Rate limits (in-memory token buckets): every `/passport/*` route 30/min per IP, plus `POST /passport/email/send-code`
 10/h per IP; `POST /user/coupons/check`, `POST /user/orders` and `POST /user/orders/:trade_no/checkout` share 30/min per
-user (burst 10); every `/user/security/*` route 60/min per user; subscriptions 120/h per token (burst 30). Account rules
-add per-email limits (code cooldown, password lockout), per-IP registrations and the second-factor failure counter.
+user (burst 10); every `/user/security/*` route 60/min per user; rule-profile writes and the preview 60/min per user (burst
+30); age-key writes and `rotate-token` 30/min per user (burst 10); `POST /user/telegram/bind-code` 10/min per user (burst
+5); the Telegram webhook 600/min per IP; subscriptions 120/h per token (burst 30), unknown tokens 60/h per IP (burst 30).
+Account rules add per-email limits (code cooldown, password lockout), per-IP registrations and the second-factor failure
+counter.
 
 `GET /healthz` 🔓 → `{"data":{"status":"ok","version":"…","uptime":"1h2m3s"}}`.
 
@@ -175,11 +178,13 @@ Every route requires a valid JWT (401) of a user who is not banned (403).
 | POST | `/user/rule-profiles` | `{name* (1..64), slug? (^[a-z0-9][a-z0-9_-]{0,31}$, derived from the name when omitted), copy_from? (slug)}` | 201 summary (`{id, slug, name, is_default, customized, updated_at}`); 400 on `name`/`slug`/`copy_from` (unknown); 409 duplicate slug (`errors.slug`) or more than 10 profiles; 403 when customization is disabled |
 | GET | `/user/rule-profiles/:slug` | — | `ProfileView` of that profile; 404 unknown |
 | PUT | `/user/rule-profiles/:slug` | `RuleProfile` | same rules as `PUT /user/rule-profile`, for that profile; 404 unknown |
-| PATCH | `/user/rule-profiles/:slug` | `{name?, slug?}` | summary; 409 duplicate slug; 404 unknown |
-| DELETE | `/user/rule-profiles/:slug` | — | `true`; 409 for the default profile; 404 unknown |
+| PATCH | `/user/rule-profiles/:slug` | `{name?, slug?}` | summary; 409 duplicate slug; 404 unknown (the web app renames only; a changed slug changes that profile's link) |
+| DELETE | `/user/rule-profiles/:slug` | — | `true`; 409 for the default profile; 404 unknown (its `?profile=` link then serves the default profile) |
 | POST | `/user/rule-profiles/:slug/default` | — | summary of the new default profile |
 | GET | `/user/rulesets/catalog` | — | same body as the guest catalog |
 
+Every profile write (`PUT`, `POST`, `PATCH`, `DELETE`, `…/default`) answers 403 while `allow_user_rule_profile=false`; writes and
+the preview share one limiter (60 requests/min per user, burst 30).
 `NodeOps` (the `nodes` object of a `RuleProfile`): `{include:[re2], exclude:[re2], types:[type], regions:[code], rename:[{match, replace}], prefix, suffix, emoji: "keep"/"add"/"strip", sort: "default"/"name"/"region", dedupe, limit}`; semantics,
 the region keyword table and limits in `docs/SUBSCRIPTION.md` "Node operations".
 
@@ -282,7 +287,7 @@ Options JSON (pass as `optionsJSON` to `startRegistration`):
 Admin enforcement: with `admin_mfa_required` on, `/admin/*` answers 403 `mfa_setup_required` to admins/staff without TOTP and without
 a passkey (`mfasvc.AdminGate`, mounted right after `RequireStaff`); `/user/security` stays reachable to enrol.
 
-### Telegram
+### Telegram binding
 
 | method | path | req | res |
 | --- | --- | --- | --- |
@@ -324,7 +329,8 @@ Bound users receive their own `order_paid`, `ticket_reply` and the expiry/traffi
   `ETag`, `Cache-Control: no-store`. `If-None-Match` naming the current ETag exactly → 304.
 - Unknown/malformed token (allowed: `[A-Za-z0-9_-]`, ≤ 64 chars) → 403 (no detail). Banned/expired/out-of-traffic users → 200 with
   info-only entries when `show_info_to_server_enable` (also prepended for active users), else a config without proxies.
-  Invalid overrides → 400. Rate limit 120/h per token (burst 30) → 429; unknown tokens are limited per IP (30 misses → 429).
+  Invalid overrides → 400. Rate limit 120/h per token (burst 30) → 429; unknown or malformed tokens are limited per IP
+  (IPv6 per /64: 60 misses/h, burst 30 → 429).
 - Also mounted at `GET|HEAD /s/:token` (short link) — same handler and rate-limit bucket; access logs record the route pattern,
   never the token.
 
@@ -479,7 +485,8 @@ the provider.
 | a single emoji / symbol | ≤ 16 code points, no ASCII letters, whitespace or control characters (`💳`, `¥`, `🇨🇳`) |
 
 Anything else → 400 with `errors.icon`. The admin console stores a picked preset as `preset:<id>`; new payments start with the
-gateway's default (`epay` → `epay`, or `alipay` / `wechat` / `usdt` from its `type`; `epusdt` → `usdt`; `stripe` → `stripe`, or
+gateway's default (`epay` → `epay`, or `alipay` / `wechat` / `usdt` from its `type`; `epusdt` → `usdt`, or `crypto` when
+`currency_type` is not a USDT variant; `stripe` → `stripe`, or
 `card` / `alipay` / `wechat` from `payment_methods`; `alipay_f2f` → `alipay`; `coinbase` → `coinbase`; `btcpay` → `btcpay`).
 
 ### Support & content 🧑‍💼
@@ -509,7 +516,7 @@ gateway's default (`epay` → `epay`, or `alipay` / `wechat` / `usdt` from its `
 
 | method | path | req | res |
 | --- | --- | --- | --- |
-| GET | `/admin/settings` | — | `{"<group>": {"<key>": value}, …, "groups": [{name, keys:[{key, group, type, default, secret?, options?, min?, max?}]}]}`: every visible key by group (secrets included) + UI metadata in display order |
+| GET | `/admin/settings` | — | `{"<group>": {"<key>": value}, …, "groups": [{name, keys:[{key, group, type, default, secret?, options?, min?, max?, min_len?}]}]}`: every visible key by group (secrets included) + UI metadata in display order (`site`, `register`, `subscribe`, `order`, `invite`, `server`, `email`, `frontend`, `app`, `security`, `telegram`) |
 | PUT | `/admin/settings` | `{"<key>": value, ...}` (`null` resets a key to its default) | `true`; unknown keys, invalid values and hidden keys (`rulesets_custom`, use `/admin/rulesets`) → 400 per key, nothing saved |
 | POST | `/admin/settings/mail/test` | `{email*}` | `true`; sent synchronously (template `notify`) with the current mail settings; delivery error → 400 with the driver's message and `errors.email` |
 | POST | `/admin/settings/telegram/webhook` | — | `{ok, description, error_code?, url}`: Telegram's answer to `setWebhook` with `url` = `<app_url>/api/v1/guest/telegram/webhook/<telegram_webhook_secret>` (§Telegram) |
@@ -583,7 +590,7 @@ admins only and masked in logs; `server_token` and `telegram_webhook_secret` are
 | invite | `commission_distribution_l1` | int 0..100 | `0` | percent |
 | invite | `commission_distribution_l2` | int 0..100 | `0` | percent |
 | invite | `commission_distribution_l3` | int 0..100 | `0` | percent |
-| server | `server_token` | string (secret) | generated | node API key; see note below at least 16 chars when set by an admin; `null` regenerates a new token immediately |
+| server | `server_token` | string (secret, ≥ 16) | generated | node API key; at least 16 characters when set by an admin; `null` generates a new token immediately (see the note below) |
 | server | `server_pull_interval` | int 10..86400 | `60` | seconds |
 | server | `server_push_interval` | int 10..86400 | `60` | seconds |
 | server | `server_white_list` | strings | `[]` | soga `white_list` |
@@ -617,8 +624,9 @@ admins only and masked in logs; `server_token` and `telegram_webhook_secret` are
 | telegram | `telegram_discuss_link` | string | `""` | community link shown to users (`/user/telegram`, bot help) |
 | telegram | `telegram_webhook_secret` | string (secret, ≥ 16) | generated | last path segment of the webhook URL and Telegram `secret_token`; generated (32 chars) on first boot; `null` regenerates it |
 
-Note: `PUT /admin/settings {"server_token": null}` (or `""`) empties the token; every node request is then rejected with 403
-until a new token is saved or the next start generates one. Rotate it by saving a new random value and updating every backend.
+Note: `PUT /admin/settings {"server_token": null}` (likewise `telegram_webhook_secret`) stores a fresh random 32-character value
+at once, as on first boot. `""` empties the token instead: every node request is then rejected with 403 until a new token is
+saved or the next start generates one. After rotating the token, update every backend.
 
 ## Telegram
 
@@ -640,9 +648,10 @@ Webhook `POST /api/v1/guest/telegram/webhook/:secret`:
 | command | chats | effect |
 | --- | --- | --- |
 | `/start <code>` | private | binds the account that issued `code`: `users.telegram_id` = chat id, `telegram_username` = the sender's `@username`; another account bound to the same chat is unbound first; replies 绑定成功（al***@example.com）… in `default_locale`. Invalid, used or expired codes get a short error; in groups the bot asks for a private chat |
-| `/unbind` | private | unbinds every account bound to this chat |
+| `/unbind` | private | unbinds every account bound to this chat; in groups the bot asks for a private chat |
 | `/id` | any | replies `Chat ID: <code>…</code>` (administrators use it to fill `telegram_admin_chat_ids`) |
-| `/start`, `/help`, other text | private | short help, plus `telegram_discuss_link`; groups get no reply |
+| `/help` | any | short help, plus `telegram_discuss_link` |
+| `/start` (no code), other text and unknown commands | private | the same help; groups get no reply |
 
 Administrator events (`telegram_events`) go to every chat in `telegram_admin_chat_ids`; a retry after a partial failure resends
 only to the chats that failed. User events go to the bound chat while `telegram_user_notify` is on; a chat that is also an

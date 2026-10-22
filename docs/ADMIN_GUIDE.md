@@ -1,10 +1,11 @@
 # 管理员指南 / Admin guide
 
-面向站长：从第一次登录到接入节点、上架套餐、配置支付与分流规则、从 Xboard 迁移以及登录安全策略。
+面向站长：从第一次登录到接入节点、上架套餐、配置支付与分流规则、从 Xboard 迁移、登录安全策略、Telegram 通知以及订阅防泄露。
 安装与反向代理见 [DEPLOY.md](DEPLOY.md)；接口细节见 [API.md](API.md)。
 
 *For operators: first login, settings, nodes (XrayR / V2bX / soga), plans and payment gateways, rule sets,
-Xboard migration and 2FA / passkey policy. Installation lives in [DEPLOY.md](DEPLOY.md).*
+Xboard migration, 2FA / passkey policy, Telegram notifications and subscription leak protection. Installation lives in
+[DEPLOY.md](DEPLOY.md).*
 
 ---
 
@@ -31,7 +32,7 @@ ggboard admin promote --email user@example.com              # 把已有用户提
    - **系统设置 → 节点通讯**：确认 `server_token`（首次启动自动生成 32 位随机值）。
 
 | 角色 | 可用功能 |
-|---|---|
+| --- | --- |
 | 管理员 `is_admin` | 全部后台页面 |
 | 客服 `is_staff` | 工单、公告、知识库；只读查看用户 |
 
@@ -39,13 +40,15 @@ ggboard admin promote --email user@example.com              # 把已有用户提
 
 ## 2. 系统设置导览 / Settings tour
 
-后台 **系统设置 / Settings**（`/admin/settings`）按分组保存，每组单独点 **保存**（⌘/Ctrl+S）。
-键名与默认值以 `internal/settings/defs.go` 为准；下表列出全部可见键。
+后台 **系统设置 / Settings**（`/admin/settings`）依次分为 **站点、注册与登录、订阅、订单、邀请与佣金、节点通讯、邮件、
+前端外观、客户端下载、安全、Telegram** 11 个分组，组内再按小节排列；依附于开关或下拉框的字段（白名单后缀、IP 注册次数、
+验证码密钥、SMTP 服务器、分销比例等）只在开关打开后出现。每组单独点 **保存**（⌘/Ctrl+S），切换分组时未保存的修改会保留。
+键名与默认值以 `internal/settings/defs.go` 为准；下表按界面顺序列出全部可见键，括号内为界面名称。
 
 ### 站点 `site`
 
 | 键 | 默认 | 说明 |
-|---|---|---|
+| --- | --- | --- |
 | `app_name` | `GG Bond` | 页面标题、邮件、订阅文件名 |
 | `app_description` / `logo` / `tos_url` | 空 | 首页描述、Logo、注册页服务条款链接 |
 | `app_url` | 空 | **必填**。站点地址，不含结尾 `/` |
@@ -55,39 +58,47 @@ ggboard admin promote --email user@example.com              # 把已有用户提
 
 ### 注册与登录 `register`
 
-| 键 | 默认 | 说明 |
-|---|---|---|
-| `stop_register` | `false` | 停止注册 |
-| `email_verify` | `false` | 注册需邮箱验证码（需先配好邮件） |
-| `email_whitelist_enable` / `email_whitelist_suffix` | `false` / `[]` | 邮箱后缀白名单 |
-| `invite_force` | `false` | 必须填写邀请码 |
-| `register_limit_by_ip_enable` / `_count` / `_expire` | `false` / 3 / 60 | 同 IP 在 N 分钟内最多注册次数 |
-| `password_limit_enable` / `_count` / `_expire` | `true` / 5 / 60 | 密码错误次数与锁定分钟数 |
-| `try_out_plan_id` / `try_out_hour` | 0 / 0 | 注册赠送的试用套餐与时长（0 = 不赠送） |
-| `captcha_provider` | `none` | `none` / `turnstile` / `recaptcha` / `hcaptcha`；用于注册、登录与发送验证码 |
-| `captcha_site_key` / `captcha_secret` | 空 | 对应服务商的站点密钥与服务端密钥 |
+界面分为 **注册**、**试用**、**防滥用**、**人机验证** 四个小节：
+
+| 键（界面名称） | 默认 | 说明 |
+| --- | --- | --- |
+| `stop_register`（开放注册） | `false` | 界面是与键值相反的“开放注册”开关：关掉开关即 `stop_register: true`，新用户无法注册，已有账户不受影响 |
+| `email_verify`（邮箱验证） | `false` | 注册需邮箱验证码。验证码靠邮件发送：先在 **邮件** 组配好 SMTP 并发送测试邮件；发信方式仍是“仅记录日志”时这里会提示验证码不会真正发出 |
+| `email_whitelist_enable` / `email_whitelist_suffix`（邮箱后缀白名单 / 允许的邮箱后缀） | `false` / `[]` | 打开后出现后缀输入框：只填域名（如 `gmail.com`，精确匹配），按回车或逗号添加，可一次粘贴多个；允许的后缀会显示在注册页邮箱输入框下方 |
+| `invite_force`（强制邀请码） | `false` | 没有有效邀请码时无法注册 |
+| `try_out_plan_id` / `try_out_hour`（试用套餐 / 试用时长） | 0 / 0 | 注册赠送的试用套餐与时长（小时）；选“不赠送试用”时不显示时长 |
+| `register_limit_by_ip_enable` / `_count` / `_expire`（IP 注册限制） | `false` / 3 / 60 | 同一 IP 在 N 分钟内最多注册的账户数 |
+| `password_limit_enable` / `_count` / `_expire`（密码错误锁定） | `true` / 5 / 60 | 允许错误次数与锁定分钟数（按邮箱计） |
+| `captcha_provider`（验证码服务） | `none` | `none` / `turnstile` / `recaptcha` / `hcaptcha`；用于注册、登录与发送邮箱验证码 |
+| `captcha_site_key` / `captcha_secret`（Site Key / Secret Key） | 空 | 选择服务商后出现：公开的站点密钥与只保存在服务器的服务端密钥 |
 
 ### 订阅 `subscribe`
 
-| 键 | 默认 | 说明 |
-|---|---|---|
-| `subscribe_url` | `[]` | 订阅域名列表；为空时用 `app_url`。**每次生成链接时随机取一个**（用于分散负载） |
-| `plan_change_enable` | `true` | 允许更换套餐 |
-| `reset_traffic_method` | 0 | 默认流量重置：0 每月 1 日、1 按购买日每月、2 不重置、3 每年 1 月 1 日、4 按购买日每年 |
-| `surplus_enable` | `true` | 更换套餐时折抵原套餐剩余价值 |
-| `show_info_to_server_enable` | `true` | 订阅节点列表顶部插入剩余流量 / 到期时间 |
-| `show_protocol_to_server_enable` | `false` | 节点名追加协议类型 |
-| `default_remind_expire` / `default_remind_traffic` | `true` | 新用户默认开启的提醒邮件 |
-| `ruleset_default_template` | `standard` | 默认分流模板（`none` / `minimal` / `standard` / `full`） |
-| `ruleset_default_source` | `blackmatrix7` | 默认规则集来源 |
-| `ruleset_mirror` | 空 | GitHub raw 加速前缀或镜像 id，空 = 直连 |
-| `subscribe_update_interval` | 24 | 建议客户端更新间隔（小时，1–720，写入 `Profile-Update-Interval`） |
-| `allow_user_rule_profile` | `true` | 关闭后所有用户使用默认模板，自定义与链接参数都被忽略 |
+界面分为 **订阅地址**、**套餐变更**、**订阅内容与提醒**、**分流规则**、**防泄露** 五个小节：
+
+| 键（界面名称） | 默认 | 说明 |
+| --- | --- | --- |
+| `subscribe_url`（订阅地址） | `[]` | 订阅域名列表；为空时用 `app_url`。**每次生成链接时随机取一个**（用于分散负载） |
+| `subscribe_update_interval`（订阅更新间隔） | 24 | 建议客户端更新间隔（小时，1–720，写入 `Profile-Update-Interval`） |
+| `plan_change_enable`（允许更换套餐） | `true` | 关闭后用户只能续费当前套餐 |
+| `surplus_enable`（升级折抵） | `true` | 更换套餐时折抵原套餐剩余价值 |
+| `reset_traffic_method`（默认流量重置方式） | 0 | 0 每月 1 日、1 按购买日每月、2 不重置、3 每年 1 月 1 日、4 按购买日每年；套餐可单独设置 |
+| `show_info_to_server_enable`（订阅中显示套餐信息） | `true` | 订阅节点列表顶部插入剩余流量 / 到期时间 |
+| `show_protocol_to_server_enable`（节点名称显示协议） | `false` | 节点名追加协议类型 |
+| `default_remind_expire` / `default_remind_traffic` | `true` | 新用户默认开启的到期 / 流量提醒 |
+| `allow_user_rule_profile`（允许用户自定义分流） | `true` | 关闭后所有用户使用默认模板，订阅配置、节点处理与链接里的规则参数都被忽略 |
+| `ruleset_default_template`（默认分流模板） | `standard` | `none` / `minimal` / `standard` / `full` |
+| `ruleset_default_source`（默认规则集来源） | `blackmatrix7` | 优先使用的规则仓库 |
+| `ruleset_mirror`（规则集镜像） | 空 | GitHub raw 加速前缀或镜像 id，空 = 直连 |
+| `subscribe_age_optional`（允许临时关闭加密） | `true` | 用户开启 age 加密后，链接加 `&age=0` 仍可取得明文 |
+| `subscribe_age_strict`（严格加密） | `false` | 用户开启加密后，不支持 age 的格式返回 406，而不是退回明文 |
+| `subscribe_leak_max_ips`（泄露检测阈值） | 0 | 24 小时内同一订阅 token 被超过 N 个不同 IP（IPv6 按 /64）获取时触发；0 = 关闭 |
+| `subscribe_leak_action`（触发后） | `notify` | 阈值大于 0 时出现：`notify` 或 `rotate`（轮换 token），详见 §10 |
 
 ### 订单 `order`、邀请与佣金 `invite`
 
 | 键 | 默认 | 说明 |
-|---|---|---|
+| --- | --- | --- |
 | `order_timeout_minutes` | 30 | 未支付订单自动取消（1–10080 分钟） |
 | `invite_commission` | 10 | 佣金比例 % |
 | `invite_gen_limit` | 5 | 每人未使用邀请码上限 |
@@ -102,7 +113,7 @@ ggboard admin promote --email user@example.com              # 把已有用户提
 ### 节点通讯 `server`
 
 | 键 | 默认 | 说明 |
-|---|---|---|
+| --- | --- | --- |
 | `server_token` | 自动生成 | XrayR `ApiKey` / V2bX `ApiKey` / soga `webapi_key`。点 **重新生成密钥** 并保存后旧值立即失效 |
 | `server_pull_interval` / `server_push_interval` | 60 / 60 | 下发给后端的拉取 / 上报间隔（秒） |
 | `server_white_list` | `[]` | 下发给 soga 的白名单 |
@@ -113,7 +124,7 @@ ggboard admin promote --email user@example.com              # 把已有用户提
 ### 邮件 `email`
 
 | 键 | 默认 | 说明 |
-|---|---|---|
+| --- | --- | --- |
 | `email_driver` | `log` | `log` 只写日志不发送；`smtp` 真实发送 |
 | `email_host` / `email_port` / `email_encryption` | 空 / 465 / `ssl` | `ssl`、`tls`（STARTTLS）或 `none` |
 | `email_username` / `email_password` | 空 | SMTP 账户 |
@@ -131,25 +142,25 @@ ggboard admin promote --email user@example.com              # 把已有用户提
 
 ### 安全 `security`
 
-后台此组直接以键名显示。
-
-| 键 | 默认 | 说明 |
-|---|---|---|
-| `admin_mfa_required` | `false` | 强制管理员 / 客服开启两步验证或通行密钥（§8） |
-| `passkey_rp_id` | 空 | WebAuthn RP ID，空 = `app_url` 的主机名 |
-| `passkey_origins` | `[]` | 额外允许的来源（`app_url` 的来源始终允许） |
-| `mfa_issuer` | 空 | 身份验证器中显示的发行方，空 = `app_name` |
+| 键（界面名称） | 默认 | 说明 |
+| --- | --- | --- |
+| `passkey_rp_id`（通行密钥 RP ID） | 空 | WebAuthn RP ID（域名，不含端口），空 = `app_url` 的主机名；IP 地址无法使用通行密钥 |
+| `passkey_origins`（通行密钥额外来源） | `[]` | 额外允许的来源（`app_url` 的来源始终允许） |
+| `admin_mfa_required`（管理员必须启用两步验证） | `false` | 强制管理员 / 客服开启两步验证或通行密钥（§8） |
+| `mfa_issuer`（验证器显示名称） | 空 | 身份验证器中显示的发行方，空 = `app_name` |
 
 ### Telegram `telegram`
 
-| 键 | 默认 | 说明 |
-|---|---|---|
-| `telegram_bot_token` | 空 | BotFather 给的机器人 token；为空时 Telegram 通知整体关闭 |
-| `telegram_admin_chat_ids` | `[]` | 接收管理员通知的 Chat ID（个人、群组 `-100…` 或频道 `@频道名`），一行一个 |
-| `telegram_events` | 订单已支付、管理员登录、新工单、提现、订阅泄露 | 推送给管理员的事件，见 §9 |
-| `telegram_user_notify` | `true` | 已绑定的用户收到自己的支付成功、工单回复、到期与流量提醒 |
-| `telegram_discuss_link` | 空 | 交流群链接，显示在用户的 Telegram 绑定页与机器人帮助里 |
-| `telegram_webhook_secret` | 首次启动自动生成 | Webhook 地址的最后一段；重置为默认会生成新值，之后需重新 **设置 Webhook** |
+界面分为 **机器人**、**管理员通知**、**用户** 三个小节，最下方的 **连接测试** 有 **发送测试消息** 与 **设置 Webhook** 两个按钮（§9）。
+
+| 键（界面名称） | 默认 | 说明 |
+| --- | --- | --- |
+| `telegram_bot_token`（Bot Token） | 空 | BotFather 给的机器人 token；为空时 Telegram 通知整体关闭 |
+| `telegram_webhook_secret`（Webhook 密钥） | 首次启动自动生成 | Webhook 地址的最后一段（至少 16 位）。点输入框旁的 **重新生成密钥** 并保存（或接口提交 `null`，由服务端生成 32 位新值）后，要重新 **设置 Webhook** |
+| `telegram_admin_chat_ids`（管理员 Chat ID） | `[]` | 接收管理员通知的会话：个人或群组的数字 ID（群组、频道为 `-100…`）或 `@频道名`，输入后按回车添加 |
+| `telegram_events`（通知事件） | 订单支付、管理员登录、新工单、提现申请、订阅泄露 | 推送给管理员会话的事件，见 §9.4 |
+| `telegram_user_notify`（用户通知） | `true` | 已绑定的用户收到自己的支付成功、工单回复、到期与流量提醒 |
+| `telegram_discuss_link`（交流群链接） | 空 | 显示在用户的 Telegram 卡片与机器人帮助里 |
 
 ---
 
@@ -163,7 +174,7 @@ ggboard admin promote --email user@example.com              # 把已有用户提
 3. **节点 / Nodes**（`/admin/nodes` → **新建节点**）：协议类型创建后不可更改。
 
 | 字段 | 说明 |
-|---|---|
+| --- | --- |
 | 地址 / 连接端口 | 下发给客户端；Hysteria 端口跳跃可填范围 `20000-30000` |
 | 服务端口 | 后端实际监听的端口 |
 | 流量倍率 | 用户流量 × 倍率计费 |
@@ -178,7 +189,7 @@ ggboard admin promote --email user@example.com              # 把已有用户提
 ### 3.1 协议与后端对应表
 
 | 面板协议 | XrayR `NodeType` | V2bX `NodeType` | soga `server_type` |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | vmess | `V2ray` | `vmess` | `v2ray` |
 | vless | `Vless`（加 `EnableVless: true`） | `vless` | `vless` |
 | trojan | `Trojan` | `trojan` | `trojan` |
@@ -256,20 +267,36 @@ soga 请求 `/soga/api/v1/{node,users,audit_rules,white_list,traffic,alive_ip,au
 
 ### 4.2 优惠券 `/admin/coupons`
 
-类型 `1` 固定金额（分）或 `2` 百分比；可限制总次数、每人次数、适用套餐与周期、有效期；一次最多批量生成 500 个，
-留空优惠码则随机生成。
+类型 **固定金额**（按站点货币的“元”填写，接口内部存为分）或 **百分比折扣**（1–100）；可限制总次数、每人次数、适用套餐与周期、
+有效期；一次最多批量生成 500 个，留空优惠码则随机生成。
 
 ### 4.3 支付方式 `/admin/payments`
 
 **添加支付方式** → 选择网关 → 填写网关配置 → 设置显示名称、图标、手续费（固定 + 百分比，由用户承担）→ 启用。
 网关创建后不可更换。
 
-**图标**：在图标网格里点选内置图标（支付宝、微信支付、Stripe、银行卡、PayPal、加密货币、比特币、USDT、以太坊、
-银行转账、扫码支付、余额 / 钱包、易支付、Epusdt、BTCPay、Coinbase），显示名称输入框左侧会实时预览用户看到的样子。
-新建时会按网关自动选一个（易支付按“支付方式”`type` 选支付宝 / 微信 / USDT，Stripe 按 `payment_methods` 选
-银行卡 / 支付宝 / 微信，Epusdt → USDT，当面付 → 支付宝），手动点选后不再自动更换。选 **自定义 URL** 可填图片地址
-（`https://…` 或站内 `/…` 路径，建议正方形 SVG/PNG）或单个 Emoji。内置图标保存为 `preset:<id>`
-（如 `preset:alipay`），格式见 [API.md › Payment icons](API.md#payment-icons)。
+**图标**：在图标网格里点选内置图标，表单会实时预览用户在结算页看到的样子。内置图标保存为 `preset:<id>`：
+
+| 图标 | `<id>` | 图标 | `<id>` |
+| --- | --- | --- | --- |
+| 支付宝 | `alipay` | 银行转账 | `bank` |
+| 微信支付 | `wechat` | 扫码支付 | `qrcode` |
+| Stripe | `stripe` | 余额 / 钱包 | `wallet` |
+| 银行卡 | `card` | 易支付 | `epay` |
+| PayPal | `paypal` | Epusdt | `epusdt` |
+| 加密货币 | `crypto` | BTCPay | `btcpay` |
+| 比特币 | `btc` | Coinbase | `coinbase` |
+| USDT | `usdt` | 以太坊 | `eth` |
+
+新建时会按网关与配置自动选一个，手动点选后不再自动更换：
+
+- 易支付：`type` 为 `alipay` → 支付宝，`wxpay` / `wechat` → 微信支付，`usdt…` → USDT，其他或留空 → 易支付；
+- Stripe：`payment_methods` 为 `card` → 银行卡，`alipay` → 支付宝，`wechat_pay` → 微信支付，`auto` → Stripe；
+- Epusdt：`currency_type` 留空或 `usdt…` → USDT，其他（如 `tron.trx`）→ 加密货币；
+- 当面付 → 支付宝，Coinbase → Coinbase，BTCPay → BTCPay。
+
+选 **自定义 URL** 可填图片地址（`https://…` 或站内 `/…` 路径，建议正方形 SVG/PNG）或单个 Emoji。完整格式见
+[API.md › Payment icons](API.md#payment-icons)；从 Xboard 导入的旧图标值不会妨碍修改其他字段。
 
 回调地址（Notify URL）在保存后显示，格式为：
 
@@ -280,7 +307,7 @@ soga 请求 `/soga/api/v1/{node,users,audit_rules,white_list,traffic,alive_ip,au
 `uuid` 每个支付方式唯一；支付完成后买家经 `/api/v1/guest/payment/return/<trade_no>` 回到订单页。
 
 | 网关 `gateway` | 必填配置 | 回调设置 |
-|---|---|---|
+| --- | --- | --- |
 | 易支付 `epay` | `url`（不含 `/submit.php`）、`pid`、`key`；可选 `type`（`alipay`/`wxpay`/`qqpay` 等） | 下单时自动携带，无需手动配置；仅人民币 |
 | Epusdt / BEpusdt `epusdt` | `api_url`、`api_token`；`currency_type` 默认 `usdt.trc20` | 自动携带 |
 | 支付宝当面付 `alipay_f2f` | `app_id`、`private_key`（RSA2 ≥ 2048）、`alipay_public_key`（支付宝公钥）；`sandbox` | 自动携带；仅公钥模式、仅人民币 |
@@ -292,8 +319,12 @@ Stripe / Coinbase / BTCPay 的回调地址必须是公网 HTTPS。各网关协�
 
 ### 4.4 订单 `/admin/orders`
 
-可筛选、**标记为已支付**（立即开通并计算佣金，先在支付平台核实到账）、**取消订单**（退回已抵扣余额）、
-修改佣金状态，或 **为用户分配订单**（创建待支付订单）。
+- **筛选**：顶部分段控件按状态切换（全部 / 待支付 / 开通中 / 已取消 / 已完成 / 已折抵），另可按订单号、用户（邮箱或 ID）、
+  佣金状态、套餐、支付方式与日期筛选，筛选条件保存在地址栏里。
+- **标记为已支付**（立即开通并计算佣金，先在支付平台核实到账）、**取消订单**（退回已抵扣的余额与优惠券次数），仅限待支付订单。
+- **佣金状态**（订单详情）：待确认 → **发放中** 表示批准，`commission_settle` 每小时把它发放给邀请人并改为 **有效**；
+  **无效** 表示不发放。“有效”只能由定时任务写入（手动选择会被拒绝），已发放的佣金不能再改。
+- **分配订单**：为用户（邮箱或 ID）创建一笔待支付订单，金额留空按套餐价格；用户可自行支付，也可由你标记为已支付。
 
 ---
 
@@ -305,7 +336,7 @@ Stripe / Coinbase / BTCPay 的回调地址必须是公网 HTTPS。各网关协�
   （只读）。内置来源：blackmatrix7、MetaCubeX、Loyalsoldier、SagerNet、ACL4SSR、DustinWin；内置模板：
   `none`（全局代理）、`minimal`（国内直连）、`standard`（标准分流）、`full`（精细分流）；内置镜像：`direct`、
   `ghfast`、`gh-proxy`、`ghproxy-net`、`gh-llkk`。
-- **自定义覆盖**：JSON 结构与内置目录相同，`sources` 按键、`categories` / `templates` / `mirrors` 按 `id` 合并，
+- **自定义覆盖**（第五个标签）：JSON 结构与内置目录相同，`sources` 按键、`categories` / `templates` / `mirrors` 按 `id` 合并，
   同 id 替换、新 id 追加；保存（`PUT /api/v1/admin/rulesets`）后对新生成的订阅立即生效，提交 `null` 恢复内置目录。
   表单可快速添加镜像或自定义分类；新分类的 id 会写进用户的规则配置，之后不要修改。
 
@@ -315,12 +346,17 @@ Stripe / Coinbase / BTCPay 的回调地址必须是公网 HTTPS。各网关协�
 
 ## 6. 用户与内容 / Users and content
 
-- **用户 / Users**：新建、批量生成（下载含密码的 CSV）、群发邮件（Markdown，后台队列发送）、导出；单个用户可
-  **以此用户登录**（一次性链接，建议在隐私窗口打开）、**重置订阅密钥**（UUID 与订阅 token 重新生成）、
-  **重置流量**、**封禁**、删除（连带订单、工单与流量记录）。
-- **工单 / 公告 / 知识库**：客服也可使用。知识库正文支持占位符 `{{siteName}}`、`{{subscribeUrl}}`、
-  `{{urlEncodeSubscribeUrl}}`、`{{safeBase64SubscribeUrl}}`；`<!--access start-->…<!--access end-->` 之间的内容
-  只对有有效套餐的用户显示。
+- **用户 / Users**：按邮箱搜索，分段控件筛选状态（全部状态 / 正常 / 已封禁），另有套餐、权限组、角色、到期筛选与
+  **更多筛选**（用户 ID、邀请人 ID、订阅 Token、备注）。工具栏：**新建用户**、**批量生成**（下载含密码的 CSV）、
+  **群发邮件**（发给当前筛选的用户；正文按纯文本发送，空行分段，后台队列异步发送）、**导出 CSV**。
+- **用户详情** 分 **概况 / 资料 / 订阅** 三个标签：概况显示套餐、流量、订阅 Token 与短链、绑定的 Telegram Chat ID；
+  资料可编辑全部字段；**订阅** 标签显示 age 加密状态与访问记录（见 §10）。每行的更多菜单：**以此用户登录**（一次性链接，
+  5 分钟有效，建议在隐私窗口打开；不能用于管理员或客服账户）、**重置订阅密钥**（UUID 与订阅 token 重新生成，用户需重新导入，
+  登录会话失效）、**重置流量**、**封禁 / 解除封禁**、删除（连带订单、工单、流量记录、订阅配置与密钥）。
+- **工单 / 公告 / 知识库**：客服也可使用。工单列表顶部的分段控件切换 **待回复 / 进行中 / 已关闭 / 全部**，可按用户邮箱或 ID 搜索，
+  ↑/↓ 在列表中移动；回复已关闭的工单会重新打开它。公告与知识库用 Markdown 编辑器（编辑 / 预览）。知识库正文支持占位符
+  `{{siteName}}`、`{{subscribeUrl}}`、`{{urlEncodeSubscribeUrl}}`、`{{safeBase64SubscribeUrl}}`；工具栏的 **付费可见** 插入的
+  `<!--access start-->…<!--access end-->` 之间的内容只对有有效套餐的用户显示。
 - **系统状态 / System**（`/admin/system`）：运行状态、定时任务、邮件队列、缓存与运行日志，每 30 秒刷新。
 
 ---
@@ -333,7 +369,7 @@ ggboard import xboard --dsn "mysql://user:pass@127.0.0.1:3306/xboard" --with-sta
 ```
 
 | 参数 | 说明 |
-|---|---|
+| --- | --- |
 | `--dsn` | 必填：`mysql://…`、`postgres://…` 或 `sqlite:///path` |
 | `--driver` | DSN 没有 scheme 时指定 `mysql` / `postgres` / `sqlite` |
 | `--dry-run` | 读写全部执行后回滚 |
@@ -352,7 +388,8 @@ ggboard import xboard --dsn "mysql://user:pass@127.0.0.1:3306/xboard" --with-sta
 4. 订阅：`curl -sI "https://<host>/api/v1/client/subscribe?token=<真实 token>"` 应返回 200 并带
    `subscription-userinfo`；`/s/<token>` 短链接同样可用；确认 `subscribe_url` 包含用户已在用的域名。
 5. 登录：分别用 bcrypt 与 md5/sha256 旧哈希用户登录一次（成功后自动升级为 argon2id）。
-6. 设置：发送测试邮件、复核人机验证密钥；Xboard 的 `secure_path` 不再生效，如需隐藏 `/admin` 请在反向代理上限制。
+6. 设置：发送测试邮件、复核人机验证密钥；Telegram 设置不导入，按 §9.5 重新填写并设置 Webhook；Xboard 的 `secure_path`
+   不再生效，如需隐藏 `/admin` 请在反向代理上限制。
 7. 保留 Xboard 数据库作为只读备份（导入器从不修改它）。
 
 完整映射与警告含义见 [IMPORT_XBOARD.md](IMPORT_XBOARD.md)。
@@ -384,7 +421,7 @@ ggboard import xboard --dsn "mysql://user:pass@127.0.0.1:3306/xboard" --with-sta
 ### 9.1 创建机器人
 
 1. 在 Telegram 里打开 [@BotFather](https://t.me/BotFather)，发送 `/newbot`，按提示填写名称与用户名（必须以 `bot` 结尾）。
-2. BotFather 回复的 `123456789:AA…` 就是 token，填入 **系统设置 → Telegram → `telegram_bot_token`** 并保存。
+2. BotFather 回复的 `123456789:AA…` 就是 token，填入 **系统设置 → Telegram → Bot Token**（`telegram_bot_token`）并保存。
    token 等同于机器人密码：不要截图外传；泄露后在 BotFather 里 `/revoke` 换新。
 3. 可选：`/setdescription`、`/setuserpic` 设置简介与头像；`/setcommands` 填入
    `start - 绑定面板账户`、`unbind - 解除绑定`、`id - 查看 Chat ID`。
@@ -392,43 +429,94 @@ ggboard import xboard --dsn "mysql://user:pass@127.0.0.1:3306/xboard" --with-sta
 ### 9.2 设置 Webhook
 
 机器人通过 Webhook 接收命令。先确认 **站点 → `app_url`** 是可公网访问的 HTTPS 地址（Telegram 只接受 443、80、88、8443 端口），
-然后在 **系统设置 → Telegram** 点 **设置 Webhook**（`POST /api/v1/admin/settings/telegram/webhook`）。面板把
-`<app_url>/api/v1/guest/telegram/webhook/<telegram_webhook_secret>` 注册给 Telegram，并显示 Telegram 的原始答复
-（`ok: true`、`Webhook was set` 即成功）。更换 `app_url`、重置 `telegram_webhook_secret` 或更换 token 后要重新设置一次。
-同一个 token 同时只能有一个 Webhook：如果旧面板（如 Xboard）还在用这个机器人，设置后旧面板就收不到命令了。
+然后在 **系统设置 → Telegram → 连接测试** 点 **设置 Webhook**（`POST /api/v1/admin/settings/telegram/webhook`）。面板把
+`<app_url>/api/v1/guest/telegram/webhook/<telegram_webhook_secret>` 注册给 Telegram（只接收消息更新，并附带
+`secret_token`）：成功时显示“Webhook 已设置：<地址>”，失败时显示 Telegram 返回的错误码与描述；缺少 Bot Token 或
+`app_url` 时对应字段会标红。Telegram 设置有未保存的修改时两个按钮不可用，先保存。
+更换 `app_url`、重新生成 Webhook 密钥或更换 token 后要重新设置一次。同一个 token 同时只能有一个 Webhook：
+如果旧面板（如 Xboard）还在用这个机器人，设置后旧面板就收不到命令了。
 
 ### 9.3 获取 Chat ID 并测试
 
-1. **个人**：私聊机器人发送 `/id`，机器人回复 `Chat ID：123456789`。
+1. **个人**：私聊机器人发送 `/id`，机器人回复 `Chat ID：123456789`（`/id` 在任何会话都可用，绑定前也能用）。
 2. **群组**：把机器人拉进群，在群里发送 `/id`（多个机器人时发 `/id@你的机器人`），得到 `-100…` 开头的 ID。
-3. **频道**：把机器人设为频道管理员，`telegram_admin_chat_ids` 直接填 `@频道用户名`。
-4. 把这些 ID 填入 `telegram_admin_chat_ids`（一行一个）并保存，点 **发送测试消息**（`POST …/telegram/test`），
-   结果会逐个列出每个 Chat 是否成功（常见失败：`chat not found` = ID 错误或机器人没进群；`bot was blocked` = 被拉黑）。
+3. **频道**：把机器人设为频道管理员，**管理员 Chat ID** 直接填 `@频道用户名`。
+4. 把这些 ID 逐个填入 **管理员 Chat ID**（`telegram_admin_chat_ids`，输入后按回车）并保存，然后点 **发送测试消息**
+   （`POST …/telegram/test`，同步发送）。页面显示“已发送 N 条，失败 M 条”，并列出每个失败的 Chat 及原因（常见失败：
+   `chat not found` = ID 错误或机器人没进群；`bot was blocked` = 被拉黑）。
 
 ### 9.4 事件
 
-`telegram_events` 决定管理员收到哪些事件（默认前五项）：
+**通知事件**（`telegram_events`）决定管理员会话收到哪些事件：
 
-| 事件 | 键 | 内容 |
-|---|---|---|
-| 🧾 新订单 | `order_new` | 用户下单：邮箱、套餐、周期、金额、订单号（后台手动分配的订单不推送） |
-| 💰 订单已支付 | `order_paid` | 以上 + 支付方式、流水号；**默认开启** |
-| 🧾 订单已取消 | `order_cancel` | 超时自动取消或管理员取消（用户自己取消不推送） |
-| 🔐 管理员登录 | `admin_login` | 每次管理员 / 客服登录：角色、方式（密码、密码 + 两步验证、密码 + 备用码、通行密钥）、IP、设备、时间；**默认开启** |
-| 🎫 新工单 | `ticket_new` | 主题、优先级、用户与首条消息摘要；**默认开启** |
-| 🎫 工单有新回复 | `ticket_reply` | 客服的每条回复（本来就发给用户；管理员一般不需要） |
-| 💸 提现申请 | `withdraw` | 用户、金额、方式与打码后的账号；**默认开启** |
-| 🚨 订阅疑似泄露 | `subscription_leak` | 订阅泄露检测命中；**默认开启** |
+| 消息标题 | 键（设置里的名称） | 内容 |
+| --- | --- | --- |
+| 🧾 新订单 | `order_new`（新订单） | 用户下单：邮箱、套餐、周期、金额、订单号（后台手动分配的订单不推送） |
+| 💰 订单已支付 | `order_paid`（订单支付） | 以上 + 支付方式、流水号；**默认开启** |
+| 🧾 订单已取消 | `order_cancel`（订单取消） | 超时自动取消或管理员取消（用户自己取消不推送） |
+| 🔐 管理员登录 | `admin_login`（管理员登录） | 每次管理员 / 客服登录：邮箱、角色、方式（密码、密码 + 两步验证、密码 + 备用码、通行密钥）、IP、设备（UA）、时间；**默认开启** |
+| 🎫 新工单 | `ticket_new`（新工单） | 主题、优先级、用户与首条消息摘要；**默认开启** |
+| 🎫 工单有新回复 | `ticket_reply`（工单回复） | 客服的每条回复（本来就发给用户；管理员一般不需要） |
+| 💸 提现申请 | `withdraw`（提现申请） | 用户、金额、方式与打码后的账号；**默认开启** |
+| 🚨 订阅疑似泄露 | `subscription_leak`（订阅泄露） | 泄露检测命中的用户与不同 IP 数（§10）；**默认开启** |
+
+**登录提醒**：保持 `admin_login` 开启，任何管理员或客服账户每次登录（包括通行密钥登录）都会推送一条消息；
+看到不认识的 IP 或设备时，立即修改该账户密码（会注销所有会话）并检查两步验证。普通用户登录不推送。
 
 用户侧（`telegram_user_notify` 开启时，仅限已绑定的用户）：自己的订单支付成功、工单回复、到期提醒与流量提醒。
 到期 / 流量提醒随每天 10:00 的提醒任务一起发送，与邮件提醒共用“24 小时一次”的限制；关闭 `remind_mail_enable`
 只停邮件，已绑定 Telegram 的用户仍会收到 Telegram 提醒。
 
-发送失败会自动重试 3 次（1 s / 2 s / 4 s，遇到 Telegram 限流按其要求等待），仍失败的写入 **系统 → 日志**（WARN），
-**系统状态** 的 `notify` 一栏显示排队、成功、失败数与启用的渠道。服务器无法直连 `api.telegram.org` 时通知无法送达，
-请为服务器配置可用的出站网络。
+发送失败会自动重试 3 次（1 s / 2 s / 4 s，遇到 Telegram 限流按其要求等待），仍失败的记在 **系统状态 → 运行日志**
+（WARN 级别）；排队、成功、失败数与启用的渠道见 `GET /api/v1/admin/system/status` 的 `notify` 字段（后台页面暂不显示）。
+服务器无法直连 `api.telegram.org` 时通知无法送达，请为服务器配置可用的出站网络。
 
 ### 9.5 从 Xboard 迁移
 
 导入器保留每个用户的 `telegram_id`。若沿用 Xboard 原来的机器人 token，已绑定的用户无需重新绑定即可收到通知；
-记得按 §9.2 把 Webhook 改到 ggboard。Xboard 的 `telegram_*` 设置不会被导入，需要在这里重新填写。
+记得按 §9.2 把 Webhook 改到 ggboard。Xboard 的 `telegram_*` 设置不会被导入，需要在这里重新填写：
+
+- **Bot Token**：Xboard 的 `telegram_bot_token`（或在 BotFather 换新）；
+- **交流群链接**：Xboard 的 `telegram_discuss_link`；
+- **管理员 Chat ID**：Xboard 把管理员通知发给绑定了 Telegram 的管理员账户，ggboard 改为发到这里列出的会话。
+  管理员账户的 Chat ID 就是 **用户详情 → 概况** 里的 Telegram 一栏，也可以私聊机器人发 `/id` 获取；
+- 按需勾选 **通知事件**，保存后点 **设置 Webhook** 与 **发送测试消息**。
+
+---
+
+## 10. 订阅防泄露 / Subscription protection
+
+在 **系统设置 → 订阅 → 防泄露** 配置（§2）。两项机制互相独立：
+
+**age 加密订阅**：由用户在订阅页自行生成密钥并开启（见 [USER_GUIDE.md](USER_GUIDE.md) §3.4）。开启后只有 Clash Meta（mihomo）
+格式会加密；其他格式默认仍给明文。
+
+| 设置 | 作用 |
+| --- | --- |
+| **允许临时关闭加密** `subscribe_age_optional`（默认开） | 链接加 `&age=0` 时返回明文，便于临时排查 |
+| **严格加密** `subscribe_age_strict`（默认关） | 不支持 age 的格式（Stash、sing-box、Surge 等）返回 406，不再退回明文 |
+
+默认组合偏向兼容：泄露的链接仍可以通过 `&age=0` 或换一种格式拿到明文。要真正防泄露，请开启 **严格加密** 并关闭
+**允许临时关闭加密**，并提醒已开启加密的用户只使用支持 age 的客户端。设置只影响已开启加密的用户。
+
+**泄露检测**：**泄露检测阈值** `subscribe_leak_max_ips` 大于 0 时生效。同一个订阅 token 在 24 小时内被超过 N 个不同 IP
+（IPv6 按 /64 计）获取，同一 token 每 24 小时最多触发一次：
+
+- **触发后** = `notify`（界面“仅通知管理员”）：给用户发一封“订阅链接疑似泄露”邮件，订阅不受影响；
+- **触发后** = `rotate`（界面“通知并重置订阅”）：先轮换该用户的订阅 token（UUID 与登录会话不变，旧链接立即失效），
+  再把新链接发邮件给用户；
+- 两种情况都会写一条 WARN 日志，并在 **通知事件** 勾选了“订阅泄露”时推送到管理员 Telegram（§9.4）。
+
+阈值按家庭或多设备用户的正常 IP 数设置（例如 10–20），太低会误报。访问记录每 10 秒批量写入，保留每个用户最新 100 条、
+最长 30 天；按 token 计数，轮换或重置后的新链接重新计数。
+
+**查看单个用户**：**用户 → 用户详情 → 订阅** 标签显示：
+
+- age 加密状态（已开启 / 未开启）与公钥（管理员看不到私钥）；**重置 age 密钥** 为该用户生成新密钥对，开关保持不变，
+  用户需要在订阅页查看新私钥并更新客户端（`POST /api/v1/admin/users/:id/subscription/age/reset`）；
+- 近 24 小时不同 IP 数与最新 100 条访问记录（完整 IP、客户端、格式、Token 标识、时间；
+  `GET /api/v1/admin/users/:id/subscription/access-log`），Token 标识相同的行来自同一个订阅链接；
+- **轮换订阅链接**：管理端没有单独的 token 轮换接口，这个按钮调用 **重置订阅密钥**，UUID 与 token 一起更换，
+  用户需要重新导入订阅，登录会话也会失效。只想换链接时，请让用户在订阅页自己 **轮换订阅链接**。
+
+这些接口与标签仅管理员可用，客服看不到。

@@ -49,7 +49,7 @@ shell 变量代入；**不要把代入后的命令写进仓库或聊天记录**�
 | --- | --- | --- |
 | `[plans#3] three_year_price is 0: the three_yearly period stays purchasable for free` | Xboard 数据 | 若不是有意免费，割接前在 Xboard 后台把套餐 3 的三年价清空（NULL = 不售卖）；若有意，忽略 |
 | `[plans#5] month_price is 0: the monthly period stays purchasable for free` | Xboard 数据 | 套餐 5 是免费/试用套餐（22 个用户），行为与 Xboard 相同，忽略 |
-| `[settings] dropped (not supported by ggboard): change_order_event_id, email_gmail_limit_enable, email_template, force_https, frontend_theme_sidebar, new_order_event_id, renew_order_event_id, safe_mode_enable, telegram_bot_enable, telegram_bot_token` | 预期 | HTTPS 与“安全模式”由 nginx-proxy-manager 承担（§5）；Telegram 机器人 ggboard 没有（§7） |
+| `[settings] dropped (not supported by ggboard): change_order_event_id, email_gmail_limit_enable, email_template, force_https, frontend_theme_sidebar, new_order_event_id, renew_order_event_id, safe_mode_enable, telegram_bot_enable, telegram_bot_token` | 预期 | HTTPS 与“安全模式”由 nginx-proxy-manager 承担（§5）；Telegram 设置不导入，割接后在后台重新填写（§5.1） |
 | `[settings] ignored settings: server_license, server_log_enable, server_v2ray_domain, server_v2ray_protocol, theme_v2board, theme_xboard` | 预期 | 主题与旧版 v2ray 字段，无需处理 |
 | `[coupons] limit_use_with_user is kept, but per-user usage history is lost with the orders` | 预期 | 唯一一张优惠券已过期，忽略 |
 | `[payments#18] config keys not used by ggboard dropped: product_name` | 预期 | EPay 不用该键，忽略 |
@@ -63,11 +63,12 @@ shell 变量代入；**不要把代入后的命令写进仓库或聊天记录**�
 1. 订单：割接后 Xboard 的订单不会迁移。选一个没有待支付订单的时段；后台“订单”里把待支付订单关掉。
 2. 佣金：`commission_auto_check_enable=0`，待确认佣金不会跟过去。后台核对并确认完佣金再割接。
 3. 套餐 3 的三年价（§1）。
-4. Telegram：ggboard 没有机器人。割接前删除 webhook，避免 Telegram 一直往旧地址回调：
-
-   ```bash
-   curl -s "https://api.telegram.org/bot<telegram_bot_token>/deleteWebhook"
-   ```
+4. Telegram：ggboard 有自己的机器人（后台“系统设置 → Telegram”），但 Xboard 的 `telegram_*` 设置**不导入**。
+   割接后**继续用同一个机器人**（同一个 BotFather token）：用户的 `telegram_id` 原样导入，同一个机器人才能继续给已绑定的
+   用户发消息（新机器人无法主动联系从未与它对话过的用户）。现在先记下 Xboard 后台的 `telegram_bot_token` 和
+   `telegram_discuss_link`，以及哪些管理员绑定过 Telegram（Xboard 把管理员通知发给绑定了 Telegram 的管理员账号，
+   ggboard 改为发往 `telegram_admin_chat_ids` 列出的会话）。webhook 不必提前删除：Xboard 的回调地址
+   `/api/v1/guest/telegram/webhook?access_token=…` 在 ggboard 上是 404，§5.1 点“设置 Webhook”时会直接替换成 ggboard 的地址。
 
 ### 2.2 服务器上准备 ggboard（不影响 Xboard）
 
@@ -241,6 +242,25 @@ EOF
 - `invite_commission=0`、`commission_distribution_enable=0`：佣金设置与 Xboard 一致，不需要动。
 - `safe_mode_enable`、`force_https` 已由 NPM 承担；`email_template`、主题设置不迁移（ggboard 自带模板与主题）。
 
+### 5.1 重新配置 Telegram
+
+导入器丢弃 Xboard 的全部 `telegram_*` 设置，按下面的顺序在后台“系统设置 → Telegram”重新填写（详见
+[ADMIN_GUIDE.md](ADMIN_GUIDE.md) 的 Telegram 一节）：
+
+1. **Bot Token**（`telegram_bot_token`）：填 §2.1 记下的 Xboard 机器人 token，保存。
+2. **设置 Webhook**：点一下即可，ggboard 用 `<app_url>/api/v1/guest/telegram/webhook/<telegram_webhook_secret>` 调用
+   Telegram 的 `setWebhook`，替换掉 Xboard 的旧地址（`app_url` 必须是 HTTPS，端口 443/80/88/8443）。
+3. **管理员 Chat ID**（`telegram_admin_chat_ids`）：管理员在与机器人的私聊（或要接收通知的群组）里发送 `/id`，把回复的
+   Chat ID 填进来；也可以直接用后台用户详情里该管理员账号导入过来的 `telegram_id`。
+4. **通知事件**（`telegram_events`）：默认推送订单支付、管理员登录、新工单、提现申请和订阅泄露；按需增减。
+5. **交流群链接**（`telegram_discuss_link`）：填 Xboard 的同名设置。**用户通知**（`telegram_user_notify`）默认开启。
+6. 点“发送测试消息”，每个管理员 Chat ID 都应收到一条测试消息。
+
+已绑定的用户无需重新绑定（`telegram_id` 已导入），只是用户中心不显示 Telegram 用户名（Xboard 不保存它，
+用户解绑后重新绑定即可补上）。Xboard 的机器人命令（`/bind`、`/traffic`、`/getlatesturl`、回复工单）在 ggboard 中
+不存在：ggboard 用一次性绑定码（个人中心 → 账户 → Telegram，`/start <code>`）绑定，机器人只回答 `/start`、`/unbind`、
+`/id` 和 `/help`。
+
 ## 6. 回滚 / Rollback
 
 ```bash
@@ -249,15 +269,15 @@ cd /opt/ggboard && gg stop
 docker start xboard
 ```
 
-Xboard 的库从未被改动，回滚后状态等于停机那一刻。割接后在 ggboard 里产生的订单、工单、注册不会回到 Xboard，
-所以回滚决定应在数小时内做出；如需保留，先 `docker run … ggboard … ` 不可行（没有反向导出），只能人工处理。
+Xboard 的库从未被改动，回滚后状态等于停机那一刻。割接后在 ggboard 里产生的订单、工单、注册不会回到 Xboard
+（ggboard 没有反向导出），所以回滚决定应在数小时内做出；需要保留的数据只能人工补录。
 
 ## 7. 已知差异 / Known differences
 
 | 项 | Xboard | ggboard |
 | --- | --- | --- |
 | 订单 / 支付历史 | 2101 条 | 不迁移（需求） |
-| Telegram 机器人 | 启用 | 无；用户的 `telegram_id` 保留但不再推送 |
+| Telegram 机器人 | 启用（`/bind` 等命令，通知发给绑定了 Telegram 的管理员） | 有，但设置需重新填写（§5.1）；`telegram_id` 原样导入，同一机器人可继续推送；管理员通知发往 `telegram_admin_chat_ids`；绑定改用一次性绑定码 |
 | 佣金首购判断（`commission_first_time_enable`） | 看历史订单 | 当前为关闭，无影响 |
 | 升级套餐折抵（`surplus_enable`） | 按历史订单算 | 导入用户首次升级无折抵（IMPORT_XBOARD.md §8.4） |
 | 主题 / 邮件模板 | `theme_*`、`email_template` | 不迁移 |

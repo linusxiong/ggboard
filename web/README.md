@@ -1,7 +1,8 @@
 # GG Bond — web
 
-React 19 + TypeScript 7 + Vite 8 (Rolldown) + Tailwind CSS v4 + **HeroUI v3** + TanStack (Router, Query, Table, Form,
-Virtual) + zustand. Apple HIG design tokens. Everything below is a **convention for feature agents** — read it together
+React 19 + TypeScript 7 + Vite 8 (Rolldown) + Tailwind CSS v4 + **HeroUI v3** + TanStack (Router, Query, Table, Form;
+`@tanstack/react-virtual` is installed but no page uses it yet) + zustand. Apple HIG design tokens. Everything below is a
+**convention for feature agents** — read it together
 with `AGENTS.md`, `MISTAKES.md` and `docs/FRONTEND.md` (verified library cheat sheet).
 
 ```bash
@@ -9,50 +10,72 @@ pnpm install
 pnpm dev                 # http://localhost:5173, /api and /s/ → http://localhost:8080 (GGBOARD_API=… to override)
 pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm lh   # quality gates — all must pass
 pnpm routes              # regenerate src/routeTree.gen.ts (typecheck/lint/test do it first)
-pnpm build               # vite build + scripts/prerender.mjs (public routes; needs Chrome, else skipped)
+pnpm test:watch          # vitest in watch mode
+pnpm build               # vite build + scripts/prerender.mjs (public routes; needs Chrome, else skipped; PRERENDER=0 skips)
+pnpm preview             # plain vite preview of dist/ (/api proxied to GGBOARD_API)
 pnpm preview:mock        # serve dist/ like the Go server, with fixture API (demo login: any email/password)
 pnpm lh                  # build, then Lighthouse desktop AND mobile on /, /login, /register, /forgot (asserts 100s)
-LH_BASE=http://127.0.0.1:18090 pnpm lh:mobile           # same against a running Go binary
+LH_BASE=http://127.0.0.1:18090 pnpm lh:mobile           # same against a running Go binary (lh:desktop for desktop)
 LH_BASE=… LH_TARGET=auth pnpm lh:desktop                 # signed-in /dashboard, /subscription (LH_USER/LH_PASSWORD)
 BASE=http://127.0.0.1:18090 pnpm ui:smoke --axe          # crawl every page: console/network errors, i18n leaks, overflow, axe
-BASE=http://127.0.0.1:18090 node scripts/screenshots.mjs # README screenshots → ../docs/screenshots
-pnpm format              # prettier
+                                                         # (--quick, --only=guest|user|admin, --shots=<dir>)
+BASE=http://127.0.0.1:18090 node scripts/screenshots.mjs # README screenshots → ../docs/screenshots (no pnpm script)
+pnpm format              # prettier (format:check = check only)
 ```
 
+`prerender.mjs`, `ui-smoke.mjs` and `screenshots.mjs` drive the system Chrome through `puppeteer-core` (`CHROME_PATH`;
+nothing is downloaded). The last two sign in through the API with `USER_EMAIL`/`USER_PASSWORD` and
+`ADMIN_EMAIL`/`ADMIN_PASSWORD` (accounts without 2FA, e.g. seeded by `scripts/e2e-full.sh` from the repo root);
+`lh-login.cjs` (the `LH_TARGET=auth` sign-in) uses `LH_USER`/`LH_PASSWORD`.
+
 Dev-only mock backends (in-memory, fake data on example.com, never bundled): `pnpm exec vite --config
-scripts/mock/vite.config.ts` (dev server + user-portal mock), or `node scripts/mock/server.ts` (admin console mock on
-`:8787`) together with `GGBOARD_API=http://localhost:8787 pnpm dev`; `scripts/mock/{commerce,admin-a}.ts` are smaller
-area mocks (see their header comments).
+scripts/mock/vite.config.ts` (dev server + user-portal mock, `user-portal.ts`), or `node scripts/mock/server.ts` (admin
+console mock on `:8787`) together with `GGBOARD_API=http://localhost:8787 pnpm dev`; `scripts/mock/commerce.ts` (shop,
+orders, invite, tickets, content; `:8787`) and `scripts/mock/admin-a.ts` (dashboard, users, plans, groups, nodes, routes;
+`:8091`) are smaller area mocks, and `scripts/mock/fe-s.ts` (subscription profiles, node operations, age keys, access log,
+token rotation, Telegram binding) is plugged into `user-portal.ts` and `admin-a.ts`. See their header comments.
 
 ## Layout
 
 ```text
 src/
-  main.tsx                 bootstrap: theme, <html lang>, `core` dictionary, router
+  main.tsx                 bootstrap: theme, <html lang>, `core` dictionary, router; takes over prerendered snapshots
   router.tsx               createRouter (preload on intent, default pending/error/404, 401 → /login,
                            403 mfa_setup_required → /profile?tab=security)
   routes/                  file-based routes (TanStack Router plugin → routeTree.gen.ts, generated + git-ignored)
     __root.tsx             tiny root: Suspense + lazy toast region + 404
     index.tsx              landing · -landing/ = lazy below-the-fold sections ("-" = ignored by the generator)
     login.tsx register.tsx forgot.tsx · -login/MfaStep.tsx (TOTP / backup-code step)
-    _user.tsx              pathless layout (signed in): /dashboard /shop /orders /orders/$tradeNo /subscription
-                           /invite /tickets /tickets/$id /knowledge /notices /profile (tabs, ?tab=security)
+    _user.tsx              pathless layout (signed in): /dashboard /shop /orders (?status=) /orders/$tradeNo
+                           /subscription (?profile=<slug>) /invite /tickets (?status=) /tickets/$id /knowledge
+                           /notices /profile (?tab=account|security|subscription)
     _admin.tsx             pathless layout (is_admin || is_staff) for /admin/* (/admin → dashboard or tickets)
     _admin/admin/*.tsx     dashboard users plans groups nodes routes orders coupons payments tickets notices
-                           knowledge settings rulesets system (staff: users, tickets, notices, knowledge)
-  features/<area>/         page bodies, dialogs and helpers per area: dashboard, shop, orders, subscription, invite,
-                           tickets, content, security, admin/<page>/ (route files stay thin)
+                           knowledge settings (?group=) rulesets system (staff: users, tickets, notices, knowledge)
+  features/<area>/         page bodies, dialogs and helpers per area (route files stay thin):
+    dashboard/ shop/ orders/ invite/ tickets/ content/
+    subscription/          SubscriptionPage + ProfileTabs (profiles), SubscribeCard, RuleBuilder, NodeOpsEditor
+                           (+ nodeOps.ts live preview), PreviewPanel, AgeCard, AccessCard / AccessLogList,
+                           queries.ts (feature-local factories: profiles, age key, access log, Telegram)
+    security/              AccountPanel, ChangePasswordCard, TwoFactorCard, PasskeysCard, TelegramCard, api.ts,
+                           webauthn.ts (`@simplewebauthn/browser`)
+    admin/<page>/          one folder per admin page + shared/ (FormDrawer, permissions, queries, …);
+                           payments/IconPicker, users/UserSubscriptionTab, settings/ (metadata-driven, below)
   lib/api/                 client.ts, types.ts, guest.ts, passport.ts, user.ts, admin.ts, queries.ts, index.ts
   lib/                     guards, format, toast, motion, theme, errors, authErrors, button, clipboard, cn,
-                           publicData, queryClient, validators
-  hooks/                   useLiteForm, useFinishAuth, useCooldown, useCssVar
+                           publicData, queryClient, snapshot (prerender handover), validators
+  hooks/                   useLiteForm, useFinishAuth, useCooldown, useCssVar, useMediaQuery
   stores/                  auth.ts (token/user, `gg-auth`), ui.ts (theme/locale/sidebar, `gg-ui`), storage.ts
+                           (`persistStore`: zustand-`persist`-compatible, ~1 KB lighter)
   i18n/                    index.ts + <locale>/<namespace>.json (zh-CN, en)
   components/              shared UI (see below)
-  styles/                  index.css (entry), theme.css (Apple tokens), utilities.css (@utility classes)
-  test/                    vitest setup + cross-feature tests (autofill, login/MFA, security, …)
+  styles/                  index.css (entry: theme.css (Apple tokens) + utilities.css (@utility classes)),
+                           app.css (signed-in component skin, imported by AppShell)
+  shims/                   use-sync-external-store.ts (React 19 built-in, aliased in vite.config.ts)
+  test/                    vitest setup + cross-feature tests (autofill, login/MFA, security, dashboard, effects,
+                           subscription, subscription profiles / security, Telegram)
 scripts/                   gen-routes.mjs, heroui-css.ts (per-component CSS), preview.ts (prod-like preview + mock
-                           API), fixtures/, mock/ (dev mock backends)
+                           API), prerender.mjs, ui-smoke.mjs, screenshots.mjs, lh-login.cjs, fixtures/, mock/
 public/                    favicon.svg, apple-touch-icon.png, manifest.webmanifest, robots.txt
 ```
 
@@ -65,7 +88,8 @@ public/                    favicon.svg, apple-touch-icon.png, manifest.webmanife
 3. Wrap the body in `<PageShell title=… description=… actions=…>`; it renders the single `<h1>` and sets `document.title`.
 4. Admin-only pages: `beforeLoad: requireAdmin`. Staff pages (users read-only, tickets, notices, knowledge): nothing extra.
 5. Navigation entries live in `src/components/layout/nav.ts` (labels in `i18n/*/nav.json`; `staff: true` shows an
-   admin entry to staff).
+   admin entry to staff; `primary: true` puts it in the phone tab bar (max 4, the rest under "More"); admin entries take
+   a sidebar `section`: `ops` 运营 / `content` 内容 / `system` 系统).
 
 ```tsx
 import { useQuery } from '@tanstack/react-query'
@@ -107,6 +131,10 @@ function OrdersPage() {
   `/profile?tab=security`.
 - Types for every object are in `src/lib/api/types.ts` (money = cents, traffic = bytes, `Plan.transfer_enable` = GB).
 - Reads: use (or add) a `xxxQuery()` factory in `src/lib/api/queries.ts` — `queryOptions` + `qk` key + forwarded `signal`.
+  Feature-only endpoints may keep their factories next to the feature (`features/subscription/queries.ts`,
+  `features/security/api.ts`) with keys under the `qk.user.*` prefixes, so the shared invalidations still reach them.
+- Optional endpoints: the subscription page falls back to the single-profile page when `GET /user/rule-profiles` answers
+  404, and `TelegramCard` hides itself on a 404 from `GET /user/telegram` (older backends keep working).
 - Writes: `useMutation` → on success `queryClient.invalidateQueries({ queryKey: qk.user.orders() })` (or `qk.admin.all`).
 - TanStack Query 5.10x deprecates `ensureQueryData/fetchQuery/prefetchQuery` → use `queryClient.query(o)`
   (`{ ...o, staleTime: 'static' }` = ensure).
@@ -168,10 +196,15 @@ Enter / comma / semicolon adds, paste splits a list, Backspace selects then remo
 buttons, `suggestions` render as "+ item" chips. Fixed option sets (e.g. `telegram_events`) use `<ChipSelect>`
 (`@/components/form/ChipSelect`, toggle chips with `aria-pressed`).
 
-Admin settings (`features/admin/settings`): metadata-driven (`GET /admin/settings` `groups`), laid out by
-`layout.ts` — sidebar icon per group, titled sections, dependent keys nested under their switch/select and hidden while
-it is off, units per key. Unknown keys and groups still render (trailing section / generic group), so backend additions
-never disappear; the `telegram` group adds test / webhook actions (`TelegramActions.tsx`).
+Admin settings (`features/admin/settings`): metadata-driven (`GET /admin/settings` `groups`, `settingsMeta.ts`), laid
+out by `layout.ts` — a sidebar with an icon per group (a chip strip on phones; the group is `?group=` in the URL), titled
+sections in display order, dependent keys nested under their switch/select and hidden while it is off, units per key.
+Unknown keys and groups still render (trailing section / generic group), so backend additions never disappear. One
+`<SaveBar>` for all groups (drafts survive switching groups; leaving with unsaved changes asks first). Inputs:
+`SettingField.tsx` picks `SecretInput` (reveal / copy), `ComboInput` (free text + suggestions), `TagInput`,
+`ChipSelect` (`telegram_events`) or `UrlListEditor` (`subscribe_url`); group extras: test mail (`TestMailDialog.tsx`),
+node backend snippets filled with `app_url` + `server_token` (`ServerSnippets.tsx`), Telegram test / webhook
+(`TelegramActions.tsx`).
 
 Public auth pages use `NativeField` / `NativeButton` + `useLiteForm` instead (HeroUI's CSS classes on native elements, no
 React Aria JS) — see "Performance".
@@ -193,15 +226,36 @@ React Aria JS) — see "Performance".
 ## Shared components (`src/components`)
 
 `PageShell` (Large Title 34/700 + 15 px subtitle, 1120 px max width, 32 px between sections), `Section` (titled group +
-caption + card), `EmptyState` (ContentUnavailableView style — also for empty tables: `emptyState={<EmptyState compact icon={…} title={…} />}`), `SegmentedControl` / `SegmentedTabs` (below), `LoadingPage`/`Spinner`, `ErrorBoundary`, `RouteError`,
-`NotFound`, `StatCard` (symbol badge + label, large tabular value; numbers count up after idle), `TrafficBar` and
+caption + card), `EmptyState` (ContentUnavailableView style — also for empty tables: `emptyState={<EmptyState compact icon={…} title={…} />}`), `SegmentedControl` / `SegmentedTabs` (below), `LoadingPage`/`Spinner`, `ErrorBoundary`, `RouteError`
+(+ lazy `RouteErrorPage`), `NotFound` (+ lazy `NotFoundPage`), `FormError`, `FirstCommit` (prerender handover, used by
+`main.tsx`), `StatCard` (symbol badge + label, large tabular value; numbers count up after idle), `TrafficBar` and
 `TrafficRing` (ARIA meters), `Money`/`Traffic`/`DateTime` (`Formatters.tsx`, Intl based; raw functions in `lib/format.ts`),
 `CopyButton` (+ `lib/clipboard.ts`), `QRCode` (lazy `qrcode`, SVG), `Markdown` (lazy `marked` + `dompurify`),
 `ThemeToggle`, `LocaleToggle`, `Logo`, `Captcha` (Turnstile / reCAPTCHA / hCaptcha script loaded only when enabled; the
 backend CSP must allow the provider when it is on; `LazyCaptcha` defers it), `AriaProviders` (React Aria router + locale, rendered by
-`AppShell`), `data-table/`, `form/`, `feedback/`, `layout/` (AppShell, AuthLayout, nav), `charts/` (SVG line/bar/sparkline),
-`editor/` (Markdown editor), `native/` (`NativeField`, `NativeButton`), `icons/inline.tsx`, `auth/EmailCodeButton`.
-`effects/` — ShinyText, GradientText, BlurText, SpotlightCard, CountUp (original CSS/rAF effects, GPL-3.0; always behind `WhenIdle`/`lazy`).
+`AppShell`), `data-table/`, `form/`, `layout/` (AppShell, AuthLayout, nav), `charts/` (SVG line/bar/sparkline),
+`editor/` (`MarkdownEditor`: textarea + formatting toolbar, write / preview segments, lazy preview; `markdownEdit.ts`),
+`native/` (`NativeField`, `NativeButton`), `icons/inline.tsx` (inline SVG icons for the public pages), `icons/payments/` (below),
+`auth/EmailCodeButton`, `feedback/` (`ToastHost`/`ToastMount`, `ConfirmDialog`/`ConfirmHost`, `ModalClose`,
+`DrawerClose`).
+`effects/` — ShinyText, GradientText (landing hero), BlurText, SpotlightCard (landing sections), CountUp (`StatCard`):
+original CSS keyframes / IntersectionObserver / rAF effects written for this GPL-3.0 project — **no React Bits source**
+(MIT + Commons Clause is not GPL-compatible); always behind `WhenIdle`/`lazy`, all off under `prefers-reduced-motion`.
+
+## Payment icons (`@/components/icons/payments`)
+
+`Payment.icon` is a free string (docs/API.md "Payment icons"): `''` (neutral fallback glyph), `preset:<id>` (built-in
+mark), an image URL / same-origin `/path` / `data:image/…`, or one emoji. `<PaymentIcon icon={p.icon} size={20|24|32|40} />`
+renders any of them (decorative, `aria-hidden`; unknown presets, invalid values and images that fail to load show the
+fallback glyph). `presets.ts` holds the registry `PAYMENT_ICON_PRESETS` (ids `alipay wechat stripe card paypal crypto btc
+usdt eth bank qrcode wallet epay epusdt btcpay coinbase`, names per locale, `defaultFor` gateways), `parsePaymentIcon`,
+`isValidPaymentIcon` (mirrors the backend's `validPaymentIcon`) and `presetForGateway`; `glyphs.tsx` the original SVG
+marks. Used by the checkout `PaymentPicker` and the admin payments page, whose `IconPicker` (preset grid + "custom URL")
+stores `preset:<id>`; a new payment starts with the gateway's suggestion (`features/admin/payments/gateways.ts`
+`defaultIconPreset`: from the EPay `type`, Stripe `payment_methods` or Epusdt `currency_type`, else `defaultFor`). Image
+URLs should be `https://` or same-origin: the CSP allows `img-src 'self' data: https:`, so an `http://` icon on another
+host (accepted by the API) is blocked and falls back to the glyph. The `chrome` vendor group matches only `icons/inline.`, so these marks stay with
+the payments / order chunks — keep it that way (MISTAKES #143).
 
 ## Segmented control and tabs (`@/components/SegmentedControl`)
 
@@ -235,15 +289,30 @@ import { SegmentedControl, SegmentedTabs } from '@/components/SegmentedControl'
   2 s while `value` is still the old one. `SegmentedTabs optimistic={false}` when the owner may refuse/confirm first or
   renders only the committed panel (subscription profiles).
 - Tests: single selection = `getByRole('radio', { name })`; tabs = `getByRole('tab')`. No `getAnimations` stub needed.
+- Where: `SegmentedControl` filters the user's orders / tickets (`?status=`), knowledge languages, admin orders and users
+  (status), the admin ticket view, dashboard trend metric / range, node stats range, system log level, node operations
+  (emoji, sort), the shop's billing periods and the Markdown editor's write / preview; `SegmentedTabs` holds the profile
+  page (`?tab=`), subscription profiles and each profile's editors (rules / nodes / preview), the admin node / plan
+  sheets, the user drawer, rule sets and the server snippets. HeroUI `Tabs` is no longer used anywhere; multi-select chip
+  groups (rule builder) stay HeroUI `ToggleButtonGroup` (`selectionMode="multiple"`, role `button`) or `ChipSelect`.
+- Dialogs opened from inside a segmented area render **outside** `SegmentedTabs` (React events from the portal bubble
+  through the React tree into the tab list's handlers; `ProfileTabs.tsx`, MISTAKES #126).
 
 ## i18n
 
 - Dictionaries: `src/i18n/<locale>/<namespace>.json` (nested keys, `{param}` interpolation, `key_one/_other` plurals).
   Every locale must have the same keys (unit test). Default `zh-CN`, fallback `en`.
-- Namespaces: `core` (always loaded: app name, a11y, theme, locale, errors), `common` (UI kit, loaded by the shells),
-  `nav`, `auth`, `landing`. Add one per feature (`orders.json`, `admin-users.json`, …).
+- Namespaces (22, same files in `zh-CN/` and `en/`): `core` (always loaded: app name, a11y, theme, locale, errors),
+  `common` (UI kit, loaded by the shells), `nav`, `auth` (login / register / forgot), `landing`; user area `dashboard`,
+  `shop`, `orders`, `subscription` (profiles, node operations, age, access log), `invite`, `tickets`, `content`
+  (knowledge, notices), `security` (profile, 2FA, passkeys, Telegram); admin `admin-stats`, `admin-users`,
+  `admin-plans`, `admin-nodes` (nodes, groups, routes), `admin-orders` (orders, coupons), `admin-payments`,
+  `admin-support` (tickets, notices, knowledge, Markdown editor), `admin-settings` (settings, rule sets, shared admin
+  strings), `admin-system`. Add one per new feature.
 - `const t = useT(['orders', 'common'])` — suspends until loaded; `t('title')`, `t('common:actions.save')`.
   Preload in the route loader: `loadNamespaces(['orders'])`. Outside React: `t('core', 'errors.network')`.
+- Dictionaries load through `import.meta.glob`; when a new JSON file is invisible in Vitest, clear
+  `node_modules/.vitest-cache` (MISTAKES #67). Plural keys (`_one`/`_other`) must exist in both locales.
 
 ## Design tokens (Apple HIG → HeroUI → Tailwind)
 
@@ -281,19 +350,22 @@ No hex colors in components. Dark mode follows the OS; `useUiStore().setTheme('l
 
 ## Performance rules (AGENTS §6)
 
-- **First-load budget: ≤ 120 KB gzip JS** for landing/login. Current (2026-10-22): entry graph 111.8 KB; with route chunk,
-  dictionaries and boot module landing ≈ 121 KB, login ≈ 122 KB, register/forgot ≈ 120 KB. The public pages are
-  prerendered, so this JS no longer gates their first paint (it loads after it).
+- **First-load budget: ≤ 120 KB gzip JS** for landing/login. Last measured (2026-10-22, after polish round 2, see
+  `docs/E2E_2026-10-22.md`): entry JS 112.0 KB, entry CSS 15.8 KB; with route chunk, dictionaries and boot module the
+  public pages land at ≈ 120–122 KB. They are prerendered, so this JS no longer gates their first paint (it loads after
+  it). The signed-in skin (`app.css`, incl. the segmented control) never loads on them.
   Fixed cost: React 19 (67 KB) + TanStack Router (26 KB). Check with `pnpm build` (sum the chunks a page loads).
 - Public pages use native elements with HeroUI CSS classes (`NativeButton`, `NativeField`, `buttonClass`, inline icons in
   `components/icons/inline.tsx`) and no React Query; HeroUI React components, React Aria, lucide and React Query load with
   the authenticated shells.
 - HeroUI CSS is per component (`scripts/heroui-css.ts` attaches each component's stylesheet to its JS module); in a
-  native element use `import 'heroui-css:button'`. The global CSS stays ≈ 11 KB gzip.
+  native element use `import 'heroui-css:button'`. The entry (global) CSS stays ≈ 16 KB gzip (15.8 KB on 2026-10-22).
 - Route-level code splitting is automatic; lazy-load anything heavy (charts, editors, Markdown, QR, effects) and start
   animations after idle (`useAnimationsReady`, `WhenIdle`). Give async content a fixed-size placeholder (CLS 0).
 - Vendor groups (`vite.config.ts` → `rolldownOptions.output.codeSplitting.groups`): `react`, `tanstack`, `tanstack-query`,
-  `heroui` (entries-aware), plus app groups. **No new dependency without need** — check the bundle impact.
+  `heroui` (entries-aware), plus app groups `app`, `queries`, `chrome`, `auth-kit`. Groups match **paths**: a new file in a
+  matched folder joins that chunk (MISTAKES #143) — grep the groups before adding files next to grouped ones. **No new
+  dependency without need** — check the bundle impact.
 - Lighthouse: `pnpm lh` asserts 100/100/100/100 on `/`, `/login`, `/register`, `/forgot` with the desktop AND the mobile
   preset (served like the Go server: prerendered pages, brotli + immutable assets, fixture API).
 - Prerendering (`scripts/prerender.mjs`, part of `pnpm build`): headless Chrome renders each public route once
@@ -317,8 +389,20 @@ No hex colors in components. Dark mode follows the OS; `useUiStore().setTheme('l
 - Invite links: `<app_url>/register?code=<invite code>`. Payment return: gateways go to
   `/api/v1/guest/payment/return/<trade_no>`, which 302s to `/orders/<trade_no>`.
 - `/.well-known/change-password` and `/.well-known/passkey-endpoints` point password managers at `/profile?tab=security`.
+- Profile links: `GET /user/subscription` lists `profiles[].subscribe_url` (the default profile's link is the plain
+  `subscribe_url`, the others add `&profile=<slug>`; `profiles.ts` `profileUrl` rebuilds it when the list is missing).
+  Telegram binding opens the backend's `deep_link` (`https://t.me/<bot>?start=<code>`, also shown as a QR code) and
+  polls `GET /user/telegram` every 3 s until `bound`.
 - Static server (`internal/static`): `<path>/index.html` (prerendered) when present, else SPA fallback to `spa.html` →
   `index.html` (no-cache); precompressed `.br`/`.gz` and `immutable` caching for hashed assets.
+
+## Tests
+
+Vitest 5 + jsdom + Testing Library (`vite.config.ts` `test`: `src/**/*.test.{ts,tsx}`, setup `src/test/setup.ts` with
+`matchMedia` / `IntersectionObserver` / `ResizeObserver` stubs and storage cleanup). Unit tests sit next to the code
+(`lib/`, `components/`, `features/**`); `src/test/` holds cross-feature page tests. The i18n test checks that both
+locales have the same keys. Query by role + accessible name (several landmarks / labelled elements usually match,
+MISTAKES #138 / #145); the single-select segmented control is a `radio` group.
 
 ## Tooling notes
 

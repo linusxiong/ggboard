@@ -23,7 +23,7 @@ Conventions:
 ## users
 
 | column | type | notes |
-|---|---|---|
+| --- | --- | --- |
 | id | uint64 PK | |
 | email | varchar(191) unique, not null | lower-cased |
 | password_hash | varchar(255) not null | argon2id (new users), bcrypt `$2y$`/`$2a$`/`$2b$` or Xboard `xb$<algo>$<salt>$<hex>` (imported). `!…` never verifies |
@@ -51,7 +51,8 @@ Conventions:
 | telegram_username | *varchar(64) | Telegram `@username` (without `@`) at binding time; cleared on unbind and when an admin edits `telegram_id` |
 | remarks | text | admin notes |
 | password_version | int | bumped on password change / security reset; carried in the JWT `ver` claim |
-| created_at, updated_at | time | |
+| created_at | time idx | |
+| updated_at | time | |
 
 Derived credentials (`model.UserCredentials(u, node)`):
 
@@ -68,7 +69,7 @@ Derived credentials (`model.UserCredentials(u, node)`):
 ## plans
 
 | column | type | notes |
-|---|---|---|
+| --- | --- | --- |
 | id | uint64 PK | |
 | group_id | uint64 idx, not null | server group granted on purchase |
 | name | varchar(191) not null | |
@@ -93,7 +94,7 @@ Derived credentials (`model.UserCredentials(u, node)`):
 ## nodes
 
 | column | type | notes |
-|---|---|---|
+| --- | --- | --- |
 | id | uint64 PK | |
 | type | varchar(16) idx, not null | `vmess`, `vless`, `shadowsocks`, `shadowsocksr`, `trojan`, `hysteria`, `anytls`, `mieru`, `tuic` |
 | name | varchar(191) not null | |
@@ -185,13 +186,13 @@ Reality `tls_settings.dest` is stored as `host:port`. The node APIs split it int
 ## orders
 
 | column | type | notes |
-|---|---|---|
+| --- | --- | --- |
 | id | uint64 PK | |
 | trade_no | varchar(32) unique, not null | `YYYYMMDDHHMMSS` (local time) + 6 random digits |
 | user_id | uint64 idx, not null | |
 | plan_id | uint64 idx, not null | |
 | invite_user_id | *uint64 idx | inviter credited with the commission |
-| coupon_id | *uint64 | |
+| coupon_id | *uint64 idx | |
 | payment_id | *uint64 | |
 | type | int8 not null | 1 new, 2 renew, 3 upgrade, 4 reset_traffic |
 | period | varchar(16) not null | price key (see `plans.prices`) |
@@ -206,7 +207,7 @@ Reality `tls_settings.dest` is stored as `host:port`. The node APIs split it int
 | status | int8 idx | 0 pending, 1 processing, 2 cancelled, 3 completed, 4 discounted (superseded by an upgrade) |
 | commission_status | int8 idx | 0 pending, 1 processing (approved), 2 valid (paid out), 3 invalid |
 | commission_balance | int64 | commission amount |
-| paid_at | *time | |
+| paid_at | *time idx | |
 | created_at | time idx | |
 | updated_at | time | |
 
@@ -215,7 +216,7 @@ A user can hold at most one order in status 0 or 1. "Paid" for statistics means 
 ## payments
 
 | column | type | notes |
-|---|---|---|
+| --- | --- | --- |
 | id | uint64 PK | |
 | uuid | varchar(32) unique, not null | 32 hex characters; part of the notify URL `/api/v1/guest/payment/notify/:gateway/:uuid` |
 | gateway | varchar(32) not null | registered gateway name (`epay`, `epusdt`, `alipay_f2f`, `stripe`, `coinbase`, `btcpay`) |
@@ -232,7 +233,7 @@ A user can hold at most one order in status 0 or 1. "Paid" for statistics means 
 ## coupons
 
 | column | type | notes |
-|---|---|---|
+| --- | --- | --- |
 | id | uint64 PK | |
 | code | varchar(64) unique, not null | |
 | name | varchar(191) not null | |
@@ -258,12 +259,12 @@ set when `invite_never_expire` is false.
 
 ## commission_logs
 
-`id, invite_user_id uint64 idx, user_id uint64, trade_no varchar(32), order_amount int64, get_amount int64, created_at`.
+`id, invite_user_id uint64 idx, user_id uint64, trade_no varchar(32) idx, order_amount int64, get_amount int64, created_at idx`.
 
 ## tickets / ticket_messages
 
 | column | type | notes |
-|---|---|---|
+| --- | --- | --- |
 | id | uint64 PK | |
 | user_id | uint64 idx, not null | |
 | subject | varchar(255) not null | |
@@ -291,7 +292,7 @@ ticket_messages: `id, ticket_id uint64 idx, user_id uint64, message text not nul
 ## stat_users / stat_nodes / stats
 
 | table | columns | indexes |
-|---|---|---|
+| --- | --- | --- |
 | stat_users | `id, user_id uint64, node_id uint64, rate float64, u int64, d int64, record_at date` | `user_id`, `node_id`, `record_at`; unique `uniq_stat_users_day(user_id, node_id, record_at)` |
 | stat_nodes | `id, node_id uint64, u int64, d int64, record_at date` | `record_at`; unique `uniq_stat_nodes_day(node_id, record_at)` |
 | stats | `id, record_at date, order_count, order_total, paid_count, paid_total, commission_count, commission_total, register_count, invite_count, transfer_used_total` (int64) | unique `record_at` |
@@ -313,7 +314,7 @@ ticket_messages: `id, ticket_id uint64 idx, user_id uint64, message text not nul
 A user's named rule profiles (at most 10, exactly one default; docs/SUBSCRIPTION.md "Multiple profiles").
 
 | column | type | notes |
-|---|---|---|
+| --- | --- | --- |
 | id | uint64 PK | |
 | user_id | uint64 not null | first column of the unique index below, which also serves lookups by user |
 | slug | varchar(32) not null | `^[a-z0-9][a-z0-9_-]{0,31}$`; unique per user: `idx_rule_profiles_user_slug (user_id, slug)` |
@@ -334,7 +335,7 @@ and (integration tag) PostgreSQL 16 and MySQL 8.4.
 One row per user who created an age key (docs/SUBSCRIPTION.md "Encrypted subscriptions (age)").
 
 | column | type | notes |
-|---|---|---|
+| --- | --- | --- |
 | user_id | uint64 PK (no auto-increment) | |
 | public_key | varchar(128) not null | age X25519 recipient `age1…` |
 | private_key_enc | text not null | `v1.` + base64url(nonce ‖ AES-256-GCM ciphertext) of the `AGE-SECRET-KEY-1…` identity. Key = HKDF-SHA256(`jwt.secret`, info `ggboard/subscription/age-identity/v1`), AAD = `ggboard:age:<user id>` |
@@ -347,7 +348,7 @@ Access log of successful subscription fetches (docs/SUBSCRIPTION.md "Access log 
 every 10 s; `subscription_access_prune` keeps the newest 100 rows per user and nothing older than 30 days.
 
 | column | type | notes |
-|---|---|---|
+| --- | --- | --- |
 | id | uint64 PK | |
 | user_id | uint64 not null | `idx_subscription_access_user_at (user_id, at)` |
 | ip | varchar(45) | client IP (IPv4-mapped addresses stored as IPv4) |
@@ -362,7 +363,7 @@ every 10 s; `subscription_access_prune` keeps the newest 100 rows per user and n
 One row per user, created on first use (`internal/service/mfa`).
 
 | column | type | notes |
-|---|---|---|
+| --- | --- | --- |
 | user_id | uint64 PK (no auto-increment) | |
 | totp_secret | text | `v1.` + base64url(nonce ‖ AES-256-GCM ciphertext). Key = HKDF-SHA256(`jwt.secret`, info `ggboard/mfa/totp-secret/v1`), AAD = `ggboard:totp:<user id>`. Empty when TOTP is off. Rotating `jwt.secret` invalidates every enrolled authenticator |
 | totp_enabled | bool | |
@@ -375,7 +376,7 @@ One row per user, created on first use (`internal/service/mfa`).
 ## passkeys
 
 | column | type | notes |
-|---|---|---|
+| --- | --- | --- |
 | id | uint64 PK | |
 | user_id | uint64 idx, not null | |
 | rp_id | varchar(255) not null | RP ID the credential was registered for; only passkeys of the current RP ID are used to sign in |
@@ -411,3 +412,7 @@ Kept in `app.KV` (a TTL map that never evicts early) or `app.Online`:
 - Buffered traffic (`app.Traffic`), flushed to `users`, `stat_users` and `stat_nodes` every 10 s and on shutdown.
 - Buffered subscription access rows (at most 10 000), flushed to `subscription_access` every 10 s (not on shutdown); the
   leak-detection markers "bucket already counted for this token" and "token already alerted" (24 h each).
+- Telegram: one-time binding codes (`/start <code>`, 10 min; a new code revokes the previous one). The bot username from
+  `getMe` is cached in `app.Cache` for 1 h.
+- Pending notifications in the notification queue (at most 1024); on shutdown the queue drains for up to 10 s, the rest
+  is lost.

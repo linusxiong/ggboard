@@ -7,7 +7,7 @@ page recipe and conventions are in [`web/README.md`](../web/README.md). Data sha
 Versions below are the ones resolved in `web/pnpm-lock.yaml`.
 
 | package | version | package | version |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `@heroui/react` / `@heroui/styles` | 3.2.6 / 3.2.6 | `@tanstack/react-table` | 9.3.1 |
 | `tailwindcss` / `@tailwindcss/vite` | 4.3.3 | `@tanstack/react-form` | 1.33.5 |
 | `vite` / `@vitejs/plugin-react` | 8.3.5 / 6.1.2 | `@tanstack/react-virtual` | 3.14.21 |
@@ -18,6 +18,7 @@ Versions below are the ones resolved in `web/pnpm-lock.yaml`.
 | `vite-plugin-compression2` / `@lhci/cli` | 2.5.3 / 0.15.1 | `react-aria-components` / `react-aria` | 1.22.1 / 3.53.1 |
 | `marked` / `dompurify` | 18.1.1 / 3.4.17 | `qrcode` | 1.5.4 |
 | `vitest` / `jsdom` | 5.0.5 / 30.1.3 | `eslint` / `typescript-eslint` | 10.13.0 / 8.72.0 |
+| `puppeteer-core` (scripts only: prerender, screenshots, ui-smoke) | 25.15.0 | `tw-animate-css` | 1.4.0 |
 
 There is **no schema library** (no Zod): search params and form fields are validated with plain functions
 (`validateSearch` functions, `@/lib/validators`).
@@ -27,13 +28,14 @@ There is **no schema library** (no Zod): search params and form fields are valid
 ## 0. Building blocks (read each file's header comment)
 
 | need | use | notes |
-|---|---|---|
+| --- | --- | --- |
 | HTTP | `api.get/list/post/put/patch/delete` from `@/lib/api`. Endpoint modules: `adminApi`, `userApi`, `guestApi`, `passportApi` | unwraps `{data}`. `api.list` → `Page<T> = { items, total }`. Throws `ApiError { status, code, errors, retryAfter, fieldError(f), isValidation, isNetwork }`. 401 → session cleared + `/login?redirect=…`; 403 `mfa_setup_required` → `/profile?tab=security` |
 | Query keys / options | `qk` + `xxxQuery()` factories in `@/lib/api/queries` (`meQuery()`, `adminUsersQuery(q)`, …) | hierarchical: invalidate `qk.admin.all`, `qk.user.all`, … |
 | Router | `src/router.tsx` (`defaultPreload: 'intent'`, `defaultPreloadStaleTime: 0`, `scrollRestoration`, default pending/error/notFound) | `__root.tsx` only holds Suspense, the lazy toast region and the 404. React Query and React Aria providers (`AriaProviders`) live in `AppShell` (authenticated areas) |
 | Guards | `requireAuth`, `requireStaff`, `requireAdmin`, `redirectIfAuthenticated`, `safeRedirect`, `homeFor`, `withQueryClient` from `@/lib/guards` | pass them straight to `beforeLoad`; the `_user`/`_admin` layouts use `withQueryClient(args, requireAuth\|requireStaff)` to lazy-load React Query into the route context |
 | Tables | `DataTable`, `createDataTableColumns<T>()`, `dataTableFeatures`, `parseSort`, `toSortParam`, `pageWindow` from `@/components/data-table` | server pagination and sort, mobile cards, skeletons |
-| Forms | `useAppForm`, `withForm`, `withFieldGroup`, `FormError`, `applyServerErrors` from `@/components/form`; `submitError` from `@/components/form/submitError` | field comps: `TextField`, `TextAreaField`, `NumberField`, `SelectField`, `SwitchField`, plus `SubmitButton` |
+| Forms | `useAppForm`, `withForm`, `withFieldGroup`, `FormError`, `applyServerErrors` from `@/components/form`; `submitError` from `@/components/form/submitError` | field comps: `TextField`, `TextAreaField`, `NumberField` (no steppers), `SelectField`, `SwitchField`, `TagsField`, plus `SubmitButton` |
+| Lists, chips, save bar | `TagInput` (`@/components/form/TagInput`), `ChipSelect` (`@/components/form/ChipSelect`), `SaveBar` (`@/components/form/SaveBar`) | string lists as chips, fixed option sets as `aria-pressed` toggle chips, sticky save capsule for long forms (web/README.md "Forms") |
 | Public auth forms | `NativeField`, `NativeButton` (`@/components/native/*`), `useLiteForm`, `useFinishAuth`, `useCooldown` (`@/hooks/*`), `@/lib/validators` | native elements with HeroUI CSS classes and no React Aria JS (first-load budget) |
 | Toast / confirm | `toast` from `@/lib/toast` (own Apple-style toasts: tiny store in the entry, lazy renderer), `confirm()` from `@/components/feedback/confirm`, `ConfirmDialog` from `@/components/feedback/ConfirmDialog` | **never** import `toast` from `@heroui/react` (not used any more; it would load eagerly) |
 | Theme / locale | `useUiStore` (`theme`, `setTheme`, `cycleTheme`, `locale`), `@/lib/theme` (`applyTheme`, `useResolvedTheme`), `ThemeToggle` | **do not** use HeroUI `useTheme` (see §3.1) |
@@ -44,6 +46,7 @@ There is **no schema library** (no Zod): search params and form fields are valid
 | i18n | `useT(ns)`, `loadNamespaces([...])`, `t(ns, key)` from `@/i18n` | dictionaries in `src/i18n/<locale>/<namespace>.json` |
 | Tokens | `src/styles/theme.css` (HIG tokens → HeroUI vars → Tailwind) | see §2 for utility names |
 | Segments / tabs | `SegmentedControl` (radiogroup: filters, mode switches) and `SegmentedTabs` (+ `.List`, `.Panel`: content tabs) from `@/components/SegmentedControl` | one iOS look everywhere; don't use HeroUI `Tabs`/`ToggleButtonGroup` for these (web/README.md) |
+| Payment icons | `PaymentIcon`, `PAYMENT_ICON_PRESETS`, `parsePaymentIcon`, `isValidPaymentIcon`, `presetForGateway` from `@/components/icons/payments` | renders any `Payment.icon` value (`preset:<id>`, URL, emoji, fallback glyph); registry ids in web/README.md |
 
 ---
 
@@ -76,7 +79,7 @@ iOS label, fill and separator values from Flutter `CupertinoColors` (<https://gi
 <https://heroui.com/en/docs/react/getting-started/theming> and `/colors` · <https://tailwindcss.com/docs/theme> · <https://tailwindcss.com/docs/font-size>
 
 | HIG name | light | dark |
-|---|---|---|
+| --- | --- | --- |
 | systemBlue / Green / Orange / Red (AGENTS) | `#007AFF` `#34C759` `#FF9500` `#FF3B30` | `#0A84FF` `#30D158` `#FF9F0A` `#FF453A` |
 | …increased contrast (blue / green / orange / red) | `#0040DD` `#248A3D` `#C93400` `#D70015` | `#409CFF` `#30DB5B` `#FFB340` `#FF6961` |
 | systemGray, Gray2…Gray6 | `#8E8E93 #AEAEB2 #C7C7CC #D1D1D6 #E5E5EA #F2F2F7` | `#8E8E93 #636366 #48484A #3A3A3C #2C2C2E #1C1C1E` |
@@ -108,18 +111,23 @@ HeroUI computes `*-hover`, `*-soft`, `*-soft-foreground` and `--separator-second
 maps all of these to Tailwind as `--color-*` (`bg-surface`, `text-muted`, `bg-accent-soft`, …), plus `--radius-xs…4xl` (multiples of `--radius`), `--ease-out-fluid`,
 `shadow-surface` and `shadow-overlay`.
 
-**Mechanics** (all verified, and all used by `theme.css`):
+**Mechanics** (all verified, and all used by `styles/index.css` + `theme.css`). HeroUI's full `@import "@heroui/styles"` is
+**not** used: it made the render-blocking CSS 457 KB (MISTAKES #25). `index.css` declares
+`@layer theme, base, components, gg-overrides, utilities;`, imports `tailwindcss` and `tw-animate-css`, then only HeroUI's
+foundations (`@heroui/styles/base` in `layer(base)`, `themes/default`, `utilities`, `variants`), then `theme.css` and
+`utilities.css`; each component's own stylesheet is attached to the JS chunk that renders it (`scripts/heroui-css.ts`,
+`import 'heroui-css:button'` for native elements).
 
 ```css
-@import "tailwindcss";          /* 1st — then */
-@import "@heroui/styles";       /* 2nd: order matters */
+@import "tailwindcss";          /* 1st — then the HeroUI foundations (order matters) */
+@import "@heroui/styles/themes/default";
 :root { --accent: …; }          /* UNLAYERED declarations beat HeroUI's layered defaults */
 @theme inline { --color-label-secondary: var(--label-secondary); }   /* inline: utility uses the live var → follows dark mode */
 @theme { --text-title2: 1.375rem; --text-title2--line-height: 1.75rem; --text-title2--font-weight: 700; --text-title2--letter-spacing: .016em; }
 @layer components { .button { border-radius: var(--radius-button); } }    /* HeroUI renders BEM classes: .button, .button--primary, .card … */
 ```
 
-Utilities `theme.css` provides today:
+Utilities provided today (`theme.css` tokens, `utilities.css`, `app.css`):
 
 * Backgrounds: `bg-canvas` (grouped bg), `bg-elevated`, `bg-elevated-secondary`, `bg-fill(-secondary|-tertiary|-quaternary)`, `bg-tint`, `bg-glass`.
 * Text: `text-label`, `text-label-secondary|tertiary|quaternary`, `text-label-blue|green|orange|red`.
@@ -128,8 +136,10 @@ Utilities `theme.css` provides today:
 * Type: `text-large-title`, `text-title1|2|3`, `text-headline`, `text-body`, `text-callout`, `text-subhead`, `text-footnote`, `text-caption`, `text-caption2`.
 * Radii, shadows, easing: `rounded-card|card-lg|button|input`, `shadow-card`, `shadow-float`, `ease-apple-out`.
 * Fonts: `font-display`, `font-mono`.
-* Custom `@utility` classes: `surface-card`, `inset-group`, `glass`, `glass-border-t|b`, `hairline`, `hairline-t|b`, `animate-enter`,
-  `no-scrollbar`, `pt-safe`, `pb-safe`, `tabular`.
+* Custom `@utility` classes (`utilities.css`): `surface-card`, `inset-group`, `separated`, `glass`, `glass-border-t|b`, `hairline`,
+  `hairline-t|b`, `animate-enter`, `no-scrollbar`, `pt-safe`, `pb-safe`, `tabular`.
+* Signed-in only (`app.css`, imported by `AppShell`): the component skin in the `gg-overrides` layer, `pressable`, `shimmer`,
+  `--ease-spring`, `.gg-segmented*`, `.gg-table`. Public pages never load it.
 
 Do **not** set `--color-*: initial`, because it wipes HeroUI's bridge. **No hex values in components.** Inside a Card or Surface, give inputs `variant="secondary"` (HeroUI docs).
 
@@ -164,7 +174,7 @@ The rules:
 ### 3.2 Quick reference (anatomy → key props)
 
 | component | anatomy | key props |
-|---|---|---|
+| --- | --- | --- |
 | Button | `<Button>` | `variant: primary\|secondary\|tertiary\|outline\|ghost\|danger` (styles also have `danger-soft`), `size: sm\|md\|lg`, `isIconOnly` (+`aria-label`), `isPending`, `fullWidth`, `type` |
 | TextField | `TextField > Label, Input\|TextArea, Description, FieldError` | `value`, `onChange(string)`, `onBlur`, `isInvalid`, `isRequired`, `type`, `name`, `validationBehavior: native(default)\|aria`. `placeholder` goes on **Input** |
 | NumberField | `NumberField > Label, NumberField.Group > (DecrementButton, Input, IncrementButton), FieldError` | `value: number`, `onChange(number\|undefined)`, `minValue`, `maxValue`, `step`, `formatOptions` |
@@ -174,7 +184,7 @@ The rules:
 | Modal | `Modal > Button, Modal.Backdrop > Modal.Container > Modal.Dialog > (Modal.CloseTrigger, Modal.Header > Modal.Heading, Modal.Body, Modal.Footer)` | Backdrop: `isOpen`, `onOpenChange`, `variant: opaque\|blur\|transparent`, `isDismissable`. Container: `size: xs…lg\|cover\|full`, `placement`, `scroll` |
 | Drawer | like Modal, but `Drawer.Content` replaces the Container (+ `Drawer.Handle`) | Content: `placement: top\|bottom(default)\|left\|right` |
 | AlertDialog | like Modal, with `AlertDialog.*` | Backdrop `isDismissable` defaults to **false** |
-| Tabs | `Tabs > Tabs.ListContainer > Tabs.List(aria-label) > Tabs.Tab(id) > text + Tabs.Indicator`, `Tabs.Panel(id)` | `selectedKey`, `onSelectionChange(Key)`, `variant: primary\|secondary` |
+| Tabs | `Tabs > Tabs.ListContainer > Tabs.List(aria-label) > Tabs.Tab(id) > text + Tabs.Indicator`, `Tabs.Panel(id)` | `selectedKey`, `onSelectionChange(Key)`, `variant: primary\|secondary`. **Not used in `src/`**: use `SegmentedTabs` / `SegmentedControl` (§0) |
 | Chip / Badge | `<Chip>text</Chip>` · `Badge.Anchor > (Avatar, Badge)` | `color: default\|accent\|success\|warning\|danger`, Chip `variant: primary\|secondary\|tertiary\|soft`, Badge `placement` |
 | Avatar | `Avatar > Avatar.Image, Avatar.Fallback` | `size`, `color`, `variant: default\|soft` |
 | Dropdown | `Dropdown > Button, Dropdown.Popover > Dropdown.Menu > Dropdown.Item(id,textValue) > Label` | Menu `onAction(key)`, `selectionMode`. Item `variant: danger` |
@@ -218,12 +228,13 @@ const dlg = useOverlayState()                                                   
     <Dropdown.Item id="delete" textValue="删除" variant="danger"><Label>删除</Label></Dropdown.Item>
   </Dropdown.Menu></Dropdown.Popover>
 </Dropdown>
-<Tabs selectedKey={tab} onSelectionChange={(k) => setTab(String(k))}>
-  <Tabs.ListContainer><Tabs.List aria-label="订单状态">
-    <Tabs.Tab id="pending">待支付<Tabs.Indicator /></Tabs.Tab><Tabs.Tab id="paid">已完成<Tabs.Indicator /></Tabs.Tab>
-  </Tabs.List></Tabs.ListContainer>
-  <Tabs.Panel id="pending">…</Tabs.Panel><Tabs.Panel id="paid">…</Tabs.Panel>
-</Tabs>
+// filters / content tabs: not HeroUI Tabs but the app's iOS segmented control (web/README.md)
+<SegmentedControl aria-label="订单状态" value={status} onChange={setStatus}
+  items={[{ id: 'all', label: '全部' }, { id: '0', label: '待支付', count: 2 }]} />   {/* radiogroup, no panels */}
+<SegmentedTabs value={tab} onChange={setTab}>                                       {/* tablist + tabpanels */}
+  <SegmentedTabs.List aria-label="个人中心" items={[{ id: 'account', label: '账户' }, { id: 'security', label: '安全' }]} />
+  <SegmentedTabs.Panel id="account">…</SegmentedTabs.Panel><SegmentedTabs.Panel id="security">…</SegmentedTabs.Panel>
+</SegmentedTabs>
 // toasts: import { toast } from '@/lib/toast' (own renderer, not HeroUI's): toast(msg, opts), toast.success / info / warning / error (= danger),
 // toast.promise(p, { loading, success, error }), toast.dismiss(id); opts { description, timeout (ms; 0 = persistent), id }. Default 3.2–4 s, max 3.
 ```
@@ -239,7 +250,7 @@ custom-link,type-safety}, api/router/{useRouterStateHook,RouteApiType,RouterType
 ### 4.1 File naming (`./src/routes` → `./src/routeTree.gen.ts`, generated by the Vite plugin)
 
 | file | meaning |
-|---|---|
+| --- | --- |
 | `__root.tsx` | root route (`createRootRouteWithContext`). It is **never code-split**, so keep it tiny |
 | `index.tsx` · `posts.$id.tsx` = `posts/$id.tsx` | index of its parent · dynamic segment (`params.id`) |
 | `_user.tsx` = `_user/route.tsx` | **pathless layout** (id `/_user`). The child `_user/dashboard.tsx` serves URL `/dashboard` |
@@ -374,7 +385,7 @@ Sources: `https://tanstack.com/table/latest/docs/framework/react/{quick-start,gu
 <https://tanstack.com/table/latest/docs/guide/client-side-vs-server-side> · HeroUI Table docs ("TanStack Table" example) · `@tanstack/table-core@9.3.1` `.d.ts`
 
 | v8 | v9 |
-|---|---|
+| --- | --- |
 | `useReactTable(opts)` | `useTable(opts, selector?)`. The default selector is the full state, like v8. `() => null` + `<table.Subscribe selector>` gives fine-grained renders |
 | everything bundled | **required** `features: tableFeatures({ rowSortingFeature, rowPaginationFeature, … })` (or `stockFeatures`, which is large) |
 | `getCoreRowModel()` | automatic |
@@ -554,6 +565,9 @@ useAuthStore.getState().token                                                   
 * A synchronous storage (`localStorage`) means the store is **already hydrated at creation**. Async storages hydrate in a microtask instead. `useAuthStore` additionally exposes a `hydrated` flag.
   Persist API: `useX.persist.hasHydrated()`, `onFinishHydration(cb)`, `rehydrate()`, `clearStorage()`.
 * `persist` **no longer writes the initial state** at creation (v5 / v4.5.5). The default storage is unvalidated JSON (`createJSONStorage(() => localStorage)`).
+* The two always-loaded stores (`useAuthStore` → `gg-auth`, `useUiStore` → `gg-ui`) do **not** use `persist`: `persistStore`
+  (`src/stores/storage.ts`) writes the same `{"state", "version"}` shape ~1 KB lighter and re-reads on cross-tab `storage`
+  events. Feature stores in lazy chunks may use `zustand/middleware` `persist` (the recipe above).
 
 ---
 
@@ -581,6 +595,8 @@ import { AnimatePresence } from 'motion/react'
 </AnimatePresence>
 ```
 
+In `src/`, motion is used only by the lazily loaded `features/orders/SuccessCheck.tsx` (paid-order check mark:
+`MotionConfig` + `LazyMotion features={domAnimation}` + `m.*`); everything else animates with CSS.
 `reducedMotion="user"` disables transform and layout animations but keeps opacity and color. `useReducedMotion()` (from motion, or from `@/lib/motion`) returns a boolean.
 **Don't** use `<LazyMotion strict>` where `motion.*` components render (strict mode throws); the effects in `@/components/effects` use plain CSS/rAF and need no `motion`.
 HeroUI animates with CSS and honours its own `motion-reduce:` variant (and `data-reduce-motion`).
@@ -594,7 +610,9 @@ decorative effects are original: `ShinyText` and `GradientText` (CSS `background
 (IntersectionObserver + staggered CSS reveal), `SpotlightCard` (pointer-driven CSS variables + radial gradient) and
 `CountUp` (requestAnimationFrame with ease-out-expo, honours reduced motion). Always render them through `WhenIdle`
 or `lazy` so they never enter a route's first chunk; `effects.css` disables every animation under
-`prefers-reduced-motion: reduce`.
+`prefers-reduced-motion: reduce`. Used by the landing page (`ShinyText`, `GradientText` in the hero with a static twin
+until it loads; `BlurText`, `SpotlightCard` in `routes/-landing/`) and `StatCard` (`CountUp`); `src/test/effects.test.tsx`
+covers them.
 
 ## 12. lucide-react v1
 
@@ -627,6 +645,10 @@ Sources: <https://vite.dev/guide/migration> · <https://vite.dev/config/build-op
 * Plugin order: `tanstackRouter()` → `react()` → `herouiComponentCss()` (`scripts/heroui-css.ts`, per-component HeroUI CSS) → `tailwindcss()` →
   `compression()` → `productionPreview()` (`scripts/preview.ts`). Budget: the first-load gzip size (shown in the build report) stays under 120 kB.
 * Dev proxy: `/api` and `/s/` → `GGBOARD_API` (default `http://localhost:8080`); `vite preview` proxies `/api`.
+* `resolve.tsconfigPaths: true` (the `@/` alias) and an alias of `use-sync-external-store/shim` to
+  `src/shims/use-sync-external-store.ts` (React 19 has it built in; TanStack Store would otherwise pull the npm shim).
+* Vendor groups today: `react`, `tanstack`, `tanstack-query`, `heroui` (entries-aware) and the app groups `app`, `queries`,
+  `chrome`, `auth-kit` (the comments in `vite.config.ts` say why each exists).
 
 ---
 
@@ -635,21 +657,27 @@ Sources: <https://vite.dev/guide/migration> · <https://vite.dev/config/build-op
 Sources: <https://github.com/GoogleChrome/lighthouse-ci/blob/main/docs/configuration.md> · Lighthouse `core/config/default-config.js` (scored audits) ·
 `core/lib/network-request.js` (localhost counts as secure) · `core/audits/seo/robots-txt.js`
 
-`pnpm -C web lh` builds and runs `lhci autorun --config=./lighthouserc.cjs` (`.cjs` because the package is `"type": "module"`). The config:
+`pnpm -C web lh` builds (vite build + prerender) and runs `lhci autorun --config=./lighthouserc.cjs` twice: `lh:desktop`
+(`LH_PRESET=desktop`) and `lh:mobile` (`LH_PRESET=mobile`, Lighthouse's default mobile emulation: slow 4G, 4× CPU).
+`.cjs` because the package is `"type": "module"`. The config:
 
-* serves `dist/` with `vite preview --mode lighthouse --port 4173` (`scripts/preview.ts`: precompressed `.br`/`.gz`, immutable hashed assets,
-  `no-cache` `index.html`, fixture answers for `/api/v1/guest/*`, the passport endpoints and `/user/me`);
-* audits `/`, `/login` and `/register`, 3 runs, desktop preset (`LH_PRESET=mobile` → Lighthouse's mobile emulation; `pnpm lh:mobile`);
-  `CHROME_PATH` overrides the browser;
+* serves `dist/` with `vite preview --mode lighthouse --port 4173` (`scripts/preview.ts`: prerendered `<route>/index.html`,
+  `spa.html` fallback, precompressed `.br`/`.gz`, immutable hashed assets, `no-cache` HTML, fixture answers for
+  `/api/v1/guest/*`, the passport endpoints and `/user/me`), or audits a running server instead with `LH_BASE`
+  (e.g. the Go binary);
+* audits `/`, `/login`, `/register` and `/forgot`, 3 runs, only the four scored categories; `CHROME_PATH` overrides the browser;
+* `LH_TARGET=auth` (needs `LH_BASE`) audits the signed-in `/dashboard` and `/subscription` instead: `scripts/lh-login.cjs`
+  signs in through the API (`LH_USER`/`LH_PASSWORD`) and stores the session (`disableStorageReset`); SEO is not asserted there;
 * asserts **all four categories at `minScore: 1`** (performance on the `median-run`);
 * writes reports to `web/.lighthouseci/reports` (filesystem target, no upload).
-Presets: `lighthouse:recommended` and `lighthouse:no-pwa` warn on metrics. Assertions take `minScore`, `maxNumericValue`, `maxLength`, and
-`aggregationMethod: median|optimistic|pessimistic|median-run`.
+Assertions take `minScore`, `maxNumericValue`, `maxLength`, and `aggregationMethod: median|optimistic|pessimistic|median-run`.
+Last full run: `docs/E2E_2026-10-22.md` (100/100/100/100 on the public pages with both presets).
 
-Authenticated URLs render the login redirect, so they audit the shell. Checklist of scored audit IDs:
+Checklist of scored audit IDs:
 
 * **Performance**: FCP, LCP, TBT, CLS, SI. Split routes, use vendor groups, load no web fonts, `lazy()` heavy widgets, give Skeletons fixed sizes, put `width`/`height` on `<img>`,
-  start animations after idle, keep `__root` small, and lazy-load toasts (already done).
+  start animations after idle, keep `__root` small, lazy-load toasts (already done) and keep the public routes prerendered
+  (`scripts/prerender.mjs`, web/README.md "Performance rules").
 * **Accessibility**:
   * `html-has-lang`: `syncDocumentLanguage()` keeps it in sync.
   * `document-title`: React 19 hoists `<title>` from anywhere, but its children must be **one string**, e.g. `<title>{`${t} · GG Bond`}</title>`.
@@ -672,7 +700,7 @@ Authenticated URLs render the login redirect, so they audit the shell. Checklist
    * Use `isPending`, not `isLoading`, and `onPress`, not `onClick`.
    * Parts are compound (`Card.Header`, `Modal.Backdrop`), and `Text` was renamed `Typography` in v3.0.5.
 2. **HeroUI peers are mandatory** (`react-aria`, `react-aria-components`, `@react-aria/ssr`, `@react-aria/utils`, `@internationalized/date`, plus `react>=19` and `tailwindcss>=4`).
-   CSS order is `@import "tailwindcss"` and **then** `@import "@heroui/styles"`.
+   CSS order is `@import "tailwindcss"` and **then** the HeroUI styles (here: only its foundations, component CSS per chunk, §2).
 3. **v3.2 breaking change** for Checkbox, Radio and Switch:
    * `X.Control` now sits **inside** `X.Content`.
    * The label is plain text, with no nested `<Label>`.
@@ -717,3 +745,14 @@ Authenticated URLs render the login redirect, so they audit the shell. Checklist
 17. **lucide v1** has no brand icons, and `DynamicIcon` defeats tree-shaking.
 18. A `ProgressBar` or `Meter` without a Label or `aria-label` fails `aria-progressbar-name`, and an icon-only `Button` without `aria-label` fails `button-name`.
     React 19 `<title>` needs a single string child: write `{`订单 ${n}`}`, not `订单 {n}`.
+19. **Segments vs tabs**: a control without panels is a radiogroup (`SegmentedControl`); React Aria `Tab` always sets
+    `aria-controls`, so "filter tabs" would point at missing ids (MISTAKES #149). A single-select `ToggleButtonGroup` renders
+    `radio`s, a multi-select one `button`s (#128). URL-driven selections need the optimistic pick (`SegmentedTabs
+    optimistic={false}` when the owner may refuse or renders only committed panels, #150).
+20. **Overlays inside collections**: never render a Modal/Drawer as a child of a React Aria collection (Tabs, Menu,
+    ListBox): events from the portal bubble through the React tree into the collection's handlers (#126).
+21. **Phone overflow**: `theme.css` sets `:where(.grid) > * { min-width: 0 }`; long or scrolling children still need
+    `min-w-0` / `grid-cols-[minmax(0,1fr)]` elsewhere. Measure overflow against the device width, not `innerWidth` (#135, #142).
+22. **Vendor groups match paths** (`vite.config.ts`): a new file in a grouped folder (e.g. `components/icons/`) joins that
+    chunk and may land on every public page (#143). HeroUI's vertical `RadioGroup` adds `mt-4` per radio — reset it for
+    grid layouts (#146). Translucent / soft fills behind text: measure contrast on every canvas (#104, #141).

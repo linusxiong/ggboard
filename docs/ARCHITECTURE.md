@@ -24,11 +24,12 @@ batched DB writes.
                             └───────────────┬──────────────────────────────────────────┘
                                             │ internal/service/* · subscription · payment
                                             ▼
-              ┌───────────┐  ┌──────────────┐  ┌───────────────┐  ┌──────────────┐  ┌────────────┐
-              │ GORM DB   │  │ ristretto    │  │ app.KV        │  │ scheduler    │  │ mail queue │
-              │ sqlite/pg/│  │ cache + ETag │  │ app.Online    │  │ (robfig/cron)│  │ smtp / log │
-              │ mysql     │  │              │  │ app.Traffic   │  │              │  │            │
-              └───────────┘  └──────────────┘  └───────────────┘  └──────────────┘  └────────────┘
+              ┌───────────┐  ┌──────────────┐  ┌───────────────┐  ┌──────────────┐  ┌──────────────┐
+              │ GORM DB   │  │ ristretto    │  │ app.KV        │  │ scheduler    │  │ mail queue   │
+              │ sqlite/pg/│  │ cache + ETag │  │ app.Online    │  │ (robfig/cron)│  │ (smtp / log) │
+              │ mysql     │  │              │  │ app.Traffic   │  │              │  │ notify queue │
+              │           │  │              │  │               │  │              │  │ (Telegram)   │
+              └───────────┘  └──────────────┘  └───────────────┘  └──────────────┘  └──────────────┘
 ```
 
 ## Boot sequence (`ggboard serve`)
@@ -51,9 +52,12 @@ batched DB writes.
         UTC time parameters
       - PostgreSQL/MySQL: 32 open / 8 idle connections, 30 min lifetime. MySQL DSNs get `parseTime`, `loc=UTC` and `utf8mb4`
    3. `db.Migrate` (auto-migrate `model.All()`; idempotent, runs on every start)
-   4. `settings.New` (generates `server_token` on first boot)
+   4. `settings.New` (generates `server_token` and `telegram_webhook_secret` on first boot)
    5. ristretto cache, `KV` (`cache.TTLMap`), `Online` store, `Traffic` accumulator, mail queue
    6. scheduler (`time.Local`) with every job (see below)
+
+   Feature packages keep further per-App singletons with `a.Component(name, build)`: the notification queue
+   (`internal/notify`) is created on the first `notify.Emit` while a channel is configured.
 4. `router.New(app)` (`internal/router`):
    - `httpx.NewEngine` sets the middleware chain below and `server.trusted_proxies` (an invalid list falls back to
      trusting none).
@@ -72,7 +76,7 @@ batched DB writes.
 ## CLI
 
 | command | what |
-|---|---|
+| --- | --- |
 | `ggboard serve [--addr :8080]` | HTTP server, scheduler and mail queue |
 | `ggboard migrate` | create or update the schema (the App migrates on init), then exit |
 | `ggboard admin create --email E [--password P] [--staff]` | create an administrator (or staff). A password is generated and printed when omitted |
@@ -106,9 +110,9 @@ Global flags: `-c/--config`, `--data-dir`, `--log-level`, `--log-format`, `--db-
 Middleware chain: request id (`X-Request-ID`, reused when sane) → access log → security headers → CORS (only when
 `server.cors_origins` is set) → gzip → recovery → body limit.
 
-- The **access log** records the route pattern (`c.FullPath()`, e.g. `/s/:token`) and never the query string, so tokens
-  in paths or queries never reach the access log. An unmatched request (404) logs its literal path. Known gap: the
-  `rate limited` (429), 5xx and panic log lines still log `c.Request.URL.Path`, so a throttled `/s/:token` leaks the token.
+- The **access log** records the route pattern (`httpx.LogPath`: `c.FullPath()`, e.g. `/s/:token`) and never the query
+  string, so tokens in paths or queries never reach the logs. The `rate limited` (429), `request failed` (5xx) and
+  `panic recovered` lines use the same pattern. Only an unmatched request (404) logs its literal path.
 - **gzip** compresses compressible responses of at least 1 KiB. It skips HEAD requests, upgrades and responses that
   already set `Content-Encoding`.
 - `node.Register` sets `RemoveExtraSlash`, so soga's `/soga//api/v1/node` still matches.
@@ -116,18 +120,22 @@ Middleware chain: request id (`X-Request-ID`, reused when sane) → access log �
 ## Caching
 
 | what | where | TTL / invalidation |
-|---|---|---|
+| --- | --- | --- |
 | settings | `settings.Service` snapshot | swapped after every successful `Set`; reads never hit the DB |
 | session user | `auth.LoadUser` | 30 s; `auth.InvalidateUser` after password/ban/role/uuid changes |
 | available users per group set | `usersvc.AvailableUsersForGroups` | 60 s; `InvalidateNodeUsers()` |
 | node config / user list / audit rules bodies, resolved nodes | `nodesvc` namespace | 60 s; `nodesvc.Invalidate()` after node, route or group writes |
 | subscription node list | `subscription.AvailableNodes` | 5 s per group; `subscription.InvalidateNodes(a)` |
-| stored rule profile | `engine.LoadStoredProfile` | 1 min; dropped on save |
+| a user's rule profiles | `engine.LoadProfiles` (`LoadStoredProfile` reads the default one) | 1 min (`engine.ProfileTTL`); per-user namespace dropped on every profile write |
+| age key | `guard.LoadKey` | 1 min; dropped on every key write |
+| Telegram bot username (`getMe`) | `telegram.BotUsername` (keyed by a hash of the token) | 1 h; after a failed `getMe`, `/user/telegram` stops asking for 1 min |
 | MFA "has a second factor" | `mfasvc` (admin gate) | 30 s |
 
 Node responses (`config`, `user`, soga `node`/`users`/`audit_rules`) carry `ETag: "<sha1 hex of the body>"`. A request
 whose `If-None-Match` contains the tag gets 304 (substring compare, so quoted, bare and `W/` forms all match).
-Subscriptions are generated per request and also carry a sha1 `ETag` with 304 support.
+Subscriptions are generated per request and carry `ETag: "<sha1 of the plaintext>"` (`-age-<key tag>` appended when the body is
+age-encrypted, because the ciphertext changes on every request). Their `If-None-Match` must name that exact tag (quoted, bare
+or `W/`, in a list); a substring is not enough, so a plaintext tag never matches an encrypted response.
 
 ## Runtime node state
 
@@ -151,7 +159,7 @@ Jobs run only in `ggboard serve`. Specs use the 5-field cron format in the serve
 recovers panics, skips a run while the previous one is still running, and reports status in `/admin/system/status`.
 
 | job | spec | registered in | what |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `online_cleanup` | `*/5 * * * *` | `internal/app` | purge expired alive IPs / node entries and `app.KV` |
 | `traffic_flush` | `@every 10s` | `internal/app` | flush the traffic accumulator |
 | `order_timeout` | `*/1 * * * *` | `service/order` | cancel pending orders older than `order_timeout_minutes` (default 30). Balance and coupon use are given back. At most 500 per run |
@@ -186,9 +194,10 @@ Feature code describes what happened as a `notify.Event{Type, Title, Body, Field
 `notify.Emit(a, ev)`, which never blocks:
 
 ```text
-order / ticket / invite / passport / maintenance ──Emit──▶ bounded queue (1024) ──1 worker──▶ every configured Notifier
-                                                     │ full → dropped, WARN, failed++        ├─ SendAdmin(ev)        (ev.Admin)
-                                     EmitWait (bulk) ┘ waits for room                        └─ SendUser(chatRef, ev) (ev.UserID reachable)
+order / ticket / invite / passport /
+maintenance / subscription leak hook ──Emit──▶ bounded queue (1024) ──1 worker──▶ every configured Notifier
+                                        │ full → dropped, WARN, failed++        ├─ SendAdmin(ev)        (ev.Admin)
+                        EmitWait (bulk) ┘ waits for room                        └─ SendUser(chatRef, ev) (ev.UserID reachable)
 ```
 
 - **Channels** register a `notify.Factory` from `init()` (`notify.Register`, a `plugin.Registry`). The factory is called per
@@ -225,10 +234,20 @@ order / ticket / invite / passport / maintenance ──Emit──▶ bounded que
   - `/passport/*`: 30 requests/min per IP; `send-code`: 10 requests/h per IP.
   - Per email: a code cooldown and the password lockout (`password_limit_*`); registrations per IP (`register_limit_*`).
   - `/user/security/*` and order create / checkout / coupon check: rate limited.
-  - Subscriptions: 120 requests/h per token, burst 30.
+  - Rule-profile writes and preview, age-key writes and `rotate-token`, Telegram bind codes: per user; the Telegram
+    webhook: per IP (numbers in docs/API.md §Conventions).
+  - Subscriptions: 120 requests/h per token, burst 30; unknown tokens 60/h per IP, burst 30.
   - An optional captcha (turnstile, recaptcha, hcaptcha).
 - **Subscriptions**: a malformed or unknown token gets 403 without revealing whether it exists. A banned, expired or
   over-quota user gets a valid document with only the info entries and no nodes.
+  - Optional **age encryption** per user (`internal/subscription/guard`): mihomo bodies are encrypted to the user's X25519
+    recipient; the identity is stored AES-256-GCM sealed under a key derived from `jwt.secret`. `subscribe_age_strict`
+    refuses (406) formats that cannot be encrypted instead of serving them in plaintext.
+  - Every served fetch lands in `subscription_access` (IP, /64 bucket, token tag, client, format). More than
+    `subscribe_leak_max_ips` distinct buckets per token within 24 h fires `subscription.LeakHook` (mail to the user,
+    Telegram `subscription_leak` to administrators) and, with `subscribe_leak_action=rotate`, rotates the token.
+- **Admin login alerts**: every sign-in of an administrator or staff member (password, password + TOTP or backup code,
+  passkey) emits the `admin_login` notification with email, role, method, IP, User-Agent and time (`telegram_events`).
 - **Payment notify**: every gateway verifies its signature; fulfilment is idempotent and compares the amount with the order.
 - **Secrets**: `server_token`, `email_password`, `captcha_secret`, `telegram_bot_token`, `telegram_webhook_secret` and payment
   configs are only served by admin-only endpoints. The Telegram client strips the request URL (which embeds the bot token) from
@@ -250,14 +269,19 @@ Every plugin point is a Go interface plus a registry built on `plugin.NewRegistr
 `Names`, `Each`, `Len`; duplicate names panic). Built-ins register in `init()` and are linked by blank imports:
 
 | plugin point | registry | built-ins | linked by |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | payment gateway | `payment.Register` | epay, epusdt, alipay_f2f, stripe, coinbase, btcpay | `cmd/ggboard/plugins_payment.go` → `internal/payment/gateways` |
-| subscription format | `subscription.RegisterFormat` | clash-meta, stash, clash, singbox, surge, surfboard, quantumultx, shadowrocket, loon, v2ray, ssr | `internal/api/client` → `internal/subscription/formats` |
+| subscription format | `subscription.RegisterFormat` (optional `AgeCapable.SupportsAge`: only clash-meta) | clash-meta, stash, clash, singbox, surge, surfboard, quantumultx, shadowrocket, loon, v2ray, ssr | `internal/api/client` → `internal/subscription/formats` |
 | captcha | `captcha.Register` | none, turnstile, recaptcha, hcaptcha | `internal/captcha` itself |
 | mail driver | `mail.FromSettings` (`email_driver`) | smtp, log (memory in tests) | `internal/mail` |
 | notification channel | `notify.Register(name, factory)` | telegram (`notifytest` "record" in tests) | `cmd/ggboard/plugins_notify.go` → `internal/notify/telegram` (also imported by the API packages) |
-| jobs | `app.RegisterJob(name, spec, fn)` | see above | `cmd/ggboard/jobs_maintenance.go`; `service/order` through the API packages |
+| jobs | `app.RegisterJob(name, spec, fn)` | see above | `cmd/ggboard/jobs_maintenance.go`; `service/order` and `subscription/guard` through the API packages |
 | CLI subcommands | `cli.Register(factory)` | `import xboard` | `cmd/ggboard/import.go` |
+
+One hook is wired by assignment instead of a registry: `subscription.LeakHook` (called once per token and 24 h when the leak
+threshold is crossed) is set in `cmd/ggboard/wire_leak.go` to `subscription.DefaultLeakHook` (WARN log and a mail to the user;
+with `subscribe_leak_action=rotate` the guard has already rotated the token and the mail carries the new link) followed by
+`notify.EmitSubscriptionLeak` (administrator event `subscription_leak`).
 
 See `AGENTS.md` §7.
 
@@ -289,7 +313,10 @@ See `AGENTS.md` §7.
   - `testutil.NewRouterWith(t, app, pkg.Register)` builds an engine; `testutil.Login(t, app, user)` returns a JWT.
     See docs/BACKEND.md §10.
 - `make test` runs `go test ./... -race -count=1`.
-- `make e2e` (`scripts/e2e.sh`) builds the binary, starts it on a random port with a throwaway data dir, and checks
-  `/healthz`, `GET /api/v1/guest/config` and the SPA root. It does not build the frontend; run `make web` first to
-  test the real SPA.
-- Frontend: `vitest` for utils and stores; Lighthouse via `@lhci/cli` (see `web/lighthouserc.cjs`).
+- `make e2e` runs two scripts. `scripts/e2e.sh` builds the binary, starts it on a random port with a throwaway data dir,
+  and checks `/healthz`, `GET /api/v1/guest/config` and the SPA root. `scripts/e2e-full.sh` (bash + curl + python3) then
+  walks the main API flows end to end (admin CRUD, register/login, orders and checkout, UniProxy, every subscription
+  format with ETag/304, rule profile + preview, tickets, TOTP, admin users/orders/settings/stats); with `BASE=…` it runs
+  against (and seeds) a running server. Neither builds the frontend; run `make web` first to test the real SPA.
+- Frontend: `vitest` (components, stores, features; `web/src/test`), `pnpm -C web ui:smoke` (puppeteer crawl of every
+  page) and Lighthouse via `@lhci/cli` (`web/lighthouserc.cjs`); see `web/README.md`.

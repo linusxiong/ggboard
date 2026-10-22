@@ -43,7 +43,11 @@
       需要同步更新所有节点的 XrayR / V2bX `ApiKey` 与 soga `webapi_key`。节点接口用常量时间比较，token 为空时拒绝一切请求。
       从 Xboard 迁移时会沿用旧 token；如果旧面板可能已泄露，迁移后立即轮换。
 - [ ] **文件权限**：数据目录以 0700 创建，`jwt.secret` 为 0600；`/etc/ggboard` 用 0750，环境文件只给 root 读。
-- [ ] **加密备份**：数据库里有密码哈希、加密的 TOTP 密钥、订阅 token、`server_token`、SMTP 口令、验证码密钥和支付网关密钥。
+- [ ] **Telegram 机器人密钥**：`telegram_bot_token` 与 `telegram_webhook_secret` 只有管理员接口返回，日志和 API 错误里不会出现
+      （Telegram 客户端会从传输错误里去掉含 token 的请求 URL）。webhook 密钥首次启动自动生成；怀疑泄露时在
+      **设置 → Telegram → 重新生成密钥**，保存后再点一次“设置 Webhook”。BotFather token 泄露时先在 BotFather 里 `/revoke`。
+- [ ] **加密备份**：数据库里有密码哈希、加密的 TOTP 密钥、加密的 age 私钥、订阅 token、`server_token`、SMTP 口令、验证码密钥、
+      Telegram 机器人 token 和支付网关密钥。
 - [ ] **不要提交机密**：`.gitignore` 已排除 `.env*`（`.env.example` 除外）、`config.yaml`、`config.local.yaml`、`*.pem`、`*.key`、`data/`、`*.db`。
 
 ### 账户 / Accounts
@@ -55,6 +59,21 @@
       `register_limit_by_ip_enable`、`email_verify`、`email_whitelist_*`、`invite_force`，以及 `captcha_provider`
       （Turnstile / reCAPTCHA / hCaptcha）。
 - [ ] **生产环境使用 SMTP**：`email_driver=log` 只把邮件写进日志；`log.level=debug` 时连邮件正文（验证码、重置链接）也会写入日志。
+- [ ] **管理员登录提醒**：配置 Telegram 机器人并保留 `telegram_events` 里的 `admin_login`（默认开启）。每次管理员或客服登录
+      （口令、口令 + TOTP / 备用码、Passkey）都会把邮箱、角色、方式、IP、UA 和时间推送到 `telegram_admin_chat_ids`，
+      陌生登录能第一时间发现。
+
+### 订阅防泄露 / Subscription leak protection
+
+- [ ] **泄露检测**：**设置 → 订阅** 里把 `subscribe_leak_max_ips` 设为大于 0（如 10）。同一订阅 token 24 小时内被超过该数量的
+      不同 IP（IPv6 按 /64 计）拉取时，用户会收到邮件，管理员收到 Telegram `subscription_leak`；`subscribe_leak_action=rotate`
+      还会立即更换 token（只换订阅链接，节点凭据与会话不变）。访问日志保留 30 天、每个用户最新 100 条。
+- [ ] **age 加密订阅**：用户可在订阅页生成 age 密钥（mihomo 1.19.27+、Clash Party、FlClash 可解密）。默认设置偏向兼容：
+      `subscribe_age_optional`（默认开）允许 `age=0` 取明文，`subscribe_age_strict`（默认关）时其他格式仍返回明文。
+      要让泄露的链接拿不到明文，需要**关闭 `subscribe_age_optional` 并开启 `subscribe_age_strict`**（其他格式改为 406）。
+      age 私钥用 `jwt.secret` 派生的密钥加密保存，更换 `jwt.secret` 后用户需重新生成密钥。
+- [ ] 提醒用户：链接泄露时优先用“轮换订阅链接”（只换 token）；只有怀疑节点凭据（UUID）也泄露时才“重置订阅”
+      （UUID 与 token 一起更换，所有设备都要重新导入）。
 
 ### 内置限流 / Built-in rate limits
 
@@ -66,7 +85,12 @@
 | `POST /api/v1/passport/email/send-code` | 另加 10 次/小时 | 客户端 IP |
 | `/api/v1/user/security/*` | 60 次/分钟 | 用户 |
 | `POST /api/v1/user/coupons/check`、`POST /api/v1/user/orders`、`POST /api/v1/user/orders/:trade_no/checkout` | 30 次/分钟，突发 10 | 用户 |
+| `PUT/POST/PATCH/DELETE /api/v1/user/rule-profile(s)…`、`GET /api/v1/user/subscription/preview` | 60 次/分钟，突发 30 | 用户 |
+| `/api/v1/user/subscription/age`（写操作）、`POST /api/v1/user/subscription/rotate-token` | 30 次/分钟，突发 10 | 用户 |
+| `POST /api/v1/user/telegram/bind-code` | 10 次/分钟，突发 5 | 用户 |
+| `POST /api/v1/guest/telegram/webhook/:secret` | 600 次/分钟，突发 120 | 客户端 IP |
 | `GET/HEAD /api/v1/client/subscribe`、`/s/:token` | 120 次/小时，突发 30 | 订阅 token |
+| 同上，未知或格式错误的 token | 60 次/小时，突发 30 | 客户端 IP（IPv6 按 /64） |
 
 ### 响应头 / Headers
 
@@ -78,8 +102,9 @@
   connect-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
   ```
 
-  不要在代理上放宽它。已知限制：这条 CSP 没有放行验证码服务的脚本和 iframe（`challenges.cloudflare.com`、`www.recaptcha.net`、
-  `js.hcaptcha.com`），所以启用验证码前请先确认登录页的组件能正常加载。
+  不要在代理上放宽它。启用验证码时，`static.CSPFor` 只为**当前启用的那一个**服务追加 script / frame 来源（Turnstile：
+  `challenges.cloudflare.com`；reCAPTCHA：`www.recaptcha.net`、`www.google.com`、`www.gstatic.com`；hCaptcha 另加
+  connect / style），其他服务一律不放行。
 
 ### 支付回调 / Payment webhooks
 
@@ -90,7 +115,7 @@
 
 ### 日志 / Logs
 
-- 访问日志记录**路由模板**（如 `/s/:token`），不记录查询字符串，所以订阅 token 不会进访问日志。
-  已知限制（alpha）：限流命中（`rate limited`）、5xx 与 panic 日志目前仍写原始路径，`/s/:token` 被限流时 token 会出现在 INFO 日志里；
-  对外共享日志前请先脱敏。
+- 访问日志以及限流命中（`rate limited`）、5xx（`request failed`）与 panic 日志都只记录**路由模板**（如 `/s/:token`、
+  `/api/v1/guest/telegram/webhook/:secret`），不记录查询字符串，所以订阅 token 与 webhook 密钥不会进日志；只有未匹配
+  任何路由的 404 记录原始路径。订阅访问日志（`subscription_access`）只存 token 的 8 位哈希标签。
 - 生产环境用 `log.level=info`；日志会采集到别处时用 `log.format=json`。

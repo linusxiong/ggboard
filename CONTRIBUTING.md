@@ -9,7 +9,7 @@
 
 | 工具 | 版本 | 来源 |
 | --- | --- | --- |
-| Go | ≥ 1.27.1 | `go.mod` |
+| Go | ≥ 1.27.3 | `go.mod`（CI 用 `1.27.x`，Dockerfile 用 `golang:1.27-alpine`） |
 | Node.js | ≥ 22（CI 与 Dockerfile 用 24） | `web/package.json` `engines`、`.github/workflows/ci.yml` |
 | pnpm | 12（Dockerfile 固定 `pnpm@12.4.1`） | `ci.yml`、`deploy/Dockerfile` |
 | golangci-lint | v2（可选） | `.golangci.yml`；没装时 `make lint` 退回 `go vet` + `gofmt` |
@@ -33,15 +33,19 @@ pnpm -C web install && pnpm -C web dev     # Vite 开发服务器，/api 与 /s/
 | `make test` | `go test ./... -race -count=1` |
 | `make lint` | golangci-lint，或 `go vet` + `gofmt -l` |
 | `make web` | `pnpm -C web install && build`，再把 `web/dist` 复制到 `internal/static/dist` |
-| `make e2e` | `scripts/e2e.sh`：编译、随机端口启动，检查 `/healthz` 与 `GET /api/v1/guest/config` |
+| `make e2e` | `scripts/e2e.sh`（编译、随机端口启动，检查 `/healthz`、`GET /api/v1/guest/config` 与首页），再跑 `scripts/e2e-full.sh`（API 全流程；设 `BASE=…` 可对运行中的实例执行并顺便灌入演示数据） |
 | `make tidy` | `go mod tidy`（**只由集成者执行**） |
 | `make clean` | 删除 `bin/` 与复制过去的前端产物 |
 
 ## 前端脚本 / Frontend scripts
 
 `pnpm -C web <script>`：`dev`、`build`、`preview`、`preview:mock`（mock 数据预览，Lighthouse 用）、`typecheck`（`tsc -b`）、
-`lint`（ESLint）、`format` / `format:check`（Prettier）、`test` / `test:watch`（Vitest）、`lh` / `lh:mobile`（构建后跑 Lighthouse CI，
-要求四项 100）、`routes`。`typecheck`、`lint`、`test` 会先运行 `scripts/gen-routes.mjs` 生成 `src/routeTree.gen.ts`（已 gitignore）。
+`lint`（ESLint）、`format` / `format:check`（Prettier）、`test` / `test:watch`（Vitest）、`lh`（构建后依次跑 `lh:desktop` 与
+`lh:mobile` 两套 Lighthouse CI，要求四项 100）、`ui:smoke`（对运行中的实例用 puppeteer 逐页巡检：控制台错误、失败请求、
+漏翻的 i18n 键、横向溢出；`--axe` 加跑 axe-core）、`routes`。
+`typecheck`、`lint`、`test` 会先运行 `scripts/gen-routes.mjs` 生成 `src/routeTree.gen.ts`（已 gitignore）。
+README 截图没有 pnpm 脚本：对运行中的实例执行 `node web/scripts/screenshots.mjs`（用法见脚本头注释与
+[web/README.md](web/README.md)）。
 
 ## 提交前 / Before you open a PR
 
@@ -94,6 +98,8 @@ Go 测试用 `internal/testutil`：
 | 文件 | 链接什么 |
 | --- | --- |
 | `cmd/ggboard/plugins_payment.go` | `internal/payment/gateways`（其 `all.go` 再导入每个网关） |
+| `cmd/ggboard/plugins_notify.go` | `internal/notify/telegram`（Telegram 通知渠道） |
+| `cmd/ggboard/wire_leak.go` | 不是空白导入：把 `subscription.LeakHook` 设为“默认邮件 + `notify.EmitSubscriptionLeak`” |
 | `cmd/ggboard/import.go` | `internal/importer/xboard`（`ggboard import` 子命令） |
 | `cmd/ggboard/jobs_maintenance.go` | `internal/service/maintenance`（定时任务） |
 | `internal/subscription/engine/engine.go`、`internal/api/client/routes.go` | `internal/subscription/formats` |
@@ -132,7 +138,8 @@ type Format interface {
 }
 ```
 
-可选：实现 `ProxyFilter`（`SupportsProxy(*Proxy) bool`，按传输/加密细节剔除节点）和 `RuleConsumer`（`RuleFamily() string`，输出规则集）。
+可选：实现 `ProxyFilter`（`SupportsProxy(*Proxy) bool`，按传输/加密细节剔除节点）、`RuleConsumer`（`RuleFamily() string`，输出规则集）
+和 `AgeCapable`（`SupportsAge() bool`：客户端能解密 age 加密订阅时返回 true，目前只有 clash-meta；见 docs/SUBSCRIPTION.md）。
 
 1. 在 `internal/subscription/formats/` 新建文件，`func init() { subscription.RegisterFormat(myFormat{}) }`。
 2. 在 `format.go` 加名称常量，并在 `detect.go` 的 `formatNames`（`?flag=` 可用的名字）与 `detectRules`（User-Agent 识别）里登记——
@@ -155,7 +162,8 @@ func Register(name string, f Factory)
 1. 在 `init()` 里 `captcha.Register("<name>", factory)`；走 siteverify 协议的服务可直接复用 `captcha.SiteVerify`。
 2. 在 `internal/settings/defs.go` 的 `captcha_provider` 选项里加上名字（设置写入会校验选项）。
 3. 在 `web/src/components/Captcha.tsx` 的 `PROVIDERS` 里登记前端脚本与全局对象。
-4. 第三方验证码脚本需要放行 CSP：`internal/static/static.go` 的 `CSP` 目前是 `script-src 'self'`，内置的三个服务也需要相应放行。
+4. 在 `internal/static/static.go` 的 `captchaSources` 里登记该服务的 script / frame（以及需要的 connect / style）来源：
+   `static.CSPFor` 只为当前启用的那一个验证码服务放行，其余页面仍是严格的默认 `CSP`。
 
 ### 邮件驱动 / Mail driver
 
@@ -174,6 +182,40 @@ type Mailer interface {
 3. 在 `defs.go` 的 `email_driver` 选项里加上名字，并补充需要的设置键。
 
 所有邮件经 `app.Mailer`（`internal/mail/queue.go`）异步投递，请求处理里不要同步发信。
+
+### 通知渠道 / Notification channel
+
+接口在 `internal/notify/notify.go`（Telegram 是内置实现，见 `internal/notify/telegram`）：
+
+```go
+type Notifier interface {
+    Name() string
+    SendAdmin(ctx context.Context, ev Event) error                // administrator destinations; ErrSkipped when not subscribed
+    SendUser(ctx context.Context, chatRef string, ev Event) error // one user, addressed by UserAddresser.ChatRef
+}
+type UserAddresser interface{ ChatRef(u *model.User) string }   // optional: "" = user not reachable
+type Factory func(a *app.App) Notifier                           // nil while the channel is not configured
+
+func Register(name string, f Factory)
+```
+
+1. 新建 `internal/notify/<name>/`，在 `init()` 里 `notify.Register("<name>", factory)`；factory 每个事件都会调用，
+   必须便宜并读取当前设置（未配置时返回 nil，`notify.Emit` 便不会建队列）。
+2. 在 `cmd/ggboard/` 加一个空白导入文件（参考 `plugins_notify.go`）。
+3. 永久失败（如 4xx）用 `notify.Permanent(err)` 包装，避免无谓重试；向多个会话扇出时用 `notify.Done` / `notify.MarkDone`
+   让重试只补发失败的会话；需要的设置键追加到 `internal/settings/defs.go` 的新分组。
+4. 测试：`notifytest.Attach(t, a)` 记录事件；参考 `internal/notify/telegram/telegramtest` 的假 Bot API 服务器。
+   事件类型与字段见 [docs/API.md](docs/API.md) §Telegram 与 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §Notifications。
+
+### 前端动效与图标 / Frontend effects and icons
+
+- **动效必须原创**：放在 `web/src/components/effects/`（CSS keyframes、IntersectionObserver、rAF），懒加载、尊重
+  `prefers-reduced-motion`。React Bits（reactbits.dev）的许可证是 MIT + Commons Clause，与 GPL-3.0 不兼容，
+  **不得复制其源码**，只能作视觉参考（AGENTS.md §1 第 10 条、MISTAKES.md #107）。
+- **支付预设图标**：新增预设 = 在 `web/src/components/icons/payments/glyphs.tsx` 加一个原创 SVG 组件，并在 `presets.ts`
+  的 `PAYMENT_ICON_IDS` 与预设表里登记 id（`[a-z0-9_-]{1,32}`）；后端接受任何格式正确的 `preset:<id>`，无需改 Go 代码。
+  新网关的默认图标在 `web/src/features/admin/payments/gateways.ts` 的 `defaultIconPreset` 里映射。`icons/payments/`
+  只能被订单页与后台支付页导入，不能进 `vite.config.ts` 里公开页也加载的 `chrome` 分组（MISTAKES.md #143）。
 
 ### 其他扩展点 / Other hooks
 
