@@ -1,0 +1,121 @@
+{
+  "status": {
+    "pending": "待支付",
+    "processing": "开通中",
+    "cancelled": "已取消",
+    "completed": "已完成",
+    "discounted": "已折抵"
+  },
+  "type": {
+    "new": "新购",
+    "renew": "续费",
+    "upgrade": "升级",
+    "reset_traffic": "流量重置"
+  },
+  "list": {
+    "title": "我的订单",
+    "subtitle": "查看订单状态、继续支付或取消未支付的订单。",
+    "filter": "按状态筛选",
+    "all": "全部",
+    "tradeNo": "订单号",
+    "plan": "套餐",
+    "amount": "金额",
+    "status": "状态",
+    "createdAt": "创建时间",
+    "pay": "去支付",
+    "view": "查看",
+    "payNamed": "支付订单 {no}",
+    "viewNamed": "查看订单 {no}",
+    "shop": "购买套餐",
+    "empty": "还没有订单",
+    "emptyFiltered": "没有该状态的订单"
+  },
+  "detail": {
+    "title": "订单详情",
+    "back": "全部订单",
+    "side": "订单信息",
+    "summary": "订单信息",
+    "tradeNo": "订单号",
+    "plan": "套餐",
+    "period": "周期",
+    "type": "类型",
+    "createdAt": "创建时间",
+    "paidAt": "支付时间",
+    "payment": "支付方式",
+    "amounts": "费用明细",
+    "progress": "订单进度"
+  },
+  "hero": {
+    "pending": "等待支付",
+    "payWithin": "请在以下时间内完成支付：",
+    "expiring": "支付时间已到，订单即将自动关闭。",
+    "pollingPaused": "已暂停自动刷新",
+    "refresh": "刷新状态",
+    "processing": "支付成功，正在开通",
+    "processingBody": "我们已收到付款，套餐将在几秒内生效。",
+    "completed": "支付成功",
+    "completedBody": "套餐已开通，现在就可以导入订阅开始使用。",
+    "toSubscription": "查看订阅",
+    "toDashboard": "返回仪表盘",
+    "cancelled": "订单已取消",
+    "cancelledBody": "该订单已关闭，已抵扣的余额会自动退回。",
+    "buyAgain": "重新购买",
+    "discounted": "已折抵",
+    "discountedBody": "该订单的剩余价值已在升级时折算抵扣。"
+  },
+  "timeline": {
+    "label": "订单进度",
+    "created": "创建订单",
+    "awaitingPayment": "等待支付",
+    "paid": "已支付",
+    "activating": "正在开通",
+    "activated": "套餐开通",
+    "cancelled": "订单取消",
+    "discounted": "升级折抵"
+  },
+  "amounts": {
+    "price": "套餐价格",
+    "discount": "优惠",
+    "surplus": "原套餐折抵",
+    "balance": "余额抵扣",
+    "refund": "退回余额",
+    "refundHint": "折抵超出部分已退回账户余额",
+    "fee": "手续费",
+    "feeEstimated": "手续费（预估）",
+    "total": "应付合计"
+  },
+  "payment": {
+    "method": "支付方式",
+    "fee": "手续费 {fee}",
+    "noFee": "无手续费"
+  },
+  "pay": {
+    "title": "支付",
+    "amount": "应付金额",
+    "amountWithFee": "应付金额（含手续费）",
+    "submit": "去支付",
+    "change": "更换支付方式",
+    "noMethods": "暂无可用的支付方式",
+    "noMethodsHint": "请联系客服或稍后再试。",
+    "freeBody": "余额与优惠已覆盖全部金额，无需额外付款。",
+    "activate": "确认开通",
+    "redirecting": "正在前往支付页面…",
+    "openGateway": "如果没有自动跳转，请点此前往",
+    "badUrl": "支付网关返回了无效的地址，请更换支付方式。",
+    "qrLabel": "{method}支付二维码",
+    "qrHint": "请使用{method}扫描二维码完成支付，支付后页面会自动更新。",
+    "app": "支付应用",
+    "htmlTitle": "支付页面",
+    "htmlHint": "请在上方页面中完成支付，完成后本页会自动更新。",
+    "iHavePaid": "我已支付",
+    "notYet": "暂未收到支付结果，请稍候，页面会自动刷新。"
+  },
+  "cancel": {
+    "button": "取消订单",
+    "title": "取消这个订单？",
+    "body": "取消后无法恢复，已抵扣的余额会退回账户。",
+    "confirm": "取消订单",
+    "keep": "保留",
+    "done": "订单已取消"
+  }
+}

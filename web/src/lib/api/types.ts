@@ -1086,3 +1086,19 @@ export type SettingsUpdate = Partial<
     FrontendSettings &
     AppSettings
 >
+
+// ---- FE-2 ----
+// Fields the backend returns beyond the original contract (interface merging keeps this append-only).
+
+export interface Ticket {
+  /** Author of the latest message (`null` before the first reply). */
+  last_reply_user_id?: ID | null
+}
+
+export interface Order {
+  /**
+   * Payment deadline when the server exposes it; otherwise the UI uses
+   * `created_at + order_timeout_minutes` (default 30).
+   */
+  expired_at?: ISODateTime | null
+}

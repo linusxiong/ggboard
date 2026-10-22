@@ -1,0 +1,62 @@
+{
+  "level": {
+    "low": "Low",
+    "medium": "Medium",
+    "high": "High"
+  },
+  "status": {
+    "waiting": "Awaiting reply",
+    "replied": "Replied",
+    "closed": "Closed"
+  },
+  "filter": {
+    "all": "All",
+    "0": "Open",
+    "1": "Closed"
+  },
+  "list": {
+    "title": "Support",
+    "subtitle": "Need help? Open a ticket and we'll get back to you soon.",
+    "filter": "Filter by status",
+    "new": "New ticket",
+    "subject": "Subject",
+    "level": "Priority",
+    "status": "Status",
+    "updatedAt": "Last update",
+    "open": "Open",
+    "openNamed": "Open ticket: {subject}",
+    "empty": "No tickets",
+    "emptyHint": "Need help? Choose “New ticket” above."
+  },
+  "create": {
+    "title": "New ticket",
+    "subject": "Subject",
+    "subjectRequired": "Enter a subject",
+    "level": "Priority",
+    "message": "Description",
+    "messagePlaceholder": "Describe the problem in as much detail as you can: the client, the node and when it happened.",
+    "messageRequired": "Describe your problem",
+    "submit": "Submit ticket",
+    "conflictTitle": "You already have an open ticket",
+    "conflictBody": "Only one ticket can be open at a time. Continue in that ticket, or close it before opening a new one.",
+    "goToOpen": "Go to that ticket"
+  },
+  "detail": {
+    "back": "All tickets",
+    "createdAt": "Opened",
+    "conversation": "Ticket conversation",
+    "thread": "Messages",
+    "me": "Me",
+    "staff": "Support",
+    "reply": "Reply",
+    "replyPlaceholder": "Write a reply…",
+    "replyRequired": "Enter a reply",
+    "send": "Send",
+    "shortcut": "⌘/Ctrl + Enter to send",
+    "close": "Close ticket",
+    "closeTitle": "Close this ticket?",
+    "closeBody": "You won't be able to reply anymore. You can always open a new ticket.",
+    "closed": "Ticket closed",
+    "closedHint": "This ticket is closed. Open a new one if you still need help."
+  }
+}

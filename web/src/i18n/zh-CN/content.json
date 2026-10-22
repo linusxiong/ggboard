@@ -1,0 +1,26 @@
+{
+  "knowledge": {
+    "title": "使用文档",
+    "subtitle": "客户端下载、配置教程与常见问题。",
+    "language": "文档语言",
+    "index": "文档目录",
+    "search": "搜索文档",
+    "searchPlaceholder": "搜索标题或内容",
+    "empty": "暂无文档",
+    "noResults": "没有找到与「{keyword}」相关的文档",
+    "loadError": "文档加载失败",
+    "pick": "选择一篇文档",
+    "pickHint": "从左侧目录中选择要阅读的文档。",
+    "back": "返回目录",
+    "updated": "更新于",
+    "gated": "部分内容需要有效的套餐才能查看。",
+    "toShop": "购买套餐"
+  },
+  "notices": {
+    "title": "公告",
+    "subtitle": "最新的服务动态与通知。",
+    "empty": "暂无公告",
+    "expand": "展开全文",
+    "collapse": "收起"
+  }
+}
