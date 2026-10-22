@@ -1065,3 +1065,31 @@ Vitest 缓存 `import.meta.glob` 结果 67 / 72 / 77 / 85；`useLiteForm` 抢焦
 - **根因**：开启 `isMobile` 仿真后，内容溢出会把布局视口加宽（为了缩放适配），`innerWidth` 跟着变大，“溢出量”恒为 0；grid item 默认 `min-width: auto`。
 - **修复**：全局 base 规则 `:where(.grid) > * { min-width: 0 }`（零优先级，工具类可覆盖），订阅页等同类问题一并消失；`scripts/ui-smoke.mjs` 改为用 `max(scrollWidth, innerWidth) - 仿真宽度` 判断；临时探测脚本逐页确认 `innerWidth` = 375。
 - **规则**：手机端溢出要和设备宽度比，不要和 `innerWidth` 比；“固定的 tab bar 不在屏幕底部”就是布局视口被撑宽的信号。
+
+### 143. （FE-I 支付图标）新文件放进 `components/icons/`，被 `chrome` 分组整体拉进了公开页都会加载的 chunk
+
+- **现象**：按简报在 `web/src/components/icons/payments/` 新建 16 个图标后，`chrome-*.js`（落地页 / 登录页也加载）从 1.7 KB 涨到 4.5 KB gzip。入口静态依赖图（111.9 KB）没有变化，只看入口统计发现不了。
+- **根因**：`vite.config.ts` 的 `chrome` 代码分割组用 `components[\\/]icons[\\/]` 匹配整个目录，原意只是 `icons/inline.tsx`。Rolldown 的 group 按模块路径收集，不管模块被谁导入。
+- **修复**：正则收窄为 `icons[\\/]inline\.`。图标进入一个只被 `/orders/$tradeNo` 与 `/admin/payments` 导入的共享 chunk（9.2 KB / 3.2 KB gzip），chrome 回到 1.7 KB。
+- **规则**：往已有目录加文件前，先 `grep` 一遍 `vite.config.ts` 的 `codeSplitting.groups`：`test` 正则按路径匹配，目录前缀会把新文件一起吸走。build 后按文件名对比 chrome / app 等共享组的体积，不能只看入口静态图。
+
+### 144. （FE-I）给 `Payment.icon` 加的校验放在整条记录的校验函数里，PATCH 其他字段会被导入的旧值卡住
+
+- **现象**：初版把 `validPaymentIcon(p.Icon)` 放进 `adminValidatePayment`，create 和 update 都对合并后的整条记录做校验。从 Xboard 导入的 `icon: "alipay.svg"` 这类旧值，会让列表页的启用开关（`PATCH {enabled}`）返回 400。写测试前自查时发现。
+- **根因**：新收紧的规则作用在“已有数据 + 补丁”上，而旧数据从没经过这条规则（导入器直接写库）。
+- **修复**：改为 `adminValidatePayment(a, p, checkIcon)`，只有请求里带 `icon` 时才校验。测试覆盖两种情况：旧值 + `PATCH {enabled}` 仍然 200；PATCH 同一个旧值返回 400。
+- **规则**：给已有字段加更严格的校验时，只校验本次请求写入的字段，并为导入 / 历史数据补一条回归测试。
+
+### 145. （FE-I）`findByRole('complementary')` 同时命中侧边栏和订单页信息栏，测试等到超时
+
+- **现象**：路由级测试 4 s 超时，报错里打印出整棵 DOM。
+- **根因**：AppShell 的侧边栏也是 `<aside>`（complementary）。`findBy*` 遇到多个匹配会一直重试（同 #71）。
+- **修复**：按名称查询：`findByRole('complementary', { name: '订单信息' })`。
+- **规则**：整页渲染时 landmark 角色（complementary、navigation、region）通常不止一个，查询时一律带 `name`。
+
+### 146. （FE-I 观察）HeroUI 纵向 `RadioGroup` 给每个 radio 加 `mt-4`，网格布局的行距变成列距的三倍
+
+- **现象**：订单页支付方式网格（`grid gap-2`）的行距约 24 px，列距 8 px。
+- **根因**：HeroUI 的 `.radio-group[data-orientation=vertical] [data-slot=radio] { margin-top: 1rem }`（components 层）。把 RadioGroup 改成网格时没有看计算样式。
+- **修复**：`PaymentPicker` 的每个 `Radio` 加 `mt-0`（utilities 层优先）；新的图标网格用 `orientation="horizontal"`，再用工具类覆盖成纵向布局。
+- **规则**：把 HeroUI 集合组件（RadioGroup、CheckboxGroup 等）改成自定义布局时，先查它按 `data-orientation` 等属性附加的间距（同 #74、#129）。

@@ -203,7 +203,7 @@ the region keyword table and limits in `docs/SUBSCRIPTION.md` "Node operations".
 | --- | --- | --- | --- |
 | GET | `/user/plans` | — | `[PublicPlan]` unpaginated: `show=true` plans plus the user's current plan even when hidden, by `sort`, `id`, with `sold_out`/`is_current` |
 | GET | `/user/plans/:id` | — | `PublicPlan` (404 for hidden plans the user does not hold) |
-| GET | `/user/payment-methods` | — | unpaginated `[{id, name, icon, gateway, handling_fee_fixed, handling_fee_percent}]` (enabled payments, by `sort`) |
+| GET | `/user/payment-methods` | — | unpaginated `[{id, name, icon, gateway, handling_fee_fixed, handling_fee_percent}]` (enabled payments, by `sort`; `icon` exactly as stored, see [payment icons](#payment-icons)) |
 | POST | `/user/coupons/check` | `{code*, plan_id*, period*}` | `{id, code, name, type, value, limit_plan_ids, limit_periods, ended_at}` or 400 on `code`, `plan_id` or `period` |
 | GET | `/user/orders` | `page`, `page_size`, `status?` (0..4), `sort` (`id created_at`) | paginated `[Order]` (default newest first) |
 | POST | `/user/orders` | `{plan_id*, period*, coupon_code?}` | 201 `{trade_no, status}` (status 3 when nothing was left to pay: free or covered by balance). 409 when an unpaid order exists (`errors.trade_no` = its trade_no), the plan is sold out (`errors.plan_id`) or the balance changed meanwhile; 404 unknown or hidden plan; 403 upgrade while `plan_change_enable=false`; 400 on `period`, `plan_id` (not for sale, renew disabled, expired legacy plan, reset without an active subscription) or `coupon_code` |
@@ -458,14 +458,29 @@ cannot get a parent or change its type; `protocol_settings` is validated per typ
 | DELETE | `/admin/coupons/:id` | — | `true` |
 | GET | `/admin/payments` | — | unpaginated `[Payment + gateway_label + notify_url]` by `sort` (`config` included) |
 | GET | `/admin/payments/gateways` | — | unpaginated `[{name, label, fields:[{key, label, description?, type, options?, default?, required}]}]` (`type` ∈ text, password, number, select, textarea) |
-| POST | `/admin/payments` | `{gateway*, name*, icon?, config*, notify_domain?, handling_fee_fixed?, handling_fee_percent? (0..100), enabled? (default false), sort?}` | 201 `Payment + gateway_label + notify_url` (uuid generated; unknown gateway → 400 on `gateway`; missing required fields → `errors["config.<key>"]`; gateway rules → `errors.config`; `notify_domain` must start with `http(s)://`) |
+| POST | `/admin/payments` | `{gateway*, name*, icon?, config*, notify_domain?, handling_fee_fixed?, handling_fee_percent? (0..100), enabled? (default false), sort?}` | 201 `Payment + gateway_label + notify_url` (uuid generated; unknown gateway → 400 on `gateway`; missing required fields → `errors["config.<key>"]`; gateway rules → `errors.config`; `notify_domain` must start with `http(s)://`; bad `icon` → `errors.icon`, see [payment icons](#payment-icons)) |
 | GET | `/admin/payments/:id` | — | `Payment + gateway_label + notify_url` |
-| PATCH | `/admin/payments/:id` | any create field (`config` replaced as a whole) | `Payment + gateway_label + notify_url` |
+| PATCH | `/admin/payments/:id` | any create field (`config` replaced as a whole) | `Payment + gateway_label + notify_url` (`icon` is validated only when the request sets it, so imported legacy values never block other edits) |
 | DELETE | `/admin/payments/:id` | — | `true` |
 | POST | `/admin/payments/sort` | `{ids}` | `true` (0-based position) |
 
 `notify_url` = `<notify_domain or app_url or the request origin>/api/v1/guest/payment/notify/<gateway>/<uuid>` — register it with
 the provider.
+
+#### Payment icons
+
+`Payment.icon` is a plain string (≤ 255, trimmed). Accepted values (`internal/api/admin/payments.go` → `validPaymentIcon`):
+
+| value | meaning |
+| --- | --- |
+| `""` | no icon (the web app draws a neutral card glyph) |
+| `preset:<id>` (`<id>` = `[a-z0-9_-]{1,32}`) | built-in mark from the web app's registry (`web/src/components/icons/payments`): `alipay wechat stripe card paypal crypto btc usdt eth bank qrcode wallet epay epusdt btcpay coinbase`; any well-formed id is accepted, ids the web app does not know render the fallback glyph |
+| `http(s)://host/…`, `/path`, `//host/…`, `data:image/…` | an image (square SVG/PNG recommended); no whitespace |
+| a single emoji / symbol | ≤ 16 code points, no ASCII letters, whitespace or control characters (`💳`, `¥`, `🇨🇳`) |
+
+Anything else → 400 with `errors.icon`. The admin console stores a picked preset as `preset:<id>`; new payments start with the
+gateway's default (`epay` → `epay`, or `alipay` / `wechat` / `usdt` from its `type`; `epusdt` → `usdt`; `stripe` → `stripe`, or
+`card` / `alipay` / `wechat` from `payment_methods`; `alipay_f2f` → `alipay`; `coinbase` → `coinbase`; `btcpay` → `btcpay`).
 
 ### Support & content 🧑‍💼
 

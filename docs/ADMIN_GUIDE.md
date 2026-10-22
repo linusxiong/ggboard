@@ -264,6 +264,13 @@ soga 请求 `/soga/api/v1/{node,users,audit_rules,white_list,traffic,alive_ip,au
 **添加支付方式** → 选择网关 → 填写网关配置 → 设置显示名称、图标、手续费（固定 + 百分比，由用户承担）→ 启用。
 网关创建后不可更换。
 
+**图标**：在图标网格里点选内置图标（支付宝、微信支付、Stripe、银行卡、PayPal、加密货币、比特币、USDT、以太坊、
+银行转账、扫码支付、余额 / 钱包、易支付、Epusdt、BTCPay、Coinbase），显示名称输入框左侧会实时预览用户看到的样子。
+新建时会按网关自动选一个（易支付按“支付方式”`type` 选支付宝 / 微信 / USDT，Stripe 按 `payment_methods` 选
+银行卡 / 支付宝 / 微信，Epusdt → USDT，当面付 → 支付宝），手动点选后不再自动更换。选 **自定义 URL** 可填图片地址
+（`https://…` 或站内 `/…` 路径，建议正方形 SVG/PNG）或单个 Emoji。内置图标保存为 `preset:<id>`
+（如 `preset:alipay`），格式见 [API.md › Payment icons](API.md#payment-icons)。
+
 回调地址（Notify URL）在保存后显示，格式为：
 
 ```text

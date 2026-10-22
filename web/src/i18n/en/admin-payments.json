@@ -64,5 +64,12 @@
     "stripe": "Secret key: sk_live_… / sk_test_…, or a restricted rk_… key with Checkout Sessions write access.\nIn Dashboard → Developers → Webhooks add an endpoint for the notify URL below with checkout.session.completed and checkout.session.async_payment_succeeded, then paste its signing secret (whsec_…).\nSet an exchange rate when charging in a currency other than the site currency. Alipay/WeChat Pay must be enabled in the Dashboard first.",
     "coinbase": "Coinbase Business (Commerce closed on 2026-03-31; US and Singapore merchants), settles in USDC.\nCreate an ECDSA CDP API key and paste its name (organizations/…/apiKeys/…) and PEM secret.\nCreate a webhook subscription for checkout.payment.* (cdp data webhooks subscriptions create) targeting the notify URL below, and paste its secret. Exchange rate = USDC per site-currency unit.",
     "btcpay": "Enter the BTCPay Server URL, Store ID (Store → Settings → General) and an API key with btcpay.store.cancreateinvoice and btcpay.store.canviewinvoices.\nIn Store → Settings → Webhooks add a webhook whose payload URL is the notify URL below, and paste its secret."
+  },
+  "icons": {
+    "label": "Icon",
+    "hint": "Pick a built-in icon or use your own image. New payments start with the gateway's icon.",
+    "custom": "Custom URL",
+    "customHint": "A square SVG / PNG (https:// or a /path), or a single emoji.",
+    "customInvalid": "Enter an image URL starting with https:// or /, or a single emoji"
   }
 }
