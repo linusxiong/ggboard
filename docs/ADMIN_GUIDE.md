@@ -130,10 +130,56 @@ ggboard admin promote --email user@example.com              # 把已有用户提
 | `email_host` / `email_port` / `email_encryption` | 空 / 465 / `ssl` | `ssl`、`tls`（STARTTLS）或 `none` |
 | `email_username` / `email_password` | 空 | SMTP 账户 |
 | `email_from_address` / `email_from_name` | 空 | 发件地址与名称 |
-| `email_template` | `default` | 当前只有内置模板 `default` |
 | `remind_mail_enable` | `true` | 发送到期与流量提醒 |
 
 保存后点 **发送测试邮件**（`POST /api/v1/admin/settings/mail/test`，使用已保存的配置）。
+
+旧设置 `email_template` 已不再显示：它只为兼容 Xboard 导入而保留，服务端从不读取。邮件内容改在下面的 **邮件模板** 页面里定制。
+
+### 邮件模板 `/admin/mail-templates`
+
+入口：侧边栏 **系统 → 邮件模板**，或 **系统设置 → 邮件** 右上角的 **邮件模板** 按钮；只有管理员可用（客服 403）。
+六封系统邮件 —— **邮箱验证码** `verify_code`、**到期提醒** `remind_expire`、**流量提醒** `remind_traffic`、
+**支付成功** `order_paid`、**工单回复** `ticket_reply`、**通用通知** `notify`（群发邮件、订阅泄露提醒等）—— 都可以按
+**简体中文 / English** 分别改写 **邮件标题** 和 **Markdown 正文**。正文会套进站点统一的邮件外观（Logo 或站点名、白色卡片、
+页脚），只需写卡片里的内容；没有自定义的语言继续使用内置模板，左侧列表在每个模板下标出“中文 / 英文：已自定义 / 默认”。
+
+**变量**：和公告、知识库的 `{{siteName}}` 写法相同，点编辑器工具栏里的变量按钮即可在光标处插入，按钮下方列出每个变量的含义。
+写法是 `{{name}}`，区分大小写、不能有空格（`{{ code }}`、`{{Code}}` 都算未知变量，会原样出现在邮件里）；标题里同样可以用。
+带 ★（界面上是红色 `*`）的变量必须出现在 **正文** 里（写在标题里不算）。每个模板都能用 `{{siteName}}`（站点名称）、
+`{{siteUrl}}`（`app_url`，可能为空）和 `{{year}}`（当前年份）：
+
+| 模板 | 变量（★ 必填） | 说明 |
+| --- | --- | --- |
+| 邮箱验证码 `verify_code` | `code` ★、`minutes` | `minutes` 默认 10，与内置邮件一致 |
+| 到期提醒 `remind_expire` | `expiredAt` ★、`url` | `url` 是续费页面（未提供时为 `siteUrl`） |
+| 流量提醒 `remind_traffic` | `percent` ★、`used`、`total`、`url` | `percent` 是纯数字（如 `86`） |
+| 支付成功 `order_paid` | `tradeNo` ★、`amount` ★、`planName`、`period`、`url` | `amount` 带货币符号；`url` 是订单页面 |
+| 工单回复 `ticket_reply` | `ticketSubject` ★、`message`、`url` | `message` 是客服的回复（多行） |
+| 通用通知 `notify` | `content` ★、`title`、`url` | `title` 是调用方给的标题，默认标题就是 `{{title}}`，群发邮件与泄露提醒保留各自的主题；`content` 可多行 |
+
+所有 `url` 在调用方没有提供时都回落到 `siteUrl`。
+
+**正文**：Markdown（GFM，可用表格、删除线、任务列表，裸链接自动变成链接，单个换行保留为换行，也允许原始 HTML）。
+单独成段的链接（例如 `[查看订单]({{url}})`）会渲染成邮件里的按钮；替换后地址为空的链接（没有配置 `app_url`）会被去掉。
+在原始 HTML 属性里使用变量时要加引号（`<a href="{{url}}">`）。变量的值会被转义，不会被当成 Markdown 或 HTML。
+
+**实时预览**：编辑时（停顿约 0.4 秒后）编辑器下方用示例数据渲染出真实的邮件，可在 **邮件 / 纯文本** 之间切换；预览中的链接
+不可点击。缺少的必填变量（黄色）和未知变量（红色）会以标签直接显示在预览上方，保存前就能改正。
+
+**保存、测试与恢复**：
+
+- **保存**（底部保存栏或 ⌘/Ctrl+S）：服务端再校验一次（标题 1–255 字、单行；正文不超过 64 KB；无未知变量；必填变量齐全），
+  出错会标在对应的输入框上。保存后立即生效，无需重启。
+- **发送测试邮件**：把 **当前编辑的内容**（包括还没保存的修改）用示例数据渲染后发到指定邮箱（默认是你自己的邮箱），
+  发信方式使用 **已保存** 的邮件设置；发送失败时邮箱输入框下会显示 SMTP 的错误信息。
+- **恢复默认**：确认后删除该语言的自定义内容，改回内置模板（只在已自定义时可用）。
+- 有未保存的修改时，切换模板、切换语言或离开页面都会先询问。
+
+*Email templates (`/admin/mail-templates`, admins only): each of the six system emails can be rewritten per locale
+(zh-CN / en) as a subject plus a Markdown body inside the standard layout. Insert `{{variables}}` from the toolbar (★ =
+required in the body), watch the live preview (unknown / missing placeholders are flagged inline), send a test of the
+current draft, or restore the built-in template. The legacy `email_template` setting is gone from the UI.*
 
 ### 前端外观 `frontend`、客户端下载 `app`
 

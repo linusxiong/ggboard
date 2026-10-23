@@ -538,6 +538,72 @@ gateway's default (`epay` → `epay`, or `alipay` / `wechat` / `usdt` from its `
 | GET | `/admin/system/status` | — | `{version, go_version, uptime (s), db_driver, started_at, scheduler:[{name, spec, running, last_run, last_duration?, last_error, next_run, runs, failures}], mail:{pending, sent, failed, driver}, mail_queue (= mail.pending), notify:{pending, sent, failed, drivers}, cache:{items, max_items, hits, misses, hit_ratio}, online:{nodes, users}, goroutines, memory:{alloc, sys}}` |
 | GET | `/admin/system/logs` | `level?` (`debug` default, `info`, `warn`/`warning`, `error` = minimum level), `limit?` (1..1000, default 200) | array `[{time, level, msg, attrs}]` newest first (in-memory ring buffer, last 1000 records) |
 
+### Mail templates 🛡
+
+Every built-in e-mail (`verify_code`, `remind_expire`, `remind_traffic`, `order_paid`, `ticket_reply`, `notify`) can be
+replaced per locale (`zh-CN`, `en`) by an admin-written **subject** and **Markdown body**. Placeholders are written exactly like
+the knowledge base's (`{{siteName}}`): `{{name}}`, no spaces, case-sensitive. A custom body is rendered inside the standard
+layout (logo / site name header, white card, footer): only the card's content is edited. Admin only (staff: 403).
+
+| method | path | req | res |
+| --- | --- | --- | --- |
+| GET | `/admin/mail-templates` | — | array `[{name, variables:[{name, required}], locales:{"zh-CN":{custom, updated_at}, "en":{custom, updated_at}}}]` in built-in order; `updated_at` is `null` while the built-in template is in use |
+| GET | `/admin/mail-templates/:name` | `locale*` (query) | `MailTemplate` |
+| PUT | `/admin/mail-templates/:name` | `{locale*, subject*, body*}` | `MailTemplate` (creates or replaces the override; 400 per field, see below) |
+| DELETE | `/admin/mail-templates/:name` | `locale*` (query) | `true`: back to the built-in template (idempotent) |
+| POST | `/admin/mail-templates/:name/preview` | `{locale*, subject*, body*}` | `{subject, html, text, unknown:[…], missing:[…]}`: the draft rendered with the template's sample data (`mail.SampleData`: example.com links, fake order numbers) and the current site name / `app_url` in `locale`; nothing is saved or sent. Lenient: unknown placeholders stay literal and are listed in `unknown` as written (`"{{foo}}"`, subject first, no duplicates), required ones absent from the body in `missing` (`"{{code}}"`); both are `[]` when empty. An empty or multi-line subject (collapsed) and an empty body are rendered too; only `locale` and the size limits give a 400 |
+| POST | `/admin/mail-templates/:name/test` | `{locale*, subject*, body*, email*}` | `true`: validates like PUT, renders with the sample data and sends synchronously with the current mail settings (template `<name>`); delivery error → 400 with the driver's message and `errors.email` |
+
+`MailTemplate` = `{name, locale, custom, subject, body, updated_at, default:{subject, body}}`. While `custom` is false,
+`subject`/`body` equal `default` (the built-in template as Markdown, the editor's starting point) and `updated_at` is `null`.
+Unknown `:name` → 404 (before any other check). The saved `subject` is trimmed; the body is stored as sent. Every write
+reloads the mail queue's copy at once and logs an audit line (admin id, name, locale; never the body).
+
+```jsonc
+// GET /admin/mail-templates → data[0]
+{"name":"verify_code","variables":[{"name":"code","required":true},{"name":"minutes","required":false},
+  {"name":"siteName","required":false},{"name":"siteUrl","required":false},{"name":"year","required":false}],
+ "locales":{"en":{"custom":false,"updated_at":null},"zh-CN":{"custom":true,"updated_at":"2026-10-23T08:00:00Z"}}}
+// GET /admin/mail-templates/verify_code?locale=zh-CN
+{"name":"verify_code","locale":"zh-CN","custom":true,"subject":"【{{siteName}}】验证码 {{code}}","body":"# 验证\n\n**{{code}}**",
+ "updated_at":"2026-10-23T08:00:00Z","default":{"subject":"【{{siteName}}】邮箱验证码","body":"# 邮箱验证码\n\n…"}}
+```
+
+Validation (PUT, test; one 400 with every field error): `locale` must be `zh-CN` or `en` exactly (`errors.locale`: `is required`,
+`must be zh-CN or en`); `subject` trimmed, 1–255 characters, single line (`errors.subject`: `is required`, `must be at most 255
+characters`, `must be a single line`); `body` 1–65535 bytes, not blank (`errors.body`: `is required`, `must be at most 65535
+bytes`); neither may contain NUL characters (`must not contain NUL characters`: PostgreSQL cannot store them); a placeholder that is not in the template's variable list → 400 on the field that contains it (`unknown
+placeholders: {{foo}}, {{ code }}`); near misses such as `{{ code }}` or `{{Code}}` count as unknown (they would stay literal);
+a `required` variable missing from `body` → 400 `errors.body` (`missing required placeholders: {{code}}`; the subject does not
+count). A field over its size limit is not checked further. The test mail also checks `email` (`errors.email`).
+
+Variables (`variables` lists the template's own first, then the common ones). Common to every template: `siteName`,
+`siteUrl` (`app_url`, may be empty), `year`. Per template (★ = required in the body):
+
+| template | variables | notes |
+| --- | --- | --- |
+| `verify_code` | `code` ★, `minutes` | `minutes` defaults to 10 like the built-in mail |
+| `remind_expire` | `expiredAt` ★, `url` | `url` = renew page (falls back to `siteUrl`) |
+| `remind_traffic` | `percent` ★, `used`, `total`, `url` | `percent` is a bare number (`86`) |
+| `order_paid` | `tradeNo` ★, `amount` ★, `planName`, `period`, `url` | `amount` includes the currency symbol; `url` = the order page |
+| `ticket_reply` | `ticketSubject` ★, `message`, `url` | `message` is the staff reply (multi-line) |
+| `notify` | `content` ★, `title`, `url` | `title` is the caller's title, else the caller's subject (= the built-in e-mail subject); `content` is multi-line. The default subject is `{{title}}`, so alerts and bulk mail keep their own subject |
+
+Every `url` falls back to `siteUrl` when the caller passes none.
+
+Rendering: the body is Markdown (GFM: tables, strikethrough, task lists, bare URLs become links; raw HTML allowed; a single
+line break is kept as `<br>`) → HTML with the layout's inline styles; placeholder values are HTML-escaped and never read as
+Markdown, HTML or placeholders, `message` and `content` keep their line breaks (`<br>`); `content` given as trusted HTML by the
+panel itself (`ContentHTML`) is inserted as is (alone in a paragraph it becomes a `<div>`). Write placeholders inside raw HTML
+attributes quoted (`<a href="{{url}}">`). Two conventions follow the built-in mails: a paragraph that is nothing but a link
+(`[查看订单]({{url}})`) is rendered as the layout's button, and a link whose address is empty once substituted (no `app_url`)
+is dropped (a button disappears, an inline link keeps its text). The plain-text part is derived from the same Markdown with raw
+values (blocks separated by blank lines, links as `text (url)` or just the url when the text is the url, list items `- ` /
+`1. `, raw HTML without tags with `<br>` as a line break, images as their alt text) under the usual site-name header and `--`
+footer. The subject gets raw values and is collapsed to one line; an empty result falls back to the built-in subject. The
+defaults reproduce the built-in mails (same subjects; the verification code box and the traffic bar are raw HTML blocks).
+Built-in templates (no override) render exactly as before.
+
 ### Settings keys
 
 Source of truth: `internal/settings/defs.go`. Types: `string`, `int` (inclusive range), `bool`, `strings` (JSON array, or a
@@ -615,7 +681,7 @@ admins only and masked in logs; `server_token` and `telegram_webhook_secret` are
 | email | `email_password` | string (secret) | `""` | |
 | email | `email_from_address` | string | `""` | |
 | email | `email_from_name` | string | `""` | |
-| email | `email_template` | string | `"default"` | stored and imported, not read by the mailer yet |
+| email | `email_template` | string | `"default"` | legacy, never read (the Xboard importer drops it); e-mails are customised per template via `/admin/mail-templates`. Still listed by `GET /admin/settings` (not a hidden key); the admin UI does not show it |
 | email | `remind_mail_enable` | bool | `true` | expiry/traffic reminder mails |
 | frontend | `frontend_accent` | string | `"#007AFF"` | editable, not exposed by `/guest/config` yet |
 | frontend | `frontend_background_url` | string | `""` | editable, not exposed by `/guest/config` yet |

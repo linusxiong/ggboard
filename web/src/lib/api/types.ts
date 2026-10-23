@@ -1048,7 +1048,6 @@ export interface EmailSettings {
   email_password: string
   email_from_address: string
   email_from_name: string
-  email_template: string
   remind_mail_enable: boolean
 }
 export interface FrontendSettings {
@@ -1552,3 +1551,66 @@ export interface TelegramBindCode {
  * or a single emoji. Unknown values render a neutral fallback glyph.
  */
 export type PaymentIconValue = string
+
+// ---- Mail templates (admin) ----------------------------------------------------------------------
+// docs/API.md "Mail templates": per template and locale, an admin-written subject + Markdown body
+// with `{{name}}` placeholders, rendered inside the standard mail layout.
+
+/** Built-in templates, in built-in order (the list endpoint is authoritative; others may follow). */
+export type MailTemplateName =
+  | 'verify_code'
+  | 'remind_expire'
+  | 'remind_traffic'
+  | 'order_paid'
+  | 'ticket_reply'
+  | 'notify'
+  | (string & {})
+/** One placeholder of a template: `{{name}}`; `required` ones must appear in the body. */
+export interface MailTemplateVariable {
+  name: string
+  required: boolean
+}
+export interface MailTemplateLocaleState {
+  /** An admin override exists for this locale. */
+  custom: boolean
+  /** `null` while the built-in template is in use. */
+  updated_at: ISODateTime | null
+}
+/** `GET /admin/mail-templates` item. */
+export interface AdminMailTemplateSummary {
+  name: MailTemplateName
+  variables: MailTemplateVariable[]
+  locales: Partial<Record<Locale, MailTemplateLocaleState>>
+}
+export interface MailTemplateContent {
+  subject: string
+  /** Markdown with `{{name}}` placeholders. */
+  body: string
+}
+/** `GET|PUT /admin/mail-templates/:name` — while `custom` is false, subject/body equal `default`. */
+export interface AdminMailTemplate extends MailTemplateContent {
+  name: MailTemplateName
+  locale: Locale
+  custom: boolean
+  updated_at: ISODateTime | null
+  /** The built-in template as Markdown (the editor's starting point and "reset" target). */
+  default: MailTemplateContent
+}
+/** Body of `PUT …/:name` and `POST …/:name/preview`. */
+export interface MailTemplateDraft extends MailTemplateContent {
+  locale: Locale
+}
+/** Body of `POST …/:name/test` (validated like PUT). */
+export interface MailTemplateTestInput extends MailTemplateDraft {
+  email: string
+}
+/** `POST …/:name/preview` — the draft rendered with the template's sample data. */
+export interface MailTemplatePreview {
+  subject: string
+  html: string
+  text: string
+  /** Placeholders that are not in the template's variable list (left literal). */
+  unknown: string[]
+  /** Required placeholders absent from the body. */
+  missing: string[]
+}

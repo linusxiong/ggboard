@@ -359,3 +359,34 @@ export const userSubscriptionAccessLog = (id: ID, signal?: AbortSignal) =>
 
 /** `POST /admin/users/:id/subscription/age/reset` — new key pair, switch kept (404 without a key). */
 export const resetUserAgeKey = (id: ID) => api.post<AgeKey>(`/admin/users/${id}/subscription/age/reset`)
+
+// ---- Mail templates (admin only) — docs/API.md "Mail templates"
+import type {
+  AdminMailTemplate,
+  AdminMailTemplateSummary,
+  Locale,
+  MailTemplateDraft,
+  MailTemplatePreview,
+  MailTemplateTestInput,
+} from './types'
+
+const mailTemplatePath = (name: string) => `/admin/mail-templates/${encodeURIComponent(name)}`
+
+/** `GET /admin/mail-templates` → every template with its variables and per-locale state (built-in order). */
+export const mailTemplates = (signal?: AbortSignal) =>
+  api.get<AdminMailTemplateSummary[]>('/admin/mail-templates', undefined, o(signal))
+/** `GET /admin/mail-templates/:name?locale=` */
+export const mailTemplate = (name: string, locale: Locale, signal?: AbortSignal) =>
+  api.get<AdminMailTemplate>(mailTemplatePath(name), { locale }, o(signal))
+/** `PUT /admin/mail-templates/:name` — creates or replaces the override (400 per field). */
+export const saveMailTemplate = (name: string, input: MailTemplateDraft) =>
+  api.put<AdminMailTemplate>(mailTemplatePath(name), input)
+/** `DELETE /admin/mail-templates/:name?locale=` — back to the built-in template (idempotent). */
+export const resetMailTemplate = (name: string, locale: Locale) =>
+  api.delete(mailTemplatePath(name), { query: { locale } })
+/** `POST /admin/mail-templates/:name/preview` — lenient render of a draft with sample data. */
+export const previewMailTemplate = (name: string, draft: MailTemplateDraft, signal?: AbortSignal) =>
+  api.post<MailTemplatePreview>(`${mailTemplatePath(name)}/preview`, draft, o(signal))
+/** `POST /admin/mail-templates/:name/test` — validates like PUT, sends the draft synchronously. */
+export const testMailTemplate = (name: string, input: MailTemplateTestInput) =>
+  api.post<true>(`${mailTemplatePath(name)}/test`, input)

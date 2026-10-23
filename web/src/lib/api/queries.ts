@@ -19,6 +19,8 @@ import type {
   AdminUserFilters,
   ID,
   ListQuery,
+  Locale,
+  MailTemplateDraft,
   StatsMetric,
   StatsRange,
 } from './types'
@@ -85,6 +87,11 @@ const adminKeys = {
   rulesets: () => ['admin', 'rulesets'] as const,
   system: () => ['admin', 'system'] as const,
   logs: (q: { level?: string; limit?: number } = {}) => ['admin', 'logs', q] as const,
+  mailTemplates: () => ['admin', 'mail-templates'] as const,
+  mailTemplate: (name: string, locale: Locale) => ['admin', 'mail-templates', name, locale] as const,
+  /** Rendered drafts (outside the `mail-templates` prefix: invalidating a template doesn't re-render). */
+  mailTemplatePreview: (name: string, draft: MailTemplateDraft) =>
+    ['admin', 'mail-template-preview', name, draft.locale, draft.subject, draft.body] as const,
 }
 
 /**
@@ -316,3 +323,25 @@ export const systemStatusQuery = () =>
 
 export const systemLogsQuery = (q: { level?: string; limit?: number } = {}) =>
   queryOptions({ queryKey: adminKeys.logs(q), queryFn: ({ signal }) => adminApi.systemLogs(q, signal) })
+
+export const adminMailTemplatesQuery = () =>
+  queryOptions({
+    queryKey: adminKeys.mailTemplates(),
+    queryFn: ({ signal }) => adminApi.mailTemplates(signal),
+  })
+
+export const adminMailTemplateQuery = (name: string, locale: Locale) =>
+  queryOptions({
+    queryKey: adminKeys.mailTemplate(name, locale),
+    queryFn: ({ signal }) => adminApi.mailTemplate(name, locale, signal),
+  })
+
+/** Live preview of a draft: the previous render stays visible while the next one loads. */
+export const adminMailTemplatePreviewQuery = (name: string, draft: MailTemplateDraft) =>
+  queryOptions({
+    queryKey: adminKeys.mailTemplatePreview(name, draft),
+    queryFn: ({ signal }) => adminApi.previewMailTemplate(name, draft, signal),
+    placeholderData: keepPreviousData,
+    staleTime: 5 * MINUTE,
+    retry: false,
+  })

@@ -94,3 +94,16 @@ type RuleProfile struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
+
+// MailTemplate is an administrator's replacement of one built-in e-mail (internal/mail.TemplateNames) for one
+// locale (zh-CN or en): a one-line subject and a Markdown body with {{name}} placeholders. No row = the built-in
+// template. Rows are validated on write (docs/API.md "Mail templates"); the mail queue loads them all.
+type MailTemplate struct {
+	ID        uint64    `gorm:"primaryKey" json:"id"`
+	Name      string    `gorm:"size:32;not null;uniqueIndex:uniq_mail_templates_name_locale,priority:1" json:"name"`
+	Locale    string    `gorm:"size:5;not null;uniqueIndex:uniq_mail_templates_name_locale,priority:2" json:"locale"`
+	Subject   string    `gorm:"size:255;not null" json:"subject"`
+	Body      string    `gorm:"type:text;not null" json:"body"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}

@@ -30,4 +30,6 @@ func Register(r gin.IRouter, a *app.App) {
 	registerNotices(g, a)   // admin/notices.go   (BE-E2)
 	registerKnowledge(g, a) // admin/knowledge.go (BE-E2)
 	registerRulesets(g, a)  // admin/rulesets.go  (BE-D)
+
+	registerMailTemplates(g, a) // admin/mailtemplates.go (BE-MT)
 }

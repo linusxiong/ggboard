@@ -25,6 +25,10 @@ export interface MarkdownSnippet {
   text: string
   /** `[before, after]`: wrap the selection (or `placeholder`) instead of inserting `text`. */
   wrap?: readonly [string, string]
+  /** Marks the button with a red `*` (e.g. a placeholder the body must contain); say so in `ariaLabel`. */
+  required?: boolean
+  /** Accessible name when it should say more than `label` (keep `label` at its start). */
+  ariaLabel?: string
 }
 
 export interface MarkdownEditorProps {
@@ -172,6 +176,7 @@ export function MarkdownEditor({
                 key={s.label}
                 size="sm"
                 variant="tertiary"
+                aria-label={s.ariaLabel}
                 onPress={() =>
                   apply((v, st, en) =>
                     s.wrap
@@ -181,6 +186,11 @@ export function MarkdownEditor({
                 }
               >
                 {s.label}
+                {s.required ? (
+                  <span className="-ms-0.5 text-label-red" aria-hidden="true">
+                    *
+                  </span>
+                ) : null}
               </Button>
             ))}
           </div>

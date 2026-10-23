@@ -15,6 +15,7 @@ import {
   LayoutDashboard,
   LifeBuoy,
   ListTree,
+  Mail,
   Megaphone,
   Package,
   Receipt,
@@ -71,6 +72,7 @@ export const ADMIN_NAV: readonly NavItem[] = [
   { to: '/admin/notices', label: 'admin.notices', icon: Megaphone, staff: true, section: 'content' },
   { to: '/admin/knowledge', label: 'admin.knowledge', icon: BookOpen, staff: true, section: 'content' },
   { to: '/admin/settings', label: 'admin.settings', icon: Settings, section: 'system' },
+  { to: '/admin/mail-templates', label: 'admin.mailTemplates', icon: Mail, section: 'system' },
   { to: '/admin/rulesets', label: 'admin.rulesets', icon: ListTree, section: 'system' },
   { to: '/admin/system', label: 'admin.system', icon: Activity, section: 'system' },
 ]

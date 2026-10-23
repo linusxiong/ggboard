@@ -310,6 +310,18 @@ ticket_messages: `id, ticket_id uint64 idx, user_id uint64, message text not nul
 
 `id, email varchar(191) idx, subject varchar(255), template varchar(64), error *text (null = sent), created_at`.
 
+## mail_templates
+
+`id, name varchar(32), locale varchar(5), subject varchar(255), body text (markdown), created_at, updated_at`;
+unique `uniq_mail_templates_name_locale(name, locale)`.
+
+One row per built-in template name (`internal/mail.TemplateNames`) and locale (`zh-CN`, `en`) that an admin has customised
+(docs/API.md "Mail templates"). No row = the built-in template. `subject` is stored trimmed (≤ 255 characters, one line);
+`body` is Markdown with `{{name}}` placeholders, at most 65535 bytes (fits MySQL `TEXT`). The row is validated on write
+(upsert on the unique index) and the mail queue reloads all rows after every change (`mail.Queue.ReloadTemplates`, also at
+start; a load error is logged and the built-ins are used), so nothing else caches them. Rows of unknown names or locales are
+ignored. Not imported from Xboard (`v2_mail_templates` differs) and not cleared by `import xboard --force`.
+
 ## rule_profiles
 
 A user's named rule profiles (at most 10, exactly one default; docs/SUBSCRIPTION.md "Multiple profiles").

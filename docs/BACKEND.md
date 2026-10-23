@@ -22,7 +22,7 @@ internal/
   httpx/       engine, middleware, responses, errors, binding, pagination, rate limits, gzip
   importer/xboard/                              `ggboard import xboard`
   logx/        slog handler + ring buffer for /admin/system/logs
-  mail/ (+ templates/)                          queue, smtp/log drivers, zh-CN/en templates
+  mail/ (+ templates/)                          queue, smtp/log drivers, zh-CN/en templates, custom (Markdown) templates
   model/       every GORM model, enums, typed protocol settings, credentials
   notify/ (+ telegram/, notifytest/, telegram/telegramtest/)   notification queue, events, Telegram bot driver
   payment/ (+ gateways/{epay,epusdt,alipay_f2f,stripe,coinbase,btcpay,gwutil})
@@ -171,6 +171,35 @@ Templates and their data keys:
 - `notify{Subject, Title?, Content | ContentHTML (template.HTML, sanitized), URL}`
 
 Brand (`app_name`, `app_url`, `logo`) and locale (`default_locale`, zh-CN/en) come from settings.
+
+Custom templates (`mail_templates` rows, docs/API.md "Mail templates"): `Renderer.Render` first looks for an override for
+(name, `NormalizeLocale(brand.Locale)`) and, when there is one, renders the admin's subject and Markdown body instead of the
+built-in files (`Renderer.RenderCustom`); the caller's `Data` is unchanged, and without an override the built-in path is
+byte-for-byte the old one. Catalogue, validation, defaults and values are in `internal/mail/custom.go`, the Markdown pipeline
+in `internal/mail/markdown.go`: `{{name}}` placeholders → opaque alphanumeric tokens (random per render, equal length) →
+goldmark (`github.com/yuin/goldmark`, GFM, `html.WithUnsafe()` because the author is an admin, `html.WithHardWraps()`) → AST
+pass: links with an empty address once substituted are dropped, a top-level paragraph holding only a link becomes the layout's
+button (`mailButton` node), every node gets the layout's inline style attribute (code blocks through an own node renderer)
+→ tokens replaced in one `strings.Replacer` pass by HTML-escaped values (`message`/`content` keep line breaks as `<br>`,
+trusted `ContentHTML` is inserted raw) → the usual `layout` (`MailSubject` = the rendered subject, same header and footer).
+The plain-text part is a walk of the same AST (raw HTML stripped with `golang.org/x/net/html`) with raw values, plus the
+`AppName` header and `--` footer of the built-in text path. Subject: raw values, `strings.Fields`-collapsed; empty → the
+built-in subject.
+
+- `mail.Variables(name) []Variable{Name, Required}`: the catalogue (template variables, then `siteName`, `siteUrl`, `year`),
+  mapped from the `Data` keys above: `Code`→`code`, `Minutes`→`minutes` (default 10), `ExpiredAt`→`expiredAt`,
+  `Percent`→`percent`, `Used`→`used`, `Total`→`total`, `TradeNo`→`tradeNo`, `PlanName`→`planName`, `Period`→`period`,
+  `Amount`→`amount`, ticket `Subject`→`ticketSubject`, `Message`→`message`, notify `Title` (else the built-in subject, i.e.
+  the caller's `Subject`)→`title`, `Content`/`ContentHTML`→`content`, `URL`→`url` (else `AppURL`). `nil` = unknown template.
+- `mail.Validate(name, subject, body) Validation{Limit, Strict, Unknown, Missing}`: `Limit` (size) fails every request,
+  `Strict` (empty / multi-line subject, blank body, unknown and missing placeholders) only PUT and the test mail; `Errors()`
+  merges both. `mail.SampleData(name, locale)` feeds preview and test mail; `mail.DefaultCustom(name, locale)` is the
+  built-in template as Markdown (GET `default`); `mail.TemplateLocales` / `IsTemplateLocale`, `MaxCustomSubject` (255
+  characters), `MaxCustomBody` (65535 bytes).
+- `Queue.ReloadTemplates(ctx)` re-reads the table into the renderer (`Renderer.SetOverrides`, an atomic map swap; reloads are
+  serialized). `NewQueue` calls it once (a load error is logged, the built-ins are used); the admin API calls it after every
+  write (the table has at most 12 rows). `Queue.RenderCustom(to, name, locale, mail.Custom{Subject, Body}, data)` renders a
+  draft in a given locale, ignoring the stored override (admin preview and test mail).
 
 - `a.Mailer.Enqueue(mail.Message{...})` sends custom mail.
 - `a.Mailer.SendNow(ctx, msg)` sends synchronously (admin test mail).
@@ -350,6 +379,9 @@ tok := testutil.Login(t, a, admin)                               // JWT for Do(.
   and cheap argon2 parameters (`testutil.FastHashing`).
 - `WithConfig(fn)` tweaks the config. Other helpers: `DoWithHeaders` (adds headers), `ExpectStatus`, `Ptr`, `MustJSON`.
   MFA tests use `internal/service/mfa/mfatest`.
+- Custom mail templates: unit tests use `r, _ := mail.NewRenderer(); r.SetOverrides(map[string]map[string]mail.Custom{…})`
+  (no database); flow tests `PUT /api/v1/admin/mail-templates/:name` (or insert a `model.MailTemplate` row and call
+  `a.Mailer.ReloadTemplates(ctx)`) and then read `testutil.Mails`.
 - Run `make test` (`go test ./... -race -count=1`) and `make lint`. `make lint` uses golangci-lint v2 with
   `.golangci.yml` when installed, otherwise `go vet` + a gofmt check.
 

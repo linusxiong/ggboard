@@ -56,6 +56,8 @@ type Queue struct {
 	anonMu    sync.Mutex // serializes ClassAnonymous admission so concurrent senders cannot overshoot anonLimit
 	anonLimit int        // channel occupancy at which ClassAnonymous messages are refused
 
+	reloadMu sync.Mutex // serializes ReloadTemplates so that the last reload always installs the latest rows
+
 	mu       sync.RWMutex // guards ch close vs. send, and override
 	ch       chan Message
 	closed   bool
@@ -92,11 +94,52 @@ func NewQueue(db *gorm.DB, st *settings.Service, log *slog.Logger, opts QueueOpt
 	if err != nil {
 		return nil, err
 	}
-	return &Queue{
+	q := &Queue{
 		db: db, settings: st, log: log.With("component", "mail"), renderer: r, opts: opts,
 		anonLimit: max(1, opts.Size*AnonymousSharePercent/100),
 		ch:        make(chan Message, opts.Size), stop: make(chan struct{}), done: make(chan struct{}),
-	}, nil
+	}
+	if err := q.ReloadTemplates(context.Background()); err != nil {
+		q.log.Error("mail: custom templates not loaded, using the built-in ones", "err", err)
+	}
+	return q, nil
+}
+
+// ReloadTemplates re-reads every mail_templates row into the renderer (the admin API calls it after each write).
+// Rows of unknown templates or locales are ignored. Without a database there are no custom templates.
+func (q *Queue) ReloadTemplates(ctx context.Context) error {
+	q.reloadMu.Lock()
+	defer q.reloadMu.Unlock()
+	if q.db == nil {
+		q.renderer.SetOverrides(nil)
+		return nil
+	}
+	var rows []model.MailTemplate
+	if err := q.db.WithContext(ctx).Find(&rows).Error; err != nil {
+		return fmt.Errorf("mail: load custom templates: %w", err)
+	}
+	m := make(map[string]map[string]Custom, len(rows))
+	for _, row := range rows {
+		if m[row.Name] == nil {
+			m[row.Name] = map[string]Custom{}
+		}
+		m[row.Name][row.Locale] = Custom{Subject: row.Subject, Body: row.Body}
+	}
+	q.renderer.SetOverrides(m)
+	return nil
+}
+
+// RenderCustom renders the draft c of template name in locale for recipient to (brand from the current settings),
+// ignoring any stored custom template: the admin preview and test mail.
+func (q *Queue) RenderCustom(to, name, locale string, c Custom, data Data) (Message, error) {
+	b := q.Brand()
+	b.Locale = locale
+	msg, err := q.renderer.RenderCustom(name, b, c, data)
+	if err != nil {
+		return Message{}, err
+	}
+	msg.To = to
+	return msg, nil
 }
 
 // SetMailer overrides the settings-selected driver (nil restores it). Used by tests and the admin mail test.

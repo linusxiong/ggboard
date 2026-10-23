@@ -6,6 +6,7 @@ import (
 	"fmt"
 	htmltemplate "html/template"
 	"strings"
+	"sync/atomic"
 	texttemplate "text/template"
 	"time"
 )
@@ -34,10 +35,13 @@ type Brand struct {
 	Locale  string // zh-CN | en
 }
 
-// Renderer renders the built-in templates.
+// Renderer renders the built-in templates, or an administrator's custom template (SetOverrides) in their place.
 type Renderer struct {
 	html map[string]*htmltemplate.Template
 	text map[string]*texttemplate.Template
+
+	custom    *htmltemplate.Template                       // layout around a custom body (MailBodyHTML)
+	overrides atomic.Pointer[map[string]map[string]Custom] // name → locale → custom template
 }
 
 func placeholderFuncs() map[string]any {
@@ -62,16 +66,28 @@ func NewRenderer() (*Renderer, error) {
 		}
 		r.html[name], r.text[name] = h, t
 	}
+	c, err := htmltemplate.New("custom").Funcs(placeholderFuncs()).ParseFS(templateFS, "templates/layout.html")
+	if err == nil {
+		c, err = c.Parse(`{{define "content"}}{{.MailBodyHTML}}{{end}}`)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("mail: parse custom layout: %w", err)
+	}
+	r.custom = c
 	return r, nil
 }
 
-// Render produces the subject, HTML and text bodies of template name for brand and data.
+// Render produces the subject, HTML and text bodies of template name for brand and data. A custom template for
+// the brand's locale (SetOverrides) is rendered instead of the built-in one.
 func (r *Renderer) Render(name string, brand Brand, data Data) (Message, error) {
 	h, ok := r.html[name]
 	if !ok {
 		return Message{}, fmt.Errorf("mail: unknown template %q", name)
 	}
 	locale := NormalizeLocale(brand.Locale)
+	if c, ok := r.Override(name, locale); ok {
+		return r.RenderCustom(name, brand, c, data)
+	}
 	tr := translator(locale)
 	view := map[string]any{
 		"AppName": brand.AppName,

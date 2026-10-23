@@ -182,6 +182,11 @@ export interface SegmentedControlProps<K extends string> extends Labelling {
   isDisabled?: boolean
   /** Classes for the outer wrapper (scroll container, or the label stack when `label` is set). */
   className?: string
+  /**
+   * Show a pick at once while the owner commits it later (default). `false` when the owner may refuse or
+   * ask first (an unsaved-changes confirm), so a refused pick never lingers (MISTAKES #150).
+   */
+  optimistic?: boolean
 }
 
 export function SegmentedControl<K extends string>({
@@ -192,11 +197,12 @@ export function SegmentedControl<K extends string>({
   size = 'md',
   isDisabled,
   className,
+  optimistic = true,
   ...labelling
 }: SegmentedControlProps<K>) {
   const labelId = useId()
   const { direction } = useLocale()
-  const [selected, select] = useOptimisticValue(value, onChange)
+  const [selected, select] = useOptimisticValue(value, onChange, optimistic)
   const { scrollerRef, trackRef, pillRef } = useSegmentTrack(selected, layoutKeyOf(items))
 
   // Radio keyboard model on top of ToggleButtonGroup's toolbar (which only moves focus): runs in the capture

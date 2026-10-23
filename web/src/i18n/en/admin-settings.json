@@ -310,10 +310,6 @@
       "label": "From name",
       "hint": "Defaults to the site name."
     },
-    "email_template": {
-      "label": "Email template",
-      "hint": "The built-in template is “default”."
-    },
     "remind_mail_enable": {
       "label": "Send expiry and traffic reminders",
       "hint": ""
@@ -504,7 +500,8 @@
     "testUnsaved": "Email settings have unsaved changes; the test uses the saved configuration.",
     "testSend": "Send",
     "testSent": "Test email sent to {email}",
-    "testInvalid": "Enter a valid email"
+    "testInvalid": "Enter a valid email",
+    "templates": "Email templates"
   },
   "subscribe": {
     "rulesets": "Manage rule sets"
@@ -766,5 +763,157 @@
     "webhookFailed": "Failed: {description}",
     "chatFailed": "{chat}: {error}"
   },
-  "nav": "Settings groups"
+  "nav": "Settings groups",
+  "mailTemplates": {
+    "title": "Email templates",
+    "description": "Customise the subject and body (Markdown) of every email the panel sends, separately for Chinese and English. Templates you haven't customised use the built-in text.",
+    "settingsLink": "Email settings",
+    "listLabel": "Email templates",
+    "formLabel": "{template} ({locale})",
+    "loadFailed": "Couldn't load the email templates",
+    "templateLoadFailed": "Couldn't load the template",
+    "unsupported": "This server can't customise email templates yet",
+    "unsupportedHint": "Upgrade the GG Bond server to edit emails here.",
+    "empty": "No customisable email templates",
+    "unsaved": "Unsaved changes",
+    "localeLabel": "Template language",
+    "locales": {
+      "zh-CN": "简体中文",
+      "en": "English"
+    },
+    "localeShort": {
+      "zh-CN": "Chinese",
+      "en": "English"
+    },
+    "status": {
+      "custom": "Custom",
+      "default": "Default",
+      "builtin": "Using the built-in template",
+      "updatedAt": "Updated {time}"
+    },
+    "templates": {
+      "verify_code": {
+        "title": "Verification code",
+        "description": "The code sent when someone signs up or resets a password."
+      },
+      "remind_expire": {
+        "title": "Expiry reminder",
+        "description": "Reminds users to renew before the subscription expires."
+      },
+      "remind_traffic": {
+        "title": "Data usage alert",
+        "description": "Warns users when this cycle's data is nearly used up."
+      },
+      "order_paid": {
+        "title": "Payment received",
+        "description": "Confirms a paid order."
+      },
+      "ticket_reply": {
+        "title": "Ticket reply",
+        "description": "Tells users that support replied to their ticket."
+      },
+      "notify": {
+        "title": "General notice",
+        "description": "Bulk emails, subscription leak alerts and other notices."
+      }
+    },
+    "fields": {
+      "subject": "Subject",
+      "subjectHint": "One line, up to 255 characters; the variables below work here too, e.g. {{siteName}}.",
+      "subjectRequired": "Enter a subject",
+      "subjectTooLong": "The subject can't be longer than {max} characters",
+      "body": "Body",
+      "bodyRequired": "Enter the email body"
+    },
+    "placeholdersHelp": "Click a variable to insert it at the cursor; it is replaced with the real value when the email is sent (written like the {{siteName}} of notices and knowledge articles). Variables marked * are required in the body. The body is placed inside the site's standard email layout (logo, card and footer), so only write the card's content.",
+    "variablesLabel": "Available variables",
+    "required": "(required)",
+    "snippet": "Insert {placeholder}: {label}",
+    "snippetRequired": "Insert {placeholder}: {label} (required)",
+    "vars": {
+      "siteName": "Site name",
+      "siteUrl": "Site URL",
+      "year": "Current year",
+      "code": "Verification code",
+      "minutes": "Validity (minutes)",
+      "expiredAt": "Expiry time",
+      "url": "Link",
+      "percent": "Percent used (number)",
+      "used": "Data used",
+      "total": "Data allowance",
+      "tradeNo": "Order number",
+      "amount": "Amount (with currency symbol)",
+      "planName": "Plan name",
+      "period": "Billing period",
+      "ticketSubject": "Ticket subject",
+      "message": "Reply text",
+      "content": "Notice text",
+      "title": "Notice title"
+    },
+    "templateVars": {
+      "remind_expire": {
+        "url": "Renewal page link"
+      },
+      "remind_traffic": {
+        "url": "Dashboard link"
+      },
+      "order_paid": {
+        "url": "Order page link"
+      },
+      "ticket_reply": {
+        "url": "Ticket link"
+      },
+      "notify": {
+        "url": "Related link"
+      }
+    },
+    "preview": {
+      "title": "Live preview",
+      "caption": "Rendered with sample data, exactly as users receive it; links don't open in the preview.",
+      "mode": "Preview format",
+      "html": "Email",
+      "text": "Plain text",
+      "subject": "Subject",
+      "noSubject": "(no subject)",
+      "frameTitle": "Email preview: {subject}",
+      "failed": "Preview failed: {message}",
+      "missing": "Missing required variables",
+      "missingHint": "The body must contain these variables before you can save.",
+      "unknown": "Unknown variables",
+      "unknownHint": "These aren't variables of this template: they show up literally and saving will be refused."
+    },
+    "actions": {
+      "test": "Send test email",
+      "reset": "Restore default",
+      "discard": "Discard changes"
+    },
+    "save": {
+      "dirty": "Unsaved changes",
+      "clean": "Saved",
+      "cleanDefault": "Using the built-in template",
+      "saved": "“{template}” ({locale}) saved",
+      "shortcut": "⌘S to save"
+    },
+    "reset": {
+      "title": "Restore the default “{template}” template?",
+      "hint": "The custom {locale} subject and body will be deleted and the built-in template used again.",
+      "confirm": "Restore default",
+      "done": "“{template}” ({locale}) restored to the default"
+    },
+    "test": {
+      "title": "Send test email",
+      "to": "Recipient",
+      "hint": "Sends what you are editing (unsaved changes included) with sample data, through the saved mail settings.",
+      "send": "Send",
+      "sent": "Test email sent to {email}",
+      "invalid": "Enter a valid email address",
+      "draftInvalid": "The template has a problem, fix it first: {message}"
+    },
+    "leave": {
+      "title": "Discard unsaved changes?",
+      "hint": "This email template has unsaved changes. They will be lost if you leave.",
+      "switchHint": "Switching template or language discards the unsaved changes of this one.",
+      "confirm": "Discard changes"
+    }
+  }
 }

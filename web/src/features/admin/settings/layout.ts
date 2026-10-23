@@ -40,6 +40,13 @@ export const GROUP_ICON: Record<string, { icon: LucideIcon; tint: string }> = {
 export const FALLBACK_ICON = { icon: SlidersHorizontal, tint: 'bg-system-gray' }
 
 /** Sections per group, in display order (title/caption: `sections.<group>.<id>.*`). */
+/**
+ * Keys the server still lists (kept for compatibility) but that nothing reads any more, so they must
+ * not fall into a group's trailing section. `email_template`: e-mails are customised per template on
+ * /admin/mail-templates (docs/API.md "Settings keys").
+ */
+export const LEGACY_KEYS: ReadonlySet<string> = new Set(['email_template'])
+
 export const GROUP_SECTIONS: Record<string, ReadonlyArray<{ id: string; keys: readonly string[] }>> = {
   site: [
     { id: 'identity', keys: ['app_name', 'app_description', 'logo', 'app_url', 'tos_url'] },
@@ -141,7 +148,7 @@ export const GROUP_SECTIONS: Record<string, ReadonlyArray<{ id: string; keys: re
         'email_password',
       ],
     },
-    { id: 'sender', keys: ['email_from_address', 'email_from_name', 'email_template'] },
+    { id: 'sender', keys: ['email_from_address', 'email_from_name'] },
     { id: 'reminders', keys: ['remind_mail_enable'] },
   ],
   telegram: [
@@ -247,7 +254,7 @@ export function sectionsOf(group: SettingGroupMeta): SectionModel[] {
   const sections: SectionModel[] = layout
     .map((s) => ({ id: s.id, rows: rowsFor(s.keys) }))
     .filter((s) => s.rows.length > 0)
-  const rest = group.keys.map((d) => d.key).filter((k) => !listed.has(k))
+  const rest = group.keys.map((d) => d.key).filter((k) => !listed.has(k) && !LEGACY_KEYS.has(k))
   const restRows = rowsFor(rest)
   // Dependents whose parent sits in another section of the layout are already nested there.
   if (restRows.length) sections.push({ id: layout.length ? 'other' : null, rows: restRows })

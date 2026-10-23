@@ -310,10 +310,6 @@
       "label": "发件人名称",
       "hint": "留空使用站点名称。"
     },
-    "email_template": {
-      "label": "邮件模板",
-      "hint": "内置模板为 default。"
-    },
     "remind_mail_enable": {
       "label": "发送到期与流量提醒邮件",
       "hint": ""
@@ -504,7 +500,8 @@
     "testUnsaved": "邮件设置有未保存的更改，测试将使用已保存的配置。",
     "testSend": "发送",
     "testSent": "测试邮件已发送到 {email}",
-    "testInvalid": "请输入有效的邮箱"
+    "testInvalid": "请输入有效的邮箱",
+    "templates": "邮件模板"
   },
   "subscribe": {
     "rulesets": "管理规则集"
@@ -766,5 +763,157 @@
     "webhookFailed": "设置失败：{description}",
     "chatFailed": "{chat}：{error}"
   },
-  "nav": "设置分组"
+  "nav": "设置分组",
+  "mailTemplates": {
+    "title": "邮件模板",
+    "description": "自定义系统发出的每封邮件的标题与正文（Markdown），中文和英文分别设置；未自定义时使用内置模板。",
+    "settingsLink": "邮件设置",
+    "listLabel": "邮件模板",
+    "formLabel": "{template}（{locale}）",
+    "loadFailed": "邮件模板加载失败",
+    "templateLoadFailed": "模板加载失败",
+    "unsupported": "服务端暂不支持自定义邮件模板",
+    "unsupportedHint": "升级 GG Bond 服务端后即可在这里编辑邮件。",
+    "empty": "没有可自定义的邮件模板",
+    "unsaved": "有未保存的更改",
+    "localeLabel": "模板语言",
+    "locales": {
+      "zh-CN": "简体中文",
+      "en": "English"
+    },
+    "localeShort": {
+      "zh-CN": "中文",
+      "en": "英文"
+    },
+    "status": {
+      "custom": "已自定义",
+      "default": "默认",
+      "builtin": "正在使用内置模板",
+      "updatedAt": "更新于 {time}"
+    },
+    "templates": {
+      "verify_code": {
+        "title": "邮箱验证码",
+        "description": "注册、找回密码时发送的验证码。"
+      },
+      "remind_expire": {
+        "title": "到期提醒",
+        "description": "订阅即将到期时提醒用户续费。"
+      },
+      "remind_traffic": {
+        "title": "流量提醒",
+        "description": "本周期流量即将用尽时提醒用户。"
+      },
+      "order_paid": {
+        "title": "支付成功",
+        "description": "订单支付完成后的确认邮件。"
+      },
+      "ticket_reply": {
+        "title": "工单回复",
+        "description": "客服回复工单时通知用户。"
+      },
+      "notify": {
+        "title": "通用通知",
+        "description": "群发邮件、订阅泄露提醒等其他通知。"
+      }
+    },
+    "fields": {
+      "subject": "邮件标题",
+      "subjectHint": "单行，最多 255 个字符；同样可以使用下方的变量，例如 {{siteName}}。",
+      "subjectRequired": "请填写邮件标题",
+      "subjectTooLong": "邮件标题不能超过 {max} 个字符",
+      "body": "邮件正文",
+      "bodyRequired": "请填写邮件正文"
+    },
+    "placeholdersHelp": "点击变量按钮在光标处插入，发送时替换为实际值（与公告、知识库的 {{siteName}} 写法相同）；标 * 的为必填变量，正文必须包含。正文会套用站点统一的邮件外观（Logo、卡片与页脚），只需编写卡片内的内容。",
+    "variablesLabel": "可用变量",
+    "required": "（必填）",
+    "snippet": "插入 {placeholder}：{label}",
+    "snippetRequired": "插入 {placeholder}：{label}（必填）",
+    "vars": {
+      "siteName": "站点名称",
+      "siteUrl": "站点地址",
+      "year": "当前年份",
+      "code": "验证码",
+      "minutes": "有效期（分钟）",
+      "expiredAt": "到期时间",
+      "url": "链接",
+      "percent": "已用百分比（数字）",
+      "used": "已用流量",
+      "total": "总流量",
+      "tradeNo": "订单号",
+      "amount": "金额（含货币符号）",
+      "planName": "套餐名称",
+      "period": "购买周期",
+      "ticketSubject": "工单标题",
+      "message": "回复内容",
+      "content": "通知内容",
+      "title": "通知标题"
+    },
+    "templateVars": {
+      "remind_expire": {
+        "url": "续费页面链接"
+      },
+      "remind_traffic": {
+        "url": "面板链接"
+      },
+      "order_paid": {
+        "url": "订单详情链接"
+      },
+      "ticket_reply": {
+        "url": "工单链接"
+      },
+      "notify": {
+        "url": "相关链接"
+      }
+    },
+    "preview": {
+      "title": "实时预览",
+      "caption": "使用示例数据渲染，与用户收到的邮件一致；链接在预览中不可点击。",
+      "mode": "预览格式",
+      "html": "邮件",
+      "text": "纯文本",
+      "subject": "标题",
+      "noSubject": "（无标题）",
+      "frameTitle": "邮件预览：{subject}",
+      "failed": "预览失败：{message}",
+      "missing": "缺少必填变量",
+      "missingHint": "正文必须包含这些变量才能保存。",
+      "unknown": "未知变量",
+      "unknownHint": "这些变量不属于此模板，会原样显示，保存时会被拒绝。"
+    },
+    "actions": {
+      "test": "发送测试邮件",
+      "reset": "恢复默认",
+      "discard": "放弃更改"
+    },
+    "save": {
+      "dirty": "有未保存的更改",
+      "clean": "已保存",
+      "cleanDefault": "正在使用内置模板",
+      "saved": "“{template}”（{locale}）已保存",
+      "shortcut": "⌘S 保存"
+    },
+    "reset": {
+      "title": "将“{template}”恢复为默认模板？",
+      "hint": "{locale} 的自定义标题与正文将被删除，改用内置模板。",
+      "confirm": "恢复默认",
+      "done": "“{template}”（{locale}）已恢复默认"
+    },
+    "test": {
+      "title": "发送测试邮件",
+      "to": "收件邮箱",
+      "hint": "使用当前编辑的内容（包括未保存的更改）与示例数据发送；发信方式使用已保存的邮件设置。",
+      "send": "发送",
+      "sent": "测试邮件已发送到 {email}",
+      "invalid": "请输入有效的邮箱",
+      "draftInvalid": "模板内容有误，请先修正：{message}"
+    },
+    "leave": {
+      "title": "放弃未保存的更改？",
+      "hint": "邮件模板有未保存的更改，离开后将丢失。",
+      "switchHint": "切换模板或语言会丢失当前模板未保存的更改。",
+      "confirm": "放弃更改"
+    }
+  }
 }

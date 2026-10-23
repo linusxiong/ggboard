@@ -31,7 +31,8 @@ nothing is downloaded). The last two sign in through the API with `USER_EMAIL`/`
 Dev-only mock backends (in-memory, fake data on example.com, never bundled): `pnpm exec vite --config
 scripts/mock/vite.config.ts` (dev server + user-portal mock, `user-portal.ts`), or `node scripts/mock/server.ts` (admin
 console mock on `:8787`) together with `GGBOARD_API=http://localhost:8787 pnpm dev`; `scripts/mock/commerce.ts` (shop,
-orders, invite, tickets, content; `:8787`) and `scripts/mock/admin-a.ts` (dashboard, users, plans, groups, nodes, routes;
+orders, invite, tickets, content; `:8787`), `scripts/mock/mail-templates.ts` (admin e-mail templates, plugged into
+`server.ts`) and `scripts/mock/admin-a.ts` (dashboard, users, plans, groups, nodes, routes;
 `:8091`) are smaller area mocks, and `scripts/mock/fe-s.ts` (subscription profiles, node operations, age keys, access log,
 token rotation, Telegram binding) is plugged into `user-portal.ts` and `admin-a.ts`. See their header comments.
 
@@ -51,7 +52,8 @@ src/
                            /notices /profile (?tab=account|security|subscription)
     _admin.tsx             pathless layout (is_admin || is_staff) for /admin/* (/admin → dashboard or tickets)
     _admin/admin/*.tsx     dashboard users plans groups nodes routes orders coupons payments tickets notices
-                           knowledge settings (?group=) rulesets system (staff: users, tickets, notices, knowledge)
+                           knowledge settings (?group=) mail-templates (?name=&locale=) rulesets system
+                           (staff: users, tickets, notices, knowledge)
   features/<area>/         page bodies, dialogs and helpers per area (route files stay thin):
     dashboard/ shop/ orders/ invite/ tickets/ content/
     subscription/          SubscriptionPage + ProfileTabs (profiles), SubscribeCard, RuleBuilder, NodeOpsEditor
@@ -60,7 +62,8 @@ src/
     security/              AccountPanel, ChangePasswordCard, TwoFactorCard, PasskeysCard, TelegramCard, api.ts,
                            webauthn.ts (`@simplewebauthn/browser`)
     admin/<page>/          one folder per admin page + shared/ (FormDrawer, permissions, queries, …);
-                           payments/IconPicker, users/UserSubscriptionTab, settings/ (metadata-driven, below)
+                           payments/IconPicker, users/UserSubscriptionTab, settings/ (metadata-driven, below),
+                           mail-templates/ (per-locale subject + Markdown body editor, live preview)
   lib/api/                 client.ts, types.ts, guest.ts, passport.ts, user.ts, admin.ts, queries.ts, index.ts
   lib/                     guards, format, toast, motion, theme, errors, authErrors, button, clipboard, cn,
                            publicData, queryClient, snapshot (prerender handover), validators
@@ -208,7 +211,14 @@ Unknown keys and groups still render (trailing section / generic group), so back
 `SettingField.tsx` picks `SecretInput` (reveal / copy), `ComboInput` (free text + suggestions), `TagInput`,
 `ChipSelect` (`telegram_events`) or `UrlListEditor` (`subscribe_url`); group extras: test mail (`TestMailDialog.tsx`),
 node backend snippets filled with `app_url` + `server_token` (`ServerSnippets.tsx`), Telegram test / webhook
-(`TelegramActions.tsx`).
+(`TelegramActions.tsx`); the email group links to the e-mail templates page.
+
+E-mail templates (`features/admin/mail-templates`, `/admin/mail-templates?name=&locale=`): template list (state per
+locale) + `SegmentedControl` for the locale (`optimistic={false}`: a pick may be refused by the unsaved-changes confirm),
+subject + `MarkdownEditor` whose `snippets` are the template's `{{variables}}` (`required` → red `*`, `ariaLabel` says
+so), a debounced (400 ms) server preview (`POST …/preview`) in a `sandbox=""` `srcdoc` iframe with unknown / missing
+placeholder chips, `SaveBar`, reset (`confirm()` + DELETE) and a lazy test-mail dialog. One draft at a time: switching
+template / locale or leaving with unsaved edits asks first.
 
 Public auth pages use `NativeField` / `NativeButton` + `useLiteForm` instead (HeroUI's CSS classes on native elements, no
 React Aria JS) — see "Performance".

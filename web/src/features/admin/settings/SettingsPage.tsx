@@ -31,6 +31,8 @@ interface SettingsPageProps {
   renderGuard?: (dirty: boolean) => ReactNode
   /** Link to the rule-set catalog shown in the subscribe group (a router `<Link>`). */
   rulesetsLink?: ReactNode
+  /** Link to the e-mail templates shown in the email group (a router `<Link>`). */
+  mailTemplatesLink?: ReactNode
 }
 
 /** Phones: the group list is a horizontal chip strip — keep the selected chip in view (no page scroll). */
@@ -64,7 +66,13 @@ function applyPatch(
  * group on the right as titled sections of grouped rows, and a sticky save bar. Each group saves on
  * its own (`PUT /admin/settings` with only the changed keys); drafts survive switching groups.
  */
-export function SettingsPage({ group, onGroupChange, renderGuard, rulesetsLink }: SettingsPageProps) {
+export function SettingsPage({
+  group,
+  onGroupChange,
+  renderGuard,
+  rulesetsLink,
+  mailTemplatesLink,
+}: SettingsPageProps) {
   const t = useT(['admin-settings', 'common'])
   const locale = useLocale()
   const qc = useQueryClient()
@@ -313,10 +321,13 @@ export function SettingsPage({ group, onGroupChange, renderGuard, rulesetsLink }
                 ) : null}
               </div>
               {active.name === 'email' ? (
-                <Button variant="secondary" size="sm" onPress={() => setTestOpen(true)}>
-                  <MailCheck className="size-4" aria-hidden />
-                  {t('email.test')}
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  {mailTemplatesLink}
+                  <Button variant="secondary" size="sm" onPress={() => setTestOpen(true)}>
+                    <MailCheck className="size-4" aria-hidden />
+                    {t('email.test')}
+                  </Button>
+                </div>
               ) : active.name === 'subscribe' ? (
                 rulesetsLink
               ) : null}

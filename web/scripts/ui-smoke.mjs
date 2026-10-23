@@ -102,6 +102,8 @@ const pages = {
     ...['register', 'subscribe', 'order', 'invite', 'server', 'email', 'frontend', 'app', 'security'].map(
       (g) => `/admin/settings?group=${g}`,
     ),
+    '/admin/mail-templates',
+    '/admin/mail-templates?name=order_paid&locale=en',
     '/admin/rulesets',
     '/admin/system',
   ],

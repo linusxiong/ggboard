@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useBlocker, useNavigate } from '@tanstack/react-router'
-import { Link2 } from 'lucide-react'
+import { FileText, Link2 } from 'lucide-react'
 import { useCallback } from 'react'
 import { confirm } from '@/components/feedback/confirm'
 import { optString } from '@/features/admin/orders/search'
@@ -53,6 +53,12 @@ function AdminSettingsRoute() {
         <Link to="/admin/rulesets" className={buttonClass({ variant: 'secondary', size: 'sm' })}>
           <Link2 className="size-4" aria-hidden />
           {tr('subscribe.rulesets')}
+        </Link>
+      }
+      mailTemplatesLink={
+        <Link to="/admin/mail-templates" className={buttonClass({ variant: 'secondary', size: 'sm' })}>
+          <FileText className="size-4" aria-hidden />
+          {tr('email.templates')}
         </Link>
       }
     />

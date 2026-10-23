@@ -1,7 +1,7 @@
 /**
  * Dev-only mock of the admin API used by the admin console pages (orders, coupons, payments,
- * tickets, notices, knowledge, settings, rule sets, system) so they can be clicked through without
- * the Go backend. In-memory state, fake data on example.com, no persistence.
+ * tickets, notices, knowledge, settings, mail templates (`mail-templates.ts`), rule sets, system) so they can
+ * be clicked through without the Go backend. In-memory state, fake data on example.com, no persistence.
  *
  *   node scripts/mock/server.ts            # http://localhost:8787 (MOCK_PORT to change)
  *   GGBOARD_API=http://localhost:8787 pnpm dev
@@ -11,6 +11,7 @@
 import { readFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import path from 'node:path'
+import { handleMailTemplates } from './mail-templates.ts'
 
 const PORT = Number(process.env.MOCK_PORT ?? 8787)
 const root = path.resolve(import.meta.dirname, '..', '..', '..')
@@ -551,7 +552,6 @@ const defs: Record<string, Def[]> = {
     secret('email_password'),
     s('email_from_address'),
     s('email_from_name'),
-    s('email_template', 'default'),
     b('remind_mail_enable', true),
   ],
   frontend: [
@@ -1017,6 +1017,11 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
           settings[k] = v === null ? all.find((x) => x.key === k)?.default : v
         return ok(res, true)
       }
+      break
+    }
+    case 'mail-templates': {
+      const b = m === 'PUT' || m === 'POST' ? await body(req) : {}
+      if (handleMailTemplates(m, seg.slice(2), q, b, res)) return
       break
     }
     case 'rulesets': {

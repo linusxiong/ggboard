@@ -33,5 +33,6 @@ func All() []any {
 		&Passkey{},
 		&SubscriptionKey{},
 		&SubscriptionAccess{},
+		&MailTemplate{},
 	}
 }

@@ -5,6 +5,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { loadNamespaces } from '@/i18n'
 import type { AdminSettingsResponse, SettingGroupMeta } from '@/lib/api/types'
 import { useUiStore } from '@/stores/ui'
+import { sectionsOf } from './layout'
 import { SettingsPage } from './SettingsPage'
 import { buildGroups, dirtyPatch, flattenValues, randomToken, sameValue } from './settingsMeta'
 
@@ -25,7 +26,11 @@ const groups: SettingGroupMeta[] = [
   },
   {
     name: 'email',
-    keys: [{ key: 'email_driver', type: 'string', default: 'log', options: ['log', 'smtp'] }],
+    keys: [
+      { key: 'email_driver', type: 'string', default: 'log', options: ['log', 'smtp'] },
+      // Legacy: still listed by the server, edited nowhere (mail templates have their own page).
+      { key: 'email_template', type: 'string', default: 'default' },
+    ],
   },
 ]
 
@@ -40,7 +45,7 @@ const response: AdminSettingsResponse = {
     custom_json: { a: 1 },
     big_counter: 7,
   },
-  email: { email_driver: 'log' },
+  email: { email_driver: 'log', email_template: 'default' },
   groups,
 }
 
@@ -64,6 +69,13 @@ describe('settings metadata helpers', () => {
     const flat = flattenValues(response, built)
     expect(flat.app_name).toBe('GG Bond')
     expect(flat.email_driver).toBe('log')
+  })
+
+  it('keeps legacy keys the server still lists out of every section', () => {
+    const email = buildGroups(response).find((g) => g.name === 'email')!
+    const shown = sectionsOf(email).flatMap((s) => s.rows.map((r) => r.def.key))
+    expect(shown).toContain('email_driver')
+    expect(shown).not.toContain('email_template')
   })
 
   it('infers metadata when the backend sends no `groups`', () => {
