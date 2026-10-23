@@ -294,16 +294,20 @@ enrolled authenticators.*
 1. **`auth.argon2_concurrency`**（见上表）限制**同时**有几个校验在跑，即高峰期这部分内存的上限。默认最多 4 个（256 MiB）；
    1 GiB 内存的 VPS 建议设 `2`（128 MiB），512 MiB 的设 `1`。代价是高峰时多出来的登录排队：排在第 N 位的请求大约多等
    N / 并发数 次校验的时间（一次校验多久取决于 CPU；开发机上的实测见 [`docs/perf/README.md`](perf/README.md)）。
-2. **`GOMEMLIMIT`**（Go 运行时的环境变量，不是 ggboard 的配置键，也不能写进 YAML）是进程内存的**软上限**：接近它时 Go 会更频繁地 GC，
-   并把空闲内存更快还给系统。不设时，高峰过后 Go 归还内存很慢，`RSS` 会在一段时间里停在峰值附近。建议设为机器内存减去数据库等
-   其他进程后的六七成，例如 1 GiB 的 VPS 设 `GOMEMLIMIT=600MiB`。它不会让进程因超限而退出；设得过低只会让 GC 一直跑、CPU 变高。
+2. **`GOMEMLIMIT`**（Go 运行时的环境变量，不是 ggboard 的配置键，也不能写进 YAML）是 Go 运行时的**软内存上限**：总内存接近它时
+   GC 会更早、更频繁地运行，运行时也会把空闲页还给系统以留在上限之下。它**不是硬上限**：分配极快时 GC 会限制自己的 CPU 占用，
+   内存可以超过它。开发机上实测（单独一个 10 s 的登录高峰，并发上限 4，各两次）：不设时峰值 RSS 826–827 MiB，`GOMEMLIMIT=600MiB`
+   时 774–808 MiB；两种情况下高峰过后 3 分钟内 `ps` 看到的 RSS 都没有下降（[`docs/perf/README.md`](perf/README.md)“发现”2）。所以真正限住登录高峰的是
+   第 1 条；`GOMEMLIMIT` 用来让整个进程在内存紧张时更积极地回收。建议设为机器内存减去数据库等其他进程后的六七成，例如 1 GiB 的 VPS
+   设 `GOMEMLIMIT=600MiB`。它不会让进程因超限而退出；设得过低只会让 GC 一直跑、CPU 变高。
 
 写法：systemd 在 `/etc/ggboard/ggboard.env` 里加 `GOMEMLIMIT=600MiB`（或 unit 里 `Environment=GOMEMLIMIT=600MiB`）；Docker Compose 写进
 `.env`（`env_file` 会传进容器）或 `environment:`；源码运行时 `GOMEMLIMIT=600MiB ./bin/ggboard serve`。
 
 *Login bursts are the memory peak (64 MiB per argon2id check). `auth.argon2_concurrency` bounds how many run at once
 (default min(GOMAXPROCS, 4), at most 256 MiB; extra logins queue instead of allocating). `GOMEMLIMIT`, a Go runtime
-environment variable, is a soft limit for the whole process that also makes Go return idle memory sooner, e.g.
+environment variable, is a soft limit for the whole process (more GC and earlier release of idle pages as memory
+approaches it, but it can be exceeded): in measured 10 s login bursts it lowered peak RSS from 826–827 to 774–808 MiB. Use e.g.
 `GOMEMLIMIT=600MiB` on a 1 GiB VPS.*
 
 ## 5. 数据库 / Databases

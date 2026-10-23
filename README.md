@@ -59,14 +59,14 @@ reproducible with `make bench`.*
 
 | 场景 / Scenario | 吞吐 / req/s | p99 |
 | --- | ---: | ---: |
-| 订阅 · v2ray（base64） | 13,172 | 18 ms |
-| 订阅 · mihomo + standard 分流规则（18 个规则集） | 13,220 | 18 ms |
-| 节点拉用户列表，ETag 命中 → 304 | 85,902 | 2.5 ms |
-| 节点拉完整用户列表（10,000 人，gzip） | 2,153 | 127 ms |
-| 节点上报流量（每次 1,000 人，即每秒约 376 万条） | 3,764 | 27 ms |
-| 密码登录（argon2id，64 MiB，有意为之的慢） | 115 | 174 ms |
+| 订阅 · v2ray（base64） | 13,208 | 19 ms |
+| 订阅 · mihomo + standard 分流规则（18 个规则集） | 13,322 | 18 ms |
+| 节点拉用户列表，ETag 命中 → 304 | 86,836 | 2.5 ms |
+| 节点拉完整用户列表（10,000 人，gzip） | 29,794 | 6.1 ms |
+| 节点上报流量（每次 1,000 人，即每秒约 428 万条） | 4,282 | 24 ms |
+| 密码登录（argon2id，64 MiB，有意为之的慢） | 104 | 164 ms |
 
-测试机：Apple M5 Pro（18 核）· 48 GB · macOS 27.0.1 · Go 1.27.3 · 2026-10-23 · commit `9e613b5`（工作区的未提交改动不在被测路径上）。
+测试机：Apple M5 Pro（18 核）· 48 GB · macOS 27.0.1 · Go 1.27.3 · 2026-10-23 · commit `8db6777`。
 方法、全部场景（含静态文件）、注意事项和发现见 [docs/perf/README.md](docs/perf/README.md)。
 
 *Machine: Apple M5 Pro (18 cores), 48 GB, macOS 27.0.1, Go 1.27.3. Method, every scenario, caveats and findings:

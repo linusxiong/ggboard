@@ -2,32 +2,32 @@
 
 # Benchmark results
 
-Measured 2026-10-23 on Apple M5 Pro · 18 cores (6 Super + 12 Performance) · 48 GB RAM · macOS 27.0.1; server `9e613b5-dirty` (go1.27.3, sqlite), commit `9e613b5-dirty`.
-Host load average when the measurements started: 4.56 10.23 9.06 (1 / 5 / 15 min; other processes were not stopped).
+Measured 2026-10-23 on Apple M5 Pro · 18 cores (6 Super + 12 Performance) · 48 GB RAM · macOS 27.0.1; server `8db6777` (go1.27.3, sqlite), commit `8db6777`.
+Host load average when the measurements started: 1.54 2.24 1.98 (1 / 5 / 15 min; other processes were not stopped).
 Dataset: 10,000 users on one plan, 50 nodes; 30s per scenario after a 3s warm-up, 64 connections (login 16). Closed loop: every connection sends its next request as soon as it has read the previous response.
 
 | Scenario | Request | Conn | Requests | req/s | p50 | p95 | p99 | Errors | Body | CPU server / load gen |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Subscription · v2ray (base64) † | `GET /api/v1/client/subscribe?flag=v2ray` | 64 | 85,794 | 13,172 | 3.7 ms | 12 ms | 18 ms | 0 | 4.5 KiB | 10.9 / 1.2 cores |
-| Subscription · mihomo + standard rules † | `GET /api/v1/client/subscribe?flag=clash-meta&profile=standard` | 64 | 85,708 | 13,220 | 3.7 ms | 12 ms | 18 ms | 0 | 3.3 KiB | 11.9 / 1.0 cores |
-| Node API · user list, If-None-Match → 304 (304 rate 100.0 %) | `GET /api/v1/server/UniProxy/user + If-None-Match` | 64 | 2,577,163 | 85,902 | 0.97 ms | 2.1 ms | 2.5 ms | 0 | 0 B | 6.1 / 4.6 cores |
-| Node API · user list, full body (10,000 users) | `GET /api/v1/server/UniProxy/user` | 64 | 64,644 | 2,153 | 23 ms | 81 ms | 127 ms | 0 | 244.0 KiB | 14.8 / 1.4 cores |
-| Node API · traffic push (1,000 users per report) | `POST /api/v1/server/UniProxy/push` | 64 | 112,963 | 3,764 | 17 ms | 23 ms | 27 ms | 0 | 13 B | 6.5 / 0.4 cores |
-| Login · password login (argon2id) | `POST /api/v1/passport/login` | 16 | 3,469 | 115 | 138 ms | 159 ms | 174 ms | 0 | 931 B | 16.9 / 0.0 cores |
-| Static · index.html (prerendered, brotli) | `GET /` | 64 | 2,518,622 | 83,951 | 0.98 ms | 2.0 ms | 2.6 ms | 0 | 2.5 KiB | 6.6 / 4.8 cores |
-| Static · largest JS chunk (brotli, immutable) | `GET /assets/react-B--GpZa_.js` | 64 | 1,511,301 | 50,375 | 1.1 ms | 2.5 ms | 3.5 ms | 0 | 56.8 KiB | 7.6 / 7.0 cores |
+| Subscription · v2ray (base64) † | `GET /api/v1/client/subscribe?flag=v2ray` | 64 | 85,552 | 13,208 | 3.7 ms | 12 ms | 19 ms | 0 | 4.5 KiB | 10.8 / 1.2 cores |
+| Subscription · mihomo + standard rules † | `GET /api/v1/client/subscribe?flag=clash-meta&profile=standard` | 64 | 85,345 | 13,322 | 3.7 ms | 12 ms | 18 ms | 0 | 3.3 KiB | 11.8 / 1.0 cores |
+| Node API · user list, If-None-Match → 304 (304 rate 100.0 %) | `GET /api/v1/server/UniProxy/user + If-None-Match` | 64 | 2,605,180 | 86,836 | 0.94 ms | 2.1 ms | 2.5 ms | 0 | 0 B | 6.2 / 4.6 cores |
+| Node API · user list, full body (10,000 users) | `GET /api/v1/server/UniProxy/user` | 64 | 893,885 | 29,794 | 2.0 ms | 4.2 ms | 6.1 ms | 0 | 244.0 KiB | 3.4 / 12.4 cores |
+| Node API · traffic push (1,000 users per report) | `POST /api/v1/server/UniProxy/push` | 64 | 128,496 | 4,282 | 15 ms | 21 ms | 24 ms | 0 | 13 B | 6.7 / 0.4 cores |
+| Login · password login (argon2id) | `POST /api/v1/passport/login` | 16 | 3,129 | 104 | 154 ms | 160 ms | 164 ms | 0 | 931 B | 13.7 / 0.0 cores |
+| Static · index.html (prerendered, brotli) | `GET /` | 64 | 2,576,135 | 85,867 | 0.95 ms | 2.0 ms | 2.5 ms | 0 | 2.5 KiB | 6.7 / 4.8 cores |
+| Static · largest JS chunk (brotli, immutable) | `GET /assets/react-B--GpZa_.js` | 64 | 1,555,314 | 51,842 | 1.1 ms | 2.4 ms | 3.5 ms | 0 | 56.8 KiB | 7.8 / 7.3 cores |
 
-† stopped early (sub_v2ray after 6.5 s, sub_clash_rules after 6.5 s): every subscription token had used its share of the per-token rate limit (25 requests each including warm-up, below the burst of 30), so no request was rate limited.
+† stopped early (sub_v2ray after 6.5 s, sub_clash_rules after 6.4 s): every subscription token had used its share of the per-token rate limit (25 requests each including warm-up, below the burst of 30), so no request was rate limited.
 
 - **Subscription · v2ray (base64)**: plaintext body 13.8 KiB: base64 of 53 share links (50 nodes + 3 traffic / expiry info entries)
 - **Subscription · mihomo + standard rules**: plaintext body 25.0 KiB: all 50 nodes as proxies (plus the info entries), 18 rule providers (catalog template "standard")
-- **Node API · user list, full body (10,000 users)**: plaintext JSON 887.6 KiB per response (cached body; compressed per request by the gzip middleware)
-- **Node API · traffic push (1,000 users per report)**: one flush window of 500,000 (node, user) pairs (50 nodes × 10,000 users) was written by the next traffic_flush (users.u/d updates plus stat_users and stat_nodes upserts in one transaction) in 4.003s
+- **Node API · user list, full body (10,000 users)**: plaintext JSON 887.6 KiB per response (cached body sent with its cached gzip encoding, compressed once per body version)
+- **Node API · traffic push (1,000 users per report)**: one flush window of 500,000 (node, user) pairs (50 nodes × 10,000 users) was written by the next traffic_flush (users.u/d updates plus stat_users and stat_nodes upserts in one transaction) in 3.904s
 - **Login · password login (argon2id)**: argon2id with 64 MiB, 3 passes, 4 lanes per verification by design; each request comes from its own X-Forwarded-For address (server.trusted_proxies = 127.0.0.1), so the 30/min per-IP limit stays on
 
 Body = average bytes on the wire per response (after compression). CPU = CPU time ÷ wall time during the measured window, for the server process (ps) and for the load generator (getrusage); both run on the same machine. Latency is measured by a closed-loop client (each connection sends its next request when the previous answer has been read), so p50–p99 are latencies at saturation, not at a fixed arrival rate.
 
-Server after the run: 75 goroutines, heap 19.8 MiB, runtime sys 2721.1 MiB, peak RSS 2739.3 MiB; cache hit ratio 0.996.
+Server after the run: 75 goroutines, heap 20.2 MiB, runtime sys 1212.9 MiB, peak RSS 1238.5 MiB; cache hit ratio 0.997.
 
 Server log, WARN and ERROR lines during the run:
 
