@@ -183,6 +183,10 @@ func (s *Service) Create(ctx context.Context, in CreateInput, now time.Time) (*m
 	if err != nil {
 		return nil, err
 	}
+	// The administrator chose the address: a later password reset is not an ownership change.
+	if err := svc.MarkEmailVerified(ctx, u); err != nil {
+		return nil, err
+	}
 	if next := svc.ComputeNextResetAt(u, plan, now); next != nil {
 		if err := db.Model(&model.User{}).Where("id = ?", u.ID).Update("next_reset_at", next).Error; err != nil {
 			return nil, fmt.Errorf("adminuser: set next_reset_at: %w", err)

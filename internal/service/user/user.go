@@ -370,3 +370,101 @@ func (s *Service) AvailableUsersForGroups(ctx context.Context, groupIDs []uint64
 // InvalidateNodeUsers drops every cached AvailableUsersForGroups result (call after changing users' plan,
 // group, ban, traffic or expiry when nodes must see it before the 60s TTL).
 func (s *Service) InvalidateNodeUsers() { s.a.Cache.InvalidateNamespace(NodeUsersNamespace) }
+
+// MarkEmailVerified stamps u's email_verified_at with the current time unless it is already set. Call it once
+// whoever controls the account has proved control of its mailbox (an email code at registration) or the address
+// comes from an administrator (admin-created accounts).
+func (s *Service) MarkEmailVerified(ctx context.Context, u *model.User) error {
+	now := time.Now()
+	res := s.a.DB.WithContext(ctx).Model(&model.User{}).Where("id = ? AND email_verified_at IS NULL", u.ID).
+		UpdateColumn("email_verified_at", now)
+	if res.Error != nil {
+		return fmt.Errorf("user: mark email verified: %w", res.Error)
+	}
+	if res.RowsAffected == 1 {
+		u.EmailVerifiedAt = &now
+	}
+	return nil
+}
+
+// mfaConfiguredCacheKey is the cache entry of internal/service/mfa Configured ("mfa:configured:<id>", see
+// cacheStatusKeyNS there; that package imports this one, so the key is spelled out here).
+func mfaConfiguredCacheKey(id uint64) string { return "mfa:configured:" + strconv.FormatUint(id, 10) }
+
+// SubscriptionKeyCacheNamespace is the cache namespace of the hosted age key (internal/subscription/guard LoadKey).
+// That package imports this one and uses this constant, so the two cannot drift.
+const SubscriptionKeyCacheNamespace = "subscription_key"
+
+// Reclaimed describes what ReclaimAccount removed.
+type Reclaimed struct {
+	Passkeys int64 // passkeys deleted
+	MFA      bool  // a user_mfa row (TOTP, backup codes, WebAuthn user handle) was deleted
+	Telegram bool  // a Telegram binding was cleared
+	AgeKey   bool  // the hosted age key pair (model.SubscriptionKey, whose private key the holder saw) was deleted
+}
+
+// errVerified rolls back ReclaimAccount when the account turned out to be verified (or gone).
+var errVerified = errors.New("user: email already verified")
+
+// ReclaimAccount handles the first proof of mailbox ownership on an account whose email was never verified
+// (email_verified_at IS NULL: with email_verify off anyone can register someone else's address). The mailbox
+// owner takes the account over, so nothing the previous holder set up may survive. In one transaction it stores
+// the new password, issues a new uuid (node credential) and subscription token, bumps password_version once
+// (every session ends), clears the Telegram binding, deletes every passkey and the user_mfa row (TOTP, backup
+// codes, WebAuthn user handle) and the hosted age key pair (the previous holder saw its private key, and a
+// subscription encrypted to it would be unreadable for the owner), and stamps email_verified_at. It returns nil (and changes nothing) when the
+// account is already verified or no longer exists: the caller then uses SetPassword. A Telegram bind code the
+// previous holder requested is revoked by the caller (internal/notify/telegram Unbind).
+func (s *Service) ReclaimAccount(ctx context.Context, u *model.User, password string) (*Reclaimed, error) {
+	hash, err := auth.HashPassword(password)
+	if err != nil {
+		return nil, err
+	}
+	now, newUUID, newToken := time.Now(), uuid.NewString(), NewToken()
+	out := Reclaimed{Telegram: u.TelegramID != nil}
+	err = s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&model.User{}).Where("id = ? AND email_verified_at IS NULL", u.ID).Updates(map[string]any{
+			"password_hash":     hash,
+			"password_version":  gorm.Expr("password_version + 1"),
+			"uuid":              newUUID,
+			"token":             newToken,
+			"telegram_id":       nil,
+			"telegram_username": nil,
+			"email_verified_at": now,
+		})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return errVerified
+		}
+		pk := tx.Where("user_id = ?", u.ID).Delete(&model.Passkey{})
+		if pk.Error != nil {
+			return pk.Error
+		}
+		mfa := tx.Where("user_id = ?", u.ID).Delete(&model.UserMFA{})
+		if mfa.Error != nil {
+			return mfa.Error
+		}
+		ak := tx.Where("user_id = ?", u.ID).Delete(&model.SubscriptionKey{})
+		if ak.Error != nil {
+			return ak.Error
+		}
+		out.Passkeys, out.MFA, out.AgeKey = pk.RowsAffected, mfa.RowsAffected > 0, ak.RowsAffected > 0
+		return nil
+	})
+	if errors.Is(err, errVerified) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("user: reclaim account: %w", err)
+	}
+	u.PasswordHash, u.UUID, u.Token = hash, newUUID, newToken
+	u.PasswordVersion++
+	u.TelegramID, u.TelegramUsername, u.EmailVerifiedAt = nil, nil, &now
+	auth.InvalidateUser(s.a, u.ID)
+	s.a.Cache.Delete(mfaConfiguredCacheKey(u.ID))
+	s.a.Cache.Delete(s.a.Cache.Key(SubscriptionKeyCacheNamespace, strconv.FormatUint(u.ID, 10)))
+	s.InvalidateNodeUsers()
+	return &out, nil
+}

@@ -156,6 +156,7 @@ func (im *importer) importUsers() error {
 			CreatedAt:         im.ts(scope, r["created_at"]),
 			UpdatedAt:         im.ts(scope, r["updated_at"]),
 		}
+		u.EmailVerifiedAt = new(u.CreatedAt) // Xboard does not record verification: existing accounts are trusted (no reclaim on reset)
 		if !strings.Contains(u.Email, "@") {
 			im.warn(scope, "email %q is not a valid address — imported as is", u.Email)
 		}

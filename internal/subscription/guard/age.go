@@ -24,6 +24,7 @@ import (
 	"github.com/linusxiong/ggboard/internal/cache"
 	"github.com/linusxiong/ggboard/internal/model"
 	mfasvc "github.com/linusxiong/ggboard/internal/service/mfa"
+	usersvc "github.com/linusxiong/ggboard/internal/service/user"
 	"github.com/linusxiong/ggboard/internal/settings"
 	"github.com/linusxiong/ggboard/internal/subscription"
 )
@@ -44,7 +45,7 @@ const EncryptionHeader = "X-Subscription-Encryption"
 const sealInfo = "ggboard/subscription/age-identity/v1"
 
 const (
-	keyNamespace = "subscription_key"
+	keyNamespace = usersvc.SubscriptionKeyCacheNamespace // deleted by usersvc.ReclaimAccount as well
 	keyTTL       = time.Minute
 )
 
