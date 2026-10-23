@@ -231,9 +231,8 @@ func GzipBytes(b []byte) ([]byte, error) {
 // gzip, the request is not HEAD, the body is compressible and at least 1 KiB, nothing set Content-Encoding), it sends
 // gzipped() instead, with the headers the middleware sets (Content-Encoding: gzip, Vary: Accept-Encoding, a weak
 // ETag) plus the encoded Content-Length (the middleware streams, so it cannot), and a cached body is not compressed
-// again for every response. gzipped returns the gzip encoding of body
-// (GzipBytes), usually cached next to it; nil makes the middleware compress as usual. Every other response, the
-// identity one included, is exactly c.Data's.
+// again for every response. gzipped returns the gzip encoding of body (GzipBytes), usually cached next to it; nil
+// makes the middleware compress as usual. Every other response, the identity one included, is exactly c.Data's.
 func DataPrecompressed(c *gin.Context, status int, contentType string, body []byte, gzipped func() []byte) {
 	if gw, ok := c.Writer.(*gzipWriter); ok && !gw.decided && len(gw.buf) == 0 {
 		h := gw.Header()
