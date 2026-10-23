@@ -63,6 +63,17 @@ func listItems(v any, splitText func(string) []string) ([]any, error) {
 	return out, nil
 }
 
+// listCount returns how many elements a list column holds before any validation: 0 for NULL, "", [], JSON null
+// and malformed JSON (which Xboard's array cast also reads as no list), else the raw element count, blanks and
+// nulls included (a PHP array holding them is still a non-empty restriction).
+func listCount(v any, splitText func(string) []string) int {
+	items, err := listItems(v, splitText)
+	if err != nil {
+		return 0
+	}
+	return len(items)
+}
+
 func looksLikeList(s string) bool {
 	s = strings.TrimSpace(s)
 	return strings.ContainsAny(s, ",\n|") || strings.HasPrefix(s, "[") || strings.HasPrefix(s, "{")

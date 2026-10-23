@@ -180,6 +180,14 @@ func (im *importer) importSettings() error {
 	}).CreateInBatches(&rows, batchSize).Error
 }
 
+// serverTokenMinLen is the minimum server_token length the settings service accepts.
+func serverTokenMinLen() int {
+	if d, ok := settings.Lookup("server_token"); ok && d.MinLen != nil {
+		return *d.MinLen
+	}
+	return 16
+}
+
 func isDroppedSetting(k string) bool {
 	if slices.Contains(settingDropped, k) {
 		return true
@@ -320,9 +328,16 @@ func (im *importer) translateSettings(src *settingSource) map[string]any {
 		}
 	}
 
-	// server token
+	// server token: ggboard requires a minimum length (internal/settings/defs.go), so a shorter Xboard token is not
+	// imported and the target keeps the token it generated on first boot.
 	if v, ok := src.get("server_token"); ok && strings.TrimSpace(v) != "" {
-		out["server_token"] = strings.TrimSpace(v)
+		if tok := strings.TrimSpace(v); len(tok) >= serverTokenMinLen() {
+			out["server_token"] = tok
+		} else {
+			im.rep.ServerTokenShort = true
+			im.warn("settings", "server_token is shorter than %d characters: not imported, kept ggboard's generated token — "+
+				"copy the new token into every XrayR/V2bX/soga config", serverTokenMinLen())
+		}
 	} else {
 		im.warn("settings", "server_token is empty in Xboard: kept ggboard's generated token — reconfigure every backend")
 	}
@@ -410,10 +425,13 @@ func (im *importer) validateSettings(out map[string]any) {
 			}
 		case settings.TypeString:
 			s, isStr := v.(string)
-			if !isStr {
+			switch {
+			case !isStr:
 				msg = "not a string"
-			} else if len(d.Options) > 0 && !slices.Contains(d.Options, s) {
+			case len(d.Options) > 0 && !slices.Contains(d.Options, s):
 				msg = fmt.Sprintf("%q is not one of %s", s, strings.Join(d.Options, ", "))
+			case d.MinLen != nil && s != "" && len(s) < *d.MinLen:
+				msg = fmt.Sprintf("shorter than %d characters", *d.MinLen) // no value: MinLen keys are secrets
 			}
 		case settings.TypeBool:
 			if _, isBool := v.(bool); !isBool {
