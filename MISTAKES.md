@@ -1360,3 +1360,16 @@ Vitest 缓存 `import.meta.glob` 结果 67 / 72 / 77 / 85；`useLiteForm` 抢焦
   只改 `VERSION` 后的缓存命中（前端和 `go mod download` 全部 CACHED）以及 dry run。
 - **规则**：出多架构镜像前，逐个检查 Dockerfile 里的 `RUN` 会不会跑在目标架构上，能固定在 `$BUILDPLATFORM` 的都固定；改 `tags:`、`labels:`
   这类 action 输入前先读 action 源码；shell 测试脚本写成 `#!/usr/bin/env bash` 文件再跑（见 8 / 64 / 94 / 147 / 154）。
+
+### 180. （部署）`.env.example` 的相对 SQLite 路径在容器里打不开；文档写的 compose 内容早已不是文件里的样子
+
+- **现象**：给预构建镜像写 Compose 引导时，按 README 的“`cp .env.example .env` 再 `up`”走一遍，实测在容器里会失败：`.env.example` 里
+  `GGBOARD_DATABASE_DSN=./data/ggboard.db`，容器工作目录是 `/data`，路径变成 `/data/data/ggboard.db`，目录不存在，报
+  `unable to open database file`。同时 `docs/DEPLOY.md` 还写着 compose 的 `environment:` 固定了 `GGBOARD_DATABASE_DRIVER` / `DSN`，
+  而 5a15bfc 已经把这两行删掉。另外在 zsh 里把命令存进字符串变量（`C="docker compose -f x.yml"; $C up`）会报 command not found。
+- **根因**：5a15bfc 只在 `.env.example` 加了一行注释“Docker 里要用 /data/ggboard.db”，值没改；改 compose 时没回头改文档；没有人按文档从头跑过一遍。
+  zsh 不会对未加引号的变量分词。
+- **修复**：`.env.example` 把 DSN 注释掉（留空时默认 `<data_dir>/ggboard.db`，容器里就是 `/data/ggboard.db`，源码运行是 `./data/ggboard.db`），
+  并解释相对路径的坑；DEPLOY.md 对齐实际的 compose 文件；用本地构建的镜像实际 `up -d`，确认启动摘要里 `Database sqlite · /data/ggboard.db`。
+- **规则**：改部署文件后，把文档里的命令从头在干净目录里跑一遍；示例配置里的路径要在“它被使用的环境”里试过；命令存进变量用数组
+  （`C=(docker compose -f x.yml); "${C[@]}" up`）并写成 bash 脚本文件跑。

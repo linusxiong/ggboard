@@ -1,0 +1,41 @@
+# GG Bond from the prebuilt image: no clone, no compiler. Needs Docker Compose >= 2.24.
+# Put this file and a `.env` next to each other, then run from that directory:
+#   curl -fsSLO https://raw.githubusercontent.com/linusxiong/ggboard/main/deploy/docker-compose.prebuilt.yml
+#   curl -fsSL https://raw.githubusercontent.com/linusxiong/ggboard/main/.env.example -o .env
+#   echo 'GGBOARD_VERSION=main' >> .env      # rolling build of main; pin a release tag such as 0.1.0 in production
+#   docker compose -f docker-compose.prebuilt.yml up -d
+#   docker compose -f docker-compose.prebuilt.yml exec ggboard ggboard admin create --email admin@example.com
+# Upgrade: change GGBOARD_VERSION, then `docker compose -f docker-compose.prebuilt.yml pull && ... up -d`. Guide: docs/DEPLOY.md.
+#
+# `.env` sits beside this file and does two jobs: Compose reads it for the ${...} below, and `env_file:` hands it to the
+# container as GGBOARD_* settings.
+# The project name is fixed, so the data lives in the volume `ggboard_ggboard-data`. To keep using the volume of
+# deploy/docker-compose.yml (`deploy_ggboard-data`), run every command with `-p deploy`.
+name: ggboard
+
+services:
+  ggboard:
+    # GGBOARD_IMAGE is for forks and mirrors; GGBOARD_VERSION is a tag from the "Docker" workflow (1.2.3, 1.2, latest, main, sha-<short>).
+    image: ${GGBOARD_IMAGE:-ghcr.io/linusxiong/ggboard}:${GGBOARD_VERSION:-latest}
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    # Only the data dir is pinned here; database driver/DSN, JWT secret, etc. come from .env
+    # (values in `environment:` would override env_file, so keep them out of this block).
+    environment:
+      GGBOARD_DATA_DIR: /data
+    ports:
+      # Published on localhost only; put nginx (deploy/nginx.example.conf) in front.
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ggboard-data:/data
+    stop_grace_period: 20s
+    # The process is non-root and listens on 8080: it needs no capabilities and must never gain any.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  ggboard-data:

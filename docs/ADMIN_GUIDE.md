@@ -16,7 +16,8 @@ ggboard admin create --email admin@example.com              # 省略 --password 
 ggboard admin create --email support@example.com --staff    # 客服（staff）账户
 ggboard admin reset-password --email admin@example.com      # 重置密码（同时注销该用户所有会话）
 ggboard admin promote --email user@example.com              # 把已有用户提升为管理员
-# Docker：docker compose -f deploy/docker-compose.yml exec ggboard ggboard admin create --email admin@example.com
+# Docker（预构建镜像）：docker compose -f docker-compose.prebuilt.yml exec ggboard ggboard admin create --email admin@example.com
+# Docker（源码构建）：docker compose -f deploy/docker-compose.yml exec ggboard ggboard admin create --email admin@example.com
 
 ```
 

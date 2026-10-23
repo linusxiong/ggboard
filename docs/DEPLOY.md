@@ -23,6 +23,96 @@ GG Bond 是**一个 Go 二进制**：内嵌 SPA、定时任务、邮件队列、
 
 ## 1. Docker Compose
 
+同一个镜像有两种拿法，选一种：
+
+| | 方式 A：预构建镜像（推荐） | 方式 B：从源码构建 |
+| --- | --- | --- |
+| Compose 文件 | `deploy/docker-compose.prebuilt.yml` | `deploy/docker-compose.yml` |
+| 服务器上需要 | Docker（Compose ≥ 2.24），不用克隆仓库 | Docker 和整个仓库；首次构建要装 Chromium、pnpm 和 Go 依赖，需要几分钟 |
+| 版本由什么决定 | `.env` 里的 `GGBOARD_VERSION`（镜像 tag） | 当前检出的代码 |
+| 升级 | 改版本号，`pull` + `up -d` | `git pull` + `up -d --build` |
+
+### 方式 A：预构建镜像 / Prebuilt image
+
+镜像由手动触发的流水线构建并发布到 GHCR，怎么构建见[本节末尾](#构建并发布镜像--publishing-the-image)。
+
+**1. 取文件。** 新建一个空目录，放进 compose 文件和 `.env`；`.env` 必须和 compose 文件在同一个目录：
+
+```bash
+mkdir ggboard && cd ggboard
+curl -fsSLO https://raw.githubusercontent.com/linusxiong/ggboard/main/deploy/docker-compose.prebuilt.yml
+curl -fsSL https://raw.githubusercontent.com/linusxiong/ggboard/main/.env.example -o .env
+```
+
+**2. 选版本。** 把镜像 tag 写进 `.env`：
+
+```bash
+echo 'GGBOARD_VERSION=main' >> .env
+```
+
+| `GGBOARD_VERSION` | 含义 |
+| --- | --- |
+| `0.1.0` | 一个具体的发布版本，生产环境用这种 |
+| `0.1` | 0.1.x 里最新的一版（`1` 同理；主版本为 0 时没有） |
+| `latest` | 最新的稳定发布版；在构建出不带 `-rc` 之类后缀的 `v*` tag 之前不存在 |
+| `main` | `main` 分支最近一次手动构建，滚动更新，适合先试用 |
+| `sha-<7 位>` | 某个提交的构建 |
+
+镜像包还是私有时，先 `docker login ghcr.io`：用户名是 GitHub 账号，密码是有 `read:packages` 权限的 token。
+`.env` 里的其余项见 [§4](#4-配置参考--configuration-reference)；`GGBOARD_JWT_SECRET` 留空会自动生成并存在数据卷里。
+
+**3. 启动并创建管理员。**
+
+```bash
+docker compose -f docker-compose.prebuilt.yml up -d
+docker compose -f docker-compose.prebuilt.yml exec ggboard ggboard admin create --email admin@example.com
+#   不带 --password 时会生成并打印一个随机密码，只显示一次
+```
+
+确认它在跑：
+
+```bash
+docker compose -f docker-compose.prebuilt.yml ps
+docker compose -f docker-compose.prebuilt.yml logs --tail 30 ggboard    # 启动摘要里有版本、数据库和数据目录
+curl -s http://127.0.0.1:8080/healthz                                   # {"data":{"status":"ok",…}}
+```
+
+**4. 放到反向代理后面。** 容器只发布到 `127.0.0.1:8080`，对外要靠宿主机上的 nginx / Caddy 和 HTTPS，配法见 [§3](#3-反向代理与-tls--reverse-proxy)。
+宿主机上的代理对容器来说来自 Docker 网桥网关，所以在 `.env` 里加 `GGBOARD_SERVER_TRUSTED_PROXIES=<网桥网段>`
+（`docker network inspect ggboard_default` 查看，例如 `172.16.0.0/12`），改完 `up -d` 让容器重建。
+然后打开 `https://panel.example.com/login`，登录后的设置顺序见 [§6](#6-首次启动后--after-the-first-start)。
+
+**5. 升级与回滚。** 先备份（[§7](#7-备份--backups)），再改 `.env` 里的 `GGBOARD_VERSION`：
+
+```bash
+docker compose -f docker-compose.prebuilt.yml pull
+docker compose -f docker-compose.prebuilt.yml up -d
+docker image prune -f                      # 可选：清理旧镜像
+```
+
+新版本启动时自动迁移数据库。回滚是把版本号改回去再 `up -d`，但回滚到旧版本之前要先恢复备份（见 [§8](#8-升级--upgrading)）。
+
+`deploy/docker-compose.prebuilt.yml` 要点：
+
+| 项 | 值 |
+| --- | --- |
+| 镜像 | `${GGBOARD_IMAGE:-ghcr.io/linusxiong/ggboard}:${GGBOARD_VERSION:-latest}`；`GGBOARD_IMAGE` 给 fork 和镜像站用 |
+| 项目名 / 数据卷 | 固定为 `ggboard`；数据卷 `ggboard_ggboard-data` → `/data`（`GGBOARD_DATA_DIR=/data`，镜像内属主 65532） |
+| 端口 | `127.0.0.1:8080:8080`，**只发布到本机** |
+| 环境变量 | `env_file: .env`（compose 文件旁边的 `.env`，可缺省）；`environment:` 只固定 `GGBOARD_DATA_DIR`。Compose 也用这个 `.env` 解析 `${GGBOARD_VERSION}` |
+| 加固 | `cap_drop: [ALL]` 和 `no-new-privileges`；镜像是 distroless，以 `nonroot`（UID 65532）运行 |
+| 停止 | `restart: unless-stopped`，`stop_grace_period: 20s` |
+
+从方式 B 切过来并沿用原来的数据：方式 B 的数据卷是 `deploy_ggboard-data`，方式 A 默认的是 `ggboard_ggboard-data`。
+先在仓库里 `docker compose -f deploy/docker-compose.yml down`（**不要加 `-v`**），把仓库根目录的 `.env` 复制到方式 A 的目录，
+之后所有命令都加 `-p deploy`（命令行的 `-p` 优先于文件里的 `name:`），例如
+`docker compose -p deploy -f docker-compose.prebuilt.yml up -d`。
+
+*Option A needs only `deploy/docker-compose.prebuilt.yml` and a `.env` beside it: set `GGBOARD_VERSION` (a release such as `0.1.0`,
+or `main`), `up -d`, create the admin, put a TLS proxy in front. Upgrade by changing the version, then `pull` and `up -d`.*
+
+### 方式 B：从源码构建 / Build from source
+
 `deploy/Dockerfile` 是三段构建：`node:24-alpine`（pnpm 构建前端）→ `golang:1.27-alpine`（`CGO_ENABLED=0` 编译并内嵌 `web/dist`）
 → `gcr.io/distroless/static-debian12:nonroot`（无 shell，以 `nonroot`（UID 65532）运行）。
 
@@ -41,13 +131,14 @@ docker compose -f deploy/docker-compose.yml exec ggboard ggboard admin create --
 | 镜像 | 本地构建，`ggboard:${GGBOARD_VERSION:-latest}`；构建参数 `VERSION` 写入 `ggboard version` |
 | 端口 | `127.0.0.1:8080:8080`，**只发布到本机**，由宿主机上的 nginx / Caddy 对外 |
 | 数据卷 | 命名卷 `ggboard-data` → `/data`（`GGBOARD_DATA_DIR=/data`，镜像内属主 65532） |
-| 环境变量 | `env_file: ../.env`（仓库根目录的 `.env`，可缺省）；`environment:` 固定 `GGBOARD_DATA_DIR`、`GGBOARD_DATABASE_DRIVER`（默认 `sqlite`）、`GGBOARD_DATABASE_DSN`（默认 `/data/ggboard.db`） |
+| 环境变量 | `env_file: ../.env`（仓库根目录的 `.env`，可缺省）；`environment:` 只固定 `GGBOARD_DATA_DIR`。数据库、JWT 等都由 `.env` 决定，SQLite 的 DSN 缺省为 `/data/ggboard.db` |
 | 停止 | `restart: unless-stopped`，`stop_grace_period: 20s`（够服务端 10s 排空 + 刷流量 + 发完邮件队列） |
 
 注意：
 
-- compose 里 `environment:` 的值**优先于** `env_file`。根目录 `.env` 里的 `GGBOARD_DATABASE_DRIVER` / `GGBOARD_DATABASE_DSN`
-  在 compose 下不生效；要换 PostgreSQL / MySQL，直接改 compose 文件里这两行（见 [§5](#5-数据库--databases)）。
+- compose 里 `environment:` 的值**优先于** `env_file`，所以那里只放 `GGBOARD_DATA_DIR`；要换 PostgreSQL / MySQL，
+  在 `.env` 里写 `GGBOARD_DATABASE_DRIVER` / `GGBOARD_DATABASE_DSN` 即可（见 [§5](#5-数据库--databases)）。
+  SQLite 的 DSN 不要写成相对路径：容器的工作目录是 `/data`，`./data/ggboard.db` 会指到 `/data/data/ggboard.db` 而打不开，留空用默认值。
 - 镜像里没有 shell，也没有 `curl`/`sqlite3`；运维命令都用 `docker compose exec ggboard ggboard <子命令>`。
 - 定时任务按进程时区运行（`scheduler.New(..., time.Local)`）。容器默认 UTC，需要北京时间可在 `environment:` 加
   `TZ: Asia/Shanghai`（二进制已内嵌 `time/tzdata`）。
@@ -55,13 +146,16 @@ docker compose -f deploy/docker-compose.yml exec ggboard ggboard admin create --
   （`docker network inspect` 查看，例如 `172.16.0.0/12`），见 [§3](#3-反向代理与-tls--reverse-proxy)。
 
 *Compose publishes 8080 on localhost only, keeps state in the `ggboard-data` volume, and its `environment:` block
-overrides `.env` for the database variables.*
+overrides `.env`, so only `GGBOARD_DATA_DIR` is set there and the database settings live in `.env`.*
 
-### 预构建镜像（GHCR）/ Prebuilt image
+### 构建并发布镜像 / Publishing the image
 
-不想在服务器上编译时，用手动触发的流水线 `.github/workflows/docker.yml` 构建并推送多架构镜像：GitHub → Actions →
-**Docker** → Run workflow，在 “Use workflow from” 里选分支或 tag（工作流文件要先合并到默认分支，按钮才会出现）。
-镜像发布到 `ghcr.io/linusxiong/ggboard`；首次推送后包可能是私有的，匿名 `docker pull` 需要在 GitHub Packages 页面把可见性改成 Public。
+给维护者：镜像由手动触发的流水线 `.github/workflows/docker.yml` 构建，并以多架构镜像推送到 `ghcr.io/linusxiong/ggboard`。
+
+1. 把工作流文件合并到默认分支，Actions 页面才会出现 **Docker** 的 Run workflow 按钮。
+2. Actions → **Docker** → Run workflow，“Use workflow from” 选 `main`，其余保持默认：得到 `main` 和 `sha-<7 位>` 两个 tag。
+3. 发版：打 tag 并推送（`git tag v0.1.0 && git push origin v0.1.0`），再对这个 tag 跑一次 Run workflow（推 tag 本身不会触发构建）。
+4. 首次推送后包可能是私有的：GitHub → Packages → ggboard → Package settings，把可见性改成 Public，服务器上才能匿名 `docker pull`。
 
 | 选择的 ref | 镜像 tag |
 | --- | --- |
@@ -80,20 +174,7 @@ overrides `.env` for the database variables.*
   每次运行能读自己所在 ref 和默认分支的缓存，所以发版前先在 `main` 上构建一次，tag 构建就能命中；缓存仓库上限 10 GB，7 天未用会被淘汰。
 - **多架构不用 QEMU**：前端和 Go 编译阶段都在 runner 本机架构上运行（`--platform=$BUILDPLATFORM`），Go 交叉编译到目标架构。
 
-用预构建镜像跑 Compose：写一个本机的覆盖文件，把 `build` 换成 `image`（需要 Compose ≥ 2.24）：
-
-```yaml
-# deploy/docker-compose.prebuilt.yml（按需命名，不要提交）
-services:
-  ggboard:
-    image: ghcr.io/linusxiong/ggboard:1.2.3
-    build: !reset null
-    pull_policy: always
-```
-
-```bash
-docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.prebuilt.yml up -d
-```
+服务器上怎么用这个镜像，见[方式 A](#方式-a预构建镜像--prebuilt-image)。
 
 *A manual workflow builds and pushes a multi-arch image to GHCR (tags: semver → `1.2.3`/`1.2`/`1`/`latest`, branch → its name, plus
 `sha-<short>`), with OCI labels and annotations, SBOM and provenance, a GitHub Actions layer cache, and a post-push check of what the registry holds.*
@@ -230,8 +311,8 @@ database:
   dsn: ggboard:password@tcp(db.example.com:3306)/ggboard
 ```
 
-PostgreSQL / MySQL 连接池：最多 32 个连接、8 个空闲、单连接最长 30 分钟。Compose 下改 `deploy/docker-compose.yml` 中的
-`GGBOARD_DATABASE_DRIVER` / `GGBOARD_DATABASE_DSN` 两行即可。
+PostgreSQL / MySQL 连接池：最多 32 个连接、8 个空闲、单连接最长 30 分钟。Compose 下把 `GGBOARD_DATABASE_DRIVER` /
+`GGBOARD_DATABASE_DSN` 写进 `.env` 即可（方式 A 是 compose 文件旁边的 `.env`，方式 B 是仓库根目录的 `.env`），不用改 compose 文件。
 
 ## 6. 首次启动后 / After the first start
 
@@ -260,7 +341,8 @@ sqlite3 /var/lib/ggboard/ggboard.db ".backup '/srv/backup/ggboard-$(date +%F).db
 cp /var/lib/ggboard/jwt.secret /srv/backup/ 2>/dev/null || true
 ```
 
-**SQLite（Docker）**：镜像里没有 `sqlite3`，先停容器再打包数据卷（卷名形如 `deploy_ggboard-data`，`docker volume ls` 查看）：
+**SQLite（Docker）**：镜像里没有 `sqlite3`，先停容器再打包数据卷。卷名方式 B 是 `deploy_ggboard-data`，方式 A 是
+`ggboard_ggboard-data`（`docker volume ls` 查看）；下面是方式 B 的命令，方式 A 把 `-f` 换成 `docker-compose.prebuilt.yml`、卷名换成 `ggboard_ggboard-data`：
 
 ```bash
 docker compose -f deploy/docker-compose.yml stop
@@ -282,7 +364,9 @@ docker compose -f deploy/docker-compose.yml start
 ## 8. 升级 / Upgrading
 
 1. 备份（见上）。
-2. Docker：`git pull && docker compose -f deploy/docker-compose.yml up -d --build`。
+2. Docker 方式 A（预构建镜像）：改 `.env` 里的 `GGBOARD_VERSION`，再
+   `docker compose -f docker-compose.prebuilt.yml pull && docker compose -f docker-compose.prebuilt.yml up -d`。
+   Docker 方式 B（源码构建）：`git pull && docker compose -f deploy/docker-compose.yml up -d --build`。
    二进制：`git pull && make web && make build`，替换 `/usr/local/bin/ggboard`，`systemctl restart ggboard`。
 3. 新版本启动时自动迁移数据库；`ggboard migrate` 可在不启动服务的情况下单独执行迁移（打印 `database migrated (<driver>)`，终端里前面带 `✓`）。
 4. `ggboard version` / `GET /healthz` 确认版本。

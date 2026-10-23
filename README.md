@@ -101,7 +101,25 @@ appear and tokens and secrets are masked.
 
 ## 快速开始 / Quick start
 
-### Docker Compose
+### Docker Compose · 预构建镜像（推荐，不用克隆、不用编译）
+
+```bash
+mkdir ggboard && cd ggboard
+curl -fsSLO https://raw.githubusercontent.com/linusxiong/ggboard/main/deploy/docker-compose.prebuilt.yml
+curl -fsSL https://raw.githubusercontent.com/linusxiong/ggboard/main/.env.example -o .env
+echo 'GGBOARD_VERSION=main' >> .env        # 镜像 tag：main 为滚动构建，生产环境请固定到发布版本（如 0.1.0）
+docker compose -f docker-compose.prebuilt.yml up -d
+docker compose -f docker-compose.prebuilt.yml exec ggboard ggboard admin create --email admin@example.com
+```
+
+不带 `--password` 时会生成随机密码并只打印一次。`.env` 必须和 compose 文件放在同一个目录；`GGBOARD_JWT_SECRET` 留空会自动生成。
+面板只监听 `127.0.0.1:8080`，请用 nginx / Caddy 反向代理并启用 HTTPS（见 [docs/DEPLOY.md](docs/DEPLOY.md)）。
+镜像由手动触发的 [Docker 工作流](.github/workflows/docker.yml)构建（amd64 + arm64），发布在 `ghcr.io/linusxiong/ggboard`；
+升级时改 `GGBOARD_VERSION`，再 `pull` 和 `up -d`。
+
+*Prebuilt multi-arch image from GHCR: download the compose file and `.env`, set `GGBOARD_VERSION`, `up -d`, create the admin.*
+
+### Docker Compose · 从源码构建
 
 ```bash
 git clone https://github.com/linusxiong/ggboard.git && cd ggboard
@@ -111,7 +129,7 @@ docker compose -f deploy/docker-compose.yml exec ggboard ggboard admin create --
 ```
 
 面板监听 `127.0.0.1:8080`，请用 nginx / Caddy 反向代理并启用 HTTPS（示例：`deploy/nginx.example.conf`），
-并把代理地址写进 `server.trusted_proxies`。完整部署（systemd、TLS、备份、升级、PostgreSQL / MySQL）见
+并把代理地址写进 `server.trusted_proxies`。完整部署（两种 Compose、systemd、TLS、备份、升级、PostgreSQL / MySQL）见
 [docs/DEPLOY.md](docs/DEPLOY.md)。
 
 ### 二进制 / From source
