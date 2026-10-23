@@ -100,7 +100,7 @@ type ScenarioResult struct {
 }
 
 func loadResults(path string) (*Results, error) {
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(path) //nolint:gosec // the -render path given by the operator
 	if err != nil {
 		return nil, err
 	}
@@ -111,9 +111,10 @@ func loadResults(path string) (*Results, error) {
 	return &r, nil
 }
 
-// writeOutputs writes results.json, results.md and benchmark.svg into dir.
+// writeOutputs writes results.json, results.md and benchmark.svg into dir. They are published documentation
+// (committed under docs/perf), hence world-readable.
 func writeOutputs(dir string, r *Results, writeJSON bool) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // published docs directory
 		return err
 	}
 	if writeJSON {
@@ -121,14 +122,14 @@ func writeOutputs(dir string, r *Results, writeJSON bool) error {
 		if err != nil {
 			return err
 		}
-		if err := os.WriteFile(filepath.Join(dir, "results.json"), append(b, '\n'), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "results.json"), append(b, '\n'), 0o644); err != nil { //nolint:gosec // published docs
 			return err
 		}
 	}
-	if err := os.WriteFile(filepath.Join(dir, "results.md"), []byte(markdown(r)), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "results.md"), []byte(markdown(r)), 0o644); err != nil { //nolint:gosec // published docs
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, "benchmark.svg"), renderSVG(r), 0o644)
+	return os.WriteFile(filepath.Join(dir, "benchmark.svg"), renderSVG(r), 0o644) //nolint:gosec // published docs
 }
 
 // machineLine is the one-line description of the host used in every output.

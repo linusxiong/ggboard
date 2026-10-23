@@ -68,7 +68,7 @@ func runPhase(hc *http.Client, s *scenario, seq *atomic.Int64, d time.Duration, 
 	for k := range ws {
 		w := &worker{statuses: map[int]int64{}, lat: make([]time.Duration, 0, 4096)}
 		ws[k] = w
-		rng := rand.New(rand.NewPCG(salt, uint64(k)))
+		rng := rand.New(rand.NewPCG(salt, uint64(k))) //nolint:gosec // picks the next node or token of the load pattern, no secret
 		wg.Go(func() {
 			for time.Now().Before(deadline) {
 				i, more := next()

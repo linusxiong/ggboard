@@ -189,7 +189,7 @@ func waitHealthy(ctx context.Context, base string, timeout time.Duration) (strin
 // freePort returns a TCP port >= 20000 that is free on 127.0.0.1 right now (never 8080).
 func freePort() (int, error) {
 	for p := 20000 + int(time.Now().UnixNano()%30000); p < 65000; p += 7 {
-		l, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(p)))
+		l, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(p)))
 		if err == nil {
 			_ = l.Close()
 			return p, nil
@@ -202,7 +202,7 @@ func freePort() (int, error) {
 func machineInfo() Machine {
 	m := Machine{CPU: runtime.GOARCH, Cores: runtime.NumCPU(), OS: runtime.GOOS, Arch: runtime.GOARCH}
 	sysctl := func(name string) string {
-		out, err := exec.Command("sysctl", "-n", name).Output()
+		out, err := exec.CommandContext(context.Background(), "sysctl", "-n", name).Output() //nolint:gosec // name is one of the constant keys below
 		if err != nil {
 			return ""
 		}
@@ -228,7 +228,7 @@ func machineInfo() Machine {
 			}
 			m.CoreLayout = fmt.Sprintf("%d %s + %d %s", p0, n0, p1, n1)
 		}
-		if out, err := exec.Command("sw_vers", "-productVersion").Output(); err == nil {
+		if out, err := exec.CommandContext(context.Background(), "sw_vers", "-productVersion").Output(); err == nil {
 			m.OS = "macOS " + strings.TrimSpace(string(out))
 		}
 		m.LoadAverage = strings.Trim(sysctl("vm.loadavg"), "{} ")
@@ -268,7 +268,7 @@ type procSample struct {
 
 // sampleProc reads the CPU time and RSS of pid with ps (macOS and Linux).
 func sampleProc(pid int) (procSample, error) {
-	out, err := exec.Command("ps", "-o", "time=,rss=", "-p", strconv.Itoa(pid)).Output()
+	out, err := exec.CommandContext(context.Background(), "ps", "-o", "time=,rss=", "-p", strconv.Itoa(pid)).Output() //nolint:gosec // pid is an integer
 	if err != nil {
 		return procSample{}, err
 	}

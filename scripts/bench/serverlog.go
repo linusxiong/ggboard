@@ -66,7 +66,7 @@ func summarizeLog(r io.Reader) ([]LogEntry, error) {
 }
 
 func summarizeLogFile(path string) ([]LogEntry, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // the -server-log path given by run.sh
 	if err != nil {
 		return nil, err
 	}

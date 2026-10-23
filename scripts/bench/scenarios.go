@@ -48,7 +48,7 @@ type env struct {
 }
 
 func (e *env) get(path string, hdr map[string]string) (*http.Request, error) {
-	req, err := http.NewRequest(http.MethodGet, e.base+path, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, e.base+path, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +119,7 @@ func (e *env) scenarios() ([]*scenario, error) {
 		bodies[k] = b
 	}
 	push := func(n benchNode, body []byte) (*http.Request, error) {
-		req, err := http.NewRequest(http.MethodPost, e.base+"/api/v1/server/UniProxy/push"+e.nodeQuery(n), bytes.NewReader(body))
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, e.base+"/api/v1/server/UniProxy/push"+e.nodeQuery(n), bytes.NewReader(body))
 		if err != nil {
 			return nil, err
 		}
@@ -132,7 +132,7 @@ func (e *env) scenarios() ([]*scenario, error) {
 	login := func(i int64) (*http.Request, error) {
 		u := users[i%int64(len(users))]
 		body := `{"email":"` + u.Email + `","password":"` + benchUserPassword + `"}`
-		req, err := http.NewRequest(http.MethodPost, e.base+"/api/v1/passport/login", strings.NewReader(body))
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, e.base+"/api/v1/passport/login", strings.NewReader(body))
 		if err != nil {
 			return nil, err
 		}
@@ -172,8 +172,11 @@ func (e *env) scenarios() ([]*scenario, error) {
 				return err
 			}
 			code, h, n, err := e.rawProbe(req)
-			if err != nil || code != 200 || h.Get("Content-Encoding") != "br" || !strings.Contains(h.Get("Cache-Control"), "immutable") {
-				return fmt.Errorf("GET %s: %d %v Content-Encoding=%q Cache-Control=%q", p, code, err,
+			if err != nil {
+				return fmt.Errorf("GET %s: %w", p, err)
+			}
+			if code != 200 || h.Get("Content-Encoding") != "br" || !strings.Contains(h.Get("Cache-Control"), "immutable") {
+				return fmt.Errorf("GET %s: %d Content-Encoding=%q Cache-Control=%q", p, code,
 					h.Get("Content-Encoding"), h.Get("Cache-Control"))
 			}
 			if n > best {
@@ -200,8 +203,11 @@ func (e *env) scenarios() ([]*scenario, error) {
 					return err
 				}
 				code, _, body, err := e.probe(req)
-				if err != nil || code != 200 {
-					return fmt.Errorf("v2ray subscription: %d %v %s", code, err, snippet(body, 200))
+				if err != nil {
+					return fmt.Errorf("v2ray subscription: %w", err)
+				}
+				if code != 200 {
+					return fmt.Errorf("v2ray subscription: %d %s", code, snippet(body, 200))
 				}
 				raw, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(body)))
 				if err != nil {
@@ -226,8 +232,11 @@ func (e *env) scenarios() ([]*scenario, error) {
 					return err
 				}
 				code, h, body, err := e.probe(req)
-				if err != nil || code != 200 {
-					return fmt.Errorf("mihomo subscription: %d %v %s", code, err, snippet(body, 200))
+				if err != nil {
+					return fmt.Errorf("mihomo subscription: %w", err)
+				}
+				if code != 200 {
+					return fmt.Errorf("mihomo subscription: %d %s", code, snippet(body, 200))
 				}
 				s := string(body)
 				for _, want := range []string{"proxies:", "proxy-groups:", "rule-providers:", "rules:"} {
@@ -268,8 +277,11 @@ func (e *env) scenarios() ([]*scenario, error) {
 						return err
 					}
 					code, h, body, err := e.probe(req)
-					if err != nil || code != 200 {
-						return fmt.Errorf("user list of node %d: %d %v %s", n.ID, code, err, snippet(body, 200))
+					if err != nil {
+						return fmt.Errorf("user list of node %d: %w", n.ID, err)
+					}
+					if code != 200 {
+						return fmt.Errorf("user list of node %d: %d %s", n.ID, code, snippet(body, 200))
 					}
 					var out struct {
 						Users []struct {
@@ -303,11 +315,17 @@ func (e *env) scenarios() ([]*scenario, error) {
 					return err
 				}
 				code, _, body, err := e.probe(req)
-				if err != nil || code != 200 {
-					return fmt.Errorf("user list: %d %v", code, err)
+				if err != nil {
+					return fmt.Errorf("user list: %w", err)
 				}
-				scn.Note = fmt.Sprintf("plaintext JSON %s per response (cached body; compressed per request by the gzip middleware)",
-					fmtBytes(float64(len(body))))
+				if code != 200 {
+					return fmt.Errorf("user list: %d", code)
+				}
+				how := "cached body sent as is"
+				if e.nodeEncoding == "gzip" {
+					how = "cached body sent with its cached gzip encoding, compressed once per body version"
+				}
+				scn.Note = fmt.Sprintf("plaintext JSON %s per response (%s)", fmtBytes(float64(len(body))), how)
 				return nil
 			},
 		},
@@ -325,8 +343,11 @@ func (e *env) scenarios() ([]*scenario, error) {
 					return err
 				}
 				code, _, body, err := e.probe(req)
-				if err != nil || code != 200 || !strings.Contains(string(body), `"data":true`) {
-					return fmt.Errorf("push: %d %v %s", code, err, snippet(body, 200))
+				if err != nil {
+					return fmt.Errorf("push: %w", err)
+				}
+				if code != 200 || !strings.Contains(string(body), `"data":true`) {
+					return fmt.Errorf("push: %d %s", code, snippet(body, 200))
 				}
 				return nil
 			},
@@ -344,8 +365,11 @@ func (e *env) scenarios() ([]*scenario, error) {
 					return err
 				}
 				code, _, body, err := e.probe(req)
-				if err != nil || code != 200 || !strings.Contains(string(body), `"token"`) {
-					return fmt.Errorf("login: %d %v %s", code, err, snippet(body, 200))
+				if err != nil {
+					return fmt.Errorf("login: %w", err)
+				}
+				if code != 200 || !strings.Contains(string(body), `"token"`) {
+					return fmt.Errorf("login: %d %s", code, snippet(body, 200))
 				}
 				return nil
 			},
@@ -360,8 +384,11 @@ func (e *env) scenarios() ([]*scenario, error) {
 					return err
 				}
 				code, _, body, err := e.probe(req)
-				if err != nil || code != 200 || !strings.Contains(string(body), "/assets/") {
-					return fmt.Errorf("GET /: %d %v %s", code, err, snippet(body, 200))
+				if err != nil {
+					return fmt.Errorf("GET /: %w", err)
+				}
+				if code != 200 || !strings.Contains(string(body), "/assets/") {
+					return fmt.Errorf("GET /: %d %s", code, snippet(body, 200))
 				}
 				page = body
 				req, err = e.get("/", browser)
@@ -369,8 +396,11 @@ func (e *env) scenarios() ([]*scenario, error) {
 					return err
 				}
 				code, h, _, err := e.rawProbe(req)
-				if err != nil || code != 200 || h.Get("Content-Encoding") != "br" {
-					return fmt.Errorf("GET / with br: %d %v Content-Encoding=%q", code, err, h.Get("Content-Encoding"))
+				if err != nil {
+					return fmt.Errorf("GET / with br: %w", err)
+				}
+				if code != 200 || h.Get("Content-Encoding") != "br" {
+					return fmt.Errorf("GET / with br: %d Content-Encoding=%q", code, h.Get("Content-Encoding"))
 				}
 				return nil
 			},
@@ -481,8 +511,12 @@ func (e *env) measureFlush(push func(benchNode, []byte) (*http.Request, error)) 
 							return
 						}
 						code, _, _, err := e.rawProbe(req)
-						if err != nil || code != 200 {
-							errc <- fmt.Errorf("flush window push: %d %v", code, err)
+						if err != nil {
+							errc <- fmt.Errorf("flush window push: %w", err)
+							return
+						}
+						if code != 200 {
+							errc <- fmt.Errorf("flush window push: %d", code)
 							return
 						}
 					}
