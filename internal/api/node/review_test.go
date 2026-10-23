@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -133,7 +134,9 @@ func TestReviewNodeBodyNotStaleAfterWrite(t *testing.T) {
 }
 
 // Review 2026-10-22: node endpoints had no limit at all, so server_token could be guessed online. Failed checks
-// are now limited per client address; once exhausted the token is not even compared.
+// are now limited per client address (429 once exhausted). Security audit 2026-10-22 §9: the exhausted address used
+// to be refused without comparing the token, so anyone sharing it with the backends could stop node sync; the token
+// is now compared first and the right one is never limited.
 func TestReviewNodeTokenFailuresLimited(t *testing.T) {
 	e := newEnv(t)
 	g := e.group("g")
@@ -147,8 +150,61 @@ func TestReviewNodeTokenFailuresLimited(t *testing.T) {
 		t.Fatalf("codes = %v", codes)
 	}
 	h := sogaHeaders(n.ID, "vmess")
+	if rec := e.do(http.MethodGet, "/soga/api/v1/node", nil, h); rec.Code != http.StatusOK {
+		t.Fatalf("exhausted address with the right key = %d %s, want 200", rec.Code, rec.Body.String())
+	}
+	if rec := e.do(http.MethodGet, uniURL("config", n.ID, "vmess"), nil, nil); rec.Code != http.StatusOK {
+		t.Fatalf("exhausted address with the right token = %d %s, want 200", rec.Code, rec.Body.String())
+	}
+	h["API-KEY"] = "wrong"
 	if rec := e.do(http.MethodGet, "/soga/api/v1/node", nil, h); rec.Code != http.StatusTooManyRequests {
-		t.Fatalf("exhausted address with the right key = %d (the key must not be compared)", rec.Code)
+		t.Fatalf("exhausted address with a wrong key = %d, want 429", rec.Code)
+	}
+}
+
+// Security audit 2026-10-22 §9: the failure bucket is keyed by client IP only (the port does not count, IPv6 by
+// /64), and a backend sharing an exhausted address with an attacker keeps working.
+func TestAuditNodeTokenLimiterKeyAndValidToken(t *testing.T) {
+	e := newEnv(t)
+	g := e.group("g")
+	n := e.node(model.Node{Type: "vmess", Host: "v.example.com", ServerPort: 443, Rate: 1, GroupIDs: model.JSONSlice[uint64]{g}, ProtocolSettings: model.JSONMap{}})
+	from := func(remote, key string) int {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/node", nil)
+		req.RemoteAddr = remote
+		for k, v := range sogaHeaders(n.ID, "vmess") {
+			req.Header.Set(k, v)
+		}
+		req.Header.Set("API-KEY", key)
+		rec := httptest.NewRecorder()
+		e.r.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	for i := range 30 {
+		if code := from(fmt.Sprintf("192.0.2.10:%d", 40000+i), "wrong"); code != http.StatusForbidden {
+			t.Fatalf("failure %d = %d, want 403", i+1, code)
+		}
+	}
+	if code := from("192.0.2.10:50001", "wrong"); code != http.StatusTooManyRequests {
+		t.Fatalf("new port, same IP = %d, want 429 (the port is not part of the key)", code)
+	}
+	if code := from("192.0.2.10:50002", testToken); code != http.StatusOK {
+		t.Fatalf("backend on the exhausted IP = %d, want 200", code)
+	}
+	if code := from("198.51.100.7:40000", "wrong"); code != http.StatusForbidden {
+		t.Fatalf("other IP = %d, want 403 (own bucket)", code)
+	}
+
+	for i := range 30 {
+		if code := from(fmt.Sprintf("[2001:db8:1:2::%x]:443", i+1), "wrong"); code != http.StatusForbidden {
+			t.Fatalf("IPv6 failure %d = %d, want 403", i+1, code)
+		}
+	}
+	if code := from("[2001:db8:1:2:ffff::1]:443", "wrong"); code != http.StatusTooManyRequests {
+		t.Fatalf("same IPv6 /64 = %d, want 429", code)
+	}
+	if code := from("[2001:db8:1:2:ffff::2]:443", testToken); code != http.StatusOK {
+		t.Fatalf("backend in the exhausted /64 = %d, want 200", code)
 	}
 }
 

@@ -29,6 +29,17 @@ func TestReviewWellKnownIsNotSPA(t *testing.T) {
 	}
 }
 
+// Security audit 2026-10-22 §8: trailing-slash redirects are off, so "/s/<token>/" no longer redirects to the short
+// link. It must be a 404 like the other API paths, not the SPA shell (a 200 a client would parse as a subscription).
+func TestReviewSubscriptionShortLinkIsNotSPA(t *testing.T) {
+	e := router(t, dist())
+	for _, p := range []string{"/s/abc/", "/s/", "/s/abc/x"} {
+		if r := get(t, e, p, ""); r.code != 404 || strings.Contains(r.body, "<title>") {
+			t.Fatalf("%s = %d %q", p, r.code, r.body)
+		}
+	}
+}
+
 // Review 2026-10-22: the SPA's CSP (script-src 'self') blocked the captcha widget the login page loads, so with a
 // provider enabled nobody could sign in. The policy now allows exactly the enabled provider.
 func TestReviewCSPAllowsEnabledCaptcha(t *testing.T) {

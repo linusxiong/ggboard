@@ -28,11 +28,16 @@ Conventions:
 | soga (`type=soga-v1`) | headers `API-KEY`, `NODE-ID`, `NODE-TYPE` | `/api/v1/{node,users,audit_rules,white_list,traffic,alive_ip,audit_log,status}` **and** the same handlers under `/soga/api/v1/...` |
 
 The settings key `server_token` is the shared secret for both clients (XrayR/V2bX `ApiKey`, soga `webapi_key`).
-Node endpoints use no JWT, no CORS and no user rate limiters. Only failed token checks are limited: 30 failures per client
-address (IPv6 per /64, refilled at 60/h); after that the address gets 429 (soga: `{"code":429,...}` shape) without the token
-being compared, so `server_token` cannot be guessed online. Admins can only save a `server_token` of at least 16 characters.
-POST bodies are capped at `httpx.NodeBodyLimit` (8 MiB, about 250k users per push). `node.Register` sets gin `engine.RemoveExtraSlash = true` as a defensive measure: then `.../soga//api/v1/node` still routes if a client joins
-`webapi_url` naively.
+Node endpoints use no JWT, no CORS and no user rate limiters. Only failed token checks are limited: the token is compared
+first and the right `server_token` is always accepted; each wrong one is charged to its client address (IPv6 per /64,
+30 failures refilled at 60/h), and once that is used up further wrong tokens get 429 (soga: `{"code":429,...}` shape).
+A backend that shares an address with failing clients (NAT, a proxy without `server.trusted_proxies`, the Docker bridge)
+therefore keeps working. Guessing is defeated by the token's length: admins can only save a `server_token` of at least
+16 characters (first start generates 32).
+POST bodies are capped at `httpx.NodeBodyLimit` (8 MiB, about 250k users per push). `httpx.NewEngine` sets gin `engine.RemoveExtraSlash = true` as a defensive measure: then `.../soga//api/v1/node` still routes if a client joins
+`webapi_url` naively. It also turns gin's trailing-slash and fixed-path redirects off (`RedirectTrailingSlash`/`RedirectFixedPath = false`):
+with `RemoveExtraSlash` they echoed the raw path, so `//evil.example%2f..%2fhealthz/` became `301 Location: //evil.example/../healthz`
+(an open redirect). A path that differs only by a trailing slash is a 404 (or the SPA), never a redirect.
 
 Backend configuration snippets (use placeholders only; never commit real values):
 

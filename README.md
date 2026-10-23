@@ -105,7 +105,7 @@ appear and tokens and secrets are masked.
 
 ```bash
 git clone https://github.com/linusxiong/ggboard.git && cd ggboard
-cp .env.example .env            # 填入 GGBOARD_JWT_SECRET 等
+cp .env.example .env            # GGBOARD_JWT_SECRET 留空会自动生成；自填须 32+ 字节随机值（openssl rand -hex 32）
 docker compose -f deploy/docker-compose.yml up -d --build
 docker compose -f deploy/docker-compose.yml exec ggboard ggboard admin create --email admin@example.com --password 'change-me'
 ```

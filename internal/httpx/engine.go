@@ -18,6 +18,14 @@ func NewEngine(a *app.App) *gin.Engine {
 	e := gin.New()
 	e.HandleMethodNotAllowed = false
 	e.ContextWithFallback = true
+	// Route on the cleaned path so "/soga//api/v1/node" (soga joins webapi_url naively, docs/NODE_PROTOCOLS.md §1.1)
+	// and "https://panel.example.com//api/v1/..." still match.
+	e.RemoveExtraSlash = true
+	// Never redirect to a "fixed" path: gin builds the Location from the raw request path, so with RemoveExtraSlash
+	// "GET //evil.example%2f..%2fhealthz/" was answered with "301 Location: //evil.example/../healthz" (an open
+	// redirect). Unmatched paths go to NoRoute (JSON 404, or the SPA) instead.
+	e.RedirectTrailingSlash = false
+	e.RedirectFixedPath = false
 	if err := e.SetTrustedProxies(a.Cfg.Server.TrustedProxies); err != nil {
 		a.Log.Error("invalid server.trusted_proxies; trusting none", "err", err)
 		_ = e.SetTrustedProxies(nil)

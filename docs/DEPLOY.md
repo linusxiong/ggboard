@@ -28,7 +28,7 @@ GG Bond 是**一个 Go 二进制**：内嵌 SPA、定时任务、邮件队列、
 
 ```bash
 git clone https://github.com/linusxiong/ggboard.git && cd ggboard
-cp .env.example .env                       # 至少把 GGBOARD_JWT_SECRET 换成 32+ 位随机串
+cp .env.example .env                       # GGBOARD_JWT_SECRET 留空即自动生成；自填须为 openssl rand -hex 32 这类随机值
 docker compose -f deploy/docker-compose.yml up -d --build
 docker compose -f deploy/docker-compose.yml exec ggboard ggboard admin create --email admin@example.com
 #   不带 --password 时会生成并打印一个随机密码
@@ -149,7 +149,7 @@ panel.example.com {
 | `server.cors_origins` | `GGBOARD_SERVER_CORS_ORIGINS` | | `[]` | 额外允许的跨域来源，`*` = 任意；空 = 仅同源（推荐） |
 | `database.driver` | `GGBOARD_DATABASE_DRIVER` | `--db-driver` | `sqlite` | `sqlite` / `postgres` / `mysql` |
 | `database.dsn` | `GGBOARD_DATABASE_DSN` | `--db-dsn` | SQLite：`<data_dir>/ggboard.db` | PostgreSQL / MySQL 必填 |
-| `jwt.secret` | `GGBOARD_JWT_SECRET` | | 空 | 会话签名密钥，建议 32+ 字符（更短会告警）。为空时生成 48 字节随机值写入 `<data_dir>/jwt.secret`（0600）并沿用 |
+| `jwt.secret` | `GGBOARD_JWT_SECRET` | | 空 | 会话签名密钥。自填时须至少 32 字节、至少 8 种不同字符（`openssl rand -hex 32`）；已知占位符（如旧模板的 `change-me-…`）、过短或单调的值会让启动直接报错。为空时生成 48 字节随机值写入 `<data_dir>/jwt.secret`（0600）并沿用（该文件内容同样校验） |
 | `jwt.ttl` | `GGBOARD_JWT_TTL` | | `168h` | 会话有效期（Go duration，必须 > 0） |
 | `log.level` | `GGBOARD_LOG_LEVEL` | `--log-level` | `info` | `debug` / `info` / `warn` / `error` |
 | `log.format` | `GGBOARD_LOG_FORMAT` | `--log-format` | `text` | `text` / `json` |
@@ -232,6 +232,11 @@ docker compose -f deploy/docker-compose.yml start
 恢复：停服务 → 放回 `ggboard.db`（删掉旧的 `-wal`/`-shm`）与 `jwt.secret` → 启动。流量按批缓冲在内存、在优雅退出时落库，
 所以停服务请用 `SIGTERM`（`systemctl stop` / `docker compose stop`），不要 `kill -9`。
 
+> **恢复备份或执行 `import xboard --force` 之后应轮换 `jwt.secret`**：会话 token 是无状态的，此前签发的 token 仍能通过签名校验，
+> 而用户 id 可能已经分给了别的账户。面板会拒绝邮箱与当前账户不符的 token，但恢复会把 `password_version` 回滚，
+> 备份之后因改密而失效的旧会话会重新生效。轮换（`openssl rand -hex 32` 写入配置，或删除 `<data_dir>/jwt.secret` 让它重新生成）
+> 的代价：所有人退出登录，已绑定的 TOTP 失效（备用码与 Passkey 不受影响），面板托管的 age 私钥无法再显示（公钥与订阅加密不受影响）。
+
 ## 8. 升级 / Upgrading
 
 1. 备份（见上）。
@@ -241,6 +246,9 @@ docker compose -f deploy/docker-compose.yml start
 4. `ggboard version` / `GET /healthz` 确认版本。
 
 迁移只增不删（AutoMigrate 不删除列）；回滚到旧二进制前请先恢复备份。
+
+从 2026-10-22 安全修复之前的版本升级时：配置的 `jwt.secret` 若是模板占位符（`change-me-to-a-long-random-string`）、
+短于 32 字节或少于 8 种不同字符，新版本会拒绝启动并提示如何生成新值；换密钥的代价见第 7 节末尾。
 
 ## 9. 命令行 / CLI
 

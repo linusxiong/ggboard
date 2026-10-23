@@ -88,7 +88,7 @@ mkdir -p -m 700 /root/backup/xboard
 git clone https://github.com/linusxiong/ggboard.git /opt/ggboard && cd /opt/ggboard
 cp .env.example .env
 # .env 里至少设置：
-#   GGBOARD_JWT_SECRET=<32 位以上随机串，openssl rand -hex 32>
+#   GGBOARD_JWT_SECRET=<openssl rand -hex 32 的输出；占位符或短于 32 字节会拒绝启动；不设则自动生成到数据卷的 jwt.secret>
 #   GGBOARD_SERVER_TRUSTED_PROXIES=<$NPM_CIDR 的值>
 #   TZ=Asia/Shanghai
 cat > deploy/docker-compose.local.yml <<EOF

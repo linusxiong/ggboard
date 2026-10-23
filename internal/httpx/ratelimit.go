@@ -116,10 +116,6 @@ func (l *Limiter) Check(c *gin.Context, name, key string) bool {
 	return false
 }
 
-// Exhausted reports whether key has no token left, without consuming one (for limiters charged only on
-// failures: check first, Allow after a failure).
-func (l *Limiter) Exhausted(key string) bool { return l.get(key).Tokens() < 1 }
-
 // Deny aborts the request with 429 and the Retry-After of key.
 func (l *Limiter) Deny(c *gin.Context, name, key string) {
 	secs := int(math.Ceil(l.RetryAfter(key).Seconds()))

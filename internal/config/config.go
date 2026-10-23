@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -223,16 +224,56 @@ func (c *Config) Validate() error {
 // JWTSecretFile is the path of the persisted, generated JWT secret.
 func (c *Config) JWTSecretFile() string { return filepath.Join(c.DataDir, "jwt.secret") }
 
+// MinJWTSecretLen is the shortest accepted jwt.secret, in bytes (HS256 keys should carry at least 256 bits).
+const MinJWTSecretLen = 32
+
+// weakJWTSecrets are placeholders from templates and tutorials (compared trimmed and lower-cased); the first is
+// the old .env.example value. Secrets containing a placeholderMarkers entry are rejected too.
+var (
+	weakJWTSecrets = []string{
+		"change-me-to-a-long-random-string", "change-me", "changeme", "change_me", "replace-me", "replace_me",
+		"secret", "jwt-secret", "jwt_secret", "your-secret", "your_secret", "password",
+	}
+	placeholderMarkers = []string{"change-me", "changeme", "change_me", "replace-me", "replace_me"}
+)
+
+// checkJWTSecret rejects known placeholders, secrets shorter than MinJWTSecretLen bytes and secrets with fewer
+// than 8 distinct characters ("aaaa…", "abab…"): jwt.secret signs every session (an attacker who knows it can
+// mint an admin token) and also keys the TOTP and age-key encryption.
+func checkJWTSecret(secret string) error {
+	s := strings.ToLower(strings.TrimSpace(secret))
+	distinct := map[rune]struct{}{}
+	for _, r := range s {
+		distinct[r] = struct{}{}
+	}
+	switch {
+	case slices.Contains(weakJWTSecrets, s) || slices.ContainsFunc(placeholderMarkers, func(m string) bool { return strings.Contains(s, m) }):
+		return errors.New("is a well-known placeholder")
+	case len(s) < MinJWTSecretLen:
+		return fmt.Errorf("is %d bytes long, at least %d are required", len(s), MinJWTSecretLen)
+	case len(distinct) < 8:
+		return errors.New("has fewer than 8 distinct characters")
+	}
+	return nil
+}
+
 func (c *Config) ensureJWTSecret(log *slog.Logger) error {
+	path := c.JWTSecretFile()
 	if c.JWT.Secret != "" {
-		if len(c.JWT.Secret) < 32 {
-			log.Warn("jwt.secret is shorter than 32 characters; use a long random value")
+		if err := checkJWTSecret(c.JWT.Secret); err != nil {
+			return fmt.Errorf("config: jwt.secret (GGBOARD_JWT_SECRET) %w: generate one with `openssl rand -hex 32`, or "+
+				"leave it empty to have a random secret generated and kept in %s (changing it signs everyone out and "+
+				"invalidates enrolled TOTP authenticators)", err, path)
 		}
 		return nil
 	}
-	path := c.JWTSecretFile()
 	if b, err := os.ReadFile(path); err == nil { //nolint:gosec // path is <data_dir>/jwt.secret from trusted config
 		if s := strings.TrimSpace(string(b)); s != "" {
+			if err := checkJWTSecret(s); err != nil {
+				return fmt.Errorf("config: %s %w: replace it with the output of `openssl rand -hex 32`, or delete it to "+
+					"have a random secret generated (changing it signs everyone out and invalidates enrolled TOTP "+
+					"authenticators)", path, err)
+			}
 			c.JWT.Secret = s
 			return nil
 		}

@@ -306,6 +306,12 @@ func TestGzipAndHeaders(t *testing.T) {
 	if rec.Header().Get("X-Request-ID") != "req-123" || rec.Header().Get("X-Content-Type-Options") != "nosniff" || rec.Header().Get("X-Frame-Options") != "DENY" {
 		t.Fatalf("headers = %v", rec.Header())
 	}
+	// Security audit 2026-10-22 (h08.u5): without COOP a cross-origin opener could count the login page's frames.
+	for _, p := range []string{"/panic", "/small", "/missing"} {
+		if got := testutil.Do(t, r, http.MethodGet, p, nil, "").Header().Get("Cross-Origin-Opener-Policy"); got != "same-origin" {
+			t.Fatalf("%s Cross-Origin-Opener-Policy = %q", p, got)
+		}
+	}
 	rec = testutil.DoWithHeaders(t, r, http.MethodGet, "/panic", nil, "", map[string]string{"X-Request-ID": "bad id with spaces"})
 	if id := rec.Header().Get("X-Request-ID"); id == "" || strings.Contains(id, " ") {
 		t.Fatalf("request id = %q", id)

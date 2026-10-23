@@ -106,11 +106,12 @@ func resolve(c *gin.Context, a *app.App) (*model.User, *Claims, error) {
 	if err != nil {
 		return nil, nil, httpx.Internal(err)
 	}
-	if u.PasswordVersion != claims.Ver {
+	if !claims.boundTo(u) {
 		// The cached copy may predate the change that issued this token: a load that read the row before a
-		// password change committed can store it after InvalidateUser ran. Check the database before rejecting.
+		// password or email change committed can store it after InvalidateUser ran. Check the database before
+		// rejecting.
 		var fresh model.User
-		if err := a.DB.First(&fresh, id).Error; err != nil || fresh.PasswordVersion != claims.Ver {
+		if err := a.DB.First(&fresh, id).Error; err != nil || !claims.boundTo(&fresh) {
 			return nil, nil, httpx.Unauthorized("session expired, please sign in again")
 		}
 		a.Cache.Set(userCacheKey(id), fresh, UserCacheTTL)
@@ -122,8 +123,8 @@ func resolve(c *gin.Context, a *app.App) (*model.User, *Claims, error) {
 	return u, claims, nil
 }
 
-// RequireUser rejects requests without a valid session (401), with a stale password_version (401) or from
-// banned users (403); otherwise stores *model.User under CtxUser.
+// RequireUser rejects requests without a valid session (401), with a stale password_version or an email that is
+// not the account's (401), or from banned users (403); otherwise stores *model.User under CtxUser.
 func RequireUser(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if _, ok := authenticate(c, a); ok {

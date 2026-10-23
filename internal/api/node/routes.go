@@ -28,19 +28,21 @@ type handler struct {
 	fails *httpx.Limiter // failed token checks per client IP (IPv6 per /64)
 }
 
-// Failed node-token checks allowed per client address: backends never fail (they all share server_token), so
-// 30 failures (refilled at 60 per hour) only ever stop online guessing of the token.
+// Failed node-token checks allowed per client address (30, refilled at 60 per hour); further failures get 429.
+// The token is always compared first and the right one is never refused: an address is not a principal (backends
+// share it with anonymous clients behind NAT, a proxy without server.trusted_proxies, the Docker bridge or a shared
+// IPv6 /64), so refusing it would let anyone stop node sync. Online guessing is defeated by the token's length
+// (server_token is at least 16 random characters); the limiter only slows probing down.
 const (
 	authFailRate  = 60
 	authFailBurst = 30
 )
 
 // Register mounts the package's routes on the root router r (paths include httpx.APIPrefix).
+//
+// soga joins webapi_url naively ("/soga//api/v1/node", docs/NODE_PROTOCOLS.md §1.1): httpx.NewEngine enables gin's
+// RemoveExtraSlash for that, with trailing-slash redirects off (they echoed the raw "//host" path as Location).
 func Register(r gin.IRouter, a *app.App) {
-	if e, ok := r.(*gin.Engine); ok {
-		// docs/NODE_PROTOCOLS.md §1.1: tolerate soga's naive joining of webapi_url ("/soga//api/v1/node").
-		e.RemoveExtraSlash = true
-	}
 	h := &handler{a: a, svc: nodesvc.New(a), fails: httpx.NewLimiter(httpx.Per(authFailRate, time.Hour), authFailBurst)}
 	big := httpx.LargeBody(httpx.NodeBodyLimit)
 
@@ -71,18 +73,14 @@ func (h *handler) tokenOK(given string) bool {
 	return want != "" && subtle.ConstantTimeCompare([]byte(given), []byte(want)) == 1
 }
 
-// tokenCheck is tokenOK behind the per-IP failure limiter: limited is true (and the token is not even compared)
-// once the client address used up its failures; every failed comparison is charged.
+// tokenCheck compares the token first (the right token is never limited, whatever its address did); a failed
+// comparison is charged to the per-IP failure bucket and limited is true once that bucket is empty (429, like the
+// subscription miss bucket in internal/api/client/subscribe.go).
 func (h *handler) tokenCheck(c *gin.Context, given string) (ok, limited bool) {
-	key := httpx.KeyByIP(c)
-	if h.fails.Exhausted(key) {
-		return false, true
-	}
 	if h.tokenOK(given) {
 		return true, false
 	}
-	h.fails.Allow(key)
-	return false, false
+	return false, !h.fails.Allow(httpx.KeyByIP(c))
 }
 
 // parseNodeID parses a node id (decimal uint64 > 0).

@@ -29,7 +29,10 @@ import (
 //go:embed all:dist
 var embedded embed.FS
 
-// CSP is the Content-Security-Policy sent with HTML documents when no captcha provider is enabled.
+// CSP is the Content-Security-Policy sent with HTML documents when no captcha provider is enabled. img-src
+// allows https: for Gravatar avatars, notice covers (img_url), custom payment-method icons and images in
+// knowledge articles; that is why the knowledge placeholders that expand to the reader's subscription URL are
+// admin-only (content.HasSubscribePlaceholder).
 const CSP = "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; " +
 	"connect-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
 
@@ -213,7 +216,9 @@ func contentType(name string) string {
 }
 
 func isAPIPath(p string) bool {
-	return p == "/api" || strings.HasPrefix(p, "/api/") || strings.HasPrefix(p, "/soga/")
+	// "/s/" is the subscription short link: with trailing-slash redirects off (httpx.NewEngine) "/s/<token>/" must be a
+	// 404 like any other API path, never the SPA shell (a 200 a client would parse as its subscription).
+	return p == "/api" || strings.HasPrefix(p, "/api/") || strings.HasPrefix(p, "/soga/") || strings.HasPrefix(p, "/s/")
 }
 
 // Serve handles one request: API paths get a JSON 404, existing files are served, a directory with a

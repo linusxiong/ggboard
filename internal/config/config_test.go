@@ -12,6 +12,9 @@ import (
 	"github.com/linusxiong/ggboard/internal/logx"
 )
 
+// testSecret is an obviously fake but acceptable jwt.secret (32+ bytes, varied characters).
+const testSecret = "test-jwt-secret-0123456789abcdef-example"
+
 func load(t *testing.T, opts Options) *Config {
 	t.Helper()
 	opts.Logger = logx.Discard()
@@ -59,7 +62,7 @@ func TestEnvOverride(t *testing.T) {
 	t.Setenv("GGBOARD_SERVER_ADDR", "127.0.0.1:9999")
 	t.Setenv("GGBOARD_SERVER_TRUSTED_PROXIES", "127.0.0.1, 10.0.0.0/8")
 	t.Setenv("GGBOARD_SERVER_CORS_ORIGINS", "https://a.example.com")
-	t.Setenv("GGBOARD_JWT_SECRET", strings.Repeat("s", 40))
+	t.Setenv("GGBOARD_JWT_SECRET", testSecret)
 	t.Setenv("GGBOARD_JWT_TTL", "2h")
 	t.Setenv("GGBOARD_LOG_LEVEL", "DEBUG")
 	t.Setenv("GGBOARD_LOG_FORMAT", "json")
@@ -76,7 +79,7 @@ func TestEnvOverride(t *testing.T) {
 	if len(cfg.Server.CORSOrigins) != 1 || cfg.Server.CORSOrigins[0] != "https://a.example.com" {
 		t.Errorf("cors = %v", cfg.Server.CORSOrigins)
 	}
-	if cfg.JWT.TTL != 2*time.Hour || cfg.JWT.Secret != strings.Repeat("s", 40) {
+	if cfg.JWT.TTL != 2*time.Hour || cfg.JWT.Secret != testSecret {
 		t.Errorf("jwt = %+v", cfg.JWT)
 	}
 	if cfg.Log.Level != "debug" || cfg.Log.Format != "json" {
@@ -94,7 +97,7 @@ func TestPrecedenceFileEnvFlag(t *testing.T) {
 	t.Chdir(t.TempDir())
 	dataDir := t.TempDir()
 	file := filepath.Join(t.TempDir(), "ggboard.yaml")
-	yaml := "server:\n  addr: \":7000\"\nlog:\n  level: warn\ndata_dir: " + dataDir + "\njwt:\n  secret: " + strings.Repeat("f", 32) + "\n"
+	yaml := "server:\n  addr: \":7000\"\nlog:\n  level: warn\ndata_dir: " + dataDir + "\njwt:\n  secret: " + testSecret + "\n"
 	if err := os.WriteFile(file, []byte(yaml), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -160,4 +163,73 @@ func TestValidate(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Security audit 2026-10-22 §5: the public .env.example placeholder (33 characters) was accepted as the HS256 key,
+// so anyone who read the repository could mint an admin token. Placeholders are now refused, case-insensitively
+// and ignoring surrounding spaces, and the error says how to fix it.
+func TestJWTSecretPlaceholderRejected(t *testing.T) {
+	for _, secret := range []string{
+		"change-me-to-a-long-random-string",
+		"  CHANGE-ME-to-a-long-random-string\n",
+		"change-me-to-a-long-random-string-0123456789",
+		"changeme", "Secret", "password",
+	} {
+		t.Run(strings.TrimSpace(secret), func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			dir := t.TempDir()
+			t.Setenv("GGBOARD_DATA_DIR", dir)
+			t.Setenv("GGBOARD_JWT_SECRET", secret)
+			_, err := Load(Options{Logger: logx.Discard()})
+			if err == nil {
+				t.Fatal("placeholder accepted as jwt.secret")
+			}
+			for _, hint := range []string{"openssl rand -hex 32", filepath.Join(dir, "jwt.secret")} {
+				if !strings.Contains(err.Error(), hint) {
+					t.Errorf("error %q does not mention %q", err, hint)
+				}
+			}
+		})
+	}
+}
+
+// Secrets shorter than 32 bytes, or with fewer than 8 distinct characters, are refused (configured or persisted);
+// 32 varied bytes are enough.
+func TestJWTSecretTooWeakRejected(t *testing.T) {
+	for name, secret := range map[string]string{
+		"short":        "0123456789abcdef0123456789abcde", // 31 bytes
+		"short-padded": "   0123456789abcdef   ",
+		"repeated":     strings.Repeat("s", 40),
+		"low-variety":  strings.Repeat("ab12", 10),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("GGBOARD_DATA_DIR", t.TempDir())
+			t.Setenv("GGBOARD_JWT_SECRET", secret)
+			if _, err := Load(Options{Logger: logx.Discard()}); err == nil {
+				t.Fatalf("weak jwt.secret %q accepted", secret)
+			}
+		})
+	}
+
+	t.Run("persisted file", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		dir := t.TempDir()
+		t.Setenv("GGBOARD_DATA_DIR", dir)
+		if err := os.WriteFile(filepath.Join(dir, "jwt.secret"), []byte("change-me-to-a-long-random-string\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Load(Options{Logger: logx.Discard()}); err == nil {
+			t.Fatal("placeholder in <data_dir>/jwt.secret accepted")
+		}
+	})
+
+	t.Run("minimum accepted", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		t.Setenv("GGBOARD_DATA_DIR", t.TempDir())
+		t.Setenv("GGBOARD_JWT_SECRET", "0123456789abcdef0123456789abcdef")
+		if cfg := load(t, Options{}); len(cfg.JWT.Secret) != MinJWTSecretLen {
+			t.Fatalf("secret = %q", cfg.JWT.Secret)
+		}
+	})
 }
