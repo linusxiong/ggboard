@@ -31,12 +31,12 @@ func TestReviewArgon2Concurrency(t *testing.T) {
 		t.Fatal(err)
 	}
 	var wg sync.WaitGroup
-	for range 4 * cap(hashSlots) {
+	for range 4 * Concurrency() {
 		wg.Go(func() { VerifyPassword(hash, "wrong") })
 	}
 	wg.Wait()
-	if p := peak.Load(); p > int32(cap(hashSlots)) {
-		t.Fatalf("peak concurrent derivations = %d, limit %d", p, cap(hashSlots))
+	if p := peak.Load(); p > int32(Concurrency()) {
+		t.Fatalf("peak concurrent derivations = %d, limit %d", p, Concurrency())
 	}
 }
 

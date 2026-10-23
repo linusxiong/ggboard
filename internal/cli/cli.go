@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/linusxiong/ggboard/internal/app"
+	"github.com/linusxiong/ggboard/internal/auth"
 	"github.com/linusxiong/ggboard/internal/config"
 	"github.com/linusxiong/ggboard/internal/console"
 	"github.com/linusxiong/ggboard/internal/logx"
@@ -96,6 +97,7 @@ func NewRoot(version string) (*cobra.Command, *app.App) {
 		early := logx.NewBuffer()
 		cfg, err := config.Load(config.Options{File: file, Flags: cmd.Flags(), Logger: slog.New(early)})
 		if err == nil {
+			auth.SetConcurrency(cfg.Auth.Argon2Concurrency) // before any command can hash or verify a password
 			err = a.Init(cfg, app.WithVersion(version))
 		}
 		replayEarly(cmd, a, early)

@@ -39,8 +39,9 @@ batched DB writes.
 2. `config.Load` reads values with precedence flags > env `GGBOARD_*` > config file > defaults. The config file is
    `--config`/`-c`, else `$GGBOARD_CONFIG`, else `./config.yaml` when present.
    - Keys: `server.addr`, `server.trusted_proxies[]`, `server.cors_origins[]`, `database.driver`
-     (sqlite\|postgres\|mysql), `database.dsn`, `jwt.secret`, `jwt.ttl` (default 168h), `log.level`, `log.format`, `log.color`,
-     `frontend.dir`, `data_dir` (default `./data`, created with mode 0700).
+     (sqlite\|postgres\|mysql), `database.dsn`, `jwt.secret`, `jwt.ttl` (default 168h), `auth.argon2_concurrency`
+     (default 0 = min(GOMAXPROCS, 4); applied by `cli` with `auth.SetConcurrency` before `app.Init`), `log.level`,
+     `log.format`, `log.color`, `frontend.dir`, `data_dir` (default `./data`, created with mode 0700).
    - The SQLite DSN defaults to `<data_dir>/ggboard.db`.
    - An empty `jwt.secret` is generated once into `<data_dir>/jwt.secret` (0600). A configured or persisted secret that
      is a known placeholder, shorter than 32 bytes or made of fewer than 8 distinct characters fails `config.Load`.
@@ -275,7 +276,8 @@ maintenance / subscription leak hook ──Emit──▶ 2 lanes (256+1024) ─�
   transport errors and never follows redirects; the webhook secret travels in a path parameter, which logs never record.
 - **Proxies & limits**: per-IP rate limits key IPv6 clients by /64. `X-Forwarded-For`/`X-Real-IP`/`X-Forwarded-Proto` are
   honoured only from `server.trusted_proxies` (`httpx.RequestScheme`/`RequestBase` for links built without `app_url`).
-- **Hashing budget**: argon2id derivations run at most `NumCPU` (≥ 2) at a time; unknown emails at login still spend one
+- **Hashing budget**: argon2id derivations run at most `auth.argon2_concurrency` at a time (default min(GOMAXPROCS, 4),
+  so at most 256 MiB in flight; extra callers queue for a slot, docs/DEPLOY.md §4); unknown emails at login still spend one
   derivation (no timing oracle). Password/MFA/register-by-IP counters reserve an attempt before verifying (no check-then-act races).
 - **Logs** carry route patterns (`httpx.LogPath`), never raw paths of matched routes or query strings. With a captcha provider
   enabled, `static.CSPFor` adds exactly that provider's script/frame (hCaptcha also connect/style) origins to the CSP.

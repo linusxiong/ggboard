@@ -43,11 +43,36 @@ func SetParams(p Params) { params.Store(&p) }
 func CurrentParams() Params { return *params.Load() }
 
 // argon2 allocates Params.Memory (64 MiB by default) per call: without a bound, a burst of logins (30 per IP
-// are allowed) needs gigabytes. hashSlots caps concurrent derivations; callers queue for a slot.
+// are allowed) needs gigabytes. hashSlots caps concurrent derivations (SetConcurrency, config
+// auth.argon2_concurrency); callers queue for a slot, so a burst waits instead of taking memory.
 var (
-	hashSlots = make(chan struct{}, max(2, runtime.NumCPU()))
+	hashSlots atomic.Pointer[chan struct{}]
 	argon2Key = argon2.IDKey // replaced in tests
 )
+
+func init() { SetConcurrency(0) }
+
+// MaxDefaultConcurrency caps the default number of concurrent argon2 derivations: 4 × 64 MiB = 256 MiB in flight.
+// One derivation already runs DefaultParams.Threads (4) lanes in parallel, so 4 slots can keep up to 16 cores busy.
+const MaxDefaultConcurrency = 4
+
+// DefaultConcurrency is min(GOMAXPROCS, MaxDefaultConcurrency): GOMAXPROCS follows a container's CPU limit, and
+// more slots than cores would only add memory, not throughput.
+func DefaultConcurrency() int { return max(1, min(runtime.GOMAXPROCS(0), MaxDefaultConcurrency)) }
+
+// SetConcurrency sets how many argon2 derivations (password verification and hashing) may run at once; n <= 0
+// selects DefaultConcurrency. Peak argon2 memory is about n × Params.Memory. Derivations already holding a slot
+// finish under the previous limit.
+func SetConcurrency(n int) {
+	if n <= 0 {
+		n = DefaultConcurrency()
+	}
+	ch := make(chan struct{}, n)
+	hashSlots.Store(&ch)
+}
+
+// Concurrency returns the current limit on concurrent argon2 derivations.
+func Concurrency() int { return cap(*hashSlots.Load()) }
 
 // Bounds on the parameters of stored argon2id hashes: a hash asking for more is rejected, not computed.
 const (
@@ -58,8 +83,9 @@ const (
 )
 
 func deriveKey(password, salt []byte, time, memory uint32, threads uint8, keyLen uint32) []byte {
-	hashSlots <- struct{}{}
-	defer func() { <-hashSlots }()
+	slots := *hashSlots.Load() // release the slot taken, even if SetConcurrency swaps the channel meanwhile
+	slots <- struct{}{}
+	defer func() { <-slots }()
 	return argon2Key(password, salt, time, memory, threads, keyLen)
 }
 

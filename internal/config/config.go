@@ -35,6 +35,7 @@ type Config struct {
 	Server   ServerConfig   `mapstructure:"server"`
 	Database DatabaseConfig `mapstructure:"database"`
 	JWT      JWTConfig      `mapstructure:"jwt"`
+	Auth     AuthConfig     `mapstructure:"auth"`
 	Log      LogConfig      `mapstructure:"log"`
 	Frontend FrontendConfig `mapstructure:"frontend"`
 	// DataDir holds the SQLite database, the generated JWT secret and other local state.
@@ -60,6 +61,14 @@ type DatabaseConfig struct {
 type JWTConfig struct {
 	Secret string        `mapstructure:"secret"`
 	TTL    time.Duration `mapstructure:"ttl"`
+}
+
+// AuthConfig tunes password hashing.
+type AuthConfig struct {
+	// Argon2Concurrency caps concurrent argon2id derivations (logins, registrations, password changes); each holds
+	// 64 MiB while it runs, and requests beyond the cap wait for a slot. 0 = min(GOMAXPROCS, 4), see
+	// auth.SetConcurrency.
+	Argon2Concurrency int `mapstructure:"argon2_concurrency"`
 }
 
 // LogConfig configures the slog logger.
@@ -106,6 +115,7 @@ func defaults(v *viper.Viper) {
 	v.SetDefault("database.dsn", "")
 	v.SetDefault("jwt.secret", "")
 	v.SetDefault("jwt.ttl", "168h")
+	v.SetDefault("auth.argon2_concurrency", 0)
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.format", "text")
 	v.SetDefault("log.color", "auto")
@@ -215,6 +225,9 @@ func (c *Config) Validate() error {
 	}
 	if c.JWT.TTL <= 0 {
 		errs = append(errs, errors.New("jwt.ttl must be positive"))
+	}
+	if c.Auth.Argon2Concurrency < 0 {
+		errs = append(errs, fmt.Errorf("auth.argon2_concurrency %d must be 0 (automatic) or positive", c.Auth.Argon2Concurrency))
 	}
 	if c.Server.Addr == "" {
 		errs = append(errs, errors.New("server.addr is required"))

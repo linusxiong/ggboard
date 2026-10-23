@@ -28,6 +28,14 @@ jwt:
   # Session lifetime.
   ttl: 168h
 
+auth:
+  # How many argon2id password checks/hashes (login, registration, password change) run at once. Each holds 64 MiB
+  # while it runs; requests beyond the limit wait for a free slot instead of taking more memory, so the peak is about
+  # this number x 64 MiB. 0 = automatic: min(CPU cores Go may use, 4), at most 256 MiB. On a small-memory machine use
+  # 1 or 2 (a login burst then queues and gets slower); a higher value rarely adds throughput, since one check already
+  # runs 4 threads. The Go runtime's GOMEMLIMIT environment variable is the second knob (docs/DEPLOY.md section 4).
+  argon2_concurrency: 0
+
 log:
   level: info   # debug | info | warn | error
   format: text  # text | json

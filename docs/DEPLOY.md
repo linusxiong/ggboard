@@ -273,6 +273,7 @@ panel.example.com {
 | `database.dsn` | `GGBOARD_DATABASE_DSN` | `--db-dsn` | SQLite：`<data_dir>/ggboard.db` | PostgreSQL / MySQL 必填 |
 | `jwt.secret` | `GGBOARD_JWT_SECRET` | | 空 | 会话签名密钥。自填时须至少 32 字节、至少 8 种不同字符（`openssl rand -hex 32`）；已知占位符（如旧模板的 `change-me-…`）、过短或单调的值会让启动直接报错。为空时生成 48 字节随机值写入 `<data_dir>/jwt.secret`（0600）并沿用（该文件内容同样校验） |
 | `jwt.ttl` | `GGBOARD_JWT_TTL` | | `168h` | 会话有效期（Go duration，必须 > 0） |
+| `auth.argon2_concurrency` | `GGBOARD_AUTH_ARGON2_CONCURRENCY` | | `0`（自动） | 同时进行的 argon2id 密码校验 / 哈希个数（登录、注册、改密、找回）。每个运行时占 64 MiB，超出的请求**排队等空位**而不是再占内存，所以这部分峰值约为“该值 × 64 MiB”。`0` = `min(Go 可用的 CPU 核数, 4)`（`GOMAXPROCS`，容器里跟随 CPU 限额），即最多 256 MiB。小内存机器可设 1–2：登录高峰会排队、变慢，但不会因此吃满内存；调高很少能提高吞吐（每次校验本身已用 4 个线程）。负数启动报错 |
 | `log.level` | `GGBOARD_LOG_LEVEL` | `--log-level` | `info` | `debug` / `info` / `warn` / `error` |
 | `log.format` | `GGBOARD_LOG_FORMAT` | `--log-format` | `text` | `text` / `json` |
 | `log.color` | `GGBOARD_LOG_COLOR` | `--color` | `auto` | 终端颜色与排版：`auto`（输出是终端且未设 `NO_COLOR` 时着色）/ `always`（管道、文件也着色并用终端排版，优先于 `NO_COLOR`）/ `never`（不着色，终端仍对齐排版）。不影响 JSON 日志，见第 9、10 节 |
@@ -285,6 +286,25 @@ panel.example.com {
 
 *Flags > env > file > defaults. `jwt.secret` also encrypts TOTP secrets: changing it signs everyone out and breaks
 enrolled authenticators.*
+
+### 内存 / Memory
+
+登录高峰最占内存：argon2id 每次校验要 64 MiB。两个旋钮配合使用：
+
+1. **`auth.argon2_concurrency`**（见上表）限制**同时**有几个校验在跑，即高峰期这部分内存的上限。默认最多 4 个（256 MiB）；
+   1 GiB 内存的 VPS 建议设 `2`（128 MiB），512 MiB 的设 `1`。代价是高峰时多出来的登录排队：排在第 N 位的请求大约多等
+   N / 并发数 次校验的时间（一次校验多久取决于 CPU；开发机上的实测见 [`docs/perf/README.md`](perf/README.md)）。
+2. **`GOMEMLIMIT`**（Go 运行时的环境变量，不是 ggboard 的配置键，也不能写进 YAML）是进程内存的**软上限**：接近它时 Go 会更频繁地 GC，
+   并把空闲内存更快还给系统。不设时，高峰过后 Go 归还内存很慢，`RSS` 会在一段时间里停在峰值附近。建议设为机器内存减去数据库等
+   其他进程后的六七成，例如 1 GiB 的 VPS 设 `GOMEMLIMIT=600MiB`。它不会让进程因超限而退出；设得过低只会让 GC 一直跑、CPU 变高。
+
+写法：systemd 在 `/etc/ggboard/ggboard.env` 里加 `GOMEMLIMIT=600MiB`（或 unit 里 `Environment=GOMEMLIMIT=600MiB`）；Docker Compose 写进
+`.env`（`env_file` 会传进容器）或 `environment:`；源码运行时 `GOMEMLIMIT=600MiB ./bin/ggboard serve`。
+
+*Login bursts are the memory peak (64 MiB per argon2id check). `auth.argon2_concurrency` bounds how many run at once
+(default min(GOMAXPROCS, 4), at most 256 MiB; extra logins queue instead of allocating). `GOMEMLIMIT`, a Go runtime
+environment variable, is a soft limit for the whole process that also makes Go return idle memory sooner, e.g.
+`GOMEMLIMIT=600MiB` on a 1 GiB VPS.*
 
 ## 5. 数据库 / Databases
 
