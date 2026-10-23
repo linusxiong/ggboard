@@ -92,7 +92,9 @@ Global middleware: request id → access log → security headers → CORS (only
 
 - The access log records the route pattern (`httpx.LogPath(c)`, i.e. `c.FullPath()`), never the query string; so do the
   `rate limited`, `request failed` and `panic recovered` lines. Unmatched requests log their literal path.
-- gzip only touches compressible bodies of at least 1 KiB and skips handlers that set `Content-Encoding`.
+- gzip only touches compressible bodies of at least 1 KiB and skips handlers that set `Content-Encoding`. A cached body
+  can keep its encoding (`httpx.GzipBytes`) and be sent with `httpx.DataPrecompressed(c, status, contentType, body, gzipped)`:
+  same headers as the middleware plus `Content-Length`, no per-response compression; identity clients get `c.Data` unchanged.
 - `account.Fail` / `RetryError` add `Retry-After` to the service-level 429s (code cooldown, password lockout, MFA failures).
 
 ## 3. `internal/auth`

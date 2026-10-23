@@ -104,14 +104,15 @@ func resolved(c *gin.Context) *nodesvc.Resolved {
 }
 
 // writeBody sends a cached body with its ETag, or 304 when If-None-Match contains the tag
-// (docs/NODE_PROTOCOLS.md §6.6: substring compare accepts quoted, bare and W/ forms).
+// (docs/NODE_PROTOCOLS.md §6.6: substring compare accepts quoted, bare and W/ forms). A gzip response sends the
+// body's cached encoding (Body.Gzip) instead of compressing it again.
 func writeBody(c *gin.Context, b *nodesvc.Body) {
 	c.Header("ETag", `"`+b.ETag+`"`)
 	if inm := c.GetHeader("If-None-Match"); inm != "" && strings.Contains(inm, b.ETag) {
 		c.Status(http.StatusNotModified)
 		return
 	}
-	c.Data(http.StatusOK, "application/json; charset=utf-8", b.JSON)
+	httpx.DataPrecompressed(c, http.StatusOK, "application/json; charset=utf-8", b.JSON, b.Gzip)
 }
 
 // writeJSON sends v (an Object keeps its key order) without an ETag.

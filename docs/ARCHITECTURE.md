@@ -122,7 +122,10 @@ Middleware chain: request id (`X-Request-ID`, reused when sane) â†’ access log â
   string, so tokens in paths or queries never reach the logs. The `rate limited` (429), `request failed` (5xx) and
   `panic recovered` lines use the same pattern. Only an unmatched request (404) logs its literal path.
 - **gzip** compresses compressible responses of at least 1 KiB. It skips HEAD requests, upgrades and responses that
-  already set `Content-Encoding`.
+  already set `Content-Encoding`. A handler that caches a body can cache its encoding too (`httpx.GzipBytes`) and send it
+  with `httpx.DataPrecompressed`, which sets the same headers (plus `Content-Length`) without compressing again: the node
+  API does this for every cached body (`nodesvc.Body.Gzip`), so a full 10,000-user list is a copy instead of a fresh
+  deflate (about 6.9 ms of CPU per response in docs/perf/README.md).
 - `httpx.NewEngine` sets `RemoveExtraSlash`, so soga's `/soga//api/v1/node` still matches, and turns
   `RedirectTrailingSlash`/`RedirectFixedPath` off (gin built those redirects from the raw `//host/...` path: an open redirect).
 
@@ -133,7 +136,7 @@ Middleware chain: request id (`X-Request-ID`, reused when sane) â†’ access log â
 | settings | `settings.Service` snapshot | swapped after every successful `Set`; reads never hit the DB |
 | session user | `auth.LoadUser` | 30 s; `auth.InvalidateUser` after password/ban/role/uuid changes |
 | available users per group set | `usersvc.AvailableUsersForGroups` | 60 s; `InvalidateNodeUsers()` |
-| node config / user list / audit rules bodies, resolved nodes | `nodesvc` namespace | 60 s; `nodesvc.Invalidate()` after node, route or group writes |
+| node config / user list / audit rules bodies (each with its gzip encoding, `Body.Gzip`, made on the first gzip response), resolved nodes | `nodesvc` namespace | 60 s; `nodesvc.Invalidate()` after node, route or group writes; a user body (and its encoding) is rebuilt when the per-group-set list changes |
 | subscription node list | `subscription.AvailableNodes` | 5 s per group; `subscription.InvalidateNodes(a)` |
 | a user's rule profiles | `engine.LoadProfiles` (`LoadStoredProfile` reads the default one) | 1 min (`engine.ProfileTTL`); per-user namespace dropped on every profile write |
 | age key | `guard.LoadKey` | 1 min; dropped on every key write |

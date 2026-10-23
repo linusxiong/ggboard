@@ -680,7 +680,9 @@ their next poll.
      per P (UniProxy and soga shapes), rebuilt whenever the underlying per-group-set user list (`usersvc`, 60 s) changes.
      Admin writes to nodes, routes or groups call `nodesvc.Invalidate`, which drops both.
    - gzip middleware may compress the body. It then marks the ETag weak (`W/"<tag>"`, RFC 9110); clients echo it back and the
-     substring comparison still matches, so the tag itself never changes.
+     substring comparison still matches, so the tag itself never changes. The encoding is cached with the body
+     (`nodesvc.Body.Gzip`, sent by `httpx.DataPrecompressed`): one deflate per body version, not per response, and the
+     encoded `Content-Length` is sent. Clients without `Accept-Encoding: gzip` get the plain JSON as before.
 7. **Bad push/traffic entries**: non-numeric, negative or wrong-length entries are dropped. Unknown uids are ignored.
    Traffic from banned or expired users is still charged (Xboard does the same).
 8. **Several backends with one node id**: traffic is summed. `Online` reflects the latest pusher. The Xboard fork's

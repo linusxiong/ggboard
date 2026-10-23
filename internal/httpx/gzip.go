@@ -1,6 +1,7 @@
 package httpx
 
 import (
+	"bytes"
 	"compress/gzip"
 	"mime"
 	"net/http"
@@ -20,7 +21,8 @@ var gzipPool = sync.Pool{New: func() any {
 
 // Gzip compresses compressible responses (JSON, text, JS, CSS, SVG, XML, YAML) of at least 1 KiB when the
 // client accepts gzip. It never touches responses that already set Content-Encoding (precompressed static
-// files), partial content, 1xx/204/304 responses or HEAD requests.
+// files), partial content, 1xx/204/304 responses or HEAD requests. Handlers that cache a body can cache its
+// encoding too and send it with DataPrecompressed.
 func Gzip() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.Request.Method == http.MethodHead || c.GetHeader("Upgrade") != "" || !acceptsEncoding(c.Request, "gzip") {
@@ -132,6 +134,34 @@ func (g *gzipWriter) Flush() {
 	g.ResponseWriter.Flush()
 }
 
+// compresses reports whether the middleware gzips a response with this status and headers whose first n body bytes
+// are known (final: n is the whole body).
+func compresses(status int, h http.Header, n int, final bool) bool {
+	return n > 0 &&
+		!(final && n < gzipMinSize) &&
+		status >= 200 && status != http.StatusNoContent && status != http.StatusPartialContent && status != http.StatusNotModified &&
+		h.Get("Content-Encoding") == "" && h.Get("Content-Range") == "" &&
+		compressible(h.Get("Content-Type"))
+}
+
+// varies adds Vary: Accept-Encoding to every compressible response the middleware could have encoded (before
+// Content-Encoding is set), whether or not this one is.
+func varies(h http.Header) {
+	if compressible(h.Get("Content-Type")) && h.Get("Content-Encoding") == "" {
+		h.Add("Vary", "Accept-Encoding")
+	}
+}
+
+// markGzip sets the headers of a gzip-encoded response; a strong ETag becomes weak (RFC 9110: the encoded bytes
+// differ from the identity representation's).
+func markGzip(h http.Header) {
+	h.Set("Content-Encoding", "gzip")
+	h.Del("Content-Length")
+	if et := h.Get("ETag"); et != "" && !strings.HasPrefix(et, "W/") {
+		h.Set("ETag", "W/"+et)
+	}
+}
+
 // decide picks compression based on headers and the buffered prefix, then writes the header and buffer.
 func (g *gzipWriter) decide(final bool) error {
 	g.decided = true
@@ -143,14 +173,8 @@ func (g *gzipWriter) decide(final bool) error {
 	if h.Get("Content-Type") == "" && len(g.buf) > 0 {
 		h.Set("Content-Type", http.DetectContentType(g.buf))
 	}
-	compress := len(g.buf) > 0 &&
-		!(final && len(g.buf) < gzipMinSize) &&
-		status >= 200 && status != http.StatusNoContent && status != http.StatusPartialContent && status != http.StatusNotModified &&
-		h.Get("Content-Encoding") == "" && h.Get("Content-Range") == "" &&
-		compressible(h.Get("Content-Type"))
-	if compressible(h.Get("Content-Type")) && h.Get("Content-Encoding") == "" {
-		h.Add("Vary", "Accept-Encoding")
-	}
+	compress := compresses(status, h, len(g.buf), final)
+	varies(h)
 	if !compress {
 		if g.status != 0 || len(g.buf) > 0 {
 			g.ResponseWriter.WriteHeader(status)
@@ -163,11 +187,7 @@ func (g *gzipWriter) decide(final bool) error {
 		}
 		return nil
 	}
-	h.Set("Content-Encoding", "gzip")
-	h.Del("Content-Length")
-	if et := h.Get("ETag"); et != "" && !strings.HasPrefix(et, "W/") {
-		h.Set("ETag", "W/"+et)
-	}
+	markGzip(h)
 	g.ResponseWriter.WriteHeader(status)
 	g.gz = gzipPool.Get().(*gzip.Writer)
 	g.gz.Reset(g.ResponseWriter)
@@ -187,4 +207,48 @@ func (g *gzipWriter) finish() {
 		gzipPool.Put(g.gz)
 		g.gz = nil
 	}
+}
+
+// GzipBytes returns the gzip encoding of b, made the way the Gzip middleware makes it (same level, same stream), for
+// a body that is cached together with its encoding and sent with DataPrecompressed.
+func GzipBytes(b []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	zw := gzipPool.Get().(*gzip.Writer)
+	zw.Reset(&buf)
+	_, err := zw.Write(b)
+	if cerr := zw.Close(); err == nil {
+		err = cerr
+	}
+	zw.Reset(nil)
+	gzipPool.Put(zw)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.Clone(buf.Bytes()), nil // drop the buffer's spare capacity: the result is kept in a cache
+}
+
+// DataPrecompressed sends body like c.Data. When the Gzip middleware would compress this response (the client accepts
+// gzip, the request is not HEAD, the body is compressible and at least 1 KiB, nothing set Content-Encoding), it sends
+// gzipped() instead, with the headers the middleware sets (Content-Encoding: gzip, Vary: Accept-Encoding, a weak
+// ETag) plus the encoded Content-Length (the middleware streams, so it cannot), and a cached body is not compressed
+// again for every response. gzipped returns the gzip encoding of body
+// (GzipBytes), usually cached next to it; nil makes the middleware compress as usual. Every other response, the
+// identity one included, is exactly c.Data's.
+func DataPrecompressed(c *gin.Context, status int, contentType string, body []byte, gzipped func() []byte) {
+	if gw, ok := c.Writer.(*gzipWriter); ok && !gw.decided && len(gw.buf) == 0 {
+		h := gw.Header()
+		if h.Get("Content-Type") == "" { // c.Data keeps a Content-Type set earlier
+			h.Set("Content-Type", contentType)
+		}
+		if compresses(status, h, len(body), true) {
+			if gz := gzipped(); gz != nil {
+				varies(h)
+				markGzip(h)
+				gw.decided = true // already encoded: the writer passes status and bytes through
+				c.Data(status, contentType, gz)
+				return
+			}
+		}
+	}
+	c.Data(status, contentType, body)
 }
