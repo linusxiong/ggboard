@@ -57,6 +57,47 @@ docker compose -f deploy/docker-compose.yml exec ggboard ggboard admin create --
 *Compose publishes 8080 on localhost only, keeps state in the `ggboard-data` volume, and its `environment:` block
 overrides `.env` for the database variables.*
 
+### 预构建镜像（GHCR）/ Prebuilt image
+
+不想在服务器上编译时，用手动触发的流水线 `.github/workflows/docker.yml` 构建并推送多架构镜像：GitHub → Actions →
+**Docker** → Run workflow，在 “Use workflow from” 里选分支或 tag（工作流文件要先合并到默认分支，按钮才会出现）。
+镜像发布到 `ghcr.io/linusxiong/ggboard`；首次推送后包可能是私有的，匿名 `docker pull` 需要在 GitHub Packages 页面把可见性改成 Public。
+
+| 选择的 ref | 镜像 tag |
+| --- | --- |
+| tag `v1.2.3` | `1.2.3`、`1.2`、`1`、`latest`、`sha-<7 位>`（主版本为 0 时没有 `0`） |
+| 预发布 tag `v1.2.3-rc.1` | `1.2.3-rc.1`、`sha-<7 位>`（不动 `latest`） |
+| 其他 tag | `<tag>`、`sha-<7 位>` |
+| 分支（如 `main`） | `<分支名>`（`/` 换成 `-`）、`sha-<7 位>` |
+
+输入项：`push`（取消勾选 = 只构建不推送，用来验证 Dockerfile 并预热缓存）、`platforms`（默认 `linux/amd64,linux/arm64`）、
+`no_cache`（忽略缓存并重新拉取基础镜像，新层仍会写回缓存）。
+
+- **元数据**：镜像带 OCI 标签，manifest 和 index 上也带同样的注解（GHCR 页面读的是 index 注解）：`source`、`revision`、
+  `version`、`created`、`licenses` 等。`version` 取 `git describe --tags --always`，与 `ggboard version` 输出一致。
+  构建完会回读 registry，核对平台、注解、标签、每个 tag 的 digest 和二进制报告的版本，任一不符就让任务失败；同时附带 SBOM 与 provenance。
+- **缓存**：BuildKit 的 GitHub Actions 缓存（`mode=max`，把 pnpm 安装、Chromium、`go mod download` 这些中间阶段也存下来）。
+  每次运行能读自己所在 ref 和默认分支的缓存，所以发版前先在 `main` 上构建一次，tag 构建就能命中；缓存仓库上限 10 GB，7 天未用会被淘汰。
+- **多架构不用 QEMU**：前端和 Go 编译阶段都在 runner 本机架构上运行（`--platform=$BUILDPLATFORM`），Go 交叉编译到目标架构。
+
+用预构建镜像跑 Compose：写一个本机的覆盖文件，把 `build` 换成 `image`（需要 Compose ≥ 2.24）：
+
+```yaml
+# deploy/docker-compose.prebuilt.yml（按需命名，不要提交）
+services:
+  ggboard:
+    image: ghcr.io/linusxiong/ggboard:1.2.3
+    build: !reset null
+    pull_policy: always
+```
+
+```bash
+docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.prebuilt.yml up -d
+```
+
+*A manual workflow builds and pushes a multi-arch image to GHCR (tags: semver → `1.2.3`/`1.2`/`1`/`latest`, branch → its name, plus
+`sha-<short>`), with OCI labels and annotations, SBOM and provenance, a GitHub Actions layer cache, and a post-push check of what the registry holds.*
+
 ## 2. 二进制 + systemd / Binary + systemd
 
 ```bash

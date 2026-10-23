@@ -1342,3 +1342,21 @@ Vitest 缓存 `import.meta.glob` 结果 67 / 72 / 77 / 85；`useLiteForm` 抢焦
   CLI 输出里的动态文本经 `console.Clean` 去掉控制字符。lipgloss 的包初始化绕不开，实测 `ggboard version` 启动耗时没有变化。
 - **规则**：引入任何把数据写到终端的库前，先读它的转义/引号处理和 init 代码；终端输出里来自请求或导入数据的字符串必须过滤控制
   字符，并同时为“真 ESC”和“字面量 `\x1b`”写回归测试。
+
+## 2026-10-23
+
+### 179. （CI·Docker）多架构构建与 docker/metadata-action 的坑：编译阶段会被 QEMU 模拟、`latest` 取决于 tag 行顺序、labels 与 annotations 是两个输入
+
+- **现象**：写手动构建镜像的工作流（`.github/workflows/docker.yml`）时审出：(1) `deploy/Dockerfile` 的前端阶段（apk 装 Chromium 做预渲染、
+  pnpm 构建）和 Go 编译阶段没有 `--platform=$BUILDPLATFORM`，`--platform linux/arm64` 会让它们在 QEMU 里跑（Chromium 很慢且易崩），
+  前端还要按平台各构建一遍；(2) `metadata-action` 的 `latest=auto` 由“第一个启用的 tag 条目”决定，调换 `tags:` 的行序就会丢掉 `latest`；
+  (3) `labels:` 与 `annotations:` 是两个独立输入，只覆盖 labels 时 index 上的 `version`、`licenses` 仍是默认值，而 GHCR 页面读的是 index 注解；
+  (4) 默认的 `licenses` 来自 GitHub API，是已弃用的 SPDX 标识 `GPL-3.0`；(5) 测试脚本里 `for c in "tag v1"; do set -- $c` 在 zsh 里不分词，
+  所有用例读到的都是整串；`echo "====="` 开头的 `=` 被 zsh 当成命令展开。
+- **根因**：Dockerfile 只在单架构下验证过；(2)(3)(4) 的行为只写在 action 源码里；(5) 是 zsh 与 bash 的差异。
+- **修复**：两个编译阶段加 `--platform=$BUILDPLATFORM`，Go 用 `TARGETOS/TARGETARCH` 交叉编译，工作流因此不装 QEMU；`latest` 改成显式的
+  `type=raw,value=latest,enable=…` + `flavor: latest=false`；同一份 OCI 元数据同时传给 `labels:` 与 `annotations:`，许可证显式写 `GPL-3.0-only`；
+  构建后回读 registry，校验平台、注解、标签、每个 tag 的 digest 和二进制报告的版本。用本地 registry + `docker buildx build` 跑通了冷构建、
+  只改 `VERSION` 后的缓存命中（前端和 `go mod download` 全部 CACHED）以及 dry run。
+- **规则**：出多架构镜像前，逐个检查 Dockerfile 里的 `RUN` 会不会跑在目标架构上，能固定在 `$BUILDPLATFORM` 的都固定；改 `tags:`、`labels:`
+  这类 action 输入前先读 action 源码；shell 测试脚本写成 `#!/usr/bin/env bash` 文件再跑（见 8 / 64 / 94 / 147 / 154）。

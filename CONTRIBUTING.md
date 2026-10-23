@@ -50,7 +50,8 @@ README 截图没有 pnpm 脚本：对运行中的实例执行 `node web/scripts/
 ## 提交前 / Before you open a PR
 
 CI（`.github/workflows/ci.yml`）会跑：`gofmt`、`go build ./...`、`go vet ./...`、`go test ./... -race -count=1`，以及
-`pnpm -C web install --frozen-lockfile`、`lint`、`build`。CI 不跑前端类型检查和单测，请本地补上：
+`pnpm -C web install --frozen-lockfile`、`lint`、`build`。CI 不跑前端类型检查和单测，请本地补上
+（手动触发的 `.github/workflows/docker.yml` 负责构建并推送多架构镜像，见 [docs/DEPLOY.md](docs/DEPLOY.md)）：
 
 ```bash
 make lint && make test

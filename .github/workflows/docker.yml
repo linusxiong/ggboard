@@ -1,0 +1,209 @@
+name: Docker
+
+# Manual only: Actions -> Docker -> Run workflow. The ref picked in "Use workflow from" (a branch or a tag) is what gets
+# built. The workflow file has to exist on the default branch for the button to show up.
+#
+# Image tags (ghcr.io/<owner>/<repo>):
+#   tag v1.2.3        -> 1.2.3, 1.2, 1 (no "1" while the major is 0), latest, sha-<short>
+#   tag v1.2.3-rc.1   -> 1.2.3-rc.1, sha-<short>                     (a pre-release never moves latest)
+#   any other tag     -> <tag>, sha-<short>
+#   branch            -> <branch>, sha-<short>                       (e.g. main)
+on:
+  workflow_dispatch:
+    inputs:
+      push:
+        description: Push to GHCR (untick for a dry run that only builds and refreshes the cache)
+        type: boolean
+        default: true
+      platforms:
+        description: Target platforms
+        type: choice
+        options:
+          - linux/amd64,linux/arm64
+          - linux/amd64
+          - linux/arm64
+        default: linux/amd64,linux/arm64
+      no_cache:
+        description: Ignore the build cache and re-pull base images (the fresh layers are still saved to the cache)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# One build per ref at a time; queue instead of cancelling so a push in flight is never cut short.
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  image:
+    name: ${{ inputs.push && 'Build and push' || 'Build (dry run)' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write # push to GHCR with the job's GITHUB_TOKEN
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # full history and tags, so `git describe` is exact
+          persist-credentials: false
+
+      # Single source of truth for everything derived from the ref. Expressions are passed in through env, never
+      # interpolated into the script.
+      - name: Resolve version and metadata
+        id: prep
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Same value as `make build`, so the OCI version label, the image tag and `ggboard version` agree.
+          version="$(git describe --tags --always)"
+          version="${version//[^A-Za-z0-9._+-]/-}"
+
+          semver=false stable=false major_alias=false
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            re='^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$'
+            if [[ "$GITHUB_REF_NAME" =~ $re ]]; then
+              semver=true
+              if [[ -z "${BASH_REMATCH[4]}" ]]; then # no pre-release suffix
+                stable=true
+                if [[ "${BASH_REMATCH[1]}" != 0 ]]; then
+                  major_alias=true
+                fi
+              fi
+            fi
+          fi
+
+          {
+            echo "version=$version"
+            echo "image=ghcr.io/${REPO,,}" # registry paths must be lower case
+            echo "semver=$semver"
+            echo "stable=$stable"
+            echo "major_alias=$major_alias"
+            # Used for both image labels and manifest/index annotations (metadata-action takes them separately).
+            echo "oci<<OCI_EOF"
+            echo "org.opencontainers.image.title=ggboard"
+            echo "org.opencontainers.image.description=GG Bond (ggboard): a fast, simple proxy panel. One Go binary with an embedded React SPA."
+            echo "org.opencontainers.image.url=https://github.com/$REPO"
+            echo "org.opencontainers.image.documentation=https://github.com/$REPO/blob/$GITHUB_SHA/docs/DEPLOY.md"
+            echo "org.opencontainers.image.version=$version"
+            echo "org.opencontainers.image.licenses=GPL-3.0-only"
+            echo "OCI_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # `latest` is an explicit tag, not flavor latest=auto: metadata-action lets the first enabled tag entry decide
+      # `latest`, so the result would depend on the order of the lines below.
+      - name: Image tags and labels
+        id: meta
+        uses: docker/metadata-action@v6
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index # a multi-arch image is an index; GHCR reads its annotations
+        with:
+          images: ${{ steps.prep.outputs.image }}
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}},enable=${{ steps.prep.outputs.semver }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ steps.prep.outputs.semver }}
+            type=semver,pattern={{major}},enable=${{ steps.prep.outputs.major_alias }}
+            type=ref,event=tag,enable=${{ github.ref_type == 'tag' && steps.prep.outputs.semver != 'true' }}
+            type=ref,event=branch
+            type=sha,format=short
+            type=raw,value=latest,enable=${{ steps.prep.outputs.stable }}
+          labels: ${{ steps.prep.outputs.oci }}
+          annotations: ${{ steps.prep.outputs.oci }}
+
+      # No QEMU on purpose: deploy/Dockerfile builds on the runner's own architecture and cross-compiles.
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        if: inputs.push
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Cache: BuildKit's GitHub Actions cache. mode=max also exports the intermediate stages (pnpm install, Chromium,
+      # go mod download), which is where the build time is; the default mode=min would only keep the tiny final image.
+      # A run reads its own ref's cache and the default branch's, so build main first to warm releases built from tags.
+      - name: Build${{ inputs.push && ' and push' || '' }}
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/Dockerfile
+          platforms: ${{ inputs.platforms }}
+          push: ${{ inputs.push }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          build-args: |
+            VERSION=${{ steps.prep.outputs.version }}
+          cache-from: type=gha,scope=ggboard
+          cache-to: type=gha,scope=ggboard,mode=max,ignore-error=true
+          no-cache: ${{ inputs.no_cache }}
+          pull: ${{ inputs.no_cache }}
+          provenance: ${{ inputs.push && 'mode=max' || 'false' }}
+          sbom: ${{ inputs.push }}
+
+      # Read back what the registry actually holds instead of trusting the inputs.
+      - name: Verify the published image
+        if: inputs.push
+        env:
+          IMAGE: ${{ steps.prep.outputs.image }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          VERSION: ${{ steps.prep.outputs.version }}
+          PLATFORMS: ${{ inputs.platforms }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          ref="$IMAGE@$DIGEST"
+          inspect="$(mktemp)"
+          docker buildx imagetools inspect "$ref" --format '{{json .}}' > "$inspect"
+
+          want="$(tr ',' '\n' <<<"$PLATFORMS" | sort)"
+          have="$(jq -r '.manifest.manifests[]
+            | select(.annotations["vnd.docker.reference.type"] != "attestation-manifest")
+            | .platform | "\(.os)/\(.architecture)"' "$inspect" | sort)"
+          [[ "$want" == "$have" ]] || { echo "::error::platforms: want [$want], registry has [$have]"; exit 1; }
+
+          # Annotations on the index and labels in every platform's image config.
+          # shellcheck disable=SC2016 # $sha, $ver and $src are jq variables
+          check='.["org.opencontainers.image.revision"] == $sha
+            and .["org.opencontainers.image.version"] == $ver
+            and .["org.opencontainers.image.source"] == $src
+            and .["org.opencontainers.image.licenses"] == "GPL-3.0-only"'
+          args=(--arg sha "$GITHUB_SHA" --arg ver "$VERSION" --arg src "https://github.com/$GITHUB_REPOSITORY")
+          jq -e "${args[@]}" ".manifest.annotations | $check" "$inspect" >/dev/null \
+            || { echo "::error::index annotations are wrong"; jq .manifest.annotations "$inspect"; exit 1; }
+          jq -e "${args[@]}" ".image | to_entries | all(.[]; .value.config.Labels | $check)" "$inspect" >/dev/null \
+            || { echo "::error::image labels are wrong"; jq '.image | map_values(.config.Labels)' "$inspect"; exit 1; }
+
+          # Every tag points at the digest that was just built.
+          while read -r tag; do
+            [[ -n "$tag" ]] || continue
+            got="$(docker buildx imagetools inspect "$tag" --format '{{.Manifest.Digest}}')"
+            [[ "$got" == "$DIGEST" ]] || { echo "::error::$tag -> $got, expected $DIGEST"; exit 1; }
+          done <<<"$TAGS"
+
+          # The binary reports the same version as the labels (the runner is amd64; arm64 is checked via its config).
+          out="$(docker run --rm "$ref" version)"
+          echo "$out"
+          grep -qF "ggboard $VERSION " <<<"$out" || { echo "::error::binary does not report version $VERSION"; exit 1; }
+
+          {
+            echo "### Image published"
+            echo
+            echo "- Version: \`$VERSION\`"
+            echo "- Digest: \`$DIGEST\`"
+            echo "- Platforms: \`$PLATFORMS\`"
+            echo "- Tags:"
+            while read -r tag; do [[ -z "$tag" ]] || echo "  - \`$tag\`"; done <<<"$TAGS"
+            echo
+            echo "~~~bash"
+            echo "docker pull $ref"
+            echo "~~~"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,9 +1,13 @@
 # syntax=docker/dockerfile:1
 # Build from the repository root:
 #   docker build -f deploy/Dockerfile --build-arg VERSION=$(git describe --tags --always) -t ggboard .
+# Multi-arch (what .github/workflows/docker.yml does): both compile stages run on the build machine's own architecture
+# (--platform=$BUILDPLATFORM) and Go cross-compiles for the target, so nothing here executes under QEMU emulation.
+#   docker buildx build -f deploy/Dockerfile --platform linux/amd64,linux/arm64 -t ggboard .
 
 # ---- frontend ----
-FROM node:24-alpine AS web
+# The SPA is architecture-independent, so it is built (and cached) once, natively, for every target platform.
+FROM --platform=$BUILDPLATFORM node:24-alpine AS web
 WORKDIR /src/web
 # Chromium prerenders the public routes at build time (web/scripts/prerender.mjs); build stage only.
 RUN apk add --no-cache chromium && npm install -g pnpm@12.4.1
@@ -14,7 +18,7 @@ COPY web/ ./
 RUN pnpm build
 
 # ---- backend ----
-FROM golang:1.27-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
 WORKDIR /src
 ENV CGO_ENABLED=0
 COPY go.mod go.sum ./
@@ -22,8 +26,12 @@ RUN go mod download
 COPY cmd ./cmd
 COPY internal ./internal
 COPY --from=web /src/web/dist/ ./internal/static/dist/
+# Declared after every COPY so a new version string or target only invalidates this one layer, never the web build.
 ARG VERSION=dev
-RUN go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /out/ggboard ./cmd/ggboard \
+ARG TARGETOS
+ARG TARGETARCH
+RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+	go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /out/ggboard ./cmd/ggboard \
 	&& mkdir -p /out/data
 
 # ---- runtime ----
