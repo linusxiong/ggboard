@@ -6,6 +6,8 @@
  *   useAuthStore.getState().logout()
  *
  * Logging out in one tab logs out the others (storage event).
+ * Every token change (login/logout here, the API client's 401 eviction, the cross-tab sync) is a session boundary:
+ * `bindSessionCache` in `lib/queryClient.ts` drops the previous account's cached queries — call sites don't clear it.
  */
 import { create } from 'zustand'
 import type { User } from '@/lib/api/types'

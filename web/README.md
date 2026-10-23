@@ -136,6 +136,10 @@ function OrdersPage() {
 - Optional endpoints: the subscription page falls back to the single-profile page when `GET /user/rule-profiles` answers
   404, and `TelegramCard` hides itself on a 404 from `GET /user/telegram` (older backends keep working).
 - Writes: `useMutation` → on success `queryClient.invalidateQueries({ queryKey: qk.user.orders() })` (or `qk.admin.all`).
+- The cache follows the session (`bindSessionCache` in `lib/queryClient.ts`): every token change (login, logout, 401
+  eviction, another tab) cancels in-flight reads and drops all queries and mutations except the public `qk.guest.*`
+  keys, so the next account never sees the previous one's data. Don't `queryClient.clear()` at call sites; keep
+  account-independent `/guest/*` reads under `['guest', …]` and everything else under `user`/`admin` keys.
 - TanStack Query 5.10x deprecates `ensureQueryData/fetchQuery/prefetchQuery` → use `queryClient.query(o)`
   (`{ ...o, staleTime: 'static' }` = ensure).
 - **React Query only exists inside the `_user` / `_admin` areas** (lazy-loaded by `withQueryClient` in the layout

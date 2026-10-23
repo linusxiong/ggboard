@@ -124,7 +124,7 @@
     "categoryHint": "Pick an existing category or type a new one.",
     "titleRequired": "Enter a title",
     "bodyRequired": "Enter the body",
-    "placeholdersHelp": "Placeholders are replaced when users read the article: {{siteName}} site name, {{subscribeUrl}} subscription URL, {{urlEncodeSubscribeUrl}} URL-encoded subscription URL, {{safeBase64SubscribeUrl}} URL-safe Base64 subscription URL. Content wrapped by “Subscribers only” is shown only to users with an active plan.",
+    "placeholdersHelp": "Placeholders are replaced when users read the article: {{siteName}} site name, {{subscribeUrl}} subscription URL, {{urlEncodeSubscribeUrl}} URL-encoded subscription URL, {{safeBase64SubscribeUrl}} URL-safe Base64 subscription URL (subscription placeholders are admin-only). Content wrapped by “Subscribers only” is shown only to users with an active plan.",
     "showHint": "Hidden articles are not shown to users.",
     "publish": "Publish",
     "languages": {

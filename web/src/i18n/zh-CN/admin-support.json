@@ -124,7 +124,7 @@
     "categoryHint": "选择已有分类或输入新分类。",
     "titleRequired": "请输入标题",
     "bodyRequired": "请输入正文",
-    "placeholdersHelp": "占位符会在用户查看时替换：{{siteName}} 站点名称，{{subscribeUrl}} 订阅地址，{{urlEncodeSubscribeUrl}} URL 编码的订阅地址，{{safeBase64SubscribeUrl}} URL 安全 Base64 的订阅地址。“付费可见”包裹的内容只对有有效套餐的用户显示。",
+    "placeholdersHelp": "占位符会在用户查看时替换：{{siteName}} 站点名称，{{subscribeUrl}} 订阅地址，{{urlEncodeSubscribeUrl}} URL 编码的订阅地址，{{safeBase64SubscribeUrl}} URL 安全 Base64 的订阅地址；订阅占位符仅管理员可用。“付费可见”包裹的内容只对有有效套餐的用户显示。",
     "showHint": "关闭后用户将看不到此文章。",
     "publish": "发布",
     "languages": {

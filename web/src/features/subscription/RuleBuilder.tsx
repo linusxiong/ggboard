@@ -113,7 +113,8 @@ export function RuleBuilder({
         for (const [key, messages] of Object.entries(error.errors))
           if (messages[0]) mapped[errorKey(key)] = messages[0]
         setServerErrors(mapped)
-        setFormError(t('builder.fixErrors'))
+        // Whole-profile errors (e.g. the stored-size cap) have no field to sit on: show them at the form level.
+        setFormError(error.errors.profile?.[0] ?? t('builder.fixErrors'))
         requestAnimationFrame(() => {
           const el = sectionRef.current?.querySelector<HTMLElement>(
             '[data-invalid="true"], [aria-invalid="true"]',

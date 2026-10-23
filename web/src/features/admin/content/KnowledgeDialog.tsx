@@ -11,7 +11,8 @@ import { adminApi } from '@/lib/api'
 import { qk } from '@/lib/api/queries'
 import type { AdminKnowledge, AdminKnowledgeDetail, KnowledgeInput } from '@/lib/api/types'
 import { toast } from '@/lib/toast'
-import { ACCESS_END, ACCESS_START, KNOWLEDGE_PLACEHOLDERS, LANGUAGE_SUGGESTIONS } from './knowledge'
+import { isAdmin, useAuthStore } from '@/stores/auth'
+import { ACCESS_END, ACCESS_START, knowledgePlaceholders, LANGUAGE_SUGGESTIONS } from './knowledge'
 import { ModalClose } from '@/components/feedback/ModalClose'
 
 interface KnowledgeDialogProps {
@@ -70,6 +71,7 @@ function KnowledgeForm({
 }: KnowledgeDialogProps & { detail?: AdminKnowledgeDetail }) {
   const t = useT(['admin-support', 'common'])
   const qc = useQueryClient()
+  const admin = useAuthStore((s) => isAdmin(s.user))
   const [formError, setFormError] = useState<string>()
   const form = useAppForm({
     defaultValues: {
@@ -100,7 +102,8 @@ function KnowledgeForm({
   })
 
   const snippets: MarkdownSnippet[] = [
-    ...KNOWLEDGE_PLACEHOLDERS.map((p) => ({ label: p, text: p })),
+    // Staff get no subscription-URL placeholders: the API refuses them (403 + `errors.body`, shown on the body field).
+    ...knowledgePlaceholders(admin).map((p) => ({ label: p, text: p })),
     {
       label: t('knowledge.accessGate'),
       text: t('knowledge.accessSample'),
