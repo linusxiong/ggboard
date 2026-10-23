@@ -21,7 +21,8 @@ var (
 
 // Options tunes a queue. Zero values use the defaults.
 type Options struct {
-	Size          int                             // channel capacity (default 1024)
+	Size          int                             // capacity of the normal lane (default 1024)
+	PrioritySize  int                             // capacity of the priority lane (default 256), see IsPriority
 	Retries       int                             // extra attempts after a failure (default 3; negative = none)
 	Backoff       func(attempt int) time.Duration // delay before retry n (1-based); default 2^(n-1) s: 1 s, 2 s, 4 s
 	Timeout       time.Duration                   // per attempt (default 20 s; the Telegram client has its own 10 s)
@@ -31,6 +32,9 @@ type Options struct {
 func (o Options) withDefaults() Options {
 	if o.Size <= 0 {
 		o.Size = 1024
+	}
+	if o.PrioritySize <= 0 {
+		o.PrioritySize = 256
 	}
 	switch {
 	case o.Retries < 0:
@@ -59,13 +63,23 @@ type QueueStats struct {
 	Drivers []string `json:"drivers"`
 }
 
-// Queue delivers events to every configured notifier on one worker goroutine.
+// priorityTypes are the security events administrators must hear about even while user-triggered events flood
+// the queue (a ticket open/close loop is not rate limited, and orders are only limited per user).
+var priorityTypes = map[Type]bool{TypeAdminLogin: true, TypeSubscriptionLeak: true, TypeWithdraw: true}
+
+// IsPriority reports whether events of type t use the priority lane: admin_login, subscription_leak and withdraw.
+func IsPriority(t Type) bool { return priorityTypes[t] }
+
+// Queue delivers events to every configured notifier. It has two bounded lanes, each with its own worker
+// goroutine: the priority lane carries the IsPriority types and the normal lane everything else, so a flood of
+// user-triggered events (or a normal delivery stuck in retries) can neither drop nor delay a security alert.
 type Queue struct {
 	a    *app.App
 	opts Options
 
-	mu     sync.RWMutex // guards ch close vs. send
-	ch     chan Event
+	mu     sync.RWMutex // guards ch/prio close vs. send
+	ch     chan Event   // normal lane
+	prio   chan Event   // priority lane
 	closed bool
 	stop   chan struct{}
 	done   chan struct{}
@@ -79,8 +93,16 @@ const componentName = "notify.queue"
 
 func newQueue(a *app.App, opts Options) *Queue {
 	opts = opts.withDefaults()
-	q := &Queue{a: a, opts: opts, ch: make(chan Event, opts.Size), stop: make(chan struct{}), done: make(chan struct{})}
-	go q.run()
+	q := &Queue{a: a, opts: opts, ch: make(chan Event, opts.Size), prio: make(chan Event, opts.PrioritySize),
+		stop: make(chan struct{}), done: make(chan struct{})}
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go q.run(&wg, q.ch)
+	go q.run(&wg, q.prio)
+	go func() {
+		wg.Wait()
+		close(q.done)
+	}()
 	return q
 }
 
@@ -113,8 +135,9 @@ func existing(a *app.App) *Queue {
 	return q
 }
 
-// Emit queues ev for delivery without blocking. Nothing happens when no driver is configured. When the queue is
-// full or closed the event is dropped, logged (WARN) and counted as failed.
+// Emit queues ev for delivery without blocking. Nothing happens when no driver is configured. When its lane is
+// full (a priority event first falls back to the normal lane) or the queue is closed, the event is dropped,
+// logged (WARN) and counted as failed.
 func Emit(a *app.App, ev Event) {
 	if a == nil || len(Active(a)) == 0 {
 		return
@@ -126,7 +149,7 @@ func Emit(a *app.App, ev Event) {
 	}
 	if err := q.enqueue(ev); err != nil {
 		q.failed.Add(1)
-		a.Log.Warn("notification dropped", "type", ev.Type, "err", err)
+		a.Log.Warn("notification dropped", "type", ev.Type, "priority", IsPriority(ev.Type), "err", err)
 	}
 }
 
@@ -192,6 +215,13 @@ func (q *Queue) enqueue(ev Event) error {
 		return ErrQueueClosed
 	}
 	q.pending.Add(1)
+	if IsPriority(ev.Type) {
+		select {
+		case q.prio <- ev:
+			return nil
+		default: // priority lane full: try the normal lane
+		}
+	}
 	select {
 	case q.ch <- ev:
 		return nil
@@ -211,6 +241,7 @@ func (q *Queue) Stop(ctx context.Context) error {
 	}
 	q.closed = true
 	close(q.ch)
+	close(q.prio)
 	q.mu.Unlock()
 	select {
 	case <-q.done:
@@ -222,9 +253,10 @@ func (q *Queue) Stop(ctx context.Context) error {
 	}
 }
 
-func (q *Queue) run() {
-	defer close(q.done)
-	for ev := range q.ch {
+// run is the worker of one lane.
+func (q *Queue) run(wg *sync.WaitGroup, lane <-chan Event) {
+	defer wg.Done()
+	for ev := range lane {
 		q.process(ev)
 		q.pending.Add(-1)
 	}

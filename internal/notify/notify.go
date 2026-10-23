@@ -1,6 +1,6 @@
 // Package notify is the pluggable notification system: feature packages describe what happened as an Event and
-// call Emit; a bounded in-process queue (one worker per App) hands every event to each configured channel
-// (Notifier) with retries. Channels register a Factory from init() (internal/notify/telegram is the built-in
+// call Emit; a bounded in-process queue per App (a priority lane for security events and a normal lane, one worker
+// each) hands every event to each configured channel (Notifier) with retries. Channels register a Factory from init() (internal/notify/telegram is the built-in
 // Telegram bot) and decide themselves which events they deliver to administrators.
 //
 //	notify.Emit(a, notify.OrderPaid(a, notify.Order{...}))
@@ -74,7 +74,8 @@ func (e Event) Field(key string) string {
 	return ""
 }
 
-// Notifier is one configured notification channel.
+// Notifier is one configured notification channel. Its methods may be called concurrently (one queue worker per
+// lane).
 type Notifier interface {
 	// Name is the driver name ("telegram").
 	Name() string

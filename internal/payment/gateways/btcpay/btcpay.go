@@ -1,6 +1,7 @@
 // Package btcpay implements BTCPay Server Greenfield invoices (docs/PAYMENTS_GATEWAYS.md §7): invoice creation
 // with a hosted checkout link and BTCPay-Sig verified webhooks, confirmed by fetching the invoice. Only a
-// Settled invoice counts as paid.
+// Settled invoice that carries this panel's binding (an HMAC over payment uuid, trade_no, amount and currency)
+// counts as paid.
 package btcpay
 
 import (
@@ -25,6 +26,12 @@ import (
 
 // Name is the registry id.
 const Name = "btcpay"
+
+// Invoice metadata keys written by Pay next to orderId/itemDesc.
+const (
+	metaPayment = "ggboardPayment" // payment uuid (last segment of the notify URL)
+	metaBinding = "ggboardBinding" // binding(webhook_secret, uuid, trade_no, cents, currency)
+)
 
 func init() { payment.Register(&Gateway{}) }
 
@@ -116,11 +123,20 @@ func storePath(cfg map[string]string) string {
 
 // Pay implements payment.Gateway: it creates an invoice and returns its checkout link.
 func (g *Gateway) Pay(ctx context.Context, cfg map[string]string, req payment.PayRequest) (*payment.PayResult, error) {
-	if err := gwutil.Required(cfg, Name, "server_url", "store_id", "api_key"); err != nil {
+	// webhook_secret also keys the invoice binding, so an invoice is never created without it.
+	if err := gwutil.Required(cfg, Name, "server_url", "store_id", "api_key", "webhook_secret"); err != nil {
 		return nil, err
 	}
 	if err := gwutil.RequireAmount(Name, req.TotalAmount); err != nil {
 		return nil, err
+	}
+	currency := strings.ToUpper(strings.TrimSpace(req.Currency))
+	if currency == "" {
+		return nil, errors.New("btcpay: site currency is not set")
+	}
+	payUUID := gwutil.PaymentUUID(req.NotifyURL)
+	if payUUID == "" {
+		return nil, errors.New("btcpay: notify URL without a payment uuid")
 	}
 	subject := req.Subject
 	if subject == "" {
@@ -132,8 +148,11 @@ func (g *Gateway) Pay(ctx context.Context, cfg map[string]string, req payment.Pa
 	}
 	status, raw, err := g.do(ctx, cfg, http.MethodPost, storePath(cfg), invoiceRequest{
 		Amount:   payment.FormatAmount(req.TotalAmount),
-		Currency: strings.ToUpper(req.Currency),
-		Metadata: map[string]string{"orderId": req.TradeNo, "itemDesc": subject},
+		Currency: currency,
+		Metadata: map[string]string{
+			"orderId": req.TradeNo, "itemDesc": subject,
+			metaPayment: payUUID, metaBinding: binding(cfg["webhook_secret"], payUUID, req.TradeNo, req.TotalAmount, currency),
+		},
 		Checkout: checkout,
 	})
 	if err != nil {
@@ -147,6 +166,18 @@ func (g *Gateway) Pay(ctx context.Context, cfg map[string]string, req payment.Pa
 		return nil, errors.New("btcpay: invalid invoice response")
 	}
 	return &payment.PayResult{Type: payment.PayTypeURL, Data: inv.CheckoutLink}, nil
+}
+
+// binding is the hex HMAC-SHA256, keyed with the webhook secret, over the payment uuid, trade_no, amount (cents)
+// and currency of an invoice Pay creates. Notify recomputes it from the fetched invoice, which proves the invoice
+// was created by this panel for exactly that order, amount and currency: a store's public invoice surfaces
+// (Point of Sale custom amounts, Pay Button, crowdfunds, top-ups) let anyone create and pay an invoice with a chosen
+// orderId, amount and currency on the same store, and its InvoiceSettled webhook is signed like ours.
+func binding(secret, paymentUUID, tradeNo string, cents int64, currency string) string {
+	msg, _ := json.Marshal([]any{"ggboard/btcpay/v1", paymentUUID, tradeNo, cents, strings.ToUpper(currency)})
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(msg)
+	return hex.EncodeToString(mac.Sum(nil))
 }
 
 // Signature returns "sha256=<hex HMAC-SHA256(secret, body)>".
@@ -225,22 +256,44 @@ func (g *Gateway) Notify(ctx context.Context, cfg map[string]string, r *http.Req
 	if err := json.Unmarshal(body, &inv); err != nil {
 		return nil, nil, fmt.Errorf("btcpay: decode invoice: %w", err)
 	}
+	if inv.ID != "" && inv.ID != wh.InvoiceID {
+		return nil, nil, fmt.Errorf("btcpay: fetched invoice %q for webhook invoice %q", inv.ID, wh.InvoiceID)
+	}
+	inv.ID = wh.InvoiceID
 	if inv.Status != "Settled" {
 		if inv.Status == "Expired" || inv.AdditionalStatus == "PaidLate" {
 			slog.Warn("btcpay invoice paid late; not fulfilled automatically", "invoice_id", wh.InvoiceID, "status", inv.Status, "additional_status", inv.AdditionalStatus)
 		}
 		return nil, ack, nil
 	}
+	return boundPayment(cfg, r, &inv, ack)
+}
+
+// boundPayment turns a fetched Settled invoice into a payment only when it carries this panel's binding for this
+// payment method; everything else on the store (Point of Sale sales, other apps, another ggboard payment method,
+// invoices whose orderId, amount or currency differ from what Pay created) is acknowledged without a result.
+// Only the fetched invoice is trusted, never the webhook body's metadata.
+func boundPayment(cfg map[string]string, r *http.Request, inv *invoice, ack *payment.NotifyResponse) (*payment.NotifyResult, *payment.NotifyResponse, error) {
 	tradeNo := metaString(inv.Metadata, "orderId")
 	if tradeNo == "" {
-		tradeNo = metaString(wh.Metadata, "orderId")
+		slog.Info("btcpay invoice without orderId ignored", "invoice_id", inv.ID)
+		return nil, ack, nil
 	}
-	if tradeNo == "" {
-		return nil, nil, errors.New("btcpay: invoice without orderId")
+	uuid := gwutil.PaymentUUID(r.URL.Path)
+	if p := metaString(inv.Metadata, metaPayment); p != "" && p != uuid {
+		slog.Info("btcpay invoice of another payment method ignored", "invoice_id", inv.ID, "trade_no", tradeNo)
+		return nil, ack, nil
 	}
-	res := &payment.NotifyResult{TradeNo: tradeNo, CallbackNo: wh.InvoiceID}
-	if c, err := gwutil.ParseCents(inv.Amount); err == nil {
-		res.Amount = c
+	cents, err := gwutil.ParsePaidCents(inv.Amount)
+	if err != nil {
+		cents = 0 // zero (top-up) or unparsable: never bound, Pay rejects non-positive amounts
 	}
-	return res, ack, nil
+	currency := strings.ToUpper(strings.TrimSpace(inv.Currency))
+	if cents <= 0 || currency == "" || uuid == "" ||
+		!gwutil.EqualHex(metaString(inv.Metadata, metaBinding), binding(cfg["webhook_secret"], uuid, tradeNo, cents, currency)) {
+		slog.Warn("btcpay settled invoice is not bound to this panel's order; not fulfilled",
+			"invoice_id", inv.ID, "trade_no", tradeNo, "amount", inv.Amount, "currency", inv.Currency)
+		return nil, ack, nil
+	}
+	return &payment.NotifyResult{TradeNo: tradeNo, CallbackNo: inv.ID, Amount: cents}, ack, nil
 }
