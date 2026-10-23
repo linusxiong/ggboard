@@ -63,7 +63,7 @@ ggboard admin promote --email user@example.com              # 把已有用户提
 | 键（界面名称） | 默认 | 说明 |
 | --- | --- | --- |
 | `stop_register`（开放注册） | `false` | 界面是与键值相反的“开放注册”开关：关掉开关即 `stop_register: true`，新用户无法注册，已有账户不受影响 |
-| `email_verify`（邮箱验证） | `false` | 注册需邮箱验证码。验证码靠邮件发送：先在 **邮件** 组配好 SMTP 并发送测试邮件；发信方式仍是“仅记录日志”时这里会提示验证码不会真正发出 |
+| `email_verify`（邮箱验证） | `false` | 注册需邮箱验证码。验证码靠邮件发送：先在 **邮件** 组配好 SMTP 并发送测试邮件；发信方式仍是“仅记录日志”时这里会提示验证码不会真正发出。关闭时注册不证明邮箱所有权（任何人都能用别人的邮箱注册），这类账户第一次找回密码时按所有权变更处理：更换 UUID 与订阅 token，清除 Passkey、两步验证和 Telegram 绑定 |
 | `email_whitelist_enable` / `email_whitelist_suffix`（邮箱后缀白名单 / 允许的邮箱后缀） | `false` / `[]` | 打开后出现后缀输入框：只填域名（如 `gmail.com`，精确匹配），按回车或逗号添加，可一次粘贴多个；允许的后缀会显示在注册页邮箱输入框下方 |
 | `invite_force`（强制邀请码） | `false` | 没有有效邀请码时无法注册 |
 | `try_out_plan_id` / `try_out_hour`（试用套餐 / 试用时长） | 0 / 0 | 注册赠送的试用套餐与时长（小时）；选“不赠送试用”时不显示时长 |
@@ -313,7 +313,7 @@ soga 请求 `/soga/api/v1/{node,users,audit_rules,white_list,traffic,alive_ip,au
 | 支付宝当面付 `alipay_f2f` | `app_id`、`private_key`（RSA2 ≥ 2048）、`alipay_public_key`（支付宝公钥）；`sandbox` | 自动携带；仅公钥模式、仅人民币 |
 | Stripe `stripe` | `secret_key`、`webhook_secret`；可选 `currency`、`exchange_rate`、`payment_methods`（`auto`/`card`/`alipay`/`wechat_pay`） | Dashboard → Developers → Webhooks 添加端点，URL 填回调地址，至少订阅 `checkout.session.completed` 与 `checkout.session.async_payment_succeeded`（`async_payment_failed`、`expired` 可选，只做确认） |
 | Coinbase Business `coinbase` | `api_key_name`、`api_key_secret`（ECDSA P-256 PEM）、`webhook_secret`；`exchange_rate`（每单位站点货币对应 USDC） | 用 `cdp data webhooks subscriptions create` 为 `checkout.payment.*`（及可选 `checkout.refund.*`）创建订阅，目标为回调地址；仅以 `checkout.payment.success` 开通 |
-| BTCPay Server `btcpay` | `server_url`、`store_id`、`api_key`（`btcpay.store.cancreateinvoice` + `btcpay.store.canviewinvoices`）、`webhook_secret` | Store → Settings → Webhooks 新建，Payload URL 填回调地址；发票状态为 `Settled` 才开通 |
+| BTCPay Server `btcpay` | `server_url`、`store_id`、`api_key`（`btcpay.store.cancreateinvoice` + `btcpay.store.canviewinvoices`）、`webhook_secret` | Store → Settings → Webhooks 新建，Payload URL 填回调地址；发票状态为 `Settled` 且带面板写入的绑定签名才开通（轮换 Webhook 密钥前创建的未付发票需人工确认） |
 
 Stripe / Coinbase / BTCPay 的回调地址必须是公网 HTTPS。各网关协议细节见 [PAYMENTS_GATEWAYS.md](PAYMENTS_GATEWAYS.md)。
 
@@ -356,7 +356,8 @@ Stripe / Coinbase / BTCPay 的回调地址必须是公网 HTTPS。各网关协�
 - **工单 / 公告 / 知识库**：客服也可使用。工单列表顶部的分段控件切换 **待回复 / 进行中 / 已关闭 / 全部**，可按用户邮箱或 ID 搜索，
   ↑/↓ 在列表中移动；回复已关闭的工单会重新打开它。公告与知识库用 Markdown 编辑器（编辑 / 预览）。知识库正文支持占位符
   `{{siteName}}`、`{{subscribeUrl}}`、`{{urlEncodeSubscribeUrl}}`、`{{safeBase64SubscribeUrl}}`；工具栏的 **付费可见** 插入的
-  `<!--access start-->…<!--access end-->` 之间的内容只对有有效套餐的用户显示。
+  `<!--access start-->…<!--access end-->` 之间的内容只对有有效套餐的用户显示。后三个订阅占位符会展开成每位读者自己的订阅地址
+  （含 token），**只有管理员可以写入**：客服保存含它们的新正文会被拒绝（403），但可以继续修改管理员文章的标题、分类与显示状态。
 - **系统状态 / System**（`/admin/system`）：运行状态、定时任务、邮件队列、缓存与运行日志，每 30 秒刷新。
 
 ---

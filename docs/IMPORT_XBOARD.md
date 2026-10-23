@@ -281,6 +281,7 @@ kept, because L lets users buy it for free; W.
 | telegram_id | telegram_id | verbatim (the chat id the Xboard bot bound; the same bot token keeps reaching it). `telegram_username` stays null: Xboard does not store it |
 | remarks | remarks | NULL → `""` |
 | password_version | — | 0 |
+| email_verified_at | — | = `created_at`: Xboard does not record whether an address was verified, so imported accounts are trusted (their first `/forgot` is an ordinary reset, not an ownership change) |
 | created_at, updated_at | int | `ts()` |
 
 Dropped columns: `t` (last traffic time); U-only `online_count`, `last_online_at`, `last_reset_at`, `reset_count`, `next_reset_at`.
@@ -350,9 +351,16 @@ A row whose `invite_user_id` is not an imported user is still imported, with W. 
 | show | show | `flexBool` |
 | limit_use | limit_use | verbatim. In Xboard this is the **remaining** count, decremented on every use. We count usage from orders, which start empty, so the remaining count is correct |
 | limit_use_with_user | limit_use_with_user | verbatim. Per-user history is lost with the orders, W once if any coupon sets it |
-| limit_plan_ids | limit_plan_ids (JSON) | `parseIDList`; drop plans that were not imported |
-| limit_periods | limit_period (JSON) | `parseStringList`. Map legacy names (`month_price`→`monthly` … `reset_price`→`reset_traffic`) and keep only our 8 keys |
+| limit_plan_ids | limit_plan_ids (JSON) | `parseIDList`; drop plans that were not imported. Every element dropped → coupon disabled (below) |
+| limit_periods | limit_period (JSON) | `parseStringList`. Map legacy names (`month_price`→`monthly` … `reset_price`→`reset_traffic`) and keep only our 8 keys. Every element dropped → coupon disabled (below) |
 | started_at, ended_at, created_at, updated_at | int | `ts()` |
+
+An empty `limit_plan_ids` / `limit_periods` means **every** plan / period in ggboard, while Xboard rejects a plan or period
+that is missing from a non-empty list. A list that is only partly dropped is narrowed. A **non-empty** source list whose
+every element is dropped (ids that are not imported plans or not valid ids, unknown period names, nulls or blanks) would
+become a wildcard, so the coupon is imported with `show = false`, W ("imported disabled; set its limits again in
+Admin → Coupons"), and listed in the post-import checklist. Malformed JSON (`[1,`) still means no limit, as in Xboard,
+whose `array` cast reads it as `null`.
 
 ### 4.9 payments ← `v2_payment`
 
@@ -450,7 +458,7 @@ U's "optimised" table has the same columns; only `value` became `mediumtext`.
 | `invite_never_expire` | same | bool. **Absent → false** |
 | `commission_first_time_enable` `commission_auto_check_enable` `withdraw_close_enable` `commission_distribution_enable` | same | bool |
 | `commission_withdraw_method` | same (JSON array) | `parseStringList`. **Absent → `["支付宝","USDT","Paypal"]`** (Xboard's Dict) |
-| `server_token` | same | verbatim, replacing our auto-generated token. Empty → keep ours, W ("reconfigure every backend") |
+| `server_token` | same | trimmed, replacing our auto-generated token. Empty → keep ours, W ("reconfigure every backend"). Shorter than 16 characters (the minimum admins must save) → not imported, keep ours, W, and the checklist says to copy ggboard's token into every backend |
 | `server_pull_interval` `server_push_interval` `device_limit_mode` (U) | same | int |
 | `email_host` `email_port` `email_username` `email_password` `email_from_address` | same | strings; port → int |
 | `email_driver` | (derived) | `smtp` if `email_host` is non-empty, else leave as is |
@@ -530,7 +538,8 @@ ggboard import xboard --dsn "mysql://xboard:secret@tcp(127.0.0.1:3306)/xboard?pa
 - `--driver mysql|postgres|sqlite` lets `--dsn` be a raw driver DSN without a scheme. The MySQL URL form
   `mysql://user:pass@host:3306/db` is accepted besides the go-sql-driver form.
 - The summary ends with the post-import checklist of §7, filled with this run's specifics (renumbered nodes, `code`
-  nodes, webhook URLs, disabled payments, unusable hashes, access-block articles, a missing `app_url`).
+  nodes, webhook URLs, disabled payments, coupons disabled by an emptied limit, unusable hashes, access-block articles,
+  a missing `app_url`, a missing or too-short `server_token`).
 
 Summary format:
 
@@ -570,6 +579,8 @@ next: docs/IMPORT_XBOARD.md §7 post-import checklist
 
 1. **Backends.** `server_token` was copied 1:1, so XrayR `ApiKey`, V2bX and soga keys stay valid. Point `ApiHost`/
    `webapi_url` at ggboard (or move the old domain's DNS). Apply every node-renumber (`NodeID`) and `code` warning.
+   If Xboard's token was empty or shorter than 16 characters, ggboard kept its own: copy it (Admin → Settings → Server)
+   into every backend config.
 2. **Payments.** EPay, Epusdt and AlipayF2F work as-is. Stripe and BTCPay: the old webhook URL keeps working (class-name
    alias, §4.9), but switching it to `https://<host>/api/v1/guest/payment/notify/<stripe|btcpay>/<uuid>` is cleaner
    (Stripe: subscribe `checkout.session.completed` and `checkout.session.async_payment_succeeded`); then enable Stripe.
@@ -674,7 +685,8 @@ creates and drops its own database; the file header has the `docker run` lines f
    `2026-11-01T00:00+08`; M=3 → `2027-01-01T00:00+08`; M=2, NULL expiry or past expiry → nil.
 9. Tickets: `reply_status` derived from the last message; the no-message L ticket is inverted.
 10. Settings: the type coercions; absent `show_info_to_server_enable` → false; absent `reset_traffic_method` → 0 (L) / 1 (U);
-    wildcard `subscribe_url` dropped with W; `server_token` copied.
+    wildcard `subscribe_url` dropped with W; `server_token` copied; a token shorter than 16 characters is not imported
+    (ggboard's token is kept, W).
 11. Payments: each gateway's key map. Stripe is disabled. Unknown gateways are disabled. The plugin-disabled epay is
     disabled.
 12. Stats: `1729440000 → 2024-10-21`. The L stat_user pair aggregates to `u = u1 + 0.5·u2`, with rate = Σcharged/Σraw.

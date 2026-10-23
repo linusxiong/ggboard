@@ -174,7 +174,11 @@ Brand (`app_name`, `app_url`, `logo`) and locale (`default_locale`, zh-CN/en) co
 - `a.Mailer.Enqueue(mail.Message{...})` sends custom mail.
 - `a.Mailer.SendNow(ctx, msg)` sends synchronously (admin test mail).
 - `a.Mailer.Stats()` reports the queue.
-- The queue holds 1024 messages and retries 3 times (1 s, 2 s, 4 s). Every outcome is written to `mail_logs`.
+- The queue holds 1024 messages and retries temporary failures 3 times (1 s, 2 s, 4 s) from a retry list, without holding
+  up the next message; permanent ones (`mail.IsPermanent`: SMTP 5yz, bad address, errors a driver wraps with `mail.Permanent`)
+  are recorded after one attempt. Every outcome is written to `mail_logs`.
+- `Message.Class`: mail that anonymous requests trigger is `mail.ClassAnonymous` and is refused (`ErrQueueFull`) once 75 % of
+  the queue is occupied; everything else is `ClassTransactional` (the zero value).
 - The driver comes from `email_driver` (`smtp` or `log`); tests use `*mail.Memory`.
 
 ## 7. Scheduler and CLI
@@ -271,7 +275,8 @@ Every service is cheap to build: call `New(a)` per request. Import aliases used 
   - jobs `TrafficReset`, `ExpireRemind`, `TrafficRemind`, `StatsDaily`, each taking an explicit `Clock` for tests
   - `maintenance.Enqueue(ctx, a.Mailer, msg)` waits while the mail queue is full: use it for any bulk mail
 - **`internal/notify`** (notifications, docs/ARCHITECTURE.md §Notifications):
-  - `notify.Emit(a, ev)` never blocks (dropped + WARN when the 1024-slot queue is full); `notify.EmitWait(ctx, a, ev)` for bulk
+  - `notify.Emit(a, ev)` never blocks (dropped + WARN when its lane is full: 1024 slots, or 256 in the priority lane with its
+    own worker for `notify.IsPriority` types admin_login/subscription_leak/withdraw); `notify.EmitWait(ctx, a, ev)` for bulk
     producers; `notify.Enabled(a)` before doing extra queries for an event; `notify.Reachable(a, u)` for user channels
   - builders: `OrderNew/OrderPaid/OrderCancel(a, notify.Order{…})`, `AdminLogin(a, notify.Login{…})`,
     `TicketNew/TicketReply(a, notify.Ticket{…})`, `Withdraw(a, notify.Withdrawal{…})`, `RemindExpire`, `RemindTraffic`, `Test`;
