@@ -44,3 +44,7 @@ tidy: ## go mod tidy
 clean: ## Remove build output and the copied frontend
 	rm -rf bin
 	find $(STATIC) -mindepth 1 ! -name .gitkeep -exec rm -rf {} +
+
+.PHONY: bench
+bench: build ## Load test a throwaway server (free port, temp data dir) and write docs/perf; BENCH_ARGS="-d 10s"
+	./scripts/bench/run.sh $(BENCH_ARGS)

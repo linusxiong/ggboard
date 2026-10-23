@@ -47,6 +47,31 @@
   Lighthouse 四项 100 分（桌面与移动端）。
 - **零依赖部署**：SQLite 默认即可运行，无需 Redis / 队列进程；也支持 PostgreSQL 与 MySQL。
 
+## 性能 / Performance
+
+单个进程、默认 SQLite、10,000 个用户、50 个节点，压测工具与面板在同一台机器上走回环网络（无 TLS、无反向代理），
+每个场景 64 个连接（登录 16 个）。数字来自一次真实运行，`make bench` 可以复现。
+
+*One process, SQLite, 10,000 users and 50 nodes; load generator on the same machine over loopback; one real run,
+reproducible with `make bench`.*
+
+<p align="center"><img src="docs/perf/benchmark.svg" width="860" alt="每个场景的每秒请求数与 p99 延迟 / Requests per second and p99 latency per scenario"></p>
+
+| 场景 / Scenario | 吞吐 / req/s | p99 |
+| --- | ---: | ---: |
+| 订阅 · v2ray（base64） | 13,172 | 18 ms |
+| 订阅 · mihomo + standard 分流规则（18 个规则集） | 13,220 | 18 ms |
+| 节点拉用户列表，ETag 命中 → 304 | 85,902 | 2.5 ms |
+| 节点拉完整用户列表（10,000 人，gzip） | 2,153 | 127 ms |
+| 节点上报流量（每次 1,000 人，即每秒约 376 万条） | 3,764 | 27 ms |
+| 密码登录（argon2id，64 MiB，有意为之的慢） | 115 | 174 ms |
+
+测试机：Apple M5 Pro（18 核）· 48 GB · macOS 27.0.1 · Go 1.27.3 · 2026-10-23 · commit `9e613b5`（工作区的未提交改动不在被测路径上）。
+方法、全部场景（含静态文件）、注意事项和发现见 [docs/perf/README.md](docs/perf/README.md)。
+
+*Machine: Apple M5 Pro (18 cores), 48 GB, macOS 27.0.1, Go 1.27.3. Method, every scenario, caveats and findings:
+[docs/perf/README.md](docs/perf/README.md).*
+
 ## 截图 / Screenshots
 
 <table>
@@ -216,6 +241,7 @@ pnpm -C web install && pnpm -C web dev      # 前端开发服务器，/api 代�
 pnpm -C web typecheck && pnpm -C web lint && pnpm -C web test && pnpm -C web build   # build 含公开页预渲染（需 Chrome）
 pnpm -C web lh                  # Lighthouse：桌面 + 移动端，要求四项 100
 make e2e                        # 冒烟 + 完整 API 端到端流程（scripts/e2e-full.sh，也可 BASE=… 为运行中的实例填充演示数据）
+make bench                      # 压测：起一个临时实例灌入 1 万用户，产出 docs/perf/（results.json、results.md、benchmark.svg）
 ```
 
 ## 许可证 / License
