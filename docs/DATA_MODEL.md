@@ -53,6 +53,7 @@ Conventions:
 | password_version | int | bumped on password change / security reset; carried in the JWT `ver` claim |
 | created_at | time idx | |
 | updated_at | time | |
+| email_verified_at | *time | first proof that the account holder controls the mailbox: registration with an email code (`email_verify` on), or the first `/passport/forgot` reset. Admin-created (`/admin/users`, generate, `ggboard admin create`) and imported accounts get it at creation (imports: `created_at`); the upgrade that added the column set it to `created_at` for every existing row. Null = never verified: the first reset is an ownership change (new uuid/token, passkeys, `user_mfa` and Telegram binding removed; `usersvc.ReclaimAccount`) |
 
 Derived credentials (`model.UserCredentials(u, node)`):
 
@@ -414,5 +415,5 @@ Kept in `app.KV` (a TTL map that never evicts early) or `app.Online`:
   leak-detection markers "bucket already counted for this token" and "token already alerted" (24 h each).
 - Telegram: one-time binding codes (`/start <code>`, 10 min; a new code revokes the previous one). The bot username from
   `getMe` is cached in `app.Cache` for 1 h.
-- Pending notifications in the notification queue (at most 1024); on shutdown the queue drains for up to 10 s, the rest
+- Pending notifications in the notification queue (at most 1024, plus 256 in the priority lane); on shutdown the queue drains for up to 10 s, the rest
   is lost.

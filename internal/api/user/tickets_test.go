@@ -192,3 +192,21 @@ func TestTicketOwnership(t *testing.T) {
 		t.Fatalf("alice's ticket changed: %+v", got)
 	}
 }
+
+// Security audit 2026-10-22: ticket creation is a per-user token bucket (burst 10, 30/h) so one account cannot
+// flood the admins' notifications; another user keeps a budget of their own.
+func TestTicketCreateRateLimited(t *testing.T) {
+	a, r := ticketTestEnv(t, nil)
+	tok := testutil.Login(t, a, testutil.CreateUser(t, a, "flood@example.com"))
+	body := map[string]any{"subject": "s", "level": 1, "message": "hi"}
+	for i := 0; i < 10; i++ {
+		if rec := testutil.Do(t, r, http.MethodPost, ticketsPath, body, tok); rec.Code == http.StatusTooManyRequests {
+			t.Fatalf("request %d limited early", i+1)
+		}
+	}
+	testutil.ExpectStatus(t, testutil.Do(t, r, http.MethodPost, ticketsPath, body, tok), http.StatusTooManyRequests)
+	other := testutil.Login(t, a, testutil.CreateUser(t, a, "calm@example.com"))
+	if rec := testutil.Do(t, r, http.MethodPost, ticketsPath, body, other); rec.Code == http.StatusTooManyRequests {
+		t.Fatal("another user shares the bucket")
+	}
+}

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/textproto"
 	"sync"
 	"time"
 
@@ -23,7 +24,69 @@ type Message struct {
 	HTML     string `json:"html,omitempty"`
 	Text     string `json:"text,omitempty"`
 	Template string `json:"template,omitempty"`
+	Class    Class  `json:"-"` // queue admission class (ClassTransactional unless set)
 }
+
+// Class decides how much of the queue a message may use. Mail that anonymous requests can trigger is admitted
+// only below a high-water mark, so a flood of it never crowds out order, ticket, leak and reminder mail.
+type Class uint8
+
+// Message classes.
+const (
+	// ClassTransactional (the zero value) may use the whole queue.
+	ClassTransactional Class = iota
+	// ClassAnonymous (verification codes from POST /passport/email/send-code) is refused with ErrQueueFull once
+	// AnonymousSharePercent of the queue is occupied.
+	ClassAnonymous
+)
+
+// permanentError marks a delivery error that retrying cannot fix.
+type permanentError struct{ err error }
+
+func (e permanentError) Error() string { return e.err.Error() }
+func (e permanentError) Unwrap() error { return e.err }
+
+// Permanent marks err as permanent: the queue records it once instead of retrying (nil stays nil). Drivers use
+// it for errors that depend only on the message or the configuration (unparsable recipient, missing host).
+func Permanent(err error) error {
+	if err == nil {
+		return nil
+	}
+	return permanentError{err}
+}
+
+// IsPermanent reports whether retrying err cannot succeed: errors marked with Permanent, and SMTP refusals
+// that are final (RFC 5321 §4.2.1: 5yz replies; go-mail sender/recipient errors). Temporary 4yz replies,
+// timeouts, broken connections and every other error are retried by the queue.
+func IsPermanent(err error) bool {
+	if err == nil {
+		return false
+	}
+	var pe permanentError
+	if errors.As(err, &pe) {
+		return true
+	}
+	var se *gomail.SendError
+	if errors.As(err, &se) {
+		if se.IsTemp() {
+			return false
+		}
+		switch se.Reason {
+		case gomail.ErrGetSender, gomail.ErrGetRcpts, gomail.ErrNoUnencoded:
+			return true // the message itself is unsendable
+		}
+		// A SendError carries the SMTP reply code; 0 means the command failed without a reply (the connection
+		// broke), which is worth another attempt.
+		return isFinalCode(se.ErrorCode())
+	}
+	var te *textproto.Error // e.g. a 535 AUTH or 554 greeting refusal while dialing
+	if errors.As(err, &te) {
+		return isFinalCode(te.Code)
+	}
+	return false
+}
+
+func isFinalCode(code int) bool { return code >= 500 && code < 600 }
 
 // Mailer delivers a message synchronously.
 type Mailer interface {
@@ -141,7 +204,7 @@ func (m *SMTPMailer) Send(ctx context.Context, msg Message) error {
 	}
 	client, err := gomail.NewClient(c.Host, opts...)
 	if err != nil {
-		return fmt.Errorf("mail: smtp client: %w", err)
+		return Permanent(fmt.Errorf("mail: smtp client: %w", err)) // invalid configuration
 	}
 	gm := gomail.NewMsg()
 	if c.FromName != "" {
@@ -150,10 +213,10 @@ func (m *SMTPMailer) Send(ctx context.Context, msg Message) error {
 		err = gm.From(c.FromAddress)
 	}
 	if err != nil {
-		return fmt.Errorf("mail: from: %w", err)
+		return Permanent(fmt.Errorf("mail: from: %w", err))
 	}
 	if err := gm.To(msg.To); err != nil {
-		return fmt.Errorf("mail: to: %w", err)
+		return Permanent(fmt.Errorf("mail: to: %w", err))
 	}
 	gm.Subject(msg.Subject)
 	gm.SetMessageID()

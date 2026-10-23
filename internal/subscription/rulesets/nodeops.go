@@ -1,8 +1,8 @@
 package rulesets
 
 import (
+	"errors"
 	"fmt"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -31,20 +31,21 @@ var (
 	typeNames  = append(model.NodeTypes(), "ss", "ssr", "hy", "hy1", "hysteria1", "hy2", "hysteria2")
 )
 
-// validateNodeOps checks the node operations of a profile; field names start with "nodes.".
+// validateNodeOps checks the node operations of a profile; field names start with "nodes.". Expressions over
+// the count limits are refused without being compiled, so the work per request stays bounded.
 func validateNodeOps(o subscription.NodeOps, errs FieldErrors) {
 	regexes := 0
-	checkRegex := func(field, expr string) {
+	checkExpr := func(field, expr string) {
 		switch {
 		case strings.TrimSpace(expr) == "":
 			errs.add(field, "is required")
 		case len(expr) > MaxIncludeToken:
 			errs.add(field, fmt.Sprintf("must be at most %d bytes", MaxIncludeToken))
 		default:
-			if _, err := regexp.Compile(expr); err != nil {
-				errs.add(field, "is not a valid regular expression (RE2): "+err.Error())
-			} else if regexTooComplex(expr) {
+			if err := checkRegex(expr); errors.Is(err, errRegexTooComplex) {
 				errs.add(field, "is too complex")
+			} else if err != nil {
+				errs.add(field, "is not a valid regular expression (RE2): "+err.Error())
 			}
 		}
 	}
@@ -56,7 +57,10 @@ func validateNodeOps(o subscription.NodeOps, errs FieldErrors) {
 			if regexes++; regexes == MaxNodeRegex+1 {
 				errs.add("nodes."+list.name, fmt.Sprintf("at most %d expressions across include and exclude", MaxNodeRegex))
 			}
-			checkRegex("nodes."+list.name+"["+strconv.Itoa(i)+"]", e)
+			if regexes > MaxNodeRegex {
+				continue
+			}
+			checkExpr("nodes."+list.name+"["+strconv.Itoa(i)+"]", e)
 		}
 	}
 	if len(o.Types) > MaxNodeTypes {
@@ -78,9 +82,9 @@ func validateNodeOps(o subscription.NodeOps, errs FieldErrors) {
 	if len(o.Rename) > MaxRenameRules {
 		errs.add("nodes.rename", fmt.Sprintf("at most %d rules", MaxRenameRules))
 	}
-	for i, r := range o.Rename {
+	for i, r := range o.Rename[:min(len(o.Rename), MaxRenameRules)] {
 		f := "nodes.rename[" + strconv.Itoa(i) + "]"
-		checkRegex(f+".match", r.Match)
+		checkExpr(f+".match", r.Match)
 		if len(r.Replace) > MaxReplaceLen {
 			errs.add(f+".replace", fmt.Sprintf("must be at most %d bytes", MaxReplaceLen))
 		} else if !safeText(r.Replace) {

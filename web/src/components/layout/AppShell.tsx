@@ -5,7 +5,7 @@
  * Renders `<main id="main">` with the route `<Outlet/>` inside a Suspense boundary.
  */
 import { Avatar, Button, Dropdown, Header, Label, Separator } from '@heroui/react'
-import { type QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query'
+import { type QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { Link, Outlet, useNavigate } from '@tanstack/react-router'
 import { Ellipsis, LogOut, PanelLeftClose, PanelLeftOpen, Shield, UserRound } from 'lucide-react'
 import { Suspense, useEffect } from 'react'
@@ -289,17 +289,15 @@ function UserMenu({ area }: { area: 'user' | 'admin' }) {
   const t = useT(['nav', 'common'])
   const user = useAuthStore((s) => s.user)
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const initial = user?.email.charAt(0).toUpperCase() ?? '?'
 
   const logout = async () => {
     await userApi.logout().catch(() => undefined)
+    // Ends the session; the query cache drops this account's data by itself (`bindSessionCache` in
+    // `lib/queryClient.ts`: unobserved queries now, the shell's own as it unmounts — no refetch without a token).
     useAuthStore.getState().logout()
     toast(t('loggedOut'))
-    // Leave the shell before clearing the cache: clearing first makes every still-mounted query (e.g. the
-    // profile page's `meQuery`) refetch without a token → a pointless 401 + console error.
     await navigate({ to: '/login', replace: true })
-    queryClient.clear()
   }
 
   return (

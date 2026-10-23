@@ -93,12 +93,17 @@ func AccessLog() gin.HandlerFunc {
 }
 
 // SecurityHeaders sets conservative headers on every response (the SPA handler adds its CSP).
+// Cross-Origin-Opener-Policy: same-origin puts the panel in its own browsing context group, so a cross-origin page
+// that opened it (or that it opens) gets no window handle: no window.length frame counting (the login page renders a
+// captcha iframe only for signed-out visitors) and no opener navigation. The SPA never uses window.opener, and captcha
+// iframes are unaffected (COOP only concerns top-level windows).
 func SecurityHeaders() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		h := c.Writer.Header()
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		h.Set("X-Frame-Options", "DENY")
+		h.Set("Cross-Origin-Opener-Policy", "same-origin")
 		c.Next()
 	}
 }

@@ -3,6 +3,7 @@ package rulesets
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"maps"
 	"slices"
 	"sort"
@@ -153,9 +154,15 @@ func DecodeProfile(c *subscription.Catalog, raw []byte, def Defaults) (subscript
 	return p, nil
 }
 
-// ValidateProfile checks a complete profile strictly: known template, source and categories, valid groups,
-// targets that are DIRECT, REJECT or a defined group, a valid final policy, mirror and dns mode.
+// ValidateProfile checks a complete profile strictly: at most MaxProfileBytes as stored, known template, source
+// and categories, valid groups, targets that are DIRECT, REJECT or a defined group, a valid final policy, mirror
+// and dns mode. The size is checked first: an oversized profile gets only that error and nothing is compiled.
 func ValidateProfile(c *subscription.Catalog, p subscription.RuleProfile) error {
+	if b, err := json.Marshal(p); err != nil {
+		return err
+	} else if len(b) > MaxProfileBytes {
+		return FieldErrors{"profile": {fmt.Sprintf("must be at most %d KiB as stored", MaxProfileBytes>>10)}}
+	}
 	errs := FieldErrors{}
 	if _, ok := c.Template(p.Template); !ok {
 		errs.add("template", "unknown template")

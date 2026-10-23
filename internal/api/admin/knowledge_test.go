@@ -37,7 +37,8 @@ func TestAdminKnowledgeCRUD(t *testing.T) {
 		return testutil.Decode[model.Knowledge](t, rec)
 	}
 	body := "# Setup\n\nOpen {{subscribeUrl}}\n<!--access start-->secret<!--access end-->\n"
-	k1 := create(staffTok, map[string]any{"language": "en", "category": "Start", "title": "Windows", "body": body})
+	// Subscription placeholders are admin-only (audit_knowledge_test.go); staff edit the article below.
+	k1 := create(adminTok, map[string]any{"language": "en", "category": "Start", "title": "Windows", "body": body})
 	k2 := create(adminTok, map[string]any{"language": "en", "category": "Start", "title": "macOS", "body": "mac", "show": false})
 	k3 := create(staffTok, map[string]any{"language": "zh-CN", "category": "入门", "title": "安卓", "body": "android"})
 	if !k1.Show || k2.Show || k1.Body != body || k1.Language != "en" || k3.Category != "入门" {

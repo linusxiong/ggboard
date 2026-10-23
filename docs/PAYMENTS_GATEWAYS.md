@@ -685,13 +685,17 @@ Sources: `btcpayserver/btcpayserver` v2.4.5, 2026-10-06 (`swagger.template.invoi
 `Content-Type: application/json`:
 
 ```json
-{"amount":"12.34","currency":"CNY","metadata":{"orderId":"<trade_no>","itemDesc":"<subject>"},
+{"amount":"12.34","currency":"CNY","metadata":{"orderId":"<trade_no>","itemDesc":"<subject>",
+  "ggboardPayment":"<payment uuid>","ggboardBinding":"<hex>"},
  "checkout":{"redirectURL":"<ReturnURL>","redirectAutomatically":true,"expirationMinutes":30}}
 ```
 
 - `amount` is a decimal **string**.
 - `currency` is the site currency; the store's rate source must support it.
 - `metadata.orderId` is indexed, and it also fills the `{OrderId}` placeholder.
+- `ggboardPayment` is the payment uuid (last segment of the notify URL) and `ggboardBinding` =
+  `hex(HMAC-SHA256(webhook_secret, JSON ["ggboard/btcpay/v1", uuid, trade_no, cents, CURRENCY]))`, so `webhook_secret`
+  and the site currency are required to create an invoice (§7.2 step 3).
 - `expirationMinutes = max(1, ceil(minutes until ExpiresAt))` (the store default is 15).
 - Don't send Xboard's `jsonResponse`; it isn't a Greenfield field.
 
@@ -727,8 +731,15 @@ Steps:
      an admin).
    - A late full payment ends up `Expired`/`PaidLate` and never fires `InvoiceSettled`: don't auto-fulfil it; WARN
      the admin instead.
-3. Return `TradeNo = metadata.orderId` (from the GET, falling back to the body), `CallbackNo = invoiceId` and
-   `Amount = cents(invoice.amount)` (invoices are created in the site currency).
+3. Bind the invoice to this panel; only the GET is trusted, never the body's `metadata`. A store's public invoice
+   surfaces (Point of Sale custom amounts, Pay Button, crowdfunds, top-ups) let anyone create and pay an invoice with a
+   chosen `orderId`, amount and currency, and BTCPay signs its webhooks like ours.
+   - No `metadata.orderId`, or a `ggboardPayment` naming another payment uuid → ack (another app or ggboard payment
+     method on the same store).
+   - Otherwise `ggboardBinding` must equal the HMAC recomputed from the request's payment uuid, `orderId`,
+     `cents(invoice.amount)` (> 0) and `invoice.currency`. A mismatch → ack + WARN, not fulfilled. This includes invoices
+     created before the binding existed or before `webhook_secret` was rotated: confirm those manually.
+4. Return `TradeNo = metadata.orderId`, `CallbackNo = invoiceId` and `Amount = cents(invoice.amount)`.
 
 "Settled" timing follows the store's speed policy (confirmations); Lightning settles instantly. Xboard checks no
 event type at all, so "send everything" fulfils on `InvoiceCreated`. Don't port that.
@@ -763,8 +774,8 @@ BTCPay-Sig: sha256=f1a2d817b438106a73e851ffee748de61af0666fb1038809ca63cbdc4d7fe
   when Stripe answers 400 about `wechat_pay`. `NotifyResult.Amount` is reported only for a 1:1 rate in a two-decimal
   currency (otherwise 0, so the caller skips the amount check). `customer_email` is not sent.
 - **Coinbase** reports `Amount` only when `exchange_rate` is empty or 1.
-- **BTCPay** reports `Amount = cents(invoice.amount)` (invoices are created in the site currency); `server_url` must
-  be https.
+- **BTCPay** pays only invoices with a valid `ggboardBinding` (§7.2 step 3) and reports `Amount = cents(invoice.amount)`
+  (bound, so in the site currency and > 0); `server_url` must be https.
 - **EPay/Epusdt** accept `http://` base URLs with a WARN; every other gateway requires https.
 - Gateway structs expose test hooks (`Client`, `Endpoint`/`BaseURL`/`BackendURL`, `Now`, Stripe `Tolerance`); the
   registered instances use the defaults.

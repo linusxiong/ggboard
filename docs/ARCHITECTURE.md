@@ -42,8 +42,8 @@ batched DB writes.
      (sqlite\|postgres\|mysql), `database.dsn`, `jwt.secret`, `jwt.ttl` (default 168h), `log.level`, `log.format`,
      `frontend.dir`, `data_dir` (default `./data`, created with mode 0700).
    - The SQLite DSN defaults to `<data_dir>/ggboard.db`.
-   - An empty `jwt.secret` is generated once into `<data_dir>/jwt.secret` (0600). A secret shorter than 32 characters
-     logs a warning.
+   - An empty `jwt.secret` is generated once into `<data_dir>/jwt.secret` (0600). A configured or persisted secret that
+     is a known placeholder, shorter than 32 bytes or made of fewer than 8 distinct characters fails `config.Load`.
 3. `app.Init` builds the dependency container `*app.App{Cfg, DB, Settings, Cache, KV, Mailer, Log, Logs, Version,
    StartedAt, Online, Traffic, Scheduler}` in this order:
    1. logger (`logx`, with a ring buffer for `/admin/system/logs`)
@@ -98,7 +98,9 @@ Global flags: `-c/--config`, `--data-dir`, `--log-level`, `--log-format`, `--db-
   - A 429 carries `Retry-After`.
 - Body limit: 1 MiB. Node push routes raise it to 8 MiB (`httpx.LargeBody(httpx.NodeBodyLimit)`).
 - Auth: `Authorization: Bearer <JWT>` (HS256). Claims are `{sub: user id, email, ver: password_version, iat, exp, iss: "ggboard"}`.
-  - A `ver` mismatch → 401 (password change / security reset signs every session out). A banned user → 403.
+  - A `ver` mismatch → 401 (password change / security reset signs every session out). An `email` that differs from the
+    row now owning `sub` (case-insensitive) → 401: ids are reusable (deletion, `import xboard --force`, restore), so the
+    token is bound to the account instance; tokens without `email` are refused. A banned user → 403.
   - The user row is cached for 30 s.
 - Roles: `/admin` is mounted with `RequireStaff` + the MFA admin gate. Every area except tickets, notices, knowledge and
   reading users adds `RequireAdmin`.
@@ -115,7 +117,8 @@ Middleware chain: request id (`X-Request-ID`, reused when sane) → access log �
   `panic recovered` lines use the same pattern. Only an unmatched request (404) logs its literal path.
 - **gzip** compresses compressible responses of at least 1 KiB. It skips HEAD requests, upgrades and responses that
   already set `Content-Encoding`.
-- `node.Register` sets `RemoveExtraSlash`, so soga's `/soga//api/v1/node` still matches.
+- `httpx.NewEngine` sets `RemoveExtraSlash`, so soga's `/soga//api/v1/node` still matches, and turns
+  `RedirectTrailingSlash`/`RedirectFixedPath` off (gin built those redirects from the raw `//host/...` path: an open redirect).
 
 ## Caching
 
@@ -186,7 +189,10 @@ recovers panics, skips a run while the previous one is still running, and report
 - It then invalidates the node user lists.
 
 The mail queue is not a cron job. It is a worker goroutine with a bounded channel (1024) and 3 retries
-(1 s, 2 s, 4 s). Requests never send mail inline; every outcome is written to `mail_logs`.
+(1 s, 2 s, 4 s). Requests never send mail inline; every outcome is written to `mail_logs`. Only temporary failures are retried
+(SMTP 4yz, timeouts, broken connections); 5yz refusals and unparsable addresses (`mail.IsPermanent`) are recorded after one
+attempt. A message waiting for its retry sits on the worker's retry list (at most 1024), so the backoff never delays the
+messages behind it. Messages of `mail.ClassAnonymous` (verification codes) are refused once 75 % of the channel is occupied.
 
 ## Notifications (`internal/notify`)
 
@@ -195,7 +201,7 @@ Feature code describes what happened as a `notify.Event{Type, Title, Body, Field
 
 ```text
 order / ticket / invite / passport /
-maintenance / subscription leak hook ──Emit──▶ bounded queue (1024) ──1 worker──▶ every configured Notifier
+maintenance / subscription leak hook ──Emit──▶ 2 lanes (256+1024) ──worker each─▶ every configured Notifier
                                         │ full → dropped, WARN, failed++        ├─ SendAdmin(ev)        (ev.Admin)
                         EmitWait (bulk) ┘ waits for room                        └─ SendUser(chatRef, ev) (ev.UserID reachable)
 ```
@@ -203,6 +209,11 @@ maintenance / subscription leak hook ──Emit──▶ bounded queue (1024) �
 - **Channels** register a `notify.Factory` from `init()` (`notify.Register`, a `plugin.Registry`). The factory is called per
   event and returns nil while the channel is not configured, so settings changes apply at once. Emit returns immediately
   when no channel is configured (no queue is created).
+- **Lanes**: `admin_login`, `subscription_leak` and `withdraw` (`notify.IsPriority`) use a priority lane (256) with its own
+  worker; every other event uses the normal lane (1024). A flood of user-triggered events (a ticket open/close loop is not
+  rate limited) or a normal delivery stuck in retries therefore neither drops nor delays a security alert. A full normal
+  lane drops its events (WARN `notification dropped`, `priority=false`, counted as failed); a priority event that finds its
+  lane full falls back to the normal lane. Notifiers must be safe for concurrent use.
 - **Events** are localized when built (`default_locale`, zh-CN or en; templates in `internal/notify/i18n.go`). `Title` and `Body`
   are plain text; `Fields` are `{key, value}` pairs whose labels come from `notify.Label`. Builders (`OrderNew`, `OrderPaid`,
   `OrderCancel`, `AdminLogin`, `TicketNew`, `TicketReply`, `Withdraw`, `SubscriptionLeak`, `RemindExpire`, `RemindTraffic`,
@@ -231,7 +242,8 @@ maintenance / subscription leak hook ──Emit──▶ bounded queue (1024) �
   - With `admin_mfa_required`, admins and staff without a second factor get `403 mfa_setup_required` on `/admin/*`.
   - TOTP secrets are encrypted with a key derived from `jwt.secret`.
 - **Rate limits**:
-  - `/passport/*`: 30 requests/min per IP; `send-code`: 10 requests/h per IP.
+  - `/passport/*`: 30 requests/min per IP; `send-code`: 10 requests/h per IP and 60/h per IPv6 /48, plus a global budget
+    of 300 code mails/h (burst 60) beyond which the answer stays `true` but nothing is sent.
   - Per email: a code cooldown and the password lockout (`password_limit_*`); registrations per IP (`register_limit_*`).
   - `/user/security/*` and order create / checkout / coupon check: rate limited.
   - Rule-profile writes and preview, age-key writes and `rotate-token`, Telegram bind codes: per user; the Telegram
@@ -259,8 +271,8 @@ maintenance / subscription leak hook ──Emit──▶ bounded queue (1024) �
 - **Logs** carry route patterns (`httpx.LogPath`), never raw paths of matched routes or query strings. With a captcha provider
   enabled, `static.CSPFor` adds exactly that provider's script/frame (hCaptcha also connect/style) origins to the CSP.
 - **CORS**: same-origin by default; `server.cors_origins` widens it.
-- **Headers**: every response sets `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`
-  and `X-Frame-Options: DENY`. HTML documents add this CSP:
+- **Headers**: every response sets `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`,
+  `X-Frame-Options: DENY` and `Cross-Origin-Opener-Policy: same-origin`. HTML documents add this CSP:
   `default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'`.
 
 ## Pluggability

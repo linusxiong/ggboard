@@ -150,6 +150,23 @@ func (im *importer) importCoupons() error {
 			}
 			c.LimitPeriods = append(c.LimitPeriods, p)
 		}
+		// An empty list means "every plan / period" in ggboard (validateCoupon), but Xboard rejects a plan or period
+		// missing from a non-empty list. A restriction whose every element was dropped must not become a wildcard:
+		// the coupon is imported disabled instead. Malformed JSON (count 0) stays unrestricted, as in Xboard.
+		var emptied []string
+		if listCount(r["limit_plan_ids"], splitIDText) > 0 && len(c.LimitPlanIDs) == 0 {
+			emptied = append(emptied, "limit_plan_ids")
+		}
+		if listCount(r["limit_period"], splitStringText) > 0 && len(c.LimitPeriods) == 0 {
+			emptied = append(emptied, "limit_period")
+		}
+		if len(emptied) > 0 {
+			c.Show = false
+			im.warn(scope, "coupon %q: no element of %s could be imported, and an empty list would allow everything — "+
+				"imported disabled (show = false); set its limits again in Admin → Coupons, then enable it",
+				code, strings.Join(emptied, " and "))
+			im.rep.DisabledCoupons = append(im.rep.DisabledCoupons, fmt.Sprintf("%s (#%d)", code, id))
+		}
 		return b.add(c)
 	})
 	if err != nil {

@@ -1,5 +1,5 @@
 # Usage (from the repository root):
-#   cp .env.example .env   # then edit secrets
+#   cp .env.example .env   # then review it (leave GGBOARD_JWT_SECRET unset to have one generated in the volume)
 #   docker compose -f deploy/docker-compose.yml up -d --build
 #   docker compose -f deploy/docker-compose.yml exec ggboard ggboard admin create --email admin@example.com
 services:

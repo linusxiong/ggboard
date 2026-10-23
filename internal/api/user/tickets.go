@@ -2,7 +2,9 @@ package user
 
 import (
 	"errors"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -15,11 +17,28 @@ import (
 
 // registerTickets mounts /user/tickets*.
 // Owner: BE-E2 content. Implement in this file; do not add routes elsewhere.
+// Ticket writes are per-user token buckets (security audit 2026-10-22, notification-queue flood): every create
+// emits ticket_new to the admins and the "one open ticket" rule is no limit for an open/close loop.
+const (
+	ticketCreatePerHour = 30
+	ticketCreateBurst   = 10
+	ticketReplyPerHour  = 120
+	ticketReplyBurst    = 30
+)
+
 func registerTickets(g *gin.RouterGroup, a *app.App) {
+	byUser := func(c *gin.Context) string {
+		if u := auth.CurrentUser(c); u != nil {
+			return strconv.FormatUint(u.ID, 10)
+		}
+		return c.ClientIP()
+	}
+	create := httpx.Limit("tickets", httpx.NewLimiter(httpx.Per(ticketCreatePerHour, time.Hour), ticketCreateBurst), byUser)
+	reply := httpx.Limit("ticket_replies", httpx.NewLimiter(httpx.Per(ticketReplyPerHour, time.Hour), ticketReplyBurst), byUser)
 	g.GET("/tickets", ticketList(a))
-	g.POST("/tickets", ticketCreate(a))
+	g.POST("/tickets", create, ticketCreate(a))
 	g.GET("/tickets/:id", ticketShow(a))
-	g.POST("/tickets/:id/reply", ticketReply(a))
+	g.POST("/tickets/:id/reply", reply, ticketReply(a))
 	g.POST("/tickets/:id/close", ticketClose(a))
 }
 

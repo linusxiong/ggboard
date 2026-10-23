@@ -12,13 +12,14 @@ Base path `/api/v1` (exceptions: `/healthz`, `/.well-known/*`, the short subscri
   `total` = row count. A few endpoints return a bare array in `data` without `total` ("array" below).
 - Errors: `{"code": "...", "message": "...", "errors": {"<json field path>": ["..."]}}` (`errors` only for field errors).
 - Authentication: `Authorization: Bearer <JWT>` (from `/passport/*`, lifetime `jwt.ttl`). A JWT stops working when
-  `password_version` changes (password change or reset, subscription reset, admin password change or `reset-secret`); bans and
-  role changes apply immediately because the user is reloaded (30 s cache, dropped on every admin change).
+  `password_version` changes (password change or reset, subscription reset, admin password change or `reset-secret`) or the
+  account's email no longer matches the token's `email` claim (admin email edit, or the id now belongs to another account
+  after a deletion, `import xboard --force` or a restore); bans and role changes apply immediately because the user is reloaded (30 s cache, dropped on every admin change).
 
 | status | `code` | when |
 | --- | --- | --- |
 | 400 | `validation_failed` | binding/validation failure, domain rule violation (details in `errors`) |
-| 401 | `unauthorized` | missing/invalid/expired JWT, stale `password_version`, wrong credentials |
+| 401 | `unauthorized` | missing/invalid/expired JWT, stale `password_version` or `email`, wrong credentials |
 | 401 | `mfa_invalid`, `mfa_expired` | second login step (§Passport) |
 | 402 | `payment_failed` | the payment gateway failed during checkout |
 | 403 | `forbidden` | banned account, admin/staff only, feature switched off, invalid subscription or node token |
@@ -32,10 +33,11 @@ Base path `/api/v1` (exceptions: `/healthz`, `/.well-known/*`, the short subscri
 | 502 | `telegram_unavailable` | the Telegram Bot API could not be reached or refused `getMe` (§Telegram) |
 
 Rate limits (in-memory token buckets): every `/passport/*` route 30/min per IP, plus `POST /passport/email/send-code`
-10/h per IP; `POST /user/coupons/check`, `POST /user/orders` and `POST /user/orders/:trade_no/checkout` share 30/min per
+10/h per IP and 60/h per IPv6 /48; `POST /user/coupons/check`, `POST /user/orders` and `POST /user/orders/:trade_no/checkout` share 30/min per
 user (burst 10); every `/user/security/*` route 60/min per user; rule-profile writes and the preview 60/min per user (burst
 30); age-key writes and `rotate-token` 30/min per user (burst 10); `POST /user/telegram/bind-code` 10/min per user (burst
-5); the Telegram webhook 600/min per IP; subscriptions 120/h per token (burst 30), unknown tokens 60/h per IP (burst 30).
+5); `POST /user/tickets` 30/h per user (burst 10) and `POST /user/tickets/:id/reply` 120/h per user (burst 30); the Telegram
+webhook 600/min per IP; subscriptions 120/h per token (burst 30), unknown tokens 60/h per IP (burst 30).
 Account rules add per-email limits (code cooldown, password lockout), per-IP registrations and the second-factor failure
 counter.
 
@@ -99,19 +101,29 @@ Passkey {"id":1,"name":"Laptop","created_at":"…","last_used_at":null,"backup_e
 | POST | `/passport/passkey/login/begin` | `{email?}` | `{challenge_id, options}` (`options` = `PublicKeyCredentialRequestOptionsJSON`) |
 | POST | `/passport/passkey/login/finish` | `{challenge_id*, credential*}` (`credential` = `AuthenticationResponseJSON`) | `{token, user}` |
 | POST | `/passport/forgot` | `{email*, email_code*, password* (8..128)}` | `true` |
-| POST | `/passport/email/send-code` | `{email*, captcha?}` | `true` (60 s cooldown per email → 429; 10/h per IP) |
+| POST | `/passport/email/send-code` | `{email*, captcha?}` | `true` (60 s cooldown per email → 429; 10/h per IP, 60/h per IPv6 /48; mail queue above its anonymous high-water mark → 429, `Retry-After: 60`) |
 
 Rules: `stop_register` → 403; `email_whitelist_enable` (exact domain match, else 400 on `email`); `invite_force` requires a valid invite code (400 on `invite_code`);
 a valid code sets `invite_user_id` and is consumed (`status=true`) when `invite_never_expire=false` (unknown codes are ignored unless forced);
 `try_out_plan_id` grants trial on register (plan/group/limits, `transfer_enable` = GB×1024³, `expired_at` = now + `try_out_hour` h, `next_reset_at`);
-password limit lockout (`password_limit_*`, per email, also counts wrong `old_password` on `/user/password` and wrong passwords on `/user/security/*`) → 429; register-by-ip limit → 429; duplicate email → 409.
+password limit lockout (`password_limit_*`, per email, also counts wrong `old_password` on `/user/password` and wrong passwords on `/user/security/*`) → 429; register-by-ip limit → 429; duplicate email → 409. With `email_verify` on, the invite code and then the
+email code are checked **before** the duplicate check, so without a valid code a registered and a new address get the same 400 on
+`email_code` (only the mailbox owner can see the 409); such registrations stamp `users.email_verified_at`.
 Login: wrong credentials 401, banned 403. Every 429 carries `Retry-After` (seconds). All passport routes: 30 requests/min per IP
 (IPv6 clients are keyed by their /64, for every per-IP limit). Lockout counters are reserved before the password is checked, so
 concurrent requests cannot exceed `password_limit_count`.
 Email codes: 6 digits, valid 10 min, single use, discarded after 5 wrong guesses; 10 wrong codes per email per hour (whatever the
 code) → 429 until the hour ends; one `send-code` serves both register and forgot (the response is `true`
-whether or not the email is registered); 400 on `email_code` when missing or invalid. Captcha (when `captcha_provider != none`) is checked on
+whether or not the email is registered); nothing is sent, with the same `true`, when no account has the email and `stop_register`
+or the email whitelist would refuse it, or when the global budget of verification-code mails (300/h, burst 60, all clients
+together; `account.CodeBudgetPerHour` / `CodeBudgetBurst`) is spent (WARN log, at most one a minute). Code mails may fill at most
+75 % of the mail queue (`mail.AnonymousSharePercent`), so transactional mail always has room; 400 on `email_code` when missing or invalid. Captcha (when `captcha_provider != none`) is checked on
 register, login and send-code: 400 on `captcha`. `/forgot` with a valid code for an unregistered email → 400 on `email`.
+`/forgot` on an account whose email was never verified (`email_verified_at` null: registered while `email_verify` was off, so
+possibly by someone else with the owner's address) is an ownership change: besides the new password it issues a new uuid and
+subscription token, deletes every passkey and the TOTP / backup codes / WebAuthn handle, clears the Telegram binding (and any
+pending bind code) and stamps `email_verified_at`. Verified accounts (email code at registration, a previous reset, admin-created,
+imported, or existing before the upgrade) keep all of that; only the password and `password_version` change.
 
 Second factor (TOTP) — `internal/service/mfa`:
 
@@ -503,9 +515,9 @@ gateway's default (`epay` → `epay`, or `alipay` / `wechat` / `usdt` from its `
 | DELETE | `/admin/notices/:id` | — | `true` |
 | POST | `/admin/notices/sort` | `{ids}` (unique, all existing) | `true` (`sort` = position, 1-based) |
 | GET | `/admin/knowledge` | `language?`, `category?`, `keyword?` | unpaginated `[{id, language, category, title, show, sort, created_at, updated_at}]` (no body), display order |
-| POST | `/admin/knowledge` | `{language* (≤5), category*, title*, body*, show? (default true), sort?}` | 201 `Knowledge` |
+| POST | `/admin/knowledge` | `{language* (≤5), category*, title*, body*, show? (default true), sort?}` | 201 `Knowledge`; 403 (`errors.body`) when a staff body contains `{{subscribeUrl}}`, `{{urlEncodeSubscribeUrl}}` or `{{safeBase64SubscribeUrl}}` (admin only: they expand to each reader's token) |
 | GET | `/admin/knowledge/:id` | — | `Knowledge` (raw body) |
-| PATCH | `/admin/knowledge/:id` | any POST field | `Knowledge` |
+| PATCH | `/admin/knowledge/:id` | any POST field | `Knowledge`; staff: 403 like POST unless `body` equals the stored body (then it is left alone) |
 | DELETE | `/admin/knowledge/:id` | — | `true` |
 | POST | `/admin/knowledge/sort` | `{ids}` | `true` (1-based position) |
 

@@ -27,8 +27,12 @@ type legacyRuleProfile struct {
 	UpdatedAt time.Time
 }
 
-// beforeAutoMigrate renames the v1 rule_profiles table (no id column) so AutoMigrate creates the new one.
+// beforeAutoMigrate renames the v1 rule_profiles table (no id column) so AutoMigrate creates the new one,
+// and adds users.email_verified_at with its backfill (addEmailVerifiedAt).
 func beforeAutoMigrate(db *gorm.DB) error {
+	if err := addEmailVerifiedAt(db); err != nil {
+		return err
+	}
 	m := db.Migrator()
 	if !m.HasTable(&model.RuleProfile{}) || m.HasColumn(&model.RuleProfile{}, "id") {
 		return nil
@@ -73,6 +77,30 @@ func afterAutoMigrate(db *gorm.DB) error {
 	}
 	if err := m.DropTable(LegacyRuleProfilesTable); err != nil {
 		return fmt.Errorf("db: migrate: drop %s: %w", LegacyRuleProfilesTable, err)
+	}
+	return nil
+}
+
+// addEmailVerifiedAt adds users.email_verified_at to an existing users table and stamps every existing row with
+// its created_at. Accounts created before the column existed cannot tell whether their address was verified;
+// treating them as unverified would make each one's first password reset delete its passkeys, TOTP and Telegram
+// binding and rotate its subscription (usersvc.ReclaimAccount), so they are trusted instead. The backfill runs
+// only in the upgrade that adds the column (later NULLs are real "never verified" rows), in one transaction with
+// the ALTER where the database allows it (SQLite, PostgreSQL; MySQL commits DDL implicitly).
+func addEmailVerifiedAt(db *gorm.DB) error {
+	m := db.Migrator()
+	if !m.HasTable(&model.User{}) || m.HasColumn(&model.User{}, "email_verified_at") {
+		return nil
+	}
+	err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Migrator().AddColumn(&model.User{}, "EmailVerifiedAt"); err != nil {
+			return err
+		}
+		return tx.Model(&model.User{}).Where("email_verified_at IS NULL").
+			UpdateColumn("email_verified_at", gorm.Expr("created_at")).Error
+	})
+	if err != nil {
+		return fmt.Errorf("db: migrate: add users.email_verified_at: %w", err)
 	}
 	return nil
 }

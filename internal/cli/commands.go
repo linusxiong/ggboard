@@ -114,8 +114,13 @@ func adminCmd(a *app.App) *cobra.Command {
 			if err := checkEmail(email); err != nil {
 				return err
 			}
-			u, err := usersvc.New(a).Create(cmd.Context(), email, pw, usersvc.CreateOptions{IsAdmin: !staff, IsStaff: staff})
+			users := usersvc.New(a)
+			u, err := users.Create(cmd.Context(), email, pw, usersvc.CreateOptions{IsAdmin: !staff, IsStaff: staff})
 			if err != nil {
+				return err
+			}
+			// The operator chose the address: a later password reset is not an ownership change.
+			if err := users.MarkEmailVerified(cmd.Context(), u); err != nil {
 				return err
 			}
 			role := "administrator"

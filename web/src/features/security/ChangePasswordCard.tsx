@@ -4,7 +4,6 @@
  * the session ends: sign out and go to the login page.
  */
 import { Button } from '@heroui/react'
-import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { type FormEvent, useState } from 'react'
 import { FormError } from '@/components/FormError'
@@ -19,7 +18,6 @@ import { PlainField } from './shared'
 export function ChangePasswordCard({ email }: { email: string }) {
   const t = useT(['security', 'common'])
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const mapError = useSecurityError()
   const [oldPassword, setOldPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -38,8 +36,7 @@ export function ChangePasswordCard({ email }: { email: string }) {
     try {
       await changePassword({ old_password: oldPassword, new_password: newPassword })
       toast.success(t('password.changed'))
-      useAuthStore.getState().logout()
-      queryClient.clear()
+      useAuthStore.getState().logout() // the query cache follows the session (`bindSessionCache`)
       await navigate({ to: '/login', replace: true })
     } catch (error) {
       setErrors(mapError(error))

@@ -17,16 +17,53 @@ interface GuardArgs {
   context?: { queryClient?: QueryClient }
 }
 
-/** Only same-origin absolute paths are accepted as post-login targets (no open redirects). */
+/** Control characters (C0 incl. TAB/LF/CR, DEL, C1), any whitespace, and backslashes. */
+const UNSAFE_CHAR = /[\p{Cc}\s\\]/u
+const CONTROL_CHAR = /\p{Cc}/u
+/** Two leading slashes/backslashes make a path protocol-relative: `//evil.example` is another site. */
+const PROTOCOL_RELATIVE = /^[/\\]{2}/
+
+function currentOrigin(): string {
+  const origin = typeof location === 'undefined' ? '' : location.origin
+  return origin.startsWith('http') ? origin : 'http://localhost'
+}
+
+/**
+ * Post-login target → a same-origin path (`/orders?page=2`), else `fallback` (no open redirects).
+ *
+ * Checking raw prefixes is not enough: the URL parser drops TAB/LF/CR anywhere, reads `\` as `/` and resolves
+ * dot segments, so `/\t/evil.example` becomes `https://evil.example/` and `/..//evil.example` the path
+ * `//evil.example`. Control characters, whitespace and backslashes are refused outright; the target is then
+ * resolved the way the browser will, and must stay on this origin with a path that is not protocol-relative,
+ * even once percent-decoded. Returns the resolved path + search + hash, so callers navigate to exactly what was
+ * checked. (TanStack Router normalizes these too; this guard does not rely on it.)
+ */
 export function safeRedirect(target: unknown, fallback = '/dashboard'): string {
   if (
     typeof target !== 'string' ||
     !target.startsWith('/') ||
-    target.startsWith('//') ||
-    target.startsWith('/\\')
+    PROTOCOL_RELATIVE.test(target) ||
+    UNSAFE_CHAR.test(target)
   )
     return fallback
-  return target
+  const origin = currentOrigin()
+  let url: URL
+  let path: string
+  try {
+    url = new URL(target, origin)
+    path = decodeURIComponent(url.pathname)
+  } catch {
+    return fallback
+  }
+  if (
+    url.origin !== origin ||
+    !url.pathname.startsWith('/') ||
+    PROTOCOL_RELATIVE.test(url.pathname) ||
+    PROTOCOL_RELATIVE.test(path) ||
+    CONTROL_CHAR.test(path)
+  )
+    return fallback
+  return `${url.pathname}${url.search}${url.hash}`
 }
 
 export function homeFor(user: User | null | undefined): string {

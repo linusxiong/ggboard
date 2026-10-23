@@ -99,6 +99,25 @@ describe('subscription page', () => {
     expect(screen.getAllByRole('alert').some((el) => el.textContent === '请先修正标出的问题')).toBe(true)
   })
 
+  it('shows a whole-profile API error (`errors.profile`, e.g. the size cap) as the form error', async () => {
+    api({
+      'PUT /user/rule-profile': json(
+        {
+          code: 'validation_failed',
+          message: 'invalid',
+          errors: { profile: ['must be at most 256 KiB as stored'] },
+        },
+        400,
+      ),
+    })
+    renderAt('/subscription')
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('switch', { name: /X \/ Twitter/ }, { timeout: 8000 }))
+    await user.click(screen.getByRole('button', { name: '保存规则' }))
+    expect(await screen.findByText('must be at most 256 KiB as stored')).toHaveAttribute('role', 'alert')
+    expect(screen.queryByText('请先修正标出的问题')).toBeNull()
+  })
+
   it('builds the import links and the template override link', async () => {
     api()
     renderAt('/subscription')

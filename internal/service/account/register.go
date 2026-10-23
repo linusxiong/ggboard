@@ -50,8 +50,15 @@ func EmailAllowed(email string, suffixes []string) bool {
 
 // Register creates an account following the register settings, in this order: stop_register (403),
 // email whitelist (400), per-IP limit (429), captcha (400), invite_force (400), email_verify code
-// presence (400), duplicate email (409), invite code validity (400 when forced), email code (400), then
-// the user is created with the inviter, the trial plan and the remind defaults.
+// presence (400), then
+//   - email_verify off: duplicate email (409), invite code validity (400 when forced);
+//   - email_verify on: invite code validity (400 when forced, checked first so a typo does not burn the
+//     code), email code (400), duplicate email (409). Only the mailbox owner can tell a registered address
+//     from a new one: without the code both get the same 400 on email_code.
+//
+// The user is then created with the inviter, the trial plan and the remind defaults; with email_verify on
+// email_verified_at is stamped (accounts registered without it are reclaimed on their first password reset,
+// see ResetPassword).
 func (s *Service) Register(ctx context.Context, in RegisterInput) (*model.User, error) {
 	st := s.a.Settings
 	if st.Bool("stop_register") {
@@ -84,10 +91,10 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*model.User, 
 	if verify && emailCode == "" {
 		return nil, httpx.FieldError(codeFieldName, "is required")
 	}
-	if _, err := s.users.FindByEmail(ctx, email); err == nil {
-		return nil, httpx.Conflict("this email is already registered")
-	} else if !errors.Is(err, usersvc.ErrNotFound) {
-		return nil, err
+	if !verify {
+		if err := s.checkEmailFree(ctx, email); err != nil {
+			return nil, err
+		}
 	}
 
 	var invite *model.InviteCode
@@ -102,6 +109,9 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*model.User, 
 	}
 	if verify {
 		if err := s.ConsumeCode(PurposeRegister, email, emailCode); err != nil {
+			return nil, err
+		}
+		if err := s.checkEmailFree(ctx, email); err != nil {
 			return nil, err
 		}
 	}
@@ -156,6 +166,13 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*model.User, 
 		}
 		return nil, err
 	}
+	if verify {
+		// As with next_reset_at below, a failure must not fail the registration; the account just stays
+		// unverified (its first password reset then rotates its credentials).
+		if err := s.users.MarkEmailVerified(ctx, u); err != nil {
+			s.a.Log.Error("account: mark email verified failed", "user_id", u.ID, "err", err)
+		}
+	}
 	if plan != nil {
 		if next := s.users.ComputeNextResetAt(u, plan, now); next != nil {
 			// The account exists at this point: a failure here must not turn the registration into an error
@@ -170,6 +187,17 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*model.User, 
 	}
 	registered = true
 	return u, nil
+}
+
+// checkEmailFree returns 409 when email is already registered. The unique index still decides races (Create
+// returns ErrEmailTaken).
+func (s *Service) checkEmailFree(ctx context.Context, email string) error {
+	if _, err := s.users.FindByEmail(ctx, email); err == nil {
+		return httpx.Conflict("this email is already registered")
+	} else if !errors.Is(err, usersvc.ErrNotFound) {
+		return err
+	}
+	return nil
 }
 
 // findInvite returns the unused invite code whose inviter still exists, or nil.

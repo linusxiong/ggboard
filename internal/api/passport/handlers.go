@@ -10,6 +10,7 @@ import (
 	"github.com/linusxiong/ggboard/internal/httpx"
 	"github.com/linusxiong/ggboard/internal/model"
 	"github.com/linusxiong/ggboard/internal/notify"
+	"github.com/linusxiong/ggboard/internal/notify/telegram"
 	"github.com/linusxiong/ggboard/internal/service/account"
 	mfasvc "github.com/linusxiong/ggboard/internal/service/mfa"
 	usersvc "github.com/linusxiong/ggboard/internal/service/user"
@@ -151,12 +152,19 @@ func forgot(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		u, err := account.New(a).ResetPassword(c.Request.Context(), in.Email, in.EmailCode, in.Password)
+		ctx := c.Request.Context()
+		u, reclaimed, err := account.New(a).ResetPassword(ctx, in.Email, in.EmailCode, in.Password)
 		if err != nil {
 			account.Fail(c, err)
 			return
 		}
-		httpx.Logger(c).Info("password reset by email code", "user_id", u.ID)
+		if reclaimed {
+			// The account changed hands: a bind code the previous holder requested must not bind their chat now.
+			if err := telegram.Unbind(ctx, a, u.ID); err != nil {
+				httpx.Logger(c).Warn("revoke telegram bind code after reclaim failed", "user_id", u.ID, "err", err)
+			}
+		}
+		httpx.Logger(c).Info("password reset by email code", "user_id", u.ID, "reclaimed", reclaimed)
 		httpx.OK(c, true)
 	}
 }

@@ -118,6 +118,8 @@ func (s *Service) Generate(ctx context.Context, in GenerateInput, now time.Time)
 		ExpiredAt:     in.ExpiredAt,
 		RemindExpire:  s.a.Settings.Bool("default_remind_expire"),
 		RemindTraffic: s.a.Settings.Bool("default_remind_traffic"),
+		// Admin-created: a later password reset is not an ownership change (usersvc.ReclaimAccount).
+		EmailVerifiedAt: &now,
 	}
 	if plan != nil {
 		gid := plan.GroupID

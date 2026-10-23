@@ -154,11 +154,14 @@ RuleProfile {
 
 Stored in `rule_profiles.data` as a **complete** profile: `PUT /user/rule-profile` fills omitted parts from the chosen template
 (`categories`, `groups`, `final`, `geoip_cn_direct`; `source` from `ruleset_default_source`, `mirror` `default`, `dns` `default`)
-and validates strictly (400 with field errors): known template/source/categories (unknown JSON fields rejected); 1–32 groups,
+and validates strictly (400 with field errors): the complete profile as stored is at most 256 KiB (checked first; an oversized
+profile gets only a `profile` error, about twice what a profile at every limit below needs); known template/source/categories
+(unknown JSON fields rejected); 1–32 groups,
 unique names (≤ 64 chars, no `, = * " '`, no control/line-separator/noncharacter runes, not DIRECT/REJECT/reserved policy names),
 `type` ∈ select/url-test/fallback/load-balance, health-checked groups need an http(s) `url` (≤ 512 bytes) and `interval` 10–86400 s,
 include lists ≤ 2048 bytes whose tokens must be groups, DIRECT/REJECT, `*` or valid RE2 (≤ 256 bytes; at most 32 expressions across
-all groups, each compiling to ≤ 256 instructions and ≤ 4096 rune ranges, since they are matched against every proxy on every render),
+all groups, each compiling to ≤ 256 instructions and ≤ 4096 rune ranges, since they are matched against every proxy on every render;
+expressions past a count limit are refused without being compiled, and the size is bounded from the parse tree before compiling),
 no self-inclusion and no include loops; targets and `final` must be DIRECT, REJECT or a group; valid dns; a custom mirror must be an
 `https://` prefix ending in "/". `types`/`filter` query lists accept at most 64 entries.
 Group resolution at render time: tokens that match nothing are dropped, references that would loop are dropped, an empty group
@@ -247,8 +250,9 @@ NodeOps {
 ```
 
 Validation (`PUT` → 400 with `nodes.*` field errors): at most 32 expressions across `include` and `exclude`; at most 64
-rename rules; every expression non-empty, ≤ 256 bytes, valid RE2 within the group-include complexity limits (≤ 256
-instructions, ≤ 4096 rune ranges); `replace` ≤ 256 bytes; `prefix`/`suffix` ≤ 32 characters; no control, line-separator
+rename rules (expressions past either limit are not compiled, only the first 64 rules are checked); every expression
+non-empty, ≤ 256 bytes, valid RE2 within the group-include complexity limits (≤ 256 instructions, ≤ 4096 rune ranges);
+`replace` ≤ 256 bytes; `prefix`/`suffix` ≤ 32 characters; no control, line-separator
 or noncharacter runes in replacements, prefixes and suffixes; ≤ 16 known `types`; ≤ 64 known `regions`; `emoji`,
 `sort` from the lists above; `limit` 0–1000. Unknown keys are rejected like the rest of the profile.
 

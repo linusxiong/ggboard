@@ -163,6 +163,32 @@ var accessBlock = regexp.MustCompile(`(?s)<!--access start-->.*?<!--access end--
 // NoAccessClass is the CSS class of the notice that replaces plan-gated blocks.
 const NoAccessClass = "knowledge-no-access"
 
+// Subscription placeholders: RenderBody replaces them with the reader's own subscription URL, which carries the
+// reader's token. Only administrators may write them (HasSubscribePlaceholder): staff must not see users' tokens,
+// and a body they wrote could send the expanded URL to another host (for example inside a remote image URL).
+const (
+	PlaceholderSubscribeURL           = "{{subscribeUrl}}"
+	PlaceholderURLEncodeSubscribeURL  = "{{urlEncodeSubscribeUrl}}"
+	PlaceholderSafeBase64SubscribeURL = "{{safeBase64SubscribeUrl}}"
+)
+
+// SubscribePlaceholders returns the subscription placeholders (a new slice).
+func SubscribePlaceholders() []string {
+	return []string{PlaceholderSubscribeURL, PlaceholderURLEncodeSubscribeURL, PlaceholderSafeBase64SubscribeURL}
+}
+
+// HasSubscribePlaceholder reports whether body contains a subscription placeholder. It matches exactly what
+// RenderBody replaces (case-sensitive substrings of the raw body: the plan-gate notice inserted before the
+// replacement contains no braces, and replaced text is never scanned again).
+func HasSubscribePlaceholder(body string) bool {
+	for _, p := range SubscribePlaceholders() {
+		if strings.Contains(body, p) {
+			return true
+		}
+	}
+	return false
+}
+
 // RenderBody prepares an article body for a user, in Xboard order: without a valid plan every
 // <!--access start-->…<!--access end--> block becomes a localized notice; then {{siteName}}, {{subscribeUrl}},
 // {{urlEncodeSubscribeUrl}} (query escaping, like PHP urlencode) and {{safeBase64SubscribeUrl}} (URL-safe
@@ -174,9 +200,9 @@ func RenderBody(body, language, siteName, subscribeURL string, hasPlan bool) str
 	}
 	return strings.NewReplacer(
 		"{{siteName}}", siteName,
-		"{{subscribeUrl}}", subscribeURL,
-		"{{urlEncodeSubscribeUrl}}", url.QueryEscape(subscribeURL),
-		"{{safeBase64SubscribeUrl}}", base64.RawURLEncoding.EncodeToString([]byte(subscribeURL)),
+		PlaceholderSubscribeURL, subscribeURL,
+		PlaceholderURLEncodeSubscribeURL, url.QueryEscape(subscribeURL),
+		PlaceholderSafeBase64SubscribeURL, base64.RawURLEncoding.EncodeToString([]byte(subscribeURL)),
 	).Replace(body)
 }
 

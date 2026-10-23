@@ -52,11 +52,14 @@ type Report struct {
 	CodeNodes       []string // upstream nodes whose backend may use NodeID=<code>
 	Webhooks        []string // "stripe #3 (uuid abcd1234)": webhook URL to update in the gateway dashboard
 	DisabledPays    []string // payments imported disabled
+	DisabledCoupons []string // "CODE (#id)": coupons imported disabled because a limit list lost every element
 	UnusableHashes  int
 	LegacyHashes    int
 	AccessArticles  int
 	AppURL          string
 	ServerTokenKept bool // Xboard's server_token was copied
+	// Xboard's server_token was shorter than ggboard's minimum and not imported (ggboard's own token is kept).
+	ServerTokenShort bool
 }
 
 // Table returns the summary line of a table (creating it on first use, in call order).
@@ -201,9 +204,12 @@ func (r *Report) writeChecklist(w io.Writer) {
 	if r.AppURL == "" {
 		item("Set app_url in Admin → Settings → Site: Xboard had none, and subscription links and payment notify URLs are built from it.")
 	}
-	if r.ServerTokenKept {
+	switch {
+	case r.ServerTokenKept:
 		item("Backends: server_token was copied, so XrayR ApiKey, V2bX and soga keys stay valid. Point ApiHost / webapi_url at %s (or move the old domain).", host)
-	} else {
+	case r.ServerTokenShort:
+		item("Backends: Xboard's server_token is shorter than %d characters and was not imported; ggboard kept its own generated token. Copy ggboard's server_token (Admin → Settings → Server) into every XrayR/V2bX/soga config and point ApiHost / webapi_url at %s.", serverTokenMinLen(), host)
+	default:
 		item("Backends: Xboard had no server_token; copy ggboard's server_token (Admin → Settings → Server) into every XrayR/V2bX/soga config and point ApiHost / webapi_url at %s.", host)
 	}
 	for _, s := range r.RenumberedNodes {
@@ -221,6 +227,9 @@ func (r *Report) writeChecklist(w io.Writer) {
 	}
 	if len(r.DisabledPays) > 0 {
 		item("Review the payments imported as disabled: %s.", strings.Join(r.DisabledPays, ", "))
+	}
+	if len(r.DisabledCoupons) > 0 {
+		item("Coupons imported disabled because none of their limited plans or periods could be imported (an empty limit would allow everything): %s. Set the limits again in Admin → Coupons, then enable them.", strings.Join(r.DisabledCoupons, ", "))
 	}
 	item(`Subscriptions: curl -sI "%s/api/v1/client/subscribe?token=<a real token>" must answer 200 with subscription-userinfo; check that subscribe_url lists the domains users already have.`, host)
 	if r.LegacyHashes > 0 || r.UnusableHashes > 0 {

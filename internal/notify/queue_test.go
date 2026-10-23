@@ -26,7 +26,8 @@ type fake struct {
 	user     []string // "<chatRef>:<type>"
 	script   []error  // errors returned by successive SendAdmin attempts (nil = success); empty = always succeed
 	block    chan struct{}
-	entered  chan struct{} // receives once per SendAdmin call while block is set
+	only     notify.Type   // when set, block applies to events of this type only
+	entered  chan struct{} // receives once per blocked SendAdmin call while block is set
 	targets  []string      // fan-out destinations handled with Done/MarkDone
 	sentTo   []string
 	failOnce map[string]bool // fan-out targets failing on their first attempt
@@ -53,7 +54,7 @@ func (f *fake) ChatRef(u *model.User) string {
 }
 
 func (f *fake) SendAdmin(ctx context.Context, ev notify.Event) error {
-	if f.block != nil {
+	if f.block != nil && (f.only == "" || ev.Type == f.only) {
 		f.entered <- struct{}{}
 		<-f.block
 	}
@@ -383,5 +384,90 @@ func TestNoDriverNoQueue(t *testing.T) {
 	}
 	if _, err := notify.Start(a, notify.Options{}); err == nil {
 		t.Fatal("a second Start must fail")
+	}
+}
+
+// waitDelivered waits until the administrator side received an event of type t.
+func waitDelivered(t *testing.T, f *fake, typ notify.Type) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		_, admin, _, _ := f.snapshot()
+		for _, ev := range admin {
+			if ev.Type == typ {
+				return
+			}
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("%s was not delivered while the normal lane was stuck", typ)
+}
+
+// A user can open and close tickets in a loop (one ticket_new each, no rate limit) and fill the normal lane while a
+// slow channel holds its worker; admin/staff sign-ins (AGENTS.md §1.17), leak alerts and withdrawals must still be
+// queued and delivered at once.
+func TestPriorityEventsSurviveAUserEventFlood(t *testing.T) {
+	f := &fake{block: make(chan struct{}), only: notify.TypeTicketNew, entered: make(chan struct{}, 8)}
+	a := setup(t, f, notify.Options{Size: 4})
+	ticket := func() notify.Event {
+		return notify.TicketNew(a, notify.Ticket{ID: 1, UserID: 1, Email: "flood@example.com", Subject: "spam", Message: "spam"})
+	}
+	notify.Emit(a, ticket())
+	<-f.entered // the normal worker is stuck on the first ticket
+	for range 10 {
+		notify.Emit(a, ticket()) // 4 queued, 6 dropped
+	}
+	if st := notify.Stats(a); st.Failed != 6 || st.Pending != 5 {
+		t.Fatalf("stats after the flood = %+v", st)
+	}
+	dropped := 0
+	for _, e := range a.Logs.Entries(slog.LevelWarn, 0) {
+		if e.Msg == "notification dropped" && fmt.Sprint(e.Attrs["type"]) == string(notify.TypeTicketNew) {
+			dropped++
+		}
+	}
+	if dropped != 6 {
+		t.Fatalf("dropped user events logged at WARN: %d", dropped)
+	}
+
+	notify.Emit(a, notify.AdminLogin(a, notify.Login{Email: "admin@example.com", IsAdmin: true, Method: notify.MethodPasskey, IP: "192.0.2.1"}))
+	notify.EmitSubscriptionLeak(a, &model.User{ID: 2, Email: "leak@example.com"}, 12)
+	notify.Emit(a, notify.Withdraw(a, notify.Withdrawal{Email: "aff@example.com", Amount: 5000, Method: "USDT", Account: "TXexample0000"}))
+	for _, typ := range []notify.Type{notify.TypeAdminLogin, notify.TypeSubscriptionLeak, notify.TypeWithdraw} {
+		waitDelivered(t, f, typ)
+	}
+	if st := notify.Stats(a); st.Failed != 6 {
+		t.Fatalf("a security event was dropped: %+v", st)
+	}
+
+	close(f.block)
+	drain(t, a)
+	if _, admin, _, _ := f.snapshot(); len(admin) != 1+4+3 {
+		t.Fatalf("delivered %d events, want 8", len(admin))
+	}
+}
+
+// When the priority lane itself is full, a security event falls back to the normal lane instead of being dropped.
+func TestFullPriorityLaneFallsBackToNormalLane(t *testing.T) {
+	f := &fake{block: make(chan struct{}), only: notify.TypeAdminLogin, entered: make(chan struct{}, 8)}
+	a := setup(t, f, notify.Options{PrioritySize: 1})
+	login := func() notify.Event {
+		return notify.AdminLogin(a, notify.Login{Email: "admin@example.com", IsAdmin: true, Method: notify.MethodPassword, IP: "192.0.2.1"})
+	}
+	notify.Emit(a, login())
+	<-f.entered             // the priority worker holds the first login
+	notify.Emit(a, login()) // fills the priority lane
+	notify.Emit(a, login()) // normal lane
+	<-f.entered             // ...whose worker picked it up
+	if st := notify.Stats(a); st.Failed != 0 || st.Pending != 3 {
+		t.Fatalf("stats = %+v", st)
+	}
+	close(f.block)
+	drain(t, a)
+	if _, admin, _, _ := f.snapshot(); len(admin) != 3 {
+		t.Fatalf("delivered %d of 3 logins", len(admin))
+	}
+	if !notify.IsPriority(notify.TypeAdminLogin) || notify.IsPriority(notify.TypeTicketNew) || notify.IsPriority(notify.TypeOrderNew) {
+		t.Fatal("IsPriority")
 	}
 }

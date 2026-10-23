@@ -38,6 +38,11 @@ type User struct {
 	PasswordVersion   int            `gorm:"not null;default:0" json:"-"`
 	CreatedAt         time.Time      `gorm:"index" json:"created_at"`
 	UpdatedAt         time.Time      `json:"updated_at"`
+	// EmailVerifiedAt is when whoever controls the account first proved control of its mailbox (email code at
+	// registration or password reset; admin-created and imported accounts count as verified). Null = never: the
+	// account may have been registered with someone else's address, so the first proof is an ownership change
+	// (internal/service/user ReclaimAccount).
+	EmailVerifiedAt *time.Time `gorm:"column:email_verified_at" json:"email_verified_at"`
 }
 
 // Used returns u + d.

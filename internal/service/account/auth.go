@@ -89,24 +89,43 @@ func (s *Service) LoginWithToken(ctx context.Context, token string) (*model.User
 
 // ResetPassword sets a new password after verifying a "forgot" email code. It bumps password_version
 // (every existing session ends) and clears the password lockout of the email.
-func (s *Service) ResetPassword(ctx context.Context, email, code, password string) (*model.User, error) {
+//
+// The code proves control of the mailbox. When the account's email was never verified (registered while
+// email_verify was off, so possibly by someone else with the owner's address), the reset is an ownership
+// change (usersvc.ReclaimAccount): uuid and subscription token are rotated, passkeys, TOTP / backup codes, the
+// Telegram binding and the hosted age key are removed, and email_verified_at is stamped; reclaimed is then true
+// and the caller revokes a pending Telegram bind code.
+func (s *Service) ResetPassword(ctx context.Context, email, code, password string) (u *model.User, reclaimed bool, err error) {
 	email = usersvc.NormalizeEmail(email)
 	if err := s.ConsumeCode(PurposeForgot, email, code); err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	u, err := s.users.FindByEmail(ctx, email)
+	u, err = s.users.FindByEmail(ctx, email)
 	if errors.Is(err, usersvc.ErrNotFound) {
 		// Only the owner of the mailbox gets this far, so naming the problem leaks nothing.
-		return nil, httpx.FieldError("email", "no account is registered with this email")
+		return nil, false, httpx.FieldError("email", "no account is registered with this email")
 	}
 	if err != nil {
-		return nil, err
+		return nil, false, err
+	}
+	if u.EmailVerifiedAt == nil {
+		r, err := s.users.ReclaimAccount(ctx, u, password)
+		if err != nil {
+			return nil, false, err
+		}
+		if r != nil {
+			s.a.Log.Info("account: unverified account reclaimed by the mailbox owner (credentials rotated, second factors removed)",
+				"user_id", u.ID, "passkeys_removed", r.Passkeys, "mfa_removed", r.MFA, "telegram_unbound", r.Telegram, "age_key_removed", r.AgeKey)
+			s.ClearPasswordFailures(email)
+			return u, true, nil
+		}
+		// Verified meanwhile: an ordinary reset.
 	}
 	if err := s.users.SetPassword(ctx, u, password); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	s.ClearPasswordFailures(email)
-	return u, nil
+	return u, false, nil
 }
 
 // ChangePassword verifies oldPassword (counting failures towards the password lockout) and stores
