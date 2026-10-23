@@ -1,6 +1,7 @@
 package rulesets
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -30,6 +31,7 @@ const (
 	MaxRegexInsts   = 256  // compiled program size of one token (matching cost is linear in it)
 	MaxRegexRunes   = 4096 // rune-range entries of one token's program: [\pL\pN]{20} is already ~31000
 	MaxURLLen       = 512
+	MaxProfileBytes = 256 << 10 // stored document (json.Marshal) of one user profile; one at every other limit is ~130 KiB
 	MinInterval     = 10
 	MaxInterval     = 86400
 )
@@ -67,23 +69,65 @@ func ValidGroupName(name string) string {
 	return ""
 }
 
-// regexTooComplex reports whether t is expensive to compile or match (ResolveGroups matches it against every
-// proxy name on every render): bounded repetitions and large Unicode classes such as [\pL\pN]{1000} expand to
-// programs with over a million rune ranges although the pattern is 14 bytes.
-func regexTooComplex(t string) bool {
+// errRegexTooComplex is returned by checkRegex for expressions over MaxRegexInsts or MaxRegexRunes.
+var errRegexTooComplex = errors.New("regular expression is too complex")
+
+// checkRegex validates t like regexp.Compile (returning its syntax error) and refuses expressions that are
+// expensive to match (errRegexTooComplex): group includes and node operations are matched against every proxy
+// name on every render. Bounded repetitions and large Unicode classes expand to big programs although the
+// pattern is short: [\pL\pN]{1000} (14 bytes) has over a million rune ranges, and a 250-byte (?:…){1000}
+// compiles to 240000 instructions in about 10 ms. So the program size is first bounded from below on the parse
+// tree, and only expressions that can still be within the limits are simplified and compiled: refusing costs
+// microseconds, not milliseconds, however many expressions a request carries.
+func checkRegex(t string) error {
 	re, err := syntax.Parse(t, syntax.Perl)
 	if err != nil {
-		return false // reported as invalid elsewhere
+		return err
+	}
+	if insts, runes := progLowerBound(re); insts > MaxRegexInsts || runes > MaxRegexRunes {
+		return errRegexTooComplex
 	}
 	prog, err := syntax.Compile(re.Simplify())
 	if err != nil || len(prog.Inst) > MaxRegexInsts {
-		return true
+		return errRegexTooComplex
 	}
 	runes := 0
 	for _, in := range prog.Inst {
 		runes += len(in.Rune)
 	}
-	return runes > MaxRegexRunes
+	if runes > MaxRegexRunes {
+		return errRegexTooComplex
+	}
+	return nil
+}
+
+// progLowerBound returns lower bounds of the instruction count and of the rune-range entries of the program
+// syntax.Compile(re.Simplify()) builds, without building it. Simplify turns x{n,m} into m copies of x (x{n,}
+// into max(n, 1)) and every copy compiles to its own instructions; a literal compiles to one instruction per
+// rune, a class to one instruction holding all its ranges. Alternation, capture, loop and empty-width
+// instructions are not counted, so the bounds never exceed the real sizes. Both saturate just above
+// MaxRegexRunes.
+func progLowerBound(re *syntax.Regexp) (insts, runes int) {
+	const ceiling = MaxRegexRunes + 1 // above both limits
+	switch re.Op {
+	case syntax.OpLiteral:
+		n := min(len(re.Rune), ceiling)
+		return n, n
+	case syntax.OpCharClass:
+		return 1, min(len(re.Rune), ceiling)
+	case syntax.OpRepeat:
+		copies := re.Max
+		if copies < 0 {
+			copies = max(re.Min, 1)
+		}
+		i, r := progLowerBound(re.Sub[0])
+		return min(i*copies, ceiling), min(r*copies, ceiling) // copies <= 1000: no overflow
+	}
+	for _, sub := range re.Sub {
+		i, r := progLowerBound(sub)
+		insts, runes = min(insts+i, ceiling), min(runes+r, ceiling)
+	}
+	return insts, runes
 }
 
 // validateGroups checks a group list and returns the set of group names. Field names are prefixed with
@@ -147,10 +191,13 @@ func validateGroups(groups []subscription.PolicyGroup, prefix string, errs Field
 				if regexes++; regexes == MaxIncludeRegex+1 {
 					errs.add(f+".include", fmt.Sprintf("at most %d regular expressions across all groups", MaxIncludeRegex))
 				}
-				if _, err := regexp.Compile(t); err != nil {
-					errs.add(f+".include", fmt.Sprintf("%q is neither a group nor a valid regular expression", t))
-				} else if regexTooComplex(t) {
+				if regexes > MaxIncludeRegex {
+					continue // already refused: expressions over the limit are not compiled (bounded work per request)
+				}
+				if err := checkRegex(t); errors.Is(err, errRegexTooComplex) {
 					errs.add(f+".include", fmt.Sprintf("%q is too complex", t))
+				} else if err != nil {
+					errs.add(f+".include", fmt.Sprintf("%q is neither a group nor a valid regular expression", t))
 				}
 			}
 		}

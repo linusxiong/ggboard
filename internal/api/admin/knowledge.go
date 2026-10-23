@@ -105,7 +105,19 @@ func (in *knowledgeInput) updates(create bool) (map[string]any, error) {
 	return m, nil
 }
 
+// knowledgePlaceholderForbidden is the 403 for a staff body with subscription placeholders. They expand to every
+// reader's own subscription URL, whose token staff must not see, and a staff-written body could send it to
+// another host (a remote image or link), so only administrators may write them. The body field error lets the
+// editor show it inline. attrs are logged with the refusal.
+func knowledgePlaceholderForbidden(c *gin.Context, attrs ...any) *httpx.Error {
+	httpx.Logger(c).Warn("admin: staff knowledge body with subscription placeholders refused",
+		append(attrs, "staff_id", auth.CurrentUser(c).ID)...)
+	msg := "only administrators can use the subscription placeholders " + strings.Join(contentsvc.SubscribePlaceholders(), ", ")
+	return httpx.Forbidden(msg).WithField("body", msg)
+}
+
 // knowledgeCreate: POST /admin/knowledge {language*, category*, title*, body*, show? (default true), sort?} → 201 Knowledge.
+// Staff: 403 when the body contains a subscription placeholder.
 func knowledgeCreate(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var in knowledgeInput
@@ -116,6 +128,10 @@ func knowledgeCreate(a *app.App) gin.HandlerFunc {
 		m, err := in.updates(true)
 		if err != nil {
 			httpx.Fail(c, err)
+			return
+		}
+		if body, _ := m["body"].(string); !auth.CurrentUser(c).IsAdmin && contentsvc.HasSubscribePlaceholder(body) {
+			httpx.Fail(c, knowledgePlaceholderForbidden(c))
 			return
 		}
 		var k model.Knowledge
@@ -151,7 +167,9 @@ func knowledgeShow(a *app.App) gin.HandlerFunc {
 	}
 }
 
-// knowledgeUpdate: PATCH /admin/knowledge/:id {any field of knowledgeInput} → Knowledge.
+// knowledgeUpdate: PATCH /admin/knowledge/:id {any field of knowledgeInput} → Knowledge. Staff: 403 when the
+// new body contains a subscription placeholder; sending the stored body back unchanged is allowed (and leaves
+// it alone), so staff can still edit the other fields of an administrator's article in the full-form editor.
 func knowledgeUpdate(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, err := httpx.ParamID(c, "id")
@@ -168,6 +186,18 @@ func knowledgeUpdate(a *app.App) gin.HandlerFunc {
 		if err != nil {
 			httpx.Fail(c, err)
 			return
+		}
+		if body, ok := m["body"].(string); ok && !auth.CurrentUser(c).IsAdmin && contentsvc.HasSubscribePlaceholder(body) {
+			var cur model.Knowledge
+			if err := a.DB.WithContext(c.Request.Context()).Select("id", "body").Where("id = ?", id).First(&cur).Error; err != nil {
+				httpx.Fail(c, err) // 404 when missing
+				return
+			}
+			if cur.Body != body {
+				httpx.Fail(c, knowledgePlaceholderForbidden(c, "knowledge_id", id))
+				return
+			}
+			delete(m, "body") // unchanged: never written by staff, even if an administrator changes it meanwhile
 		}
 		k, err := contentUpdate[model.Knowledge](c, a, id, m)
 		if err != nil {
