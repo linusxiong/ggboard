@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strconv"
 	"strings"
+
+	"github.com/linusxiong/ggboard/internal/console"
 )
 
 // Warning is one "W" line of docs/IMPORT_XBOARD.md: a lossy conversion or something the operator must act on.
@@ -106,27 +109,15 @@ var summaryOrder = [][]string{
 	{"stats"}, {"stat_nodes"}, {"stat_users"},
 }
 
-// WriteSummary prints the summary of §6 followed by the post-import checklist of §7.
-func (r *Report) WriteSummary(w io.Writer) {
-	p := func(format string, args ...any) { _, _ = fmt.Fprintf(w, format, args...) }
-	mig := fmt.Sprintf("migrations %d", r.Migrations)
-	if r.LastMigration != "" {
-		mig += " (last " + r.LastMigration + ")"
-	}
-	p("Xboard import — source %s · flavor %s · %s\n", r.Source, r.Flavor, mig)
-	mode := "COMMITTED"
-	if r.DryRun {
-		mode = "DRY-RUN (rolled back)"
-	}
-	if r.Force {
-		mode += " · --force (target tables cleared first)"
-	}
-	stats := "off"
-	if r.WithStats {
-		stats = fmt.Sprintf("last %d days", r.StatsDays)
-	}
-	p("mode: %s · target %s · source-tz %s · stats: %s\n", mode, r.Target, r.SourceTZ, stats)
-	p("%-20s %8s %9s %8s\n", "table", "source", "imported", "skipped")
+// summaryRow is one display line of the table: a table, or a pair of tables ("tickets / messages", "97/402").
+type summaryRow struct {
+	name, source, imported string
+	skipped                int
+	note                   string
+}
+
+func (r *Report) rows() []summaryRow {
+	var out []summaryRow
 	for _, names := range summaryOrder {
 		var lines []*TableStat
 		for _, n := range names {
@@ -139,44 +130,152 @@ func (r *Report) WriteSummary(w io.Writer) {
 			continue
 		case 1:
 			t := lines[0]
-			p("%-20s %8d %9d %8d", t.Name, t.Source, t.Imported, t.Skipped)
-			if t.Note != "" {
-				p("   %s", t.Note)
-			}
-			p("\n")
+			out = append(out, summaryRow{t.Name, strconv.Itoa(t.Source), strconv.Itoa(t.Imported), t.Skipped, t.Note})
 		default:
 			a, b := lines[0], lines[1]
-			p("%-20s %8s %9s %8d", a.Name+" / "+trimPlural(b.Name),
-				fmt.Sprintf("%d/%d", a.Source, b.Source), fmt.Sprintf("%d/%d", a.Imported, b.Imported), a.Skipped+b.Skipped)
 			var notes []string
 			for _, t := range lines {
 				if t.Note != "" {
 					notes = append(notes, t.Note)
 				}
 			}
-			if len(notes) > 0 {
-				p("   %s", strings.Join(notes, " · "))
-			}
-			p("\n")
+			out = append(out, summaryRow{
+				a.Name + " / " + trimPlural(b.Name),
+				fmt.Sprintf("%d/%d", a.Source, b.Source), fmt.Sprintf("%d/%d", a.Imported, b.Imported),
+				a.Skipped + b.Skipped, strings.Join(notes, " · "),
+			})
 		}
 	}
-	if len(r.SkippedTables) > 0 {
-		parts := make([]string, 0, len(r.SkippedTables))
-		for _, s := range r.SkippedTables {
-			if s.Rows > 0 || s.Table == "v2_order" {
-				parts = append(parts, fmt.Sprintf("%s %d rows", s.Table, s.Rows))
-			}
+	return out
+}
+
+func (r *Report) migrationsLine() string {
+	mig := fmt.Sprintf("migrations %d", r.Migrations)
+	if r.LastMigration != "" {
+		mig += " (last " + r.LastMigration + ")"
+	}
+	return mig
+}
+
+func (r *Report) statsLine() string {
+	if r.WithStats {
+		return fmt.Sprintf("last %d days", r.StatsDays)
+	}
+	return "off"
+}
+
+// notImported lists the skipped source tables worth mentioning (§4.15): every one with rows, and v2_order always.
+func (r *Report) notImported() []string {
+	var parts []string
+	for _, s := range r.SkippedTables {
+		if s.Rows > 0 || s.Table == "v2_order" {
+			parts = append(parts, fmt.Sprintf("%s %d rows", s.Table, s.Rows))
 		}
-		if len(parts) > 0 {
-			p("not imported (§4.15): %s\n", strings.Join(parts, ", "))
+	}
+	return parts
+}
+
+const dryRunNote = "dry run: nothing was written. Read every warning above, then run again without --dry-run."
+
+// WriteSummary prints the plain-text summary of §6 followed by the post-import checklist of §7.
+func (r *Report) WriteSummary(w io.Writer) {
+	p := func(format string, args ...any) { _, _ = fmt.Fprintf(w, format, args...) }
+	p("Xboard import — source %s · flavor %s · %s\n", r.Source, r.Flavor, r.migrationsLine())
+	mode := "COMMITTED"
+	if r.DryRun {
+		mode = "DRY-RUN (rolled back)"
+	}
+	if r.Force {
+		mode += " · --force (target tables cleared first)"
+	}
+	p("mode: %s · target %s · source-tz %s · stats: %s\n", mode, r.Target, r.SourceTZ, r.statsLine())
+	p("%-20s %8s %9s %8s\n", "table", "source", "imported", "skipped")
+	for _, row := range r.rows() {
+		p("%-20s %8s %9s %8d", row.name, row.source, row.imported, row.skipped)
+		if row.note != "" {
+			p("   %s", row.note)
 		}
+		p("\n")
+	}
+	if parts := r.notImported(); len(parts) > 0 {
+		p("not imported (§4.15): %s\n", strings.Join(parts, ", "))
 	}
 	p("warnings (%d):\n", len(r.Warnings))
 	for _, wn := range r.Warnings {
 		p("  %s\n", wn.String())
 	}
 	p("\n")
-	r.writeChecklist(w)
+	if r.DryRun {
+		p("%s\n\n", dryRunNote)
+	}
+	p("post-import checklist (docs/IMPORT_XBOARD.md §7):\n")
+	for i, item := range r.checklist() {
+		p("  %d. %s\n", i+1, item)
+	}
+}
+
+// Print writes the summary to out: WriteSummary's plain text for pipes and files (scripts and the docs rely on
+// it), a styled report with the same content on a terminal.
+func (r *Report) Print(out *console.Printer) {
+	if !out.Pretty() {
+		r.WriteSummary(out.Writer())
+		return
+	}
+	mode := out.Good("COMMITTED")
+	if r.DryRun {
+		mode = out.Caution("DRY RUN") + " " + out.Faint("rolled back")
+	}
+	out.Println()
+	out.Println("  " + out.Bold("Xboard import") + "  " + mode)
+	out.Println()
+	fields := []console.Field{
+		{Key: "Source", Value: out.Text(r.Source) + out.Faint(" · flavor ") + out.Text(string(r.Flavor)) + out.Faint(" · ") + out.Text(r.migrationsLine())},
+		{Key: "Target", Value: out.Text(r.Target) + out.Faint(" · source-tz ") + out.Text(r.SourceTZ) + out.Faint(" · stats ") + r.statsLine()},
+	}
+	if r.Force {
+		fields = append(fields, console.Field{Key: "Force", Value: out.Caution("target tables were cleared first")})
+	}
+	out.Fields(2, fields)
+	out.Println()
+
+	var rows [][]string
+	var notes []string
+	for _, row := range r.rows() {
+		skipped := strconv.Itoa(row.skipped)
+		if row.skipped > 0 {
+			skipped = out.Caution(skipped)
+		}
+		rows = append(rows, []string{row.name, row.source, row.imported, skipped})
+		notes = append(notes, out.Faint(row.note))
+	}
+	out.Table([]string{"table", "source", "imported", "skipped"}, rows,
+		console.TableOptions{Indent: 2, Right: []int{1, 2, 3}, Notes: notes})
+	if parts := r.notImported(); len(parts) > 0 {
+		out.Println()
+		out.Println("  " + out.Faint("Not imported (§4.15): ") + out.Text(strings.Join(parts, ", ")))
+	}
+
+	out.Println()
+	if len(r.Warnings) == 0 {
+		out.Println("  " + out.Good(console.SymbolSuccess) + " No warnings")
+	} else {
+		out.Println("  " + out.Caution(console.SymbolWarning) + " " + out.Bold(fmt.Sprintf("Warnings (%d)", len(r.Warnings))))
+		for _, wn := range r.Warnings {
+			out.Println("    " + out.Faint("["+wn.Scope+"]") + " " + out.Text(wn.Message))
+		}
+	}
+	out.Println()
+	if r.DryRun {
+		out.Println("  " + out.Caution("Dry run: nothing was written.") + " Read every warning above, then run again without --dry-run.")
+		out.Println()
+	}
+	out.Println("  " + out.Bold("Post-import checklist") + " " + out.Faint("(docs/IMPORT_XBOARD.md §7)"))
+	items := r.checklist()
+	width := len(strconv.Itoa(len(items)))
+	for i, item := range items {
+		out.Println("    " + out.Accent(fmt.Sprintf("%*d.", width, i+1)) + " " + out.Text(item))
+	}
+	out.Println()
 }
 
 func trimPlural(s string) string {
@@ -186,20 +285,13 @@ func trimPlural(s string) string {
 	return s
 }
 
-func (r *Report) writeChecklist(w io.Writer) {
-	p := func(format string, args ...any) { _, _ = fmt.Fprintf(w, format, args...) }
-	if r.DryRun {
-		p("dry run: nothing was written. Read every warning above, then run again without --dry-run.\n\n")
-	}
+// checklist returns the post-import checklist of §7 filled with this run's specifics.
+func (r *Report) checklist() []string {
+	var items []string
+	item := func(format string, args ...any) { items = append(items, fmt.Sprintf(format, args...)) }
 	host := strings.TrimRight(r.AppURL, "/")
 	if host == "" {
 		host = "https://<host>"
-	}
-	p("post-import checklist (docs/IMPORT_XBOARD.md §7):\n")
-	n := 0
-	item := func(format string, args ...any) {
-		n++
-		p("  %d. %s\n", n, fmt.Sprintf(format, args...))
 	}
 	if r.AppURL == "" {
 		item("Set app_url in Admin → Settings → Site: Xboard had none, and subscription links and payment notify URLs are built from it.")
@@ -240,4 +332,5 @@ func (r *Report) writeChecklist(w io.Writer) {
 		item("Content: %d knowledge articles use <!--access start--> blocks; ggboard hides them for users without an active plan (review the wording).", r.AccessArticles)
 	}
 	item("Keep the Xboard database as a read-only backup; the importer never modified it.")
+	return items
 }

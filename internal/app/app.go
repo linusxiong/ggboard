@@ -18,6 +18,7 @@ import (
 	"github.com/linusxiong/ggboard/internal/app/traffic"
 	"github.com/linusxiong/ggboard/internal/cache"
 	"github.com/linusxiong/ggboard/internal/config"
+	"github.com/linusxiong/ggboard/internal/console"
 	"github.com/linusxiong/ggboard/internal/db"
 	"github.com/linusxiong/ggboard/internal/logx"
 	"github.com/linusxiong/ggboard/internal/mail"
@@ -105,7 +106,13 @@ func (a *App) Init(cfg *config.Config, opts ...Option) (err error) {
 
 	if o.log == nil {
 		ring := logx.NewRing(0)
-		log, lerr := logx.New(cfg.Log.Level, cfg.Log.Format, os.Stderr, ring)
+		var lopts []logx.Option
+		// Decided once here, never per record: a terminal gets tint's layout (coloured unless NO_COLOR /
+		// log.color=never); systemd, docker and files keep slog's logfmt.
+		if st := console.Detect(cfg.Log.Color, os.Stderr); st.Pretty {
+			lopts = append(lopts, logx.Pretty(st.Color))
+		}
+		log, lerr := logx.New(cfg.Log.Level, cfg.Log.Format, os.Stderr, ring, lopts...)
 		if lerr != nil {
 			return fmt.Errorf("app: logger: %w", lerr)
 		}

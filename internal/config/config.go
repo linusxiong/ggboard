@@ -66,6 +66,9 @@ type JWTConfig struct {
 type LogConfig struct {
 	Level  string `mapstructure:"level"`  // debug | info | warn | error
 	Format string `mapstructure:"format"` // text | json
+	// Color controls ANSI colours and the terminal layout of text logs and CLI output: auto (a terminal without
+	// NO_COLOR) | always | never. See package console; JSON logs are never affected.
+	Color string `mapstructure:"color"`
 }
 
 // FrontendConfig optionally overrides the embedded SPA with a directory on disk.
@@ -90,6 +93,7 @@ var FlagKeys = map[string]string{
 	"data-dir":   "data_dir",
 	"log-level":  "log.level",
 	"log-format": "log.format",
+	"color":      "log.color",
 	"db-driver":  "database.driver",
 	"db-dsn":     "database.dsn",
 }
@@ -104,6 +108,7 @@ func defaults(v *viper.Viper) {
 	v.SetDefault("jwt.ttl", "168h")
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.format", "text")
+	v.SetDefault("log.color", "auto")
 	v.SetDefault("frontend.dir", "")
 	v.SetDefault("data_dir", "./data")
 }
@@ -164,6 +169,7 @@ func (c *Config) finalize(log *slog.Logger) error {
 	c.Database.Driver = strings.ToLower(strings.TrimSpace(c.Database.Driver))
 	c.Log.Level = strings.ToLower(strings.TrimSpace(c.Log.Level))
 	c.Log.Format = strings.ToLower(strings.TrimSpace(c.Log.Format))
+	c.Log.Color = strings.ToLower(strings.TrimSpace(c.Log.Color))
 	c.Server.TrustedProxies = cleanList(c.Server.TrustedProxies)
 	c.Server.CORSOrigins = cleanList(c.Server.CORSOrigins)
 	if c.DataDir == "" {
@@ -201,6 +207,11 @@ func (c *Config) Validate() error {
 	case "text", "json":
 	default:
 		errs = append(errs, fmt.Errorf("log.format %q must be text or json", c.Log.Format))
+	}
+	switch c.Log.Color {
+	case "", "auto", "always", "never":
+	default:
+		errs = append(errs, fmt.Errorf("log.color %q must be auto, always or never", c.Log.Color))
 	}
 	if c.JWT.TTL <= 0 {
 		errs = append(errs, errors.New("jwt.ttl must be positive"))

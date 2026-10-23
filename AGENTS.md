@@ -59,6 +59,7 @@ GG Bond（猪猪侠谐音）是一个 **简洁、美观、高性能** 的代理�
 | 配置 | `github.com/spf13/viper`（YAML + 环境变量 `GGBOARD_*`） |
 | CLI | `github.com/spf13/cobra` |
 | 日志 | 标准库 `log/slog`（JSON / text） |
+| 终端输出 | `github.com/lmittmann/tint`（终端上的 slog text handler）、`charm.land/lipgloss/v2`（CLI 排版）、`golang.org/x/term`（TTY 检测）；见 `internal/console` |
 | 校验 | `github.com/go-playground/validator/v10`（gin binding） |
 | JWT | `github.com/golang-jwt/jwt/v5` |
 | 密码 | `golang.org/x/crypto/bcrypt`（兼容 Xboard 的 `$2y$`）与 `argon2id`（新用户） |
@@ -102,6 +103,7 @@ internal/
   settings/             键值设置服务（defs.go 为键表，带默认值与缓存）
   cache/                进程内缓存封装 (ristretto + TTLMap)
   logx/                 slog 处理器 + 日志环形缓冲
+  console/              终端样式判断（--color / log.color / NO_COLOR）+ CLI 输出打印器（lipgloss）
   mail/                 邮件接口 + SMTP/log 驱动 + 模板
   notify/               通知队列与事件；notify/telegram/ Telegram 机器人驱动
   captcha/              验证码插件 (none / turnstile / recaptcha / hcaptcha)

@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"sync"
 
@@ -23,6 +24,8 @@ import (
 
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/config"
+	"github.com/linusxiong/ggboard/internal/console"
+	"github.com/linusxiong/ggboard/internal/logx"
 )
 
 // AnnotationNoApp marks commands that run without an initialized App (set it to "true").
@@ -76,19 +79,33 @@ func NewRoot(version string) (*cobra.Command, *app.App) {
 	pf.String("data-dir", "", "data directory (default ./data)")
 	pf.String("log-level", "", "log level: debug|info|warn|error")
 	pf.String("log-format", "", "log format: text|json")
+	pf.String("color", "", "colours and terminal layout: auto|always|never (default auto; NO_COLOR disables auto)")
 	pf.String("db-driver", "", "database driver: sqlite|postgres|mysql")
 	pf.String("db-dsn", "", "database DSN")
 
 	root.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
+		if f := cmd.Flags().Lookup("color"); f != nil && f.Changed && !console.ValidColor(f.Value.String()) {
+			return fmt.Errorf("--color %q must be auto, always or never", f.Value.String())
+		}
 		if !needsApp(cmd) || a.Cfg != nil {
 			return nil
 		}
 		file, _ := cmd.Flags().GetString("config")
-		cfg, err := config.Load(config.Options{File: file, Flags: cmd.Flags()})
+		// config.Load may log (a generated jwt.secret) before the configured logger exists: hold those records and
+		// replay them through it, so they get the configured format and reach the ring buffer.
+		early := logx.NewBuffer()
+		cfg, err := config.Load(config.Options{File: file, Flags: cmd.Flags(), Logger: slog.New(early)})
+		if err == nil {
+			err = a.Init(cfg, app.WithVersion(version))
+		}
+		replayEarly(cmd, a, early)
 		if err != nil {
 			return err
 		}
-		return a.Init(cfg, app.WithVersion(version))
+		// Packages that log through slog.Default (and the standard log package) now share the configured format
+		// and the ring buffer instead of printing in the standard library's own format.
+		slog.SetDefault(a.Log)
+		return nil
 	}
 
 	root.AddCommand(serveCmd(a), migrateCmd(a), adminCmd(a), versionCmd(version))
@@ -111,15 +128,57 @@ func Run(ctx context.Context, version string, args []string, stdout, stderr io.W
 	root.SetArgs(args)
 	root.SetOut(stdout)
 	root.SetErr(stderr)
-	err := root.ExecuteContext(ctx)
+	cmd, err := root.ExecuteContextC(ctx)
 	if a.Cfg != nil {
 		if cerr := a.Close(context.Background()); cerr != nil && !errors.Is(cerr, context.Canceled) {
 			err = errors.Join(err, cerr)
 		}
 	}
 	if err != nil {
-		fmt.Fprintln(stderr, "error:", err)
+		p := console.New(stderr, console.Detect(colorMode(cmd, a), stderr))
+		p.Failure(p.Bad("error:") + " " + p.Text(err.Error()))
 		return 1
 	}
 	return 0
+}
+
+// Output returns a printer for cmd's standard output in the style chosen by --color / log.color (package
+// console): plain lines for pipes and files, the pretty layout on a terminal. Commands print their results with it.
+func Output(cmd *cobra.Command, a *app.App) *console.Printer {
+	w := cmd.OutOrStdout()
+	return console.New(w, console.Detect(colorMode(cmd, a), w))
+}
+
+// colorMode is log.color once the configuration is loaded; before that (version, help, a configuration error)
+// it is the --color flag, else GGBOARD_LOG_COLOR.
+func colorMode(cmd *cobra.Command, a *app.App) string {
+	if a != nil && a.Cfg != nil {
+		return a.Cfg.Log.Color
+	}
+	if cmd != nil {
+		if f := cmd.Flags().Lookup("color"); f != nil && f.Changed {
+			return f.Value.String()
+		}
+	}
+	return os.Getenv(config.EnvPrefix + "_LOG_COLOR")
+}
+
+// replayEarly sends the records logged during config.Load to the App's logger, or, when initialization failed
+// before it existed, to a text logger on stderr.
+func replayEarly(cmd *cobra.Command, a *app.App, early *logx.Buffer) {
+	if early.Len() == 0 {
+		return
+	}
+	log := a.Log
+	if log == nil {
+		var opts []logx.Option
+		if st := console.Detect(colorMode(cmd, nil), os.Stderr); st.Pretty {
+			opts = append(opts, logx.Pretty(st.Color))
+		}
+		var err error
+		if log, err = logx.New("info", "text", os.Stderr, nil, opts...); err != nil {
+			return
+		}
+	}
+	_ = early.Replay(context.Background(), log.Handler())
 }

@@ -153,6 +153,7 @@ panel.example.com {
 | `jwt.ttl` | `GGBOARD_JWT_TTL` | | `168h` | 会话有效期（Go duration，必须 > 0） |
 | `log.level` | `GGBOARD_LOG_LEVEL` | `--log-level` | `info` | `debug` / `info` / `warn` / `error` |
 | `log.format` | `GGBOARD_LOG_FORMAT` | `--log-format` | `text` | `text` / `json` |
+| `log.color` | `GGBOARD_LOG_COLOR` | `--color` | `auto` | 终端颜色与排版：`auto`（输出是终端且未设 `NO_COLOR` 时着色）/ `always`（管道、文件也着色并用终端排版，优先于 `NO_COLOR`）/ `never`（不着色，终端仍对齐排版）。不影响 JSON 日志，见第 9、10 节 |
 | `frontend.dir` | `GGBOARD_FRONTEND_DIR` | | 空 | 从该目录提供 SPA，代替内嵌产物（目录必须存在） |
 | `data_dir` | `GGBOARD_DATA_DIR` | `--data-dir` | `./data` | SQLite 库与 `jwt.secret` 所在目录，启动时以 0700 创建 |
 
@@ -242,7 +243,7 @@ docker compose -f deploy/docker-compose.yml start
 1. 备份（见上）。
 2. Docker：`git pull && docker compose -f deploy/docker-compose.yml up -d --build`。
    二进制：`git pull && make web && make build`，替换 `/usr/local/bin/ggboard`，`systemctl restart ggboard`。
-3. 新版本启动时自动迁移数据库；`ggboard migrate` 可在不启动服务的情况下单独执行迁移（打印 `database migrated (<driver>)`）。
+3. 新版本启动时自动迁移数据库；`ggboard migrate` 可在不启动服务的情况下单独执行迁移（打印 `database migrated (<driver>)`，终端里前面带 `✓`）。
 4. `ggboard version` / `GET /healthz` 确认版本。
 
 迁移只增不删（AutoMigrate 不删除列）；回滚到旧二进制前请先恢复备份。
@@ -252,7 +253,7 @@ docker compose -f deploy/docker-compose.yml start
 
 ## 9. 命令行 / CLI
 
-全局参数：`-c/--config`、`--data-dir`、`--log-level`、`--log-format`、`--db-driver`、`--db-dsn`。
+全局参数：`-c/--config`、`--data-dir`、`--log-level`、`--log-format`、`--color`、`--db-driver`、`--db-dsn`。
 除 `version`、`help`、`completion` 外，每个命令执行前都会加载配置并迁移数据库。
 
 | 命令 | 作用 |
@@ -265,10 +266,33 @@ docker compose -f deploy/docker-compose.yml start
 | `ggboard import xboard --dsn DSN [--driver] [--dry-run] [--force] [--with-stats] [--stats-days N] [--source-tz TZ]` | 从 Xboard 导入，见 [IMPORT_XBOARD.md](IMPORT_XBOARD.md) |
 | `ggboard version` | 打印版本、Go 版本与平台 |
 
+**终端输出 / Terminal output**。每个输出流在启动时判断一次（不是每条日志都判断）：
+
+| 输出到 | 日志（`log.format: text`） | 命令输出（`version`、`migrate`、`admin …`、导入报告、启动摘要） |
+| --- | --- | --- |
+| 终端 | [tint](https://github.com/lmittmann/tint) 彩色对齐：时间变暗、`INF`/`WRN`/`ERR` 着色、键名变淡、错误值红色、4xx/5xx 状态码黄/红 | [lipgloss](https://github.com/charmbracelet/lipgloss) 排版：结果行以 `✓` / `!` / `✗` 开头，导入报告是表格 |
+| 终端 + `NO_COLOR` / `--color=never` / `TERM=dumb` | 同上的对齐格式，不含任何 ANSI 转义 | 同上的排版，不含 ANSI 转义 |
+| 文件、管道、systemd、docker | slog 原样的 `key=value`（logfmt），无 ANSI 转义 | 逐行纯文本，命令结果与旧版逐字相同（`database migrated (sqlite)`、`generated password: …`、导入报告），便于脚本解析；启动摘要是对齐的纯文本 |
+| 任意 + `--color=always` | 彩色对齐 | 彩色排版 |
+
+`log.format: json` 的日志永远是 slog 的 JSON，与终端无关。颜色开关只有一个：`--color` / `GGBOARD_LOG_COLOR` / `log.color`
+（`auto|always|never`），并遵守 [`NO_COLOR`](https://no-color.org)（非空即在 `auto` 下关闭颜色，`--color=always` 优先）。
+`version` 不读配置文件，只看 `--color` 与 `GGBOARD_LOG_COLOR`。错误一律写到 stderr（终端里是 `✗ error: …`，否则 `error: …`），退出码 1。
+
+`serve` 开始监听后打印启动摘要：版本与启动耗时、本机访问地址、站点 URL（`app_url`）、数据库（驱动 + SQLite 文件或主机/库名，
+**不含用户名、口令与参数**）、数据目录、日志级别与格式、前端来源、支付网关数与已启用的支付方式数、已启用的通知渠道、定时任务数；
+还没有管理员时提示 `ggboard admin create`。`log.format: json` 时不打印摘要（输出保持全是 JSON，启动信息见 `ggboard listening` 记录）。
+
+*Each stream is classified once at startup. Terminal: colourful aligned logs (tint) and styled command output (lipgloss).
+Files, pipes, systemd and docker: slog's logfmt and plain lines (command results unchanged), never an ANSI escape. JSON logs keep slog's format.
+One switch, `--color` / `GGBOARD_LOG_COLOR` / `log.color` (auto|always|never), plus `NO_COLOR`.*
+
 ## 10. 健康检查与日志 / Health and logs
 
 - `GET /healthz` → `200 {"data":{"status":"ok","version":"…","uptime":"…"}}`，不需要鉴权，适合做存活探针。
   （distroless 镜像里没有可执行 HTTP 探测的工具，Dockerfile 未定义 `HEALTHCHECK`，请在外部监控里探测。）
-- 日志写到 stderr（`journalctl -u ggboard` / `docker compose logs`），`log.format: json` 便于采集。
+- 日志写到 stderr（`journalctl -u ggboard` / `docker compose logs`），`log.format: json` 便于采集。终端里 text 格式彩色对齐，
+  非终端是 logfmt（见第 9 节“终端输出”）。读取配置期间产生的日志（如首次生成 `jwt.secret` 的提示）会在 logger 建好后按配置的
+  格式与级别补发（JSON 模式下也是 JSON），通过 `slog.Default` 打出的日志同样走配置的格式并进入后台日志页。
   访问日志记录**路由模板**（如 `/s/:token`）而不是实际路径，避免订阅 token 进日志。
 - 后台 **系统状态** 页（`/admin/system`）可以看到最近 1000 条日志（内存环形缓冲，重启后清空）、任务与邮件队列状态。

@@ -18,6 +18,7 @@ import (
 
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/auth"
+	"github.com/linusxiong/ggboard/internal/console"
 	"github.com/linusxiong/ggboard/internal/model"
 	"github.com/linusxiong/ggboard/internal/router"
 	usersvc "github.com/linusxiong/ggboard/internal/service/user"
@@ -31,7 +32,7 @@ func serveCmd(a *app.App) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-			return Serve(ctx, a)
+			return serve(ctx, a, Output(cmd, a))
 		},
 	}
 	cmd.Flags().String("addr", "", "listen address, e.g. :8080 (overrides server.addr)")
@@ -39,7 +40,11 @@ func serveCmd(a *app.App) *cobra.Command {
 }
 
 // Serve runs the server until ctx is cancelled, then shuts down gracefully (10s drain). The caller closes a.
-func Serve(ctx context.Context, a *app.App) error {
+func Serve(ctx context.Context, a *app.App) error { return serve(ctx, a, nil) }
+
+// serve is Serve that also prints the startup summary to out (when non-nil and the log format is not JSON, whose
+// stream must stay machine-readable: the "ggboard listening" record carries the essentials there).
+func serve(ctx context.Context, a *app.App, out *console.Printer) error {
 	handler, err := router.New(a)
 	if err != nil {
 		return err
@@ -58,6 +63,9 @@ func Serve(ctx context.Context, a *app.App) error {
 		ErrorLog:          slog.NewLogLogger(a.Log.Handler(), slog.LevelWarn),
 	}
 	a.Start()
+	if out != nil && a.Cfg.Log.Format != "json" {
+		printSummary(ctx, out, a, ln.Addr())
+	}
 	a.Log.Info("ggboard listening", "addr", ln.Addr().String(), "version", a.Version, "db", a.DBDriver())
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.Serve(ln) }()
@@ -81,7 +89,8 @@ func migrateCmd(a *app.App) *cobra.Command {
 		Short: "Create or update the database schema",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			// The App runs migrations during initialization.
-			fmt.Fprintf(cmd.OutOrStdout(), "database migrated (%s)\n", a.DBDriver())
+			p := Output(cmd, a)
+			p.Success("database migrated " + p.Faint("("+a.DBDriver()+")"))
 			return nil
 		},
 	}
@@ -93,7 +102,9 @@ func versionCmd(version string) *cobra.Command {
 		Short:       "Print the version",
 		Annotations: map[string]string{AnnotationNoApp: "true"},
 		Run: func(cmd *cobra.Command, _ []string) {
-			fmt.Fprintf(cmd.OutOrStdout(), "ggboard %s (%s %s/%s)\n", version, runtime.Version(), runtime.GOOS, runtime.GOARCH)
+			p := Output(cmd, nil)
+			p.Println(p.Bold("ggboard") + " " + p.Accent(version) + " " +
+				p.Faint("("+runtime.Version()+" "+runtime.GOOS+"/"+runtime.GOARCH+")"))
 		},
 	}
 }
@@ -127,10 +138,9 @@ func adminCmd(a *app.App) *cobra.Command {
 			if staff {
 				role = "staff"
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "created %s %s (id %d)\n", role, u.Email, u.ID)
-			if generated {
-				fmt.Fprintf(cmd.OutOrStdout(), "generated password: %s\n", pw)
-			}
+			p := Output(cmd, a)
+			p.Success("created " + role + " " + p.Bold(u.Email) + " " + p.Faint(fmt.Sprintf("(id %d)", u.ID)))
+			printGenerated(p, pw, generated)
 			return nil
 		},
 	}
@@ -156,10 +166,9 @@ func adminCmd(a *app.App) *cobra.Command {
 			if err := svc.SetPassword(cmd.Context(), u, pw); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "password updated for %s\n", u.Email)
-			if generated {
-				fmt.Fprintf(cmd.OutOrStdout(), "generated password: %s\n", pw)
-			}
+			p := Output(cmd, a)
+			p.Success("password updated for " + p.Bold(u.Email))
+			printGenerated(p, pw, generated)
 			return nil
 		},
 	}
@@ -181,7 +190,8 @@ func adminCmd(a *app.App) *cobra.Command {
 				return err
 			}
 			auth.InvalidateUser(a, u.ID)
-			fmt.Fprintf(cmd.OutOrStdout(), "%s is now an administrator\n", u.Email)
+			p := Output(cmd, a)
+			p.Success(p.Bold(u.Email) + " is now an administrator")
 			return nil
 		},
 	}
@@ -190,6 +200,17 @@ func adminCmd(a *app.App) *cobra.Command {
 
 	cmd.AddCommand(create, reset, promote)
 	return cmd
+}
+
+// printGenerated shows a generated password ("generated password: …" stays one plain line for scripts).
+func printGenerated(p *console.Printer, pw string, generated bool) {
+	if !generated {
+		return
+	}
+	p.Warning("generated password: " + p.Bold(pw))
+	if p.Pretty() {
+		p.Println("  " + p.Faint("Shown only once: store it in a password manager now."))
+	}
 }
 
 func passwordOrRandom(pw string) (string, bool, error) {

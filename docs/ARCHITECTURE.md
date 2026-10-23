@@ -39,14 +39,17 @@ batched DB writes.
 2. `config.Load` reads values with precedence flags > env `GGBOARD_*` > config file > defaults. The config file is
    `--config`/`-c`, else `$GGBOARD_CONFIG`, else `./config.yaml` when present.
    - Keys: `server.addr`, `server.trusted_proxies[]`, `server.cors_origins[]`, `database.driver`
-     (sqlite\|postgres\|mysql), `database.dsn`, `jwt.secret`, `jwt.ttl` (default 168h), `log.level`, `log.format`,
+     (sqlite\|postgres\|mysql), `database.dsn`, `jwt.secret`, `jwt.ttl` (default 168h), `log.level`, `log.format`, `log.color`,
      `frontend.dir`, `data_dir` (default `./data`, created with mode 0700).
    - The SQLite DSN defaults to `<data_dir>/ggboard.db`.
    - An empty `jwt.secret` is generated once into `<data_dir>/jwt.secret` (0600). A configured or persisted secret that
      is a known placeholder, shorter than 32 bytes or made of fewer than 8 distinct characters fails `config.Load`.
 3. `app.Init` builds the dependency container `*app.App{Cfg, DB, Settings, Cache, KV, Mailer, Log, Logs, Version,
    StartedAt, Online, Traffic, Scheduler}` in this order:
-   1. logger (`logx`, with a ring buffer for `/admin/system/logs`)
+   1. logger (`logx`, with a ring buffer for `/admin/system/logs`). Text logs use tint on a terminal and slog's logfmt
+      elsewhere; `console.Detect(log.color, os.Stderr)` decides once (`NO_COLOR`, `TERM=dumb`, `--color`). JSON is unchanged.
+      Records that `config.Load` logs before this logger exists are held in a `logx.Buffer` and replayed into it, and the
+      CLI makes it `slog.Default`.
    2. `db.Open`:
       - SQLite: WAL, `busy_timeout(5000)`, `foreign_keys(1)`, `synchronous(NORMAL)`, `_txlock=immediate`, 8 connections,
         UTC time parameters
@@ -85,7 +88,10 @@ batched DB writes.
 | `ggboard import xboard --dsn … [--driver] [--dry-run] [--force] [--with-stats] [--stats-days N] [--source-tz TZ]` | Xboard import, see docs/IMPORT_XBOARD.md |
 | `ggboard version` | print the version (no config or DB needed) |
 
-Global flags: `-c/--config`, `--data-dir`, `--log-level`, `--log-format`, `--db-driver`, `--db-dsn`.
+Global flags: `-c/--config`, `--data-dir`, `--log-level`, `--log-format`, `--color`, `--db-driver`, `--db-dsn`.
+
+Commands print through `cli.Output(cmd, a)` (a `console.Printer`): plain lines for pipes and files, symbols, colours and
+tables (lipgloss) on a terminal. `serve` prints a startup summary unless `log.format` is `json` (docs/DEPLOY.md §9).
 
 ## HTTP conventions (`internal/httpx`)
 

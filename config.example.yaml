@@ -31,6 +31,9 @@ jwt:
 log:
   level: info   # debug | info | warn | error
   format: text  # text | json
+  # Colours and terminal layout of text logs and CLI output: auto | always | never. auto colours a terminal unless
+  # NO_COLOR is set; files, pipes, systemd and docker always get plain text. JSON logs are never affected.
+  color: auto
 
 frontend:
   # Serve the SPA from this directory instead of the copy embedded in the binary (optional).

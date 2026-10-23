@@ -17,6 +17,7 @@ internal/
   captcha/     none / turnstile / recaptcha / hcaptcha
   cli/         cobra root: serve, migrate, admin, version (+ registered subcommands)
   config/      viper configuration
+  console/     terminal style detection (--color / log.color / NO_COLOR) and the lipgloss printer for CLI output
   db/          gorm open (sqlite/postgres/mysql), AutoMigrate and idempotent schema upgrades (upgrade.go)
   httpx/       engine, middleware, responses, errors, binding, pagination, rate limits, gzip
   importer/xboard/                              `ggboard import xboard`
@@ -196,6 +197,10 @@ Brand (`app_name`, `app_url`, `logo`) and locale (`default_locale`, zh-CN/en) co
 - Subcommands: put `func init() { cli.Register(func(a *app.App) *cobra.Command { … }) }` in your package, plus a file in
   `cmd/ggboard/` that blank-imports it (e.g. `import.go` → `internal/importer/xboard`). `a` is initialized (config
   loaded, DB migrated) before `RunE`, unless the command sets the `cli.AnnotationNoApp` annotation.
+- Command output: `p := cli.Output(cmd, a)`, then `p.Success(…)`, `p.Warning(…)`, `p.Fields(…)`, `p.Table(…)`; build text
+  with `p.Bold/Faint/Accent/Good/Caution/Bad/Text(s)`, which clean untrusted text (no escape sequences reach the
+  terminal). Never `fmt.Print` to stdout: the printer keeps plain, script-friendly lines for pipes and files and styles
+  only terminals. Errors are returned from `RunE` (printed by `cli.Run` on stderr, exit code 1).
 - Plugin packages are blank-imported the same way (`cmd/ggboard/plugins_payment.go` → `internal/payment/gateways`,
   `cmd/ggboard/plugins_notify.go` → `internal/notify/telegram`). Subscription formats are linked by `internal/api/client`.
 

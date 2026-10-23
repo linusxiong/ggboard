@@ -567,6 +567,13 @@ warnings (4):
 next: docs/IMPORT_XBOARD.md §7 post-import checklist
 ```
 
+The format above is what stdout gets when it is a file or a pipe. On a terminal the same content is styled (lipgloss,
+docs/DEPLOY.md §9 "Terminal output"): a `DRY RUN` / `COMMITTED` badge, an aligned table with notes after the columns,
+skipped counts in yellow, numbered checklist items; `--color=never` or `NO_COLOR` keep the layout without colours.
+Progress goes to stderr as log records while the import runs: `xboard import started` (source, flavor, dry run), then one
+`xboard import` record per step (`step=3/13 table=settings source= imported= skipped= took=`) besides the WARN mirrors of
+the warnings.
+
 ## 7. Operator checklist
 
 ### Before the import

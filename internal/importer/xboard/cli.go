@@ -52,7 +52,7 @@ reset (setval is not transactional) and the reload of the running settings.`,
 			if err != nil {
 				return err
 			}
-			rep.WriteSummary(cmd.OutOrStdout())
+			rep.Print(cli.Output(cmd, a))
 			return nil
 		},
 	}

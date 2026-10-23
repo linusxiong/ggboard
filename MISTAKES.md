@@ -1300,3 +1300,45 @@ Vitest 缓存 `import.meta.glob` 结果 67 / 72 / 77 / 85；`useLiteForm` 抢焦
 - **规则**：居中布局 + 文档滚动必须 `scrollbar-gutter: stable`。跨页面对齐要在同一视口宽度下逐页量 `h1.getBoundingClientRect()`，
   并且用真实的经典滚动条（puppeteer `ignoreDefaultArgs: ['--hide-scrollbars']`，不要用手机仿真）。用户说“没对齐”时先确认是同页内
   还是页与页之间。新增居中容器（`mx-auto max-w-*`）前先确认它的左线与 `PageShell` 标题一致。
+
+### 175. （终端美化）`rm -rf $T/*` 被安全检查拦下，同一命令链里的 `make build` 也没执行，接着用旧二进制抓了样本
+
+- **现象**：为清理样本目录写了 `rm -rf $T/* $S/data*`（变量没有保护），被内置安全检查拒绝；同一条 `&&` 链开头的 `make build`
+  也随之没有执行。下一条命令照常抓终端样本，抓到的是改动前的二进制（启动摘要里的提示行没有缩进），对照时才发现。
+- **根因**：rm 的目标是可能为空的 shell 变量；命令被拒后没有核对链里哪些步骤没跑。
+- **修复**：不再删除，每轮用新的运行目录（`run2` … `run5`），重新 `make build` 后重抓全部样本。
+- **规则**：rm 只用字面绝对路径或 `"${T:?}"/…`；一条命令被拒或失败后，把链里的每一步（尤其构建）重新执行一遍再用它的产物。
+
+### 176. （终端美化）macOS `script` 在代理的非交互 shell 里前台运行报 `tcgetattr/ioctl: Operation not supported on socket`，样本为空
+
+- **现象**：把抓样本的命令挪进脚本后，所有前台 `script -q out cmd` 生成的文件都是空的；后台运行的 `script … &` 正常。
+- **根因**：工具环境的 stdin 是 socket，`script` 要对 stdin 做 tcgetattr；非交互 bash 把后台任务的 stdin 重定向到 /dev/null，
+  所以只有后台调用成功。
+- **修复**：前台调用一律加 `</dev/null`。
+- **规则**：在代理环境里用 `script` 伪造 TTY 时写 `script -q out cmd </dev/null`；抓完先 `grep -c $'\x1b' 样本` 确认确实带颜色。
+
+### 177. （终端美化）测试与样本脚本里的三个想当然：直接调 `Handle` 绕过级别、路由凭记忆（重犯 #166）、plain 模式带样式
+
+- **现象**：(1) 日志测试用 `l.Handler().Handle(ctx, rec)` 写固定时间的记录，info 级别下 DEBUG 记录也被输出，断言失败；
+  (2) 样本脚本把登录路由写成 `/api/v1/passport/auth/login`，实际是 `/api/v1/passport/login`；
+  (3) `console.Printer.Table` 初版在 plain 模式也套 faint 样式，管道输出里出现 ANSI 码（单测拦下）。
+- **根因**：(1) 级别过滤发生在 `Logger` 调 `Enabled` 时，直接调 `Handle` 绕过了它；(2) 路由没有 grep；
+  (3) plain 模式直接写原始 writer，任何样式都会原样落盘。
+- **修复**：测试助手先查 `Enabled`；路由从 `routes.go` 复制；Table 在非 pretty 时用无样式与 ASCII 规则线。
+- **规则**：手工构造 `slog.Record` 调 `Handle` 前先查 `Enabled`；路由一律 grep；新的输出函数对 plain / pretty / color
+  三种样式各断言一次“有无 ESC”。
+
+### 178. （终端美化·选库）终端库的三个坑：tint 彩色模式把 `\x1b` 文本还原成 ESC、colorprofile 的 NO_COLOR 不合规范、lipgloss v2 包初始化即探测终端
+
+- **现象**：选库时读源码发现：(1) `github.com/lmittmann/tint` 彩色模式对加引号的值先 `strconv.Quote`，再把所有 `\x1b` 文本换回
+  真正的 ESC——请求数据里的真 ESC，以及用户故意写成字面量的 `\x1b]52;…\x1b\\`，都会变成终端转义序列（写剪贴板、改标题、清屏）；
+  消息字段则完全不加引号原样输出。(2) `github.com/charmbracelet/colorprofile` 用 `strconv.ParseBool(NO_COLOR)`，`NO_COLOR=yes`
+  不生效（规范是非空即关闭）。(3) `charm.land/lipgloss/v2` 的包级变量 `Writer = colorprofile.NewWriter(os.Stdout, …)` 在程序启动时
+  探测终端：TTY 上读 terminfo，在 tmux 里还会执行 `tmux info`。
+- **根因**：这些行为都不在 README 里，只在源码里。
+- **修复**：tint 加 `ReplaceAttr`（`internal/logx/pretty.go`）：ESC 换成可见的 `␛`、字面 `\x1b` 改成 `\x1B`（Quote 只产生小写，
+  无从还原）、含控制字符的消息像 TextHandler 一样加引号，配回归测试；颜色由 `internal/console` 自己判断（`golang.org/x/term` +
+  规范的 `NO_COLOR != ""` + `--color`），lipgloss 输出统一经 `colorprofile.Writer{Profile: ANSI/NoTTY}`，不用它的自动探测；
+  CLI 输出里的动态文本经 `console.Clean` 去掉控制字符。lipgloss 的包初始化绕不开，实测 `ggboard version` 启动耗时没有变化。
+- **规则**：引入任何把数据写到终端的库前，先读它的转义/引号处理和 init 代码；终端输出里来自请求或导入数据的字符串必须过滤控制
+  字符，并同时为“真 ESC”和“字面量 `\x1b`”写回归测试。

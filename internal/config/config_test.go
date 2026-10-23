@@ -37,7 +37,7 @@ func TestLoadDefaultsAndGeneratedSecret(t *testing.T) {
 	if cfg.Database.DSN != filepath.Join(dir, "ggboard.db") {
 		t.Fatalf("DSN = %q", cfg.Database.DSN)
 	}
-	if cfg.Log.Level != "info" || cfg.Log.Format != "text" {
+	if cfg.Log.Level != "info" || cfg.Log.Format != "text" || cfg.Log.Color != "auto" {
 		t.Fatalf("log = %+v", cfg.Log)
 	}
 	if len(cfg.JWT.Secret) < 32 {
@@ -66,6 +66,7 @@ func TestEnvOverride(t *testing.T) {
 	t.Setenv("GGBOARD_JWT_TTL", "2h")
 	t.Setenv("GGBOARD_LOG_LEVEL", "DEBUG")
 	t.Setenv("GGBOARD_LOG_FORMAT", "json")
+	t.Setenv("GGBOARD_LOG_COLOR", " Never ")
 	t.Setenv("GGBOARD_DATABASE_DRIVER", "postgres")
 	t.Setenv("GGBOARD_DATABASE_DSN", "postgres://u:p@db.example.com/ggboard")
 
@@ -82,7 +83,7 @@ func TestEnvOverride(t *testing.T) {
 	if cfg.JWT.TTL != 2*time.Hour || cfg.JWT.Secret != testSecret {
 		t.Errorf("jwt = %+v", cfg.JWT)
 	}
-	if cfg.Log.Level != "debug" || cfg.Log.Format != "json" {
+	if cfg.Log.Level != "debug" || cfg.Log.Format != "json" || cfg.Log.Color != "never" {
 		t.Errorf("log = %+v", cfg.Log)
 	}
 	if cfg.Database.Driver != DriverPostgres || cfg.Database.DSN != "postgres://u:p@db.example.com/ggboard" {
@@ -114,12 +115,13 @@ func TestPrecedenceFileEnvFlag(t *testing.T) {
 	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
 	fs.String("addr", "", "")
 	fs.String("log-level", "", "")
-	if err := fs.Parse([]string{"--addr", ":7002"}); err != nil {
+	fs.String("color", "", "")
+	if err := fs.Parse([]string{"--addr", ":7002", "--color", "always"}); err != nil {
 		t.Fatal(err)
 	}
 	cfg = load(t, Options{File: file, Flags: fs})
-	if cfg.Server.Addr != ":7002" {
-		t.Fatalf("flag must override env, got %q", cfg.Server.Addr)
+	if cfg.Server.Addr != ":7002" || cfg.Log.Color != "always" {
+		t.Fatalf("flag must override env, got %q / color %q", cfg.Server.Addr, cfg.Log.Color)
 	}
 	if cfg.Log.Level != "warn" {
 		t.Fatalf("unset flag must not override, got %q", cfg.Log.Level)
@@ -146,6 +148,7 @@ func TestValidate(t *testing.T) {
 		"dsn":     func(c *Config) { c.Database.Driver, c.Database.DSN = DriverMySQL, "" },
 		"level":   func(c *Config) { c.Log.Level = "loud" },
 		"format":  func(c *Config) { c.Log.Format = "xml" },
+		"color":   func(c *Config) { c.Log.Color = "rainbow" },
 		"ttl":     func(c *Config) { c.JWT.TTL = 0 },
 		"addr":    func(c *Config) { c.Server.Addr = "" },
 		"proxies": func(c *Config) { c.Server.TrustedProxies = []string{"not-an-ip"} },

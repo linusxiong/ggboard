@@ -227,6 +227,7 @@ func Run(ctx context.Context, a *app.App, opts Options) (*Report, error) {
 		return im.rep, err
 	}
 	im.rep.Flavor = im.flavor
+	im.log.Info("xboard import started", "source", dsn.Display, "flavor", string(im.flavor), "dry_run", opts.DryRun)
 	if err := src.begin(ctx); err != nil {
 		return im.rep, err
 	}
@@ -372,13 +373,26 @@ func (im *importer) importAll() error {
 			fn   func() error
 		}{"stats", im.importStats})
 	}
-	for _, s := range steps {
+	for i, s := range steps {
 		if err := im.ctx.Err(); err != nil {
 			return err
 		}
+		start := time.Now()
 		if err := s.fn(); err != nil {
 			return fmt.Errorf("import %s: %w", s.name, err)
 		}
+		// Progress on stderr (the summary goes to stdout when the run ends).
+		args := []any{"step", fmt.Sprintf("%d/%d", i+1, len(steps)), "table", s.name}
+		if t := im.rep.Lookup(s.name); t != nil {
+			args = append(args, "source", t.Source, "imported", t.Imported, "skipped", t.Skipped)
+		}
+		took := time.Since(start)
+		if took >= time.Second {
+			took = took.Round(time.Millisecond)
+		} else {
+			took = took.Round(time.Microsecond)
+		}
+		im.log.Info("xboard import", append(args, "took", took.String())...)
 	}
 	return nil
 }

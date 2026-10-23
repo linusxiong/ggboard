@@ -1,5 +1,8 @@
 // Package logx builds the process slog.Logger and keeps the most recent records in an in-memory ring buffer
 // (served by GET /admin/system/logs).
+//
+// Formats: "json" is slog.JSONHandler; "text" is slog.TextHandler (logfmt) unless the Pretty option asks for the
+// terminal rendering of github.com/lmittmann/tint. The ring buffer sees the same records in every case.
 package logx
 
 import (
@@ -31,20 +34,42 @@ func ParseLevel(s string) (slog.Level, error) {
 	return 0, fmt.Errorf("logx: unknown level %q", s)
 }
 
+// Option customizes New.
+type Option func(*options)
+
+type options struct {
+	pretty, color bool
+}
+
+// Pretty renders the text format for a person at a terminal (see pretty.go): fixed-width time and level columns,
+// faint keys, red errors, and ANSI colours when color is true. It does not affect the JSON format. Without it the
+// text format is slog's logfmt, which is what journald, docker and log shippers should get.
+func Pretty(color bool) Option {
+	return func(o *options) { o.pretty, o.color = true, color }
+}
+
 // New returns a logger writing text or JSON to w at the given level. When ring is non-nil every emitted
 // record is also stored in it.
-func New(level, format string, w io.Writer, ring *Ring) (*slog.Logger, error) {
+func New(level, format string, w io.Writer, ring *Ring, opts ...Option) (*slog.Logger, error) {
 	lvl, err := ParseLevel(level)
 	if err != nil {
 		return nil, err
 	}
-	opts := &slog.HandlerOptions{Level: lvl}
+	var o options
+	for _, fn := range opts {
+		fn(&o)
+	}
+	hopts := &slog.HandlerOptions{Level: lvl}
 	var h slog.Handler
 	switch strings.ToLower(format) {
 	case "json":
-		h = slog.NewJSONHandler(w, opts)
+		h = slog.NewJSONHandler(w, hopts)
 	case "", "text":
-		h = slog.NewTextHandler(w, opts)
+		if o.pretty {
+			h = newPrettyHandler(w, lvl, o.color)
+		} else {
+			h = slog.NewTextHandler(w, hopts)
+		}
 	default:
 		return nil, fmt.Errorf("logx: unknown format %q", format)
 	}
