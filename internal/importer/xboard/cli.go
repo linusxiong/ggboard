@@ -36,9 +36,13 @@ tickets, notices, knowledge and settings from an Xboard database into ggboard (d
 The source is opened read-only. Every target write runs in one transaction: a fatal error leaves the target
 unchanged. Run it right after "ggboard migrate" on an empty database (or pass --force to replace the imported
 tables). --dry-run performs every read and write and then rolls back; it skips only the PostgreSQL sequence
-reset (setval is not transactional) and the reload of the running settings.`,
+reset (setval is not transactional) and the reload of the running settings.
+
+--skip-banned leaves banned users out together with the rows that belong only to them (invite codes, the
+commission logs they earned, their tickets, their traffic statistics); references from imported rows to them
+are cleared, so nothing points at a missing user (docs/IMPORT_XBOARD.md §3.5).`,
 		Example: `  ggboard import xboard --dsn "mysql://xboard:secret@127.0.0.1:3306/xboard" --dry-run
-  ggboard import xboard --dsn "mysql://xboard:secret@tcp(127.0.0.1:3306)/xboard" --with-stats
+  ggboard import xboard --dsn "mysql://xboard:secret@tcp(127.0.0.1:3306)/xboard" --with-stats --skip-banned
   ggboard import xboard --dsn "postgres://xboard:secret@127.0.0.1:5432/xboard?sslmode=disable"
   ggboard import xboard --dsn "sqlite:///srv/xboard/database/database.sqlite" --force`,
 		Args: cobra.NoArgs,
@@ -64,6 +68,7 @@ reset (setval is not transactional) and the reload of the running settings.`,
 	f.BoolVar(&opts.WithStats, "with-stats", false, "also import daily traffic and business statistics")
 	f.IntVar(&opts.StatsDays, "stats-days", DefaultStatsDays, "with --with-stats: number of days of statistics to import")
 	f.StringVar(&tz, "source-tz", DefaultSourceTZ, "time zone of the Xboard installation (Laravel app.timezone)")
+	f.BoolVar(&opts.SkipBanned, "skip-banned", false, "do not import banned users and the rows that belong only to them")
 	_ = cmd.MarkFlagRequired("dsn")
 	return cmd
 }

@@ -262,6 +262,9 @@ set when `invite_never_expire` is false.
 
 `id, invite_user_id uint64 idx, user_id uint64, trade_no varchar(32) idx, order_amount int64, get_amount int64, created_at idx`.
 
+`user_id = 0` (and `ticket_messages.user_id = 0`) means the user was not imported: `import xboard --skip-banned` keeps the
+row but drops the reference to a banned user (docs/IMPORT_XBOARD.md §3.5).
+
 ## tickets / ticket_messages
 
 | column | type | notes |

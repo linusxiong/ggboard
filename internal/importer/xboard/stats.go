@@ -1,6 +1,7 @@
 package xboardimport
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"strings"
@@ -188,6 +189,11 @@ func (im *importer) importStatUsers(cutoff int64) error {
 	err := im.src.each(im.ctx, "v2_stat_user", statFilter, []any{"d", cutoff}, func(r row) error {
 		stat.Source++
 		uid := uint64(max(r.i64("user_id"), 0))
+		if im.banned[uid] {
+			stat.Skipped++
+			im.rep.Banned.StatUsers++
+			return nil
+		}
 		day, ok := im.recordDay(r["record_at"])
 		if !ok || !im.users[uid] {
 			droppedUsers++
@@ -274,6 +280,9 @@ func (im *importer) importStatUsers(cutoff int64) error {
 	}
 	stat.Imported = b.n
 	stat.Note = "aggregated per user and day (charged bytes)"
+	if n := im.rep.Banned.StatUsers; n > 0 {
+		stat.addNote(fmt.Sprintf("skipped banned %d", n))
+	}
 	if droppedUsers > 0 {
 		im.warn("stat_users", "%d rows of users that were not imported — dropped", droppedUsers)
 	}

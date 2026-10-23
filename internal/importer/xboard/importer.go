@@ -38,14 +38,15 @@ const batchSize = 500
 
 // Options configures Run.
 type Options struct {
-	DSN       string         // --dsn
-	Driver    string         // --driver, only needed for a DSN without a scheme
-	DryRun    bool           // read and write everything, then roll back
-	Force     bool           // clear the target tables first (same transaction)
-	WithStats bool           // import v2_stat / v2_stat_server / v2_stat_user (last StatsDays days)
-	StatsDays int            // default DefaultStatsDays
-	SourceTZ  *time.Location // default Asia/Shanghai
-	Now       func() time.Time
+	DSN        string         // --dsn
+	Driver     string         // --driver, only needed for a DSN without a scheme
+	DryRun     bool           // read and write everything, then roll back
+	Force      bool           // clear the target tables first (same transaction)
+	WithStats  bool           // import v2_stat / v2_stat_server / v2_stat_user (last StatsDays days)
+	StatsDays  int            // default DefaultStatsDays
+	SourceTZ   *time.Location // default Asia/Shanghai
+	SkipBanned bool           // leave banned users and the rows that belong only to them out (§3.5)
+	Now        func() time.Time
 }
 
 // Fatal errors. Run wraps them with details; test with errors.Is.
@@ -167,6 +168,8 @@ type importer struct {
 	nodeMap       map[nodeKey]uint64 // L: (type, legacy id) → node id; U: (type, v2_server.id) → id
 	nodeCodes     map[nodeKey]uint64 // U: (type, code) → id
 	tickets       map[uint64]bool
+	banned        map[uint64]bool // --skip-banned: banned source users, not imported (§3.5)
+	bannedTickets map[uint64]bool // --skip-banned: tickets skipped because their owner is banned
 
 	resetMethod model.ResetMethod // effective setting reset_traffic_method after import
 	currency    string            // effective setting currency after import
@@ -211,13 +214,15 @@ func Run(ctx context.Context, a *app.App, opts Options) (*Report, error) {
 		nodeMap:       map[nodeKey]uint64{},
 		nodeCodes:     map[nodeKey]uint64{},
 		tickets:       map[uint64]bool{},
+		banned:        map[uint64]bool{},
+		bannedTickets: map[uint64]bool{},
 	}
 	if im.log == nil {
 		im.log = slog.New(slog.DiscardHandler)
 	}
 	im.rep = &Report{
 		Source: dsn.Display, DryRun: opts.DryRun, Force: opts.Force, WithStats: opts.WithStats,
-		StatsDays: opts.StatsDays, SourceTZ: opts.SourceTZ.String(), Target: a.DBDriver(),
+		StatsDays: opts.StatsDays, SourceTZ: opts.SourceTZ.String(), Target: a.DBDriver(), SkipBanned: opts.SkipBanned,
 	}
 
 	if err := src.loadTables(ctx); err != nil {
@@ -394,7 +399,21 @@ func (im *importer) importAll() error {
 		}
 		im.log.Info("xboard import", append(args, "took", took.String())...)
 	}
+	if im.opts.SkipBanned {
+		im.logBannedSkip()
+	}
 	return nil
+}
+
+// logBannedSkip writes the one INFO summary of --skip-banned (§3.5): counts only, never e-mails.
+func (im *importer) logBannedSkip() {
+	b := im.rep.Banned
+	im.log.Info("xboard import skip-banned",
+		"users", b.Users, "admins_or_staff", b.AdminsOrStaff, "invite_codes", b.InviteCodes,
+		"commission_logs", b.CommissionLogs, "tickets", b.Tickets, "ticket_messages", b.TicketMessages,
+		"stat_users", b.StatUsers, "invite_user_id_nulled", b.InviteUserIDNulled,
+		"commission_user_id_zeroed", b.CommissionUserIDZeroed, "last_reply_user_id_nulled", b.LastReplyUserIDNulled,
+		"message_user_id_zeroed", b.MessageUserIDZeroed)
 }
 
 // resetSequences moves PostgreSQL sequences past the imported ids (§3.3). MySQL and SQLite advance their

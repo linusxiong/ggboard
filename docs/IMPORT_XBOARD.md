@@ -13,6 +13,8 @@ Target schema: `docs/DATA_MODEL.md` (`internal/model`). Notation: `ts(x)` = `tim
   exception is legacy nodes whose ids collide (§3.2).
 - `v2_order` rows are **never** imported (§7, §8 list the consequences).
 - Every lossy conversion emits a W line. No data is dropped silently.
+- With `--skip-banned` (§3.5), banned users and the rows that belong only to them are left out on purpose. They are
+  counted in the summary, and no imported row is left pointing at a user that was not imported.
 
 ## 1. Connection and detection
 
@@ -147,6 +149,57 @@ each table is inserted in one pass. The result is the same as the two passes abo
   identical to a real run. It skips only two things: the PostgreSQL sequence reset (§3.3; `setval` is not
   transactional and would survive the rollback) and the reload of the running settings snapshot.
 
+### 3.5 `--skip-banned`
+
+Off by default; without it nothing in this file changes. With it, every `v2_user` row whose `banned` is true
+(`flexBool`, so `1` on MySQL/SQLite and `true` on PostgreSQL, in both schemas) is not imported, and neither is any row
+that belongs only to such a user. Every reference that a kept row holds to a skipped user is rewritten by the rule
+below, so no imported row points at a user id that is missing from `users`. This matters because ids are reused: a
+user registered in ggboard later gets `max(id)+1`, which can be a skipped id. Since nothing refers to that id, the new
+user inherits nothing.
+
+The rules follow ggboard's own user deletion (`adminuser.Delete`): that function deletes the same owned rows and
+NULLs `users.invite_user_id`. It goes further for the three columns that deletion leaves pointing at the deleted id
+(`commission_logs.user_id`, `ticket_messages.user_id`, `tickets.last_reply_user_id`).
+
+| target table | rows concerned | rule |
+| --- | --- | --- |
+| users | `banned` users | not imported. Counted in `skipped`, line note `skipped banned N`. A banned admin or staff member gets a W with its id only. If every admin is banned: W "no admin was imported" (run `ggboard admin create` afterwards) |
+| users | `invite_user_id` → a banned user | NULL. One W with the count. The invitee's future orders then pay commission to no one, as after a deletion |
+| users | email, `uuid`, `token` collisions (§4.5, §5) | resolved among the imported users only. A kept user that collided with a banned one keeps its address, uuid and token, where without the flag it could be renamed `+dup<id>` or get a new uuid/token |
+| invite_codes | codes whose `user_id` is banned | skipped (note `skipped banned N`). The duplicate-code check (§4.6) only sees kept codes |
+| commission_logs | `invite_user_id` banned (the banned user's earnings) | skipped (note `skipped banned N`) |
+| commission_logs | `user_id` banned (the invitee), inviter kept | kept: it is the inviter's history and is part of their `commission_balance`. `user_id` → **0**, one W with the count. Nothing reads this column back: the inviter's list shows trade no., amounts and time, and imported logs have no order |
+| tickets | `user_id` banned | skipped together with **all** their messages, staff replies included. Note `skipped banned T/M` |
+| tickets | `last_reply_user_id` → a banned user (a banned staff member replied last; U's stored column too) | NULL, one W with the count. `reply_status` is still derived from the original ids (§4.10). So it is the same as without the flag: the replier is not the owner, which means "replied" |
+| ticket_messages | message in a kept ticket written by a banned user | kept, so the conversation stays complete. `user_id` → **0**, one W with the count. 0 never equals the owner, so the message still shows on the staff side (`ticket.ForOwner` / `ForStaff`) |
+| stat_users (`--with-stats`) | `v2_stat_user` rows of banned users | dropped (note `skipped banned N`) |
+| stats, stat_nodes | aggregates with no user id | unchanged: they record what happened, banned users' traffic and registrations included |
+| plans | the `capacity_limit` check (§5) | counts imported users only |
+| server_groups, node_routes, nodes, coupons, payments, notices, knowledge, settings | no user references (Xboard coupons have no owner) | unchanged |
+| orders, passkeys, user_mfa, subscription_keys, subscription_access, rule_profiles | ggboard-only: nothing is imported into them for any user (Xboard has no second factors or age keys) | unchanged. `--force` clears them for everyone (§3.4) |
+| mail_logs | keyed by e-mail; `v2_mail_log` is not imported | untouched |
+| §4.15 tables (`v2_order`, `v2_gift_card_usage`, `v2_traffic_reset_logs`, `personal_access_tokens`, `v2_log`, …) | | not imported, with or without the flag |
+
+`0` in `commission_logs.user_id` and `ticket_messages.user_id` means "a user that was not imported", like
+`stat_users.node_id = 0` for nodes (§8.6). Ids start at 1, so 0 never matches a user. Apart from the rewrites in this
+table, every kept row is byte-identical to an import without the flag (tested on both seeds).
+
+- **`--force --skip-banned`** clears the target as always (§3.4), then imports without the banned users. It therefore
+  also removes banned users that an earlier run without the flag brought in. `--force` without the flag brings them
+  back.
+- **`--dry-run --skip-banned`** reports exactly what the real run reports.
+- **Report**: the mode line gains `· --skip-banned (banned users left out)` and the checklist gains a "Banned users"
+  item (§6). Progress gets one more INFO record `xboard import skip-banned` with the counts (`users`,
+  `admins_or_staff`, `invite_codes`, `commission_logs`, `tickets`, `ticket_messages`, `stat_users`,
+  `invite_user_id_nulled`, `commission_user_id_zeroed`, `last_reply_user_id_nulled`, `message_user_id_zeroed`). No
+  e-mail address of a skipped user is ever printed or logged.
+- Rows that were already skipped for other reasons (a ticket of a user who does not exist, …) keep their own W lines
+  and are not counted as banned.
+- **The ban itself is not carried over.** A skipped user's e-mail address is free in ggboard, so that person can
+  register again (subject to the registration settings). Import without the flag to keep them as banned accounts.
+  Node backends are unaffected either way: neither Xboard nor ggboard hands banned users to XrayR/soga.
+
 ## 4. Table mappings
 
 ### 4.1 server_groups ← `v2_server_group` (L = U)
@@ -274,7 +327,7 @@ kept, because L lets users buy it for free; W.
 | commission_rate | commission_rate (U casts to float) | round to int; NULL → null |
 | discount | discount | `nz()` |
 | invite_user_id | invite_user_id | user not imported, or self → NULL, W. Applied in the second pass |
-| is_admin, is_staff, banned | same | `flexBool` |
+| is_admin, is_staff, banned | same | `flexBool`. With `--skip-banned`, banned rows are not imported at all (§3.5) |
 | remind_expire, remind_traffic | same (nullable tinyint) | `flexBool`; **NULL → false** (Xboard checks `if ($user->remind_expire)`) |
 | last_login_at | last_login_at | NULL → null, else `ts()` |
 | last_login_ip | last_login_ip (int, never written by Xboard) | `""` |
@@ -339,7 +392,8 @@ Duplicates are compared case-insensitively, because a MySQL target's unique inde
 
 `id`, `invite_user_id`, `user_id`, `trade_no` (char(36)), `order_amount`, `get_amount` (cents), `created_at` = `ts()`.
 
-A row whose `invite_user_id` is not an imported user is still imported, with W. The log is historical.
+A row whose `invite_user_id` is not an imported user is still imported, with W. The log is historical. The exception
+is `--skip-banned`: a banned inviter's logs are skipped, and a banned invitee's `user_id` becomes 0 (§3.5).
 
 ### 4.8 coupons ← `v2_coupon`
 
@@ -417,6 +471,8 @@ user's live install has 3 EPay rows, all of which import as enabled with no acti
      2026-04-21 migration swapped the values.
 - **ticket_messages**: `id`, `ticket_id`, `user_id`, `message` map directly. `created_at` = `ts()`. Messages whose ticket
   was skipped are skipped too.
+- With `--skip-banned`, the tickets of banned users are skipped, and in kept tickets a banned author or last replier
+  is rewritten to 0 / NULL (§3.5).
 
 ### 4.11 notices ← `v2_notice`
 
@@ -527,11 +583,15 @@ rounded to 2 decimals; for U, raw = `charged/rate`, skipping rate 0; nothing der
 
 ```bash
 ggboard import xboard --dsn "mysql://xboard:secret@tcp(127.0.0.1:3306)/xboard?parseTime=true" \
-  [--dry-run] [--with-stats] [--stats-days 90] [--force] [--source-tz Asia/Shanghai]
+  [--dry-run] [--with-stats] [--stats-days 90] [--force] [--source-tz Asia/Shanghai] [--skip-banned]
 ```
 
 - The target DB comes from the normal ggboard config (`database.driver` / `database.dsn`).
-- There is no partial-import flag (such as `--skip-users`): partial imports would break references.
+- There is no partial-import flag (such as `--skip-users`), because partial imports would break references. The one
+  exception is `--skip-banned` (§3.5). It is safe because it never leaves out part of the reference graph. It leaves
+  out whole users together with every row they own, and it rewrites each remaining reference to them (to NULL or 0)
+  by a fixed rule. So no imported row points at a user that is missing, which is exactly what a table-level skip
+  could not guarantee.
 - Exit codes: 0 success (warnings allowed; dry run too), 1 fatal (nothing written) or usage error (the foundation's
   `cli.Run` maps every command error to 1; usage errors wrap `xboardimport.ErrUsage`). Warnings go to stdout and are
   mirrored to slog at WARN. Secrets are never printed.
@@ -539,7 +599,7 @@ ggboard import xboard --dsn "mysql://xboard:secret@tcp(127.0.0.1:3306)/xboard?pa
   `mysql://user:pass@host:3306/db` is accepted besides the go-sql-driver form.
 - The summary ends with the post-import checklist of §7, filled with this run's specifics (renumbered nodes, `code`
   nodes, webhook URLs, disabled payments, coupons disabled by an emptied limit, unusable hashes, access-block articles,
-  a missing `app_url`, a missing or too-short `server_token`).
+  a missing `app_url`, a missing or too-short `server_token`, banned users left out by `--skip-banned`).
 
 Summary format:
 
@@ -567,12 +627,33 @@ warnings (4):
 next: docs/IMPORT_XBOARD.md §7 post-import checklist
 ```
 
+With `--skip-banned` the mode line names the flag, and the lines that lost rows to it carry a `skipped banned` note
+first. These are the counts left out because of a banned user; the `skipped` column also includes the other skips.
+The ticket line shows tickets/messages. The seed of `skipbanned_test.go` gives:
+
+```text
+mode: COMMITTED · --skip-banned (banned users left out) · target sqlite · source-tz Asia/Shanghai · stats: last 1000 days
+users                      16        14        2   skipped banned 2 · bcrypt 10 · md5/sha256 legacy hashes 3 · unusable 1
+invite_codes                4         1        3   skipped banned 1
+commission_logs             4         3        1   skipped banned 1
+tickets / messages        6/9       4/6        5   skipped banned 1/2
+stat_users                  5         1        3   skipped banned 2 · aggregated per user and day (charged bytes)
+warnings (…):
+  [users#15] banned staff member not imported (--skip-banned)
+  [users] invite_user_id of 1 users pointed to a banned user → NULL (--skip-banned)
+  [commission_logs] 1 logs whose invitee is banned are kept for their inviter with user_id 0 (--skip-banned)
+  [tickets] last_reply_user_id of 1 tickets pointed to a banned user → NULL (--skip-banned)
+  [ticket_messages] 1 messages written by banned users in kept tickets are kept with user_id 0 (--skip-banned)
+```
+
+On a real install this reads `users 1532 1490 42   skipped banned 42 · …`.
+
 The format above is what stdout gets when it is a file or a pipe. On a terminal the same content is styled (lipgloss,
 docs/DEPLOY.md §9 "Terminal output"): a `DRY RUN` / `COMMITTED` badge, an aligned table with notes after the columns,
 skipped counts in yellow, numbered checklist items; `--color=never` or `NO_COLOR` keep the layout without colours.
 Progress goes to stderr as log records while the import runs: `xboard import started` (source, flavor, dry run), then one
 `xboard import` record per step (`step=3/13 table=settings source= imported= skipped= took=`) besides the WARN mirrors of
-the warnings.
+the warnings. With `--skip-banned`, one `xboard import skip-banned` record with the counts follows the last step (§3.5).
 
 ## 7. Operator checklist
 
@@ -701,3 +782,14 @@ creates and drops its own database; the file header has the `docker run` lines f
     every table empty and prints the same counts as the real run.
 14. Robustness: a malformed JSON column produces W, not a crash. The source DB is unchanged (checksum the sqlite file
     before and after).
+15. `--skip-banned` (`skipbanned_test.go`, legacy and upstream seeds plus rows owned by or pointing at banned users,
+    including a banned admin and a banned staff member). Checks:
+    - the per-table counts, the `skipped banned` notes, the W lines and the INFO record are right;
+    - no target column holding a user id references a skipped id;
+    - the dump equals an import without the flag after the rules of §3.5 are applied to it in SQL;
+    - without the flag the banned rows are imported and nothing mentions the flag;
+    - collisions with a banned user no longer rename or regenerate the kept user;
+    - `--dry-run` matches the real run;
+    - `--force --skip-banned` after a full import equals a fresh import with the flag, and the reverse equals a full
+      import;
+    - the CLI parses the flag.

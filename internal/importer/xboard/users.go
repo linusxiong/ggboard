@@ -60,10 +60,15 @@ type emailCandidate struct {
 
 // resolveEmails lower-cases every email and renames case-insensitive duplicates (§5): the account with the
 // latest max(last_login_at, t, updated_at) keeps the address (tie: lowest id), the others become
-// <local>+dup<id>@<domain>.
+// <local>+dup<id>@<domain>. With --skip-banned it records the banned users in im.banned instead: they are not
+// imported, so they take part in no collision (§3.5).
 func (im *importer) resolveEmails() (map[uint64]string, error) {
 	groups := map[string][]emailCandidate{}
 	err := im.src.each(im.ctx, "v2_user", "", nil, func(r row) error {
+		if im.opts.SkipBanned && r.bool("banned") {
+			im.banned[r.id()] = true
+			return nil
+		}
 		e := strings.ToLower(strings.TrimSpace(r.str("email")))
 		act := max(r.i64("last_login_at"), r.i64("t"), r.i64("updated_at"))
 		groups[e] = append(groups[e], emailCandidate{id: r.id(), activity: act})
@@ -123,19 +128,35 @@ func (im *importer) importUsers() error {
 	if err != nil {
 		return err
 	}
-	// every user is imported, so the id set is known before the main pass (invite_user_id resolves in one pass)
+	// every user (but the banned ones with --skip-banned) is imported, so the id set is known before the main
+	// pass (invite_user_id resolves in one pass)
 	for id := range emails {
 		im.users[id] = true
 	}
 	nowL := im.start.In(im.loc)
 	seenUUID := map[string]uint64{}
 	seenToken := map[string]uint64{}
-	var bcrypt, legacy, unusable int
+	var bcrypt, legacy, unusable, keptAdmins, bannedAdmins int
+	ban := &im.rep.Banned
 	b := newBatcher[model.User](im.tx)
 	err = im.src.each(im.ctx, "v2_user", "", nil, func(r row) error {
 		stat.Source++
 		id := r.id()
 		scope := scopeID("users", id)
+		if im.banned[id] {
+			stat.Skipped++
+			ban.Users++
+			switch {
+			case r.bool("is_admin"):
+				ban.AdminsOrStaff++
+				bannedAdmins++
+				im.warn(scope, "banned admin not imported (--skip-banned)")
+			case r.bool("is_staff"):
+				ban.AdminsOrStaff++
+				im.warn(scope, "banned staff member not imported (--skip-banned)")
+			}
+			return nil
+		}
 		u := model.User{
 			ID:                id,
 			Email:             emails[id],
@@ -232,6 +253,8 @@ func (im *importer) importUsers() error {
 			switch {
 			case uint64(inv) == id:
 				im.warn(scope, "invite_user_id points to the user itself → NULL")
+			case im.banned[uint64(inv)]:
+				ban.InviteUserIDNulled++ // one summary warning below
 			case !im.users[uint64(inv)]:
 				im.warn(scope, "invite_user_id %d not found → NULL", inv)
 			default:
@@ -263,6 +286,9 @@ func (im *importer) importUsers() error {
 				p.active++
 			}
 		}
+		if u.IsAdmin {
+			keptAdmins++
+		}
 		return b.add(u)
 	})
 	if err != nil {
@@ -274,6 +300,15 @@ func (im *importer) importUsers() error {
 	stat.Imported = b.n
 	stat.Note = fmt.Sprintf("bcrypt %d · md5/sha256 legacy hashes %d · unusable %d", bcrypt, legacy, unusable)
 	im.rep.LegacyHashes, im.rep.UnusableHashes = legacy, unusable
+	if im.opts.SkipBanned {
+		stat.addNote(fmt.Sprintf("skipped banned %d", ban.Users))
+		if bannedAdmins > 0 && keptAdmins == 0 {
+			im.warn("users", "no admin was imported: every Xboard admin is banned (--skip-banned); run `ggboard admin create` after the import")
+		}
+		if ban.InviteUserIDNulled > 0 {
+			im.warn("users", "invite_user_id of %d users pointed to a banned user → NULL (--skip-banned)", ban.InviteUserIDNulled)
+		}
+	}
 
 	ids := make([]uint64, 0, len(im.plans))
 	for id := range im.plans {

@@ -57,9 +57,10 @@ func dump(t *testing.T, a *app.App, mask func(table string, r map[string]any)) s
 }
 
 // maskRegenerated blanks values generated randomly per run: the uuid/token regenerated for duplicates
-// (users 9 and 11) and ggboard's own server_token (kept when Xboard has none).
+// (users 9 and 11), ggboard's own server_token (kept when Xboard has none) and the telegram_webhook_secret every
+// app generates on first boot (it differs between two target apps).
 func maskRegenerated(table string, r map[string]any) {
-	if table == "settings" && r["key"] == "server_token" {
+	if table == "settings" && (r["key"] == "server_token" || r["key"] == "telegram_webhook_secret") {
 		r["value"], r["updated_at"] = "generated", nil
 	}
 	if table != "users" {

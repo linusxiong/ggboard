@@ -388,7 +388,7 @@ docker compose -f deploy/docker-compose.yml start
 | `ggboard admin create --email E [--password P] [--staff]` | 创建管理员（或客服）；不给密码则生成并打印 |
 | `ggboard admin reset-password --email E [--password P]` | 重置密码并让该用户已有会话失效 |
 | `ggboard admin promote --email E` | 把已有用户提升为管理员 |
-| `ggboard import xboard --dsn DSN [--driver] [--dry-run] [--force] [--with-stats] [--stats-days N] [--source-tz TZ]` | 从 Xboard 导入，见 [IMPORT_XBOARD.md](IMPORT_XBOARD.md) |
+| `ggboard import xboard --dsn DSN [--driver] [--dry-run] [--force] [--skip-banned] [--with-stats] [--stats-days N] [--source-tz TZ]` | 从 Xboard 导入，见 [IMPORT_XBOARD.md](IMPORT_XBOARD.md) |
 | `ggboard version` | 打印版本、Go 版本与平台 |
 
 **终端输出 / Terminal output**。每个输出流在启动时判断一次（不是每条日志都判断）：

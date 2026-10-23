@@ -1461,3 +1461,25 @@ Vitest 缓存 `import.meta.glob` 结果 67 / 72 / 77 / 85；`useLiteForm` 抢焦
 - **现象**：后端代理认为把键标 Hidden 会打破 settings 测试计数和 `PUT /admin/settings`，只改了文档；前端代理从 `layout.ts` 的 sender 小节删掉它，但 `GET /admin/settings` 仍返回该键，`sectionsOf` 把未列出的键都放进 `other`。
 - **修复**：集成时在 `layout.ts` 加 `LEGACY_KEYS` 过滤，并给 `settings.test.tsx` 补“服务端仍返回的遗留键不出现在任何小节”的用例。
 - **规则**：契约里涉及“隐藏 / 过滤 / 兼容”的条目要写清楚由哪一端负责；并行开发的两份汇报都要逐条核对“需要对方知道的事”，有分歧就由集成者补代码和测试，而不是只改文档。
+
+### 195. （导入器 / 压测·zsh）两个代理同一天各自又犯一次未加引号的 glob（重犯 #8 / #64 / #94 / #147 / #154 / #185）
+
+- **现象**：`ls zz_* | wc -l` 和 `grep -rn … --include=*.go` 都报 `no matches found`，命令根本没执行。
+- **规则**：命令里出现 `*` 一律加引号；“检查是否已删除”用 `find -name '…'`。
+
+### 196. （导入器·测试）跨 app 比较数据库 dump，被启动时随机生成的设置值误伤
+
+- **现象**：两个 app 的导入结果相同，但 dump 只有 `settings` 行不同。
+- **根因**：`maskRegenerated` 写于 `telegram_webhook_secret` 出现之前，原来的用法都是同一个 app 前后对比，所以一直没暴露。
+- **修复**：把这个键加进 mask。
+- **规则**：跨 app 比较 dump 前先 `grep -rn RandomToken internal/settings` 列出启动时生成的键，全部遮蔽。
+
+### 197. （导入器·测试）dump 不一致时把整份 dump 打进失败信息，被截断后看不出哪张表不同（同 #9 / #191）
+
+- **修复**：写了 `dumpDiff`，只打印不同的行。
+- **规则**：比较大段文本的断言只输出差异部分。
+
+### 198. （导入器·测试）夹具值作为子串命中了“不得出现某字符串”的断言（同 #183）
+
+- **现象**：夹具邮箱 `invitedbybanned@example.com` 子串命中 `banned@example.com`，让“日志不含封禁用户邮箱”的断言误报。
+- **规则**：给“不得出现 X”的断言准备夹具时，其他夹具值不能把 X 当子串包含进去。

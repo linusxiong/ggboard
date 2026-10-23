@@ -53,6 +53,7 @@ shell 变量代入；**不要把代入后的命令写进仓库或聊天记录**�
 | `[settings] ignored settings: server_license, server_log_enable, server_v2ray_domain, server_v2ray_protocol, theme_v2board, theme_xboard` | 预期 | 主题与旧版 v2ray 字段，无需处理 |
 | `[coupons] limit_use_with_user is kept, but per-user usage history is lost with the orders` | 预期 | 唯一一张优惠券已过期，忽略 |
 | `[payments#18] config keys not used by ggboard dropped: product_name` | 预期 | EPay 不用该键，忽略 |
+| 以 `(--skip-banned)` 结尾的告警（`invite_user_id of N users pointed to a banned user → NULL`、`user_id 0`、`last_reply_user_id … → NULL`；`[users#<id>] banned admin / staff member not imported`） | 预期（加了 `--skip-banned`，演练时未加） | 按 IMPORT_XBOARD.md §3.5 处理；出现 `banned admin` 先确认还有未封禁的管理员，出现 `no admin was imported` 就在导入后执行 `gg run --rm ggboard admin create --email <管理员邮箱>` |
 
 正式割接时如果出现**不在此表中**的告警，先停下来读 [IMPORT_XBOARD.md](IMPORT_XBOARD.md) 对应章节再决定。
 
@@ -114,7 +115,7 @@ gg run --rm ggboard migrate          # 建空库；不要执行 admin create（�
 ```bash
 docker run --rm --network "$XB_NET" -v ggboard_ggboard-data:/data -e GGBOARD_DATA_DIR=/data \
   ggboard:latest import xboard \
-  --dsn "mysql://xboard:${XB_DB_PASSWORD_URL}@${XB_MYSQL}:3306/xboard" --with-stats --dry-run
+  --dsn "mysql://xboard:${XB_DB_PASSWORD_URL}@${XB_MYSQL}:3306/xboard" --with-stats --skip-banned --dry-run
 ```
 
 告警应与 §1 一致。想在本机离线演练，按 §3.2 取一份 dump，恢复到 `docker run -d -p 127.0.0.1:33068:3306 mysql:8.4` 的临时容器，
@@ -155,14 +156,16 @@ gzip -t /root/backup/xboard/xboard-final-$(date +%F).sql.gz
 cd /opt/ggboard
 docker run --rm --network "$XB_NET" -v ggboard_ggboard-data:/data -e GGBOARD_DATA_DIR=/data \
   ggboard:latest import xboard \
-  --dsn "mysql://xboard:${XB_DB_PASSWORD_URL}@${XB_MYSQL}:3306/xboard" --with-stats --dry-run
+  --dsn "mysql://xboard:${XB_DB_PASSWORD_URL}@${XB_MYSQL}:3306/xboard" --with-stats --skip-banned --dry-run
 # 告警与 §1 一致后，去掉 --dry-run 正式导入：
 docker run --rm --network "$XB_NET" -v ggboard_ggboard-data:/data -e GGBOARD_DATA_DIR=/data \
   ggboard:latest import xboard \
-  --dsn "mysql://xboard:${XB_DB_PASSWORD_URL}@${XB_MYSQL}:3306/xboard" --with-stats
+  --dsn "mysql://xboard:${XB_DB_PASSWORD_URL}@${XB_MYSQL}:3306/xboard" --with-stats --skip-banned
 ```
 
-如果需要重来（例如先修了 Xboard 里的数据再导），加 `--force`：同一事务里先清空导入表再导。
+`--skip-banned`：被封禁（`banned=1`）的用户连同只属于他们的邀请码、佣金记录、工单、流量统计都不导入，其余行里指向他们的引用按 [IMPORT_XBOARD.md](IMPORT_XBOARD.md) §3.5 置 NULL / 0；汇总的 `users` 行出现 `skipped banned N`，dry-run 与正式导入要一致。注意封禁状态不会带过来：这些邮箱在 ggboard 里可以重新注册。
+
+如果需要重来（例如先修了 Xboard 里的数据再导），加 `--force`：同一事务里先清空导入表再导（`--skip-banned` 要一起带上，否则封禁用户会被导回来）。
 
 ### 3.4 启动 ggboard，切换反向代理
 
@@ -229,7 +232,7 @@ EOF
 2. 后台 → 节点：17 个节点，几分钟内在线数应与 Xboard 时相同（XrayR/soga 每 120 s 拉取一次）。
 3. 后台 → 支付：3 条 EPay 均启用；下一笔小额订单走一次 EPay 回调（回调 URL 随订单发送，GM Pay/epusdt 侧无需改）。
 4. 后台 → 设置 → 邮件：发送测试邮件（SMTP 设置已导入，包括 `SSL`）。
-5. 后台 → 工单：53 张工单、回复状态正确；用户端打开知识库与公告。
+5. 后台 → 工单：53 张工单（加了 `--skip-banned` 时减去汇总 `tickets` 行的 `skipped banned` 数）、回复状态正确；用户端打开知识库与公告。
 6. 任一客户端刷新订阅、连通节点。
 
 任一步失败且短时间修不好 → §6 回滚。

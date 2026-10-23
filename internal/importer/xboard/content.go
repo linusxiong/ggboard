@@ -19,6 +19,11 @@ func (im *importer) importInviteCodes() error {
 		id := r.id()
 		scope := scopeID("invite_codes", id)
 		uid := uint64(max(r.i64("user_id"), 0))
+		if im.banned[uid] {
+			stat.Skipped++
+			im.rep.Banned.InviteCodes++
+			return nil
+		}
 		if !im.users[uid] {
 			im.warn(scope, "user %d not found — skipped", uid)
 			stat.Skipped++
@@ -48,20 +53,35 @@ func (im *importer) importInviteCodes() error {
 		return err
 	}
 	stat.Imported = b.n
+	if n := im.rep.Banned.InviteCodes; n > 0 {
+		stat.addNote(fmt.Sprintf("skipped banned %d", n))
+	}
 	return nil
 }
 
-// commission_logs ← v2_commission_log (§4.7): history, imported even when the inviter is gone.
+// commission_logs ← v2_commission_log (§4.7): history, imported even when the inviter is gone. With
+// --skip-banned (§3.5) a banned inviter's logs are skipped and a banned invitee becomes user_id 0.
 func (im *importer) importCommissionLogs() error {
 	stat := im.rep.Table("commission_logs")
+	ban := &im.rep.Banned
 	b := newBatcher[model.CommissionLog](im.tx)
 	err := im.src.each(im.ctx, "v2_commission_log", "", nil, func(r row) error {
 		stat.Source++
 		id := r.id()
 		scope := scopeID("commission_logs", id)
 		inviter := uint64(max(r.i64("invite_user_id"), 0))
+		if im.banned[inviter] {
+			stat.Skipped++
+			ban.CommissionLogs++
+			return nil
+		}
 		if !im.users[inviter] {
 			im.warn(scope, "inviter %d not found — imported anyway (history)", inviter)
+		}
+		invitee := uint64(max(r.i64("user_id"), 0))
+		if im.banned[invitee] {
+			invitee = 0 // a user that was not imported
+			ban.CommissionUserIDZeroed++
 		}
 		tradeNo := strings.TrimSpace(r.str("trade_no"))
 		if len(tradeNo) > 32 {
@@ -69,7 +89,7 @@ func (im *importer) importCommissionLogs() error {
 			tradeNo = tradeNo[:32]
 		}
 		return b.add(model.CommissionLog{
-			ID: id, InviteUserID: inviter, UserID: uint64(max(r.i64("user_id"), 0)), TradeNo: tradeNo,
+			ID: id, InviteUserID: inviter, UserID: invitee, TradeNo: tradeNo,
 			OrderAmount: r.i64("order_amount"), GetAmount: r.i64("get_amount"), CreatedAt: im.ts(scope, r["created_at"]),
 		})
 	})
@@ -80,6 +100,12 @@ func (im *importer) importCommissionLogs() error {
 		return err
 	}
 	stat.Imported = b.n
+	if ban.CommissionLogs > 0 {
+		stat.addNote(fmt.Sprintf("skipped banned %d", ban.CommissionLogs))
+	}
+	if ban.CommissionUserIDZeroed > 0 {
+		im.warn("commission_logs", "%d logs whose invitee is banned are kept for their inviter with user_id 0 (--skip-banned)", ban.CommissionUserIDZeroed)
+	}
 	return nil
 }
 
@@ -187,10 +213,13 @@ type lastMessage struct {
 	userID uint64
 }
 
-// tickets ← v2_ticket, ticket_messages ← v2_ticket_message (§4.10).
+// tickets ← v2_ticket, ticket_messages ← v2_ticket_message (§4.10). With --skip-banned (§3.5) a banned user's
+// tickets are skipped with all their messages; in kept tickets a banned author becomes user_id 0 and a banned
+// last replier last_reply_user_id NULL (reply_status is derived from the original ids, as without the flag).
 func (im *importer) importTickets() error {
 	stat := im.rep.Table("tickets")
 	mstat := im.rep.Table("ticket_messages")
+	ban := &im.rep.Banned
 	// newest message per ticket (one complete query before the ticket pass)
 	last := map[uint64]lastMessage{}
 	err := im.src.query(im.ctx, "SELECT id, ticket_id, user_id FROM v2_ticket_message", nil, func(r row) error {
@@ -210,6 +239,12 @@ func (im *importer) importTickets() error {
 		id := r.id()
 		scope := scopeID("tickets", id)
 		uid := uint64(max(r.i64("user_id"), 0))
+		if im.banned[uid] {
+			stat.Skipped++
+			ban.Tickets++
+			im.bannedTickets[id] = true
+			return nil
+		}
 		if !im.users[uid] {
 			im.warn(scope, "user %d not found — ticket and its messages skipped", uid)
 			stat.Skipped++
@@ -250,6 +285,10 @@ func (im *importer) importTickets() error {
 				t.ReplyStatus = model.TicketReplied
 			}
 		}
+		if t.LastReplyUserID != nil && im.banned[*t.LastReplyUserID] {
+			t.LastReplyUserID = nil
+			ban.LastReplyUserIDNulled++
+		}
 		im.tickets[id] = true
 		return b.add(t)
 	})
@@ -268,10 +307,18 @@ func (im *importer) importTickets() error {
 		tid := uint64(max(r.i64("ticket_id"), 0))
 		if !im.tickets[tid] {
 			mstat.Skipped++
+			if im.bannedTickets[tid] {
+				ban.TicketMessages++
+			}
 			return nil
 		}
+		author := uint64(max(r.i64("user_id"), 0))
+		if im.banned[author] {
+			author = 0 // a user that was not imported; 0 never equals the owner, so it reads as a staff reply
+			ban.MessageUserIDZeroed++
+		}
 		return mb.add(model.TicketMessage{
-			ID: id, TicketID: tid, UserID: uint64(max(r.i64("user_id"), 0)), Message: r.str("message"),
+			ID: id, TicketID: tid, UserID: author, Message: r.str("message"),
 			CreatedAt: im.ts(scopeID("ticket_messages", id), r["created_at"]),
 		})
 	})
@@ -282,8 +329,17 @@ func (im *importer) importTickets() error {
 		return err
 	}
 	mstat.Imported = mb.n
-	if mstat.Skipped > 0 {
-		im.warn("ticket_messages", "%d messages of skipped tickets were skipped", mstat.Skipped)
+	if n := mstat.Skipped - ban.TicketMessages; n > 0 {
+		im.warn("ticket_messages", "%d messages of skipped tickets were skipped", n)
+	}
+	if ban.Tickets > 0 {
+		stat.addNote(fmt.Sprintf("skipped banned %d/%d", ban.Tickets, ban.TicketMessages))
+	}
+	if ban.LastReplyUserIDNulled > 0 {
+		im.warn("tickets", "last_reply_user_id of %d tickets pointed to a banned user → NULL (--skip-banned)", ban.LastReplyUserIDNulled)
+	}
+	if ban.MessageUserIDZeroed > 0 {
+		im.warn("ticket_messages", "%d messages written by banned users in kept tickets are kept with user_id 0 (--skip-banned)", ban.MessageUserIDZeroed)
 	}
 	return nil
 }

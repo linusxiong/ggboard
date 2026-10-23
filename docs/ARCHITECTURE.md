@@ -85,7 +85,7 @@ batched DB writes.
 | `ggboard admin create --email E [--password P] [--staff]` | create an administrator (or staff). A password is generated and printed when omitted |
 | `ggboard admin reset-password --email E [--password P]` | set a password (signs out existing sessions) |
 | `ggboard admin promote --email E` | grant `is_admin` to an existing user |
-| `ggboard import xboard --dsn … [--driver] [--dry-run] [--force] [--with-stats] [--stats-days N] [--source-tz TZ]` | Xboard import, see docs/IMPORT_XBOARD.md |
+| `ggboard import xboard --dsn … [--driver] [--dry-run] [--force] [--skip-banned] [--with-stats] [--stats-days N] [--source-tz TZ]` | Xboard import, see docs/IMPORT_XBOARD.md |
 | `ggboard version` | print the version (no config or DB needed) |
 
 Global flags: `-c/--config`, `--data-dir`, `--log-level`, `--log-format`, `--color`, `--db-driver`, `--db-dsn`.

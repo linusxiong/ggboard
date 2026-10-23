@@ -422,6 +422,7 @@ ggboard import xboard --dsn "mysql://user:pass@127.0.0.1:3306/xboard" --with-sta
 | `--driver` | DSN 没有 scheme 时指定 `mysql` / `postgres` / `sqlite` |
 | `--dry-run` | 读写全部执行后回滚 |
 | `--force` | 先删除 ggboard 已有数据（用户、套餐、节点…）再导入 |
+| `--skip-banned` | 不导入被封禁的用户及只属于他们的数据（工单、邀请码、统计…），保留行里指向他们的引用会置空；汇总里显示 `skipped banned N`。注意封禁状态不会带过来，这些邮箱在 ggboard 里可以重新注册；预演、正式导入和 `--force` 重导都要带上这个开关。规则见 IMPORT_XBOARD.md §3.5 |
 | `--with-stats` / `--stats-days` | 同时导入统计，默认最近 90 天 |
 | `--source-tz` | Xboard 时区，默认 `Asia/Shanghai` |
 

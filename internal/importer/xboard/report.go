@@ -27,6 +27,32 @@ type TableStat struct {
 	Note     string
 }
 
+// addNote prepends s to the line's note (notes are joined with " · ").
+func (t *TableStat) addNote(s string) {
+	if t.Note == "" {
+		t.Note = s
+		return
+	}
+	t.Note = s + " · " + t.Note
+}
+
+// BannedSkip counts what --skip-banned left out or rewrote (docs/IMPORT_XBOARD.md §3.5).
+type BannedSkip struct {
+	Users          int // banned v2_user rows not imported
+	AdminsOrStaff  int // of them, admins or staff
+	InviteCodes    int // codes owned by a banned user
+	CommissionLogs int // logs earned by a banned inviter
+	Tickets        int // tickets opened by a banned user
+	TicketMessages int // messages of those tickets
+	StatUsers      int // v2_stat_user rows of banned users (--with-stats)
+
+	// References from imported rows to a banned user, rewritten so that none dangles.
+	InviteUserIDNulled     int // users.invite_user_id → NULL
+	CommissionUserIDZeroed int // commission_logs.user_id (a banned invitee) → 0
+	LastReplyUserIDNulled  int // tickets.last_reply_user_id → NULL
+	MessageUserIDZeroed    int // ticket_messages.user_id (a banned author in a kept ticket) → 0
+}
+
 // SkippedTable is a source table that is never imported (§4.15).
 type SkippedTable struct {
 	Table  string
@@ -43,6 +69,8 @@ type Report struct {
 	LastMigration string
 	DryRun        bool
 	Force         bool
+	SkipBanned    bool
+	Banned        BannedSkip // with SkipBanned
 	WithStats     bool
 	StatsDays     int
 	SourceTZ      string
@@ -177,6 +205,8 @@ func (r *Report) notImported() []string {
 
 const dryRunNote = "dry run: nothing was written. Read every warning above, then run again without --dry-run."
 
+const skipBannedMode = "--skip-banned (banned users left out)"
+
 // WriteSummary prints the plain-text summary of §6 followed by the post-import checklist of §7.
 func (r *Report) WriteSummary(w io.Writer) {
 	p := func(format string, args ...any) { _, _ = fmt.Fprintf(w, format, args...) }
@@ -187,6 +217,9 @@ func (r *Report) WriteSummary(w io.Writer) {
 	}
 	if r.Force {
 		mode += " · --force (target tables cleared first)"
+	}
+	if r.SkipBanned {
+		mode += " · " + skipBannedMode
 	}
 	p("mode: %s · target %s · source-tz %s · stats: %s\n", mode, r.Target, r.SourceTZ, r.statsLine())
 	p("%-20s %8s %9s %8s\n", "table", "source", "imported", "skipped")
@@ -234,6 +267,9 @@ func (r *Report) Print(out *console.Printer) {
 	}
 	if r.Force {
 		fields = append(fields, console.Field{Key: "Force", Value: out.Caution("target tables were cleared first")})
+	}
+	if r.SkipBanned {
+		fields = append(fields, console.Field{Key: "Skip banned", Value: out.Caution(skipBannedMode)})
 	}
 	out.Fields(2, fields)
 	out.Println()
@@ -330,6 +366,9 @@ func (r *Report) checklist() []string {
 	item("Settings: send a test mail (Admin → Settings → Mail), re-check captcha keys and re-set the dropped settings you need (theme, Telegram). Xboard's secure_path no longer applies: restrict /admin at the proxy if you relied on it.")
 	if r.AccessArticles > 0 {
 		item("Content: %d knowledge articles use <!--access start--> blocks; ggboard hides them for users without an active plan (review the wording).", r.AccessArticles)
+	}
+	if r.SkipBanned && r.Banned.Users > 0 {
+		item("Banned users: %d were not imported (--skip-banned), with their invite codes, commission logs, tickets and traffic statistics. Their e-mail addresses are free again (they can register anew), and the Xboard database is now their only copy.", r.Banned.Users)
 	}
 	item("Keep the Xboard database as a read-only backup; the importer never modified it.")
 	return items
