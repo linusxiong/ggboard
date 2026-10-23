@@ -30,7 +30,9 @@ export function AuthLayout({ title, subtitle, children, footer, icon }: AuthLayo
       >
         {t('a11y.skipToContent')}
       </a>
-      <header className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-4 sm:px-6">
+      {/* Same box as the landing header's inner row (routes/index.tsx), so the logo and toggles don't jump
+          when moving between the landing page and sign-in / sign-up. */}
+      <header className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
         <Link to="/" className="rounded-[10px]" aria-label={t('appName')}>
           <Logo withText text={t('appName')} />
         </Link>

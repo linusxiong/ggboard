@@ -47,10 +47,7 @@ function NoticesPage() {
       ) : (
         <>
           <ul
-            className={cx(
-              'mx-auto flex w-full max-w-3xl flex-col gap-5',
-              query.isPlaceholderData && 'opacity-60',
-            )}
+            className={cx('flex w-full max-w-3xl flex-col gap-5', query.isPlaceholderData && 'opacity-60')}
             aria-label={t('notices.title')}
           >
             {query.data.items.map((notice) => (
@@ -60,7 +57,7 @@ function NoticesPage() {
             ))}
           </ul>
           {total > PAGE_SIZE ? (
-            <div className="surface-card mx-auto w-full max-w-3xl">
+            <div className="surface-card w-full max-w-3xl">
               <TablePagination
                 page={page}
                 pageCount={Math.ceil(total / PAGE_SIZE)}

@@ -417,7 +417,13 @@
 
 /* ------------------------------------------------------------------ Base */
 @layer base {
+  /* `scrollbar-gutter: stable`: with classic scroll bars (a mouse, or macOS "Show scroll bars: Always", Windows,
+     Linux) only pages taller than the window get the 15 px bar. Without a reserved gutter the layout width then
+     differs from page to page, so the centred `max-w-page` column — Large Title, content, header actions — jumps
+     sideways when navigating (MISTAKES #161). Overlay scroll bars are unaffected; React Aria's scroll lock for
+     dialogs uses the same property, so opening a modal doesn't shift anything either. */
   html {
+    scrollbar-gutter: stable;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
