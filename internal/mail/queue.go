@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -21,10 +23,14 @@ var (
 	ErrQueueClosed = errors.New("mail: queue is closed")
 )
 
+// AnonymousSharePercent is the share of the queue that ClassAnonymous messages may occupy; the rest is always
+// left to transactional mail.
+const AnonymousSharePercent = 75
+
 // QueueOptions tunes the queue. Zero values use the defaults.
 type QueueOptions struct {
-	Size    int                             // channel capacity (default 1024)
-	Retries int                             // extra attempts after the first failure (default 3)
+	Size    int                             // channel capacity (default 1024); also the cap of the retry list
+	Retries int                             // extra attempts after a temporary failure (default 3)
 	Backoff func(attempt int) time.Duration // delay before retry n (1-based); default 2^(n-1) seconds
 	Timeout time.Duration                   // per-attempt timeout (default 30s)
 }
@@ -37,13 +43,18 @@ type QueueStats struct {
 	Driver  string `json:"driver"`
 }
 
-// Queue delivers messages asynchronously with retries and records every outcome in mail_logs.
+// Queue delivers messages asynchronously and records every outcome in mail_logs. One worker sends them in
+// order; a temporary failure is put on the worker's retry list and attempted again after its backoff, while the
+// worker goes on with the next message. Permanent failures (IsPermanent) are recorded without a retry.
 type Queue struct {
 	db       *gorm.DB
 	settings *settings.Service
 	log      *slog.Logger
 	renderer *Renderer
 	opts     QueueOptions
+
+	anonMu    sync.Mutex // serializes ClassAnonymous admission so concurrent senders cannot overshoot anonLimit
+	anonLimit int        // channel occupancy at which ClassAnonymous messages are refused
 
 	mu       sync.RWMutex // guards ch close vs. send, and override
 	ch       chan Message
@@ -83,7 +94,8 @@ func NewQueue(db *gorm.DB, st *settings.Service, log *slog.Logger, opts QueueOpt
 	}
 	return &Queue{
 		db: db, settings: st, log: log.With("component", "mail"), renderer: r, opts: opts,
-		ch: make(chan Message, opts.Size), stop: make(chan struct{}), done: make(chan struct{}),
+		anonLimit: max(1, opts.Size*AnonymousSharePercent/100),
+		ch:        make(chan Message, opts.Size), stop: make(chan struct{}), done: make(chan struct{}),
 	}, nil
 }
 
@@ -134,7 +146,8 @@ func (q *Queue) SendTemplate(to, template string, data Data) error {
 	return q.Enqueue(msg)
 }
 
-// Enqueue queues msg without blocking.
+// Enqueue queues msg without blocking. It returns ErrQueueFull when the queue is full, and for a ClassAnonymous
+// message already when AnonymousSharePercent of it is occupied.
 func (q *Queue) Enqueue(msg Message) error {
 	if msg.To == "" {
 		return errors.New("mail: empty recipient")
@@ -143,6 +156,13 @@ func (q *Queue) Enqueue(msg Message) error {
 	defer q.mu.RUnlock()
 	if q.closed {
 		return ErrQueueClosed
+	}
+	if msg.Class == ClassAnonymous {
+		q.anonMu.Lock()
+		defer q.anonMu.Unlock()
+		if len(q.ch) >= q.anonLimit {
+			return ErrQueueFull
+		}
 	}
 	q.pending.Add(1)
 	select {
@@ -227,51 +247,134 @@ func (q *Queue) Stats() QueueStats {
 	return QueueStats{Pending: q.pending.Load(), Sent: q.sent.Load(), Failed: q.failed.Load(), Driver: driver}
 }
 
+// job is a message and its delivery history.
+type job struct {
+	msg      Message
+	attempts int       // attempts made so far
+	err      error     // error of the last attempt
+	due      time.Time // earliest time of the next attempt (retry list only)
+}
+
+// run is the single delivery worker. It takes new messages from ch and keeps temporary failures on its own
+// retry list (ordered by due time), so a backoff never holds up the messages behind it. It returns when ch is
+// closed and every retry has finished, or at once when Stop's deadline passes.
 func (q *Queue) run() {
 	defer close(q.done)
-	for msg := range q.ch {
-		err := q.deliver(msg)
-		q.record(msg, err)
-		if err != nil {
-			q.failed.Add(1)
-			q.log.Warn("mail delivery failed", "to", msg.To, "template", msg.Template, "err", err)
-		} else {
-			q.sent.Add(1)
+	ch := q.ch
+	var retry []job
+	timer := time.NewTimer(time.Hour)
+	timer.Stop()
+	defer timer.Stop()
+	for ch != nil || len(retry) > 0 {
+		if len(retry) > 0 && !time.Now().Before(retry[0].due) {
+			j := retry[0]
+			retry = slices.Delete(retry, 0, 1)
+			retry = q.attempt(j, retry)
+			continue
 		}
-		q.pending.Add(-1)
+		var wake <-chan time.Time
+		if len(retry) > 0 {
+			timer.Reset(time.Until(retry[0].due))
+			wake = timer.C
+		}
+		select {
+		case msg, ok := <-ch:
+			if !ok {
+				ch = nil
+				continue
+			}
+			retry = q.attempt(job{msg: msg}, retry)
+		case <-wake:
+		case <-q.stop:
+			q.abort(ch, retry)
+			return
+		}
 	}
 }
 
-// errShutdown is recorded for messages still queued when Stop's deadline passed.
+// errShutdown is recorded for messages still queued (or waiting for a retry) when Stop's deadline passed.
 var errShutdown = errors.New("mail: shutdown before delivery")
 
-func (q *Queue) deliver(msg Message) error {
-	var err error
-	for attempt := 0; attempt <= q.opts.Retries; attempt++ {
-		if attempt > 0 {
-			select {
-			case <-q.stop:
-				return fmt.Errorf("mail: shutdown before retry: %w", err)
-			case <-time.After(q.opts.Backoff(attempt)):
-			}
-		}
-		// After Stop's deadline every remaining message is recorded as failed at once: one more full attempt
-		// (up to opts.Timeout) per queued message would hold shutdown for hours.
-		select {
-		case <-q.stop:
-			return errShutdown
-		default:
-		}
-		var m Mailer
-		if m, err = q.Mailer(); err != nil {
-			return err // configuration error: retrying will not help
-		}
-		err = q.sendOnce(m, msg)
-		if err == nil {
-			return nil
-		}
+// attempt makes one delivery attempt of j. A temporary failure with attempts left goes back on retry (returned);
+// any other outcome is final.
+func (q *Queue) attempt(j job, retry []job) []job {
+	err := q.try(j.msg)
+	if errors.Is(err, errShutdown) {
+		q.finish(j, err)
+		return retry
 	}
-	return err
+	j.attempts++
+	if err == nil || IsPermanent(err) {
+		q.finish(j, err)
+		return retry
+	}
+	j.err = err
+	switch {
+	case q.stopping():
+		q.finish(j, errShutdown) // the attempt was cancelled by Stop's deadline
+	case j.attempts > q.opts.Retries:
+		q.finish(j, err)
+	case len(retry) >= q.opts.Size:
+		q.log.Warn("mail retry list full, not retrying", "to", j.msg.To, "template", j.msg.Template)
+		q.finish(j, err)
+	default:
+		j.due = time.Now().Add(q.opts.Backoff(j.attempts))
+		i := sort.Search(len(retry), func(k int) bool { return retry[k].due.After(j.due) }) // FIFO on ties
+		retry = slices.Insert(retry, i, j)
+	}
+	return retry
+}
+
+// try is one delivery attempt with the current driver; it fails with errShutdown after Stop's deadline (one more
+// full attempt per queued message, up to opts.Timeout each, would hold shutdown for hours).
+func (q *Queue) try(msg Message) error {
+	if q.stopping() {
+		return errShutdown
+	}
+	m, err := q.Mailer()
+	if err != nil {
+		return Permanent(err) // configuration error: an immediate retry will not help
+	}
+	return q.sendOnce(m, msg)
+}
+
+// finish records the final outcome of j.
+func (q *Queue) finish(j job, err error) {
+	if errors.Is(err, errShutdown) && j.err != nil {
+		err = fmt.Errorf("%w (last error: %w)", errShutdown, j.err)
+	}
+	q.record(j.msg, err)
+	if err != nil {
+		q.failed.Add(1)
+		q.log.Warn("mail delivery failed", "to", j.msg.To, "template", j.msg.Template, "attempts", j.attempts,
+			"permanent", IsPermanent(err), "err", err)
+	} else {
+		q.sent.Add(1)
+	}
+	q.pending.Add(-1)
+}
+
+// abort records every message still waiting as failed (Stop's deadline has passed; Stop closed ch before).
+func (q *Queue) abort(ch <-chan Message, retry []job) {
+	for _, j := range retry {
+		q.finish(j, errShutdown)
+	}
+	if ch == nil {
+		return
+	}
+	for msg := range ch {
+		q.finish(job{msg: msg}, errShutdown)
+	}
+}
+
+// stopping reports whether Stop's deadline has passed.
+func (q *Queue) stopping() bool {
+	select {
+	case <-q.stop:
+		return true
+	default:
+		return false
+	}
 }
 
 // sendOnce is one delivery attempt bounded by opts.Timeout and aborted when Stop's deadline passes.

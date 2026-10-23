@@ -16,9 +16,11 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/time/rate"
 
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/captcha"
@@ -42,6 +44,14 @@ const (
 	// codes (429) until the window ends.
 	MaxCodeFailures   = 10
 	CodeFailureWindow = time.Hour
+	// CodeBudgetPerHour and CodeBudgetBurst are the global token bucket of verification-code emails (all
+	// clients together, on top of the per-IP route limits): beyond it SendCode still answers true but sends
+	// nothing, which bounds the SMTP spend of anonymous requests however many addresses they come from.
+	CodeBudgetPerHour = 300
+	CodeBudgetBurst   = 60
+	// CodeQueueBusyRetry is the Retry-After of the 429 returned while the mail queue is above its anonymous
+	// high-water mark (mail.AnonymousSharePercent).
+	CodeQueueBusyRetry = time.Minute
 )
 
 // KV key prefixes (a.KV).
@@ -120,9 +130,76 @@ func NewCode() string {
 	return fmt.Sprintf("%06d", n.Int64())
 }
 
-// SendCode emails a verification code to email, valid CodeTTL for both registration and password reset
-// (the response never reveals whether the email is registered). Codes for the same email are limited to
-// one per CodeCooldown (*RetryError otherwise).
+// codeBudget is the App's global verification-code budget (an App component).
+type codeBudget struct {
+	lim       *rate.Limiter
+	warn      *rate.Limiter // at most one WARN a minute while codes are being dropped
+	dropped   atomic.Int64  // codes dropped since the last WARN
+	busyWarn  *rate.Limiter
+	busyCount atomic.Int64
+}
+
+const componentCodeBudget = "account.code_budget"
+
+func newCodeBudget(perHour, burst int) *codeBudget {
+	return &codeBudget{
+		lim:      rate.NewLimiter(rate.Limit(float64(perHour)/time.Hour.Seconds()), burst),
+		warn:     rate.NewLimiter(rate.Every(time.Minute), 1),
+		busyWarn: rate.NewLimiter(rate.Every(time.Minute), 1),
+	}
+}
+
+func (s *Service) codeBudget() *codeBudget {
+	b, _ := s.a.Component(componentCodeBudget, func() any { return newCodeBudget(CodeBudgetPerHour, CodeBudgetBurst) }).(*codeBudget)
+	return b
+}
+
+// SetCodeBudget sets a's global verification-code budget instead of CodeBudgetPerHour / CodeBudgetBurst
+// (tests). It must be called before a sends its first code and reports whether it took effect.
+func SetCodeBudget(a *app.App, perHour, burst int) bool {
+	want := newCodeBudget(perHour, burst)
+	got, _ := a.Component(componentCodeBudget, func() any { return want }).(*codeBudget)
+	return got == want
+}
+
+// spendCodeBudget takes one code from the global budget; false (logged) when it is exhausted.
+func (s *Service) spendCodeBudget(email string) bool {
+	b := s.codeBudget()
+	if b == nil || b.lim.Allow() { // nil: the App is closing
+		return true
+	}
+	n := b.dropped.Add(1)
+	if b.warn.Allow() {
+		b.dropped.Add(-n)
+		s.a.Log.Warn("verification codes dropped: global budget exhausted (answered true, nothing sent)",
+			"dropped", n, "per_hour", CodeBudgetPerHour, "burst", CodeBudgetBurst, "email_domain", EmailDomain(email))
+	}
+	return false
+}
+
+// codeUsable reports whether a code for email could be used at all: by an existing account (password reset), or
+// for a registration that stop_register and the email whitelist would accept.
+func (s *Service) codeUsable(ctx context.Context, email string) (bool, error) {
+	st := s.a.Settings
+	if !st.Bool("stop_register") && (!st.Bool("email_whitelist_enable") || EmailAllowed(email, st.Strings("email_whitelist_suffix"))) {
+		return true, nil
+	}
+	if _, err := s.users.FindByEmail(ctx, email); err != nil {
+		if errors.Is(err, usersvc.ErrNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+// SendCode emails a verification code to email, valid CodeTTL for both registration and password reset.
+// The answer never reveals whether the email is registered: it is nil (true) also when nothing is sent, namely
+// when no account has the email and stop_register or the email whitelist would refuse it (the code would be
+// useless), and when the global budget (CodeBudgetPerHour, CodeBudgetBurst) is exhausted. Codes for the same
+// email are limited to one per CodeCooldown (*RetryError otherwise). The mail is queued as
+// mail.ClassAnonymous; above the queue's anonymous high-water mark SendCode returns a 429 *RetryError so that
+// transactional mail keeps its room.
 func (s *Service) SendCode(email string) error {
 	email = usersvc.NormalizeEmail(email)
 	coolKey := kvCodeCool + email
@@ -136,6 +213,19 @@ func (s *Service) SendCode(email string) error {
 		secs := max(1, int(math.Ceil(wait.Seconds())))
 		return retryError(fmt.Sprintf("please wait %d seconds before requesting another code", secs), wait)
 	}
+	usable, err := s.codeUsable(context.Background(), email)
+	if err != nil {
+		s.a.KV.Delete(coolKey)
+		return httpx.Internal(fmt.Errorf("account: look up code recipient: %w", err))
+	}
+	if !usable {
+		s.a.Log.Debug("verification code not sent: no account and registration would refuse the email",
+			"email_domain", EmailDomain(email))
+		return nil
+	}
+	if !s.spendCodeBudget(email) {
+		return nil
+	}
 	code := NewCode()
 	codesMu.Lock()
 	for _, p := range []string{PurposeRegister, PurposeForgot} {
@@ -143,9 +233,24 @@ func (s *Service) SendCode(email string) error {
 	}
 	codesMu.Unlock()
 	data := mail.Data{"Code": code, "Minutes": int(CodeTTL / time.Minute)}
-	if err := s.a.Mailer.SendTemplate(email, mail.TplVerifyCode, data); err != nil {
+	msg, err := s.a.Mailer.Render(email, mail.TplVerifyCode, data)
+	if err == nil {
+		msg.Class = mail.ClassAnonymous
+		err = s.a.Mailer.Enqueue(msg)
+	}
+	if err != nil {
 		s.a.KV.Delete(coolKey)
 		s.dropCodes(email)
+		if errors.Is(err, mail.ErrQueueFull) {
+			if b := s.codeBudget(); b != nil {
+				n := b.busyCount.Add(1)
+				if b.busyWarn.Allow() {
+					b.busyCount.Add(-n)
+					s.a.Log.Warn("verification codes refused: mail queue above the anonymous high-water mark", "refused", n)
+				}
+			}
+			return retryError("too many emails are being sent, please try again in a minute", CodeQueueBusyRetry)
+		}
 		return httpx.Internal(fmt.Errorf("account: queue verification mail: %w", err))
 	}
 	return nil
