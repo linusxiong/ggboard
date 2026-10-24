@@ -87,6 +87,8 @@ export interface User {
   /** Mbps, `null` = unlimited. */
   speed_limit: number | null
   device_limit: number | null
+  /** TCP connections per node, `null`/0 = unlimited (soga only, see `Plan.conn_limit`). */
+  conn_limit: number | null
   balance: Cents
   commission_balance: Cents
   /** Percent override, `null` = system default. */
@@ -162,6 +164,8 @@ export interface Plan {
   transfer_enable: number
   speed_limit: number | null
   device_limit: number | null
+  /** Simultaneous TCP connections per user per node (0..100000); `null`/0 = unlimited. Only soga enforces it (`tcp_limit`). */
+  conn_limit: number | null
   /** Hidden from `/guest/plans` ("no capacity leak"). */
   capacity_limit?: number | null
   prices: PlanPrices
@@ -639,6 +643,8 @@ export interface UserSubscription {
   next_reset_at: ISODateTime | null
   reset_day: number | null
   device_limit: number | null
+  /** `null`/0 = unlimited. */
+  conn_limit: number | null
   speed_limit: number | null
 }
 export interface SubscriptionReset {
@@ -910,6 +916,8 @@ export interface AdminUserCreateInput {
   is_staff?: boolean
   speed_limit?: number | null
   device_limit?: number | null
+  /** Omitted with `plan_id` = the plan's value. */
+  conn_limit?: number | null
   balance?: Cents
   remarks?: string
 }

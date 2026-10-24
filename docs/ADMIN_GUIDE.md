@@ -263,7 +263,7 @@ Nodes:
       Timeout: 30
 ```
 
-XrayR 请求 `/api/v1/server/UniProxy/{config,user,push}`；它忽略面板下发的用户设备数，只使用本地 `DeviceLimit`。它不读取面板下发的拉取间隔，请把
+XrayR 请求 `/api/v1/server/UniProxy/{config,user,push}`；它忽略面板下发的用户设备数，只使用本地 `DeviceLimit`，也没有连接数限制。它不读取面板下发的拉取间隔，请把
 `ControllerConfig.UpdatePeriodic` 设为不大于面板的上报间隔。
 
 ### 3.3 V2bX
@@ -280,7 +280,8 @@ XrayR 请求 `/api/v1/server/UniProxy/{config,user,push}`；它忽略面板下�
 }
 ```
 
-V2bX 使用面板下发的拉取 / 上报间隔，并通过 `/api/v1/server/UniProxy/alivelist` 执行设备数限制。
+V2bX 使用面板下发的拉取 / 上报间隔，并通过 `/api/v1/server/UniProxy/alivelist` 执行设备数限制；它不支持连接数限制
+（本地 `ConnLimit` 配置已不再生效）。节点前有中转时见 §3.5。
 
 ### 3.4 soga（`type=soga-v1`）
 
@@ -297,7 +298,23 @@ webapi_key=<server_token>
 
 推荐 `webapi_url` 使用 `/soga/` 前缀（soga 许可证绑定完整的 `webapi_url`，也便于在反向代理单独限流）；
 soga 请求 `/soga/api/v1/{node,users,audit_rules,white_list,traffic,alive_ip,audit_log,status}`，
-不带前缀的 `/api/v1/...` 同样可用。
+不带前缀的 `/api/v1/...` 同样可用。soga 执行面板下发的限速、设备数与**连接数**（用户的 `conn_limit` 作为 `tcp_limit` 下发），
+与本地的 `user_speed_limit`、`user_conn_limit` 取较小值。
+
+### 3.5 中转机后面的节点：设备数与连接数
+
+节点前面有中转机时，后端看到的所有连接都来自中转机的 IP：每个用户无论开几台设备都只算一台，**设备数限制失效**，
+节点“在线用户”里的 IP 也都是中转机的 IP。两种办法：
+
+- **让后端拿到真实 IP**：中转机发送 PROXY protocol，V2bX 节点开启 `EnableProxyProtocol`，设备数限制即恢复正常。
+- **改用连接数限制**：在套餐或用户上填写 **连接数**（`conn_limit`，每个用户同时的 TCP 连接数，留空或 0 = 不限）。
+  只有 soga 支持（`tcp_limit`）；XrayR 与 V2bX 都无法限制连接数。
+
+| 限制 | XrayR | V2bX | soga |
+| --- | --- | --- | --- |
+| 限速 `speed_limit` | 支持 | 支持 | 支持 |
+| 设备数 `device_limit` | 不支持（只用本地 `DeviceLimit`） | 支持（`alivelist`） | 支持 |
+| 连接数 `conn_limit` | 不支持 | 不支持 | 支持（`tcp_limit`） |
 
 ---
 
@@ -307,9 +324,11 @@ soga 请求 `/soga/api/v1/{node,users,audit_rules,white_list,traffic,alive_ip,au
 
 - **价格**：按周期填写（站点货币），留空表示不提供该周期。周期：`monthly`、`quarterly`、`half_yearly`、
   `yearly`、`two_yearly`、`three_yearly`、`onetime`，以及 `reset_traffic`（流量重置包）。
-- **权限组**、每周期流量、限速、设备数、容量上限（留空 = 不限）、流量重置方式（留空 = 跟随系统设置）。
+- **权限组**、每周期流量、限速、设备数、连接数（只有 soga 执行，见 §3.5）、容量上限（留空 = 不限）、流量重置方式（留空 = 跟随系统设置）。
+  购买（含续费）、试用、后台新建 / 批量生成用户时，套餐的限速、设备数、连接数会复制到用户上；修改套餐不会立即改变已有用户
+  （下次付费订单时才按新值），除非使用下面的 `force_update`。
 - **显示**（商店可见）/ **销售**（允许新购）/ **续费**（允许已有用户续费）：关闭“销售”的套餐只供老用户续费。
-- `PATCH /api/v1/admin/plans/:id` 带 `"force_update": true` 时会把权限组、流量和限制同步到所有持有该套餐的用户
+- `PATCH /api/v1/admin/plans/:id` 带 `"force_update": true` 时会把权限组、流量和限制（限速、设备数、连接数）同步到所有持有该套餐的用户
   （后台表单暂未提供此选项）。
 
 ### 4.2 优惠券 `/admin/coupons`

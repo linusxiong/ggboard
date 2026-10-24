@@ -1,6 +1,6 @@
 import { Chip } from '@heroui/react'
 import { Link } from '@tanstack/react-router'
-import { CalendarClock, Gauge, MonitorSmartphone, Package, RotateCcw } from 'lucide-react'
+import { Cable, CalendarClock, Gauge, MonitorSmartphone, Package, RotateCcw } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { DateTime } from '@/components/Formatters'
 import { TrafficRing } from '@/components/TrafficRing'
@@ -166,6 +166,15 @@ export function PlanCard({ sub }: { sub: UserSubscription }) {
             ? t('plan.deviceCount', { count: sub.device_limit })
             : t('common:values.unlimited')}
         </Fact>
+        {sub.conn_limit ? (
+          <Fact
+            icon={<Cable className="size-[18px]" />}
+            tint="bg-system-indigo/12 text-system-indigo"
+            label={t('plan.connections')}
+          >
+            {t('plan.connCount', { count: sub.conn_limit })}
+          </Fact>
+        ) : null}
       </dl>
 
       {state !== 'active' ? (

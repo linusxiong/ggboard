@@ -73,7 +73,7 @@ func TestMe(t *testing.T) {
 	sum := md5.Sum([]byte("me@example.com"))
 	if me.ID != u.ID || me.Email != "me@example.com" || me.UUID != u.UUID || me.Plan == nil || me.Plan.Name != "Pro" ||
 		me.U != 10 || me.D != 20 || me.Balance != 300 || me.TransferEnable != 5<<30 || *me.SpeedLimit != 50 ||
-		me.DeviceLimit != nil || !me.ExpiredAt.Equal(exp) ||
+		me.DeviceLimit != nil || me.ConnLimit != nil || !me.ExpiredAt.Equal(exp) ||
 		me.AvatarURL != "https://www.gravatar.com/avatar/"+hex.EncodeToString(sum[:])+"?s=200&d=mp" {
 		t.Fatalf("me = %+v", me)
 	}
@@ -83,8 +83,8 @@ func TestMe(t *testing.T) {
 			t.Fatalf("self view exposes %q: %s", k, rec.Body.String())
 		}
 	}
-	if string(raw["plan"]) != fmt.Sprintf(`{"id":%d,"name":"Pro"}`, plan.ID) || string(raw["next_reset_at"]) != "null" {
-		t.Fatalf("plan = %s next_reset_at = %s", raw["plan"], raw["next_reset_at"])
+	if string(raw["plan"]) != fmt.Sprintf(`{"id":%d,"name":"Pro"}`, plan.ID) || string(raw["next_reset_at"]) != "null" || string(raw["conn_limit"]) != "null" {
+		t.Fatalf("plan = %s next_reset_at = %s conn_limit = %s", raw["plan"], raw["next_reset_at"], raw["conn_limit"])
 	}
 
 	// A deleted plan renders as null while plan_id stays.
@@ -215,7 +215,8 @@ func TestSubscription(t *testing.T) {
 	plan := createPlan(t, a, "Basic")
 	exp := time.Now().Add(72 * time.Hour).UTC().Truncate(time.Second)
 	next := time.Now().Add(36 * time.Hour).UTC().Truncate(time.Second)
-	u := testutil.CreateUser(t, a, "sub@example.com", usersvc.CreateOptions{PlanID: &plan.ID, TransferEnable: 1 << 30, ExpiredAt: &exp, DeviceLimit: testutil.Ptr(3)})
+	u := testutil.CreateUser(t, a, "sub@example.com", usersvc.CreateOptions{PlanID: &plan.ID, TransferEnable: 1 << 30, ExpiredAt: &exp, DeviceLimit: testutil.Ptr(3),
+		ConnLimit: testutil.Ptr(64)})
 	if err := a.DB.Model(&model.User{}).Where("id = ?", u.ID).Updates(map[string]any{"next_reset_at": next, "u": 5, "d": 7}).Error; err != nil {
 		t.Fatal(err)
 	}
@@ -225,14 +226,14 @@ func TestSubscription(t *testing.T) {
 	}
 	if sub.Plan == nil || sub.Plan.ID != plan.ID || sub.Plan.Name != "Basic" || sub.TransferEnable != 1<<30 || sub.U != 5 || sub.D != 7 ||
 		!sub.ExpiredAt.Equal(exp) || !sub.NextResetAt.Equal(next) || sub.ResetDay == nil || *sub.ResetDay != 2 ||
-		sub.DeviceLimit == nil || *sub.DeviceLimit != 3 || sub.SpeedLimit != nil {
+		sub.DeviceLimit == nil || *sub.DeviceLimit != 3 || sub.ConnLimit == nil || *sub.ConnLimit != 64 || sub.SpeedLimit != nil {
 		t.Fatalf("sub = %+v", sub)
 	}
 
 	// No plan, no reset date.
 	v := testutil.CreateUser(t, a, "free@example.com")
 	raw := testutil.Decode[map[string]json.RawMessage](t, testutil.Do(t, r, http.MethodGet, base+"/subscription", nil, testutil.Login(t, a, v)))
-	for _, k := range []string{"plan", "expired_at", "next_reset_at", "reset_day", "device_limit", "speed_limit"} {
+	for _, k := range []string{"plan", "expired_at", "next_reset_at", "reset_day", "device_limit", "conn_limit", "speed_limit"} {
 		if string(raw[k]) != "null" {
 			t.Fatalf("%s = %s", k, raw[k])
 		}

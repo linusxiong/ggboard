@@ -356,6 +356,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<boolea
         next_reset_at: user.next_reset_at,
         reset_day: 1,
         device_limit: user.device_limit,
+        conn_limit: user.conn_limit ?? null,
         speed_limit: user.speed_limit,
         ...subscriptionExtras(feS),
       })

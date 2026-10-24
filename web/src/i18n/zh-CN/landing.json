@@ -36,6 +36,8 @@
     "traffic": "{gb} GB 流量",
     "devices": "{count} 台设备",
     "unlimitedDevices": "不限设备",
+    "connections_one": "单节点 {count} 个连接",
+    "connections_other": "单节点 {count} 个连接",
     "speed": "限速 {mbps} Mbps",
     "unlimitedSpeed": "不限速",
     "from": "起",

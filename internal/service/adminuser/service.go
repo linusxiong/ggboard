@@ -114,7 +114,7 @@ func (s *Service) invalidate(id uint64) {
 // ---------------------------------------------------------------- create
 
 // CreateInput is POST /admin/users. transfer_enable is in GB. A plan fills group_id, transfer_enable,
-// speed_limit and device_limit when they are omitted; 0 ids mean none.
+// speed_limit, device_limit and conn_limit when they are omitted; 0 ids mean none.
 type CreateInput struct {
 	Email          string     `json:"email" binding:"required,email,max=191"`
 	Password       string     `json:"password" binding:"required,min=8,max=128"`
@@ -126,6 +126,7 @@ type CreateInput struct {
 	IsStaff        bool       `json:"is_staff"`
 	SpeedLimit     *int       `json:"speed_limit" binding:"omitempty,gte=0"`
 	DeviceLimit    *int       `json:"device_limit" binding:"omitempty,gte=0"`
+	ConnLimit      *int       `json:"conn_limit" binding:"omitempty,gte=0,lte=100000"` // model.MaxConnLimit
 	Balance        int64      `json:"balance" binding:"gte=0"`
 	Remarks        string     `json:"remarks" binding:"max=16000"` // runes: ≤ 64000 bytes, fits a MySQL TEXT
 	InviteUserID   *uint64    `json:"invite_user_id"`
@@ -135,7 +136,7 @@ type CreateInput struct {
 func (s *Service) Create(ctx context.Context, in CreateInput, now time.Time) (*model.User, error) {
 	db := s.a.DB.WithContext(ctx)
 	opts := usersvc.CreateOptions{
-		ExpiredAt: in.ExpiredAt, SpeedLimit: in.SpeedLimit, DeviceLimit: in.DeviceLimit, Balance: in.Balance,
+		ExpiredAt: in.ExpiredAt, SpeedLimit: in.SpeedLimit, DeviceLimit: in.DeviceLimit, ConnLimit: in.ConnLimit, Balance: in.Balance,
 		IsAdmin: in.IsAdmin, IsStaff: in.IsStaff, Remarks: in.Remarks,
 	}
 	var plan *model.Plan
@@ -167,6 +168,9 @@ func (s *Service) Create(ctx context.Context, in CreateInput, now time.Time) (*m
 		}
 		if opts.DeviceLimit == nil {
 			opts.DeviceLimit = plan.DeviceLimit
+		}
+		if opts.ConnLimit == nil {
+			opts.ConnLimit = plan.ConnLimit
 		}
 	}
 	if id := nonZero(in.InviteUserID); id != nil {
@@ -217,6 +221,7 @@ type UpdateInput struct {
 	IsStaff           *bool               `json:"is_staff,omitempty"`
 	SpeedLimit        Nullable[int]       `json:"speed_limit,omitzero"`
 	DeviceLimit       Nullable[int]       `json:"device_limit,omitzero"`
+	ConnLimit         Nullable[int]       `json:"conn_limit,omitzero"`
 	Balance           *int64              `json:"balance,omitempty" binding:"omitempty,gte=0"`
 	CommissionBalance *int64              `json:"commission_balance,omitempty" binding:"omitempty,gte=0"`
 	CommissionType    *int                `json:"commission_type,omitempty" binding:"omitempty,oneof=0 1 2"`
@@ -238,6 +243,7 @@ func (in *UpdateInput) Validate() error {
 	}{
 		{"speed_limit", in.SpeedLimit, 0, math.MaxInt32},
 		{"device_limit", in.DeviceLimit, 0, math.MaxInt32},
+		{"conn_limit", in.ConnLimit, 0, model.MaxConnLimit},
 		{"commission_rate", in.CommissionRate, 0, 100},
 		{"discount", in.Discount, 0, 100},
 	}
@@ -341,7 +347,7 @@ func (s *Service) changes(tx *gorm.DB, actor, u *model.User, in *UpdateInput, no
 	nullInts := []struct {
 		col string
 		v   Nullable[int]
-	}{{"speed_limit", in.SpeedLimit}, {"device_limit", in.DeviceLimit}, {"commission_rate", in.CommissionRate}, {"discount", in.Discount}}
+	}{{"speed_limit", in.SpeedLimit}, {"device_limit", in.DeviceLimit}, {"conn_limit", in.ConnLimit}, {"commission_rate", in.CommissionRate}, {"discount", in.Discount}}
 	for _, f := range nullInts {
 		if f.v.Set {
 			set[f.col] = f.v.Ptr()

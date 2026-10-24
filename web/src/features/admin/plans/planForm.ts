@@ -23,6 +23,7 @@ export interface PlanFormValues {
   transfer_enable: number | null
   speed_limit: number | null
   device_limit: number | null
+  conn_limit: number | null
   capacity_limit: number | null
   /** Currency units per period; `null` = not offered. */
   prices: Record<PlanPeriod, number | null>
@@ -48,6 +49,7 @@ export function planToValues(plan: Plan | null | undefined, currency: string): P
     transfer_enable: plan?.transfer_enable ?? null,
     speed_limit: plan?.speed_limit ?? null,
     device_limit: plan?.device_limit ?? null,
+    conn_limit: plan?.conn_limit ?? null,
     capacity_limit: plan?.capacity_limit ?? null,
     prices,
     reset_traffic_method:
@@ -77,6 +79,7 @@ export function valuesToPlanInput(values: PlanFormValues, currency: string): Pla
     transfer_enable: values.transfer_enable ?? 0,
     speed_limit: intOrNull(values.speed_limit),
     device_limit: intOrNull(values.device_limit),
+    conn_limit: intOrNull(values.conn_limit),
     capacity_limit: intOrNull(values.capacity_limit),
     prices,
     reset_traffic_method:

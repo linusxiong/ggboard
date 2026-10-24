@@ -109,6 +109,7 @@ type CreateOptions struct {
 	ExpiredAt      *time.Time
 	SpeedLimit     *int
 	DeviceLimit    *int
+	ConnLimit      *int
 	InviteUserID   *uint64
 	Balance        int64
 	IsAdmin        bool
@@ -143,6 +144,7 @@ func (s *Service) Create(ctx context.Context, email, password string, opts Creat
 		ExpiredAt:      opts.ExpiredAt,
 		SpeedLimit:     opts.SpeedLimit,
 		DeviceLimit:    opts.DeviceLimit,
+		ConnLimit:      opts.ConnLimit,
 		InviteUserID:   opts.InviteUserID,
 		Balance:        opts.Balance,
 		IsAdmin:        opts.IsAdmin,
@@ -316,12 +318,14 @@ func ResetDays(next *time.Time, now time.Time) *int {
 	return &days
 }
 
-// NodeUser is the per-user record delivered to node backends (0 = unlimited).
+// NodeUser is the per-user record delivered to node backends (0 = unlimited). Its JSON is the UniProxy /user element;
+// ConnLimit is only sent to soga (tcp_limit, docs/NODE_PROTOCOLS.md §3.2), since XrayR and V2bX read no such field.
 type NodeUser struct {
 	ID          uint64 `json:"id"`
 	UUID        string `json:"uuid"`
 	SpeedLimit  int    `json:"speed_limit"`
 	DeviceLimit int    `json:"device_limit"`
+	ConnLimit   int    `json:"-"`
 }
 
 // AvailableUsersForGroups returns available users (not banned, not expired, u+d < transfer_enable) whose
@@ -343,7 +347,7 @@ func (s *Service) AvailableUsersForGroups(ctx context.Context, groupIDs []uint64
 	return cache.GetOrLoad(s.a.Cache, key, NodeUsersTTL, func() ([]NodeUser, error) {
 		var rows []model.User
 		err := s.a.DB.WithContext(lctx).
-			Select("id", "uuid", "speed_limit", "device_limit").
+			Select("id", "uuid", "speed_limit", "device_limit", "conn_limit").
 			Where("group_id IN ?", ids).
 			Where("banned = ?", false).
 			Where("expired_at IS NULL OR expired_at > ?", time.Now()).
@@ -361,6 +365,9 @@ func (s *Service) AvailableUsersForGroups(ctx context.Context, groupIDs []uint64
 			}
 			if r.DeviceLimit != nil {
 				out[i].DeviceLimit = *r.DeviceLimit
+			}
+			if r.ConnLimit != nil {
+				out[i].ConnLimit = *r.ConnLimit
 			}
 		}
 		return out, nil

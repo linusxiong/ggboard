@@ -37,6 +37,7 @@ Conventions:
 | next_reset_at | *time idx | next traffic reset, computed from the plan's reset method |
 | speed_limit | *int | Mbps, null = unlimited |
 | device_limit | *int | null = unlimited |
+| conn_limit | *int | TCP connections per user, 0..100000; null or 0 = unlimited. Sent to soga as `tcp_limit` (NODE_PROTOCOLS.md §3.2); XrayR and V2bX cannot enforce it. Added by AutoMigrate (nullable, existing rows stay null) |
 | balance | int64 | cents |
 | commission_balance | int64 | cents |
 | commission_type | int8 | 0 follow settings, 1 every paid order, 2 first order only |
@@ -79,6 +80,7 @@ Derived credentials (`model.UserCredentials(u, node)`):
 | transfer_enable | int64 | **GB** (as entered); `TransferBytes()` = GB × 2^30 on purchase |
 | speed_limit | *int | Mbps |
 | device_limit | *int | |
+| conn_limit | *int | null = unlimited; copied to the user like `device_limit` (purchase, trial, admin create / generate, `force_update`) |
 | capacity_limit | *int | max active subscribers (null = unlimited) |
 | prices | json map[string]int64 | period → cents. Keys: `monthly`, `quarterly`, `half_yearly`, `yearly`, `two_yearly`, `three_yearly`, `onetime`, `reset_traffic`. A missing key means not for sale |
 | reset_traffic_method | *int8 | null = follow the `reset_traffic_method` setting. 0 on the 1st of each month, 1 monthly on the purchase (expiry) day, 2 never, 3 on Jan 1, 4 yearly on the purchase (expiry) day |

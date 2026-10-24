@@ -99,6 +99,9 @@ function Plans({ signedIn, currency, symbol }: SectionsProps) {
                           ? t('plans.devices', { count: plan.device_limit })
                           : t('plans.unlimitedDevices')}
                       </Feature>
+                      {plan.conn_limit ? (
+                        <Feature>{t('plans.connections', { count: plan.conn_limit })}</Feature>
+                      ) : null}
                       <Feature>
                         {plan.speed_limit
                           ? t('plans.speed', { mbps: plan.speed_limit })

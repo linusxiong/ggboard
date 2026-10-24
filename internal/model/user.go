@@ -19,6 +19,7 @@ type User struct {
 	NextResetAt       *time.Time     `gorm:"index" json:"next_reset_at"`
 	SpeedLimit        *int           `json:"speed_limit"`
 	DeviceLimit       *int           `json:"device_limit"`
+	ConnLimit         *int           `json:"conn_limit"` // TCP connections per user (soga tcp_limit); null or 0 = unlimited
 	Balance           int64          `gorm:"not null;default:0" json:"balance"`
 	CommissionBalance int64          `gorm:"not null;default:0" json:"commission_balance"`
 	CommissionType    CommissionType `gorm:"not null;default:0" json:"commission_type"`

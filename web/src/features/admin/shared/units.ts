@@ -55,3 +55,6 @@ export function parseLines(text: string): string[] {
     .map((line) => line.trim())
     .filter(Boolean)
 }
+
+/** Upper bound of `conn_limit` (TCP connections per user per node, docs/API.md). */
+export const CONN_LIMIT_MAX = 100_000

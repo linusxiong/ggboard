@@ -125,7 +125,7 @@ func (s *Service) Generate(ctx context.Context, in GenerateInput, now time.Time)
 		gid := plan.GroupID
 		tmpl.PlanID, tmpl.GroupID = &plan.ID, &gid
 		tmpl.TransferEnable = plan.TransferBytes()
-		tmpl.SpeedLimit, tmpl.DeviceLimit = plan.SpeedLimit, plan.DeviceLimit
+		tmpl.SpeedLimit, tmpl.DeviceLimit, tmpl.ConnLimit = plan.SpeedLimit, plan.DeviceLimit, plan.ConnLimit
 		tmpl.NextResetAt = svc.ComputeNextResetAt(&tmpl, plan, now)
 	}
 	users := make([]model.User, len(emails))

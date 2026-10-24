@@ -5,6 +5,10 @@ import "time"
 // BytesPerGB converts plans.transfer_enable (GB) to bytes.
 const BytesPerGB int64 = 1 << 30
 
+// MaxConnLimit is the largest plans.conn_limit / users.conn_limit the admin API accepts (binding tags spell it out
+// as max=100000 / lte=100000).
+const MaxConnLimit = 100000
+
 // Plan is a purchasable subscription package.
 type Plan struct {
 	ID                 uint64            `gorm:"primaryKey" json:"id"`
@@ -15,6 +19,7 @@ type Plan struct {
 	TransferEnable     int64             `gorm:"not null;default:0" json:"transfer_enable"` // GB
 	SpeedLimit         *int              `json:"speed_limit"`
 	DeviceLimit        *int              `json:"device_limit"`
+	ConnLimit          *int              `json:"conn_limit"` // copied to users like device_limit; null = unlimited
 	CapacityLimit      *int              `json:"capacity_limit"`
 	Prices             JSONObject[int64] `json:"prices"` // period -> cents; absent = not for sale
 	ResetTrafficMethod *ResetMethod      `json:"reset_traffic_method"`

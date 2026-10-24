@@ -33,7 +33,9 @@
     "unlimitedSpeed": "不限速",
     "devices": "设备数量",
     "deviceCount_one": "最多 {count} 台",
-    "deviceCount_other": "最多 {count} 台"
+    "deviceCount_other": "最多 {count} 台",
+    "connections": "单节点连接数",
+    "connCount": "最多 {count} 个"
   },
   "actions": {
     "title": "快捷操作",

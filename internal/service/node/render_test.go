@@ -266,14 +266,14 @@ func TestSogaSS2022WorkedExample(t *testing.T) {
 	}
 	users := []usersvc.NodeUser{
 		{ID: 1, UUID: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f", DeviceLimit: 3},
-		{ID: 2, UUID: "9d4c2e1a-0b3f-4a5c-8e7d-6f1a2b3c4d5e", SpeedLimit: 100},
+		{ID: 2, UUID: "9d4c2e1a-0b3f-4a5c-8e7d-6f1a2b3c4d5e", SpeedLimit: 100, ConnLimit: 64},
 	}
 	ub, err := NewBody(SogaUserList(&n, users))
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantUsers := `[{"id":1,"password":"M2IxYjZmNWUtN2MyYS00ZA==","speed_limit":0,"device_limit":3,"tcp_limit":0},{"id":2,"password":"OWQ0YzJlMWEtMGIzZi00YQ==","speed_limit":100,"device_limit":0,"tcp_limit":0}]`
-	if string(ub.JSON) != wantUsers || ub.ETag != "e2e3870b1bd7ccc5eb600870fb0627dce73202d2" {
+	wantUsers := `[{"id":1,"password":"M2IxYjZmNWUtN2MyYS00ZA==","speed_limit":0,"device_limit":3,"tcp_limit":0},{"id":2,"password":"OWQ0YzJlMWEtMGIzZi00YQ==","speed_limit":100,"device_limit":0,"tcp_limit":64}]`
+	if string(ub.JSON) != wantUsers || ub.ETag != "67a29b192abd3479b4387418891f742f66e9bca0" {
 		t.Fatalf("users body %s etag %s", ub.JSON, ub.ETag)
 	}
 }

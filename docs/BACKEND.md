@@ -256,8 +256,9 @@ Every service is cheap to build: call `New(a)` per request. Import aliases used 
   - `RecordLogin`, `SetPassword` (bumps the version), `ResetSecurity` (new uuid and token, bumps the version),
     `RotateToken` (new subscription token only), `SubscribeURL(u)`
   - traffic reset: `ComputeNextResetAt(u, plan, now)`, `usersvc.NextResetAt(method, expiredAt, now)`, `ResetDay(u)`
-  - `AvailableUsersForGroups(ctx, groupIDs) ([]NodeUser{ID, UUID, SpeedLimit, DeviceLimit}, error)`: 60 s cache; call
-    `InvalidateNodeUsers()` after any user change nodes must see
+  - `AvailableUsersForGroups(ctx, groupIDs) ([]NodeUser{ID, UUID, SpeedLimit, DeviceLimit, ConnLimit}, error)`: 60 s cache; call
+    `InvalidateNodeUsers()` after any user change nodes must see. The JSON of `NodeUser` is the UniProxy element
+    (`ConnLimit` is `json:"-"`; only soga gets it, as `tcp_limit`)
   - `usersvc.NewToken()`, `usersvc.NormalizeEmail`
 - **`service/account`**: rules shared by passport and user:
   - email codes: `SendCode`, `ConsumeCode`

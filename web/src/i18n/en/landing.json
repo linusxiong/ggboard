@@ -36,6 +36,8 @@
     "traffic": "{gb} GB traffic",
     "devices": "{count} devices",
     "unlimitedDevices": "Unlimited devices",
+    "connections_one": "{count} connection per node",
+    "connections_other": "{count} connections per node",
     "speed": "{mbps} Mbps cap",
     "unlimitedSpeed": "No speed cap",
     "from": "from",

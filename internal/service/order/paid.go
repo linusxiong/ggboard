@@ -107,7 +107,7 @@ func (s *Service) fulfil(ctx context.Context, tx *gorm.DB, o *model.Order, plan 
 		exp := start.AddDate(0, months, 0)
 		upd["expired_at"], u.ExpiredAt = exp, &exp
 	}
-	upd["speed_limit"], upd["device_limit"] = plan.SpeedLimit, plan.DeviceLimit
+	upd["speed_limit"], upd["device_limit"], upd["conn_limit"] = plan.SpeedLimit, plan.DeviceLimit, plan.ConnLimit
 	next := usersvc.New(s.a).ComputeNextResetAt(u, plan, now)
 	upd["next_reset_at"] = next
 	if o.RefundAmount > 0 {

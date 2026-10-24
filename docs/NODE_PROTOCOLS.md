@@ -377,6 +377,10 @@ How clients read routes:
   - V2bX uses the smallest non-zero value of the node-local and user limits, `*1000000/8`.
 - `device_limit`: `users.device_limit`; `null` becomes `0` (unlimited). XrayR ignores it and uses its local `DeviceLimit`
   [v2board.go "todo"]. V2bX enforces it via `alivelist` (§5.2).
+- No connection limit: `users.conn_limit` is **not** sent here, because neither backend can enforce one. XrayR v25.3.6 has
+  no connection limit of any kind, and V2bX's `UserInfo` has only `id/uuid/speed_limit/device_limit`; its local
+  `LimitConfig.ConnLimit` is read by nothing since commit fc284b3 (2025-05-28) deleted `limiter/conn.go` [V2bX dev_new].
+  Only soga enforces `conn_limit` (§3.2 `tcp_limit`).
 - V2bX sends `X-Response-Format: msgpack`. **Ignore it** and answer JSON with `Content-Type: application/json`. V2bX only
   msgpack-decodes when the response Content-Type contains `application/x-msgpack`.
 
@@ -492,7 +496,7 @@ Returns a JSON array sorted by id, using the §2.2 selection, with an ETag. `[]`
 - `id`: int
 - `speed_limit`: int Mbps, null → 0
 - `device_limit`: int, null → 0
-- `tcp_limit`: int, always 0 (ggboard has no TCP-connection limit)
+- `tcp_limit`: int, `users.conn_limit` (TCP connections per user); null → 0 (unlimited)
 
 Each element also carries type-specific credential fields (§4):
 
@@ -503,10 +507,13 @@ Each element also carries type-specific credential fields (§4):
 | shadowsocks 2022 | `"password": base64(uuid[:16])` for aes-128, `base64(uuid[:32])` otherwise (user PSK, §4) |
 | mieru | `"username": uuid, "password": uuid` |
 
-Example (vless): `[{"id":1,"uuid":"3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f","speed_limit":0,"device_limit":3,"tcp_limit":0}]`.
+Example (vless): `[{"id":1,"uuid":"3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f","speed_limit":0,"device_limit":3,"tcp_limit":64}]`.
 Example (mieru): `[{"id":1,"username":"3b1b6f5e-...","password":"3b1b6f5e-...","speed_limit":0,"device_limit":0,"tcp_limit":0}]`.
 
 soga applies the lower of the panel's limits and its local `user_speed_limit`, `user_conn_limit` and `node_speed_limit`.
+The body is built from the same cached user list as §2.2 (§6.6), so every write that changes a user's `conn_limit` (admin
+user create / PATCH / generate, plan `force_update`, a paid order, trial registration) produces a new body and ETag within
+the usual invalidation (`usersvc.InvalidateNodeUsers`). Changing a plan's `conn_limit` without `force_update` changes no user.
 
 ### 3.3 `GET /api/v1/audit_rules`
 
@@ -640,6 +647,18 @@ their next poll.
   - XrayR newV2board: ignores the panel's `device_limit`.
 
   The panel never blocks anything itself. `/admin/nodes/:id/online` shows these IPs for the online users of §5.1.
+- **Behind a relay** (a forwarding machine in front of the backend, including the entrances of §5.3), every user's
+  connections arrive from the relay's IP, so a user counts as one device however many clients they run and
+  `device_limit` never triggers. It works again only when the relay sends PROXY protocol and the backend accepts it
+  (V2bX `EnableProxyProtocol`, which sets xray `acceptProxyProtocol`), restoring the client IPs. Where that is not
+  possible, limit **connections** instead: `conn_limit` (plans and users) reaches soga as `tcp_limit` (§3.2) and needs
+  no client IP. XrayR and V2bX cannot enforce a connection limit (§2.2).
+
+  | limit | XrayR (newV2board) | V2bX | soga |
+  | --- | --- | --- | --- |
+  | `speed_limit` | yes (local `SpeedLimit` overrides) | yes (lower non-zero value) | yes (lower value) |
+  | `device_limit` | no (local `DeviceLimit` only) | yes, via `alivelist` | yes, per node (across nodes with `redis_ip_limit_*`) |
+  | `conn_limit` | no | no | yes, as `tcp_limit` |
 
 ### 5.3 Child nodes (`parent_id`)
 
@@ -795,14 +814,14 @@ NODE-ID: 7
 NODE-TYPE: shadowsocks
 
 HTTP/1.1 200 OK
-ETag: "e2e3870b1bd7ccc5eb600870fb0627dce73202d2"
+ETag: "67a29b192abd3479b4387418891f742f66e9bca0"
 
 [{"id":1,"password":"M2IxYjZmNWUtN2MyYS00ZA==","speed_limit":0,"device_limit":3,"tcp_limit":0},
- {"id":2,"password":"OWQ0YzJlMWEtMGIzZi00YQ==","speed_limit":100,"device_limit":0,"tcp_limit":0}]
+ {"id":2,"password":"OWQ0YzJlMWEtMGIzZi00YQ==","speed_limit":100,"device_limit":0,"tcp_limit":64}]
 ```
 
-The two passwords are `base64("3b1b6f5e-7c2a-4d")` and `base64("9d4c2e1a-0b3f-4a")`. User 1's subscription password is
-`YjVkODdhNWRlMWEzNWIyMg==:M2IxYjZmNWUtN2MyYS00ZA==`. A repeat request with `If-None-Match: "e2e3…02d2"` gets 304 with no body.
+User 2 has `conn_limit = 64`; the UniProxy list of §7.1 carries no such field. The two passwords are `base64("3b1b6f5e-7c2a-4d")` and `base64("9d4c2e1a-0b3f-4a")`. User 1's subscription password is
+`YjVkODdhNWRlMWEzNWIyMg==:M2IxYjZmNWUtN2MyYS00ZA==`. A repeat request with `If-None-Match: "67a2…bca0"` gets 304 with no body.
 
 ```http
 POST /soga/api/v1/traffic HTTP/1.1

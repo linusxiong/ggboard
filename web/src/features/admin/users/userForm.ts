@@ -29,6 +29,7 @@ export interface UserFormValues {
   expired_at: string
   speed_limit: number | null
   device_limit: number | null
+  conn_limit: number | null
   /** currency units */
   balance: number | null
   /** currency units */
@@ -57,6 +58,7 @@ export function userToValues(user: AdminUser, currency: string): UserFormValues 
     expired_at: isoToLocalInput(user.expired_at),
     speed_limit: user.speed_limit,
     device_limit: user.device_limit,
+    conn_limit: user.conn_limit ?? null,
     balance: centsToUnits(user.balance, currency),
     commission_balance: centsToUnits(user.commission_balance, currency),
     commission_type: String(user.commission_type ?? 0) as UserFormValues['commission_type'],
@@ -94,6 +96,7 @@ export function valuesToPatch(
   if (changed('expired_at')) patch.expired_at = localInputToIso(values.expired_at)
   if (changed('speed_limit')) patch.speed_limit = intOrNull(values.speed_limit)
   if (changed('device_limit')) patch.device_limit = intOrNull(values.device_limit)
+  if (changed('conn_limit')) patch.conn_limit = intOrNull(values.conn_limit)
   if (changed('balance')) patch.balance = unitsToCents(values.balance ?? 0, currency)
   if (changed('commission_balance'))
     patch.commission_balance = unitsToCents(values.commission_balance ?? 0, currency)
@@ -118,6 +121,7 @@ export interface CreateUserValues {
   expired_at: string
   speed_limit: number | null
   device_limit: number | null
+  conn_limit: number | null
   /** currency units */
   balance: number | null
   is_admin: boolean
@@ -134,6 +138,7 @@ export const EMPTY_CREATE: CreateUserValues = {
   expired_at: '',
   speed_limit: null,
   device_limit: null,
+  conn_limit: null,
   balance: null,
   is_admin: false,
   is_staff: false,
@@ -151,6 +156,7 @@ export function createValuesToInput(values: CreateUserValues, currency: string):
   if (expired) input.expired_at = expired
   if (values.speed_limit !== null) input.speed_limit = Math.trunc(values.speed_limit)
   if (values.device_limit !== null) input.device_limit = Math.trunc(values.device_limit)
+  if (values.conn_limit !== null) input.conn_limit = Math.trunc(values.conn_limit)
   if (values.balance !== null) input.balance = unitsToCents(values.balance, currency)
   if (values.is_admin) input.is_admin = true
   if (values.is_staff) input.is_staff = true

@@ -199,7 +199,8 @@ func TestRegisterInviteNeverExpireAndOptional(t *testing.T) {
 func TestRegisterTrialPlan(t *testing.T) {
 	a, r := setup(t, nil)
 	method := model.ResetMonthly
-	plan := model.Plan{GroupID: 7, Name: "Trial", TransferEnable: 10, SpeedLimit: testutil.Ptr(100), DeviceLimit: testutil.Ptr(2), ResetTrafficMethod: &method}
+	plan := model.Plan{GroupID: 7, Name: "Trial", TransferEnable: 10, SpeedLimit: testutil.Ptr(100), DeviceLimit: testutil.Ptr(2), ConnLimit: testutil.Ptr(16),
+		ResetTrafficMethod: &method}
 	if err := a.DB.Create(&plan).Error; err != nil {
 		t.Fatal(err)
 	}
@@ -212,8 +213,8 @@ func TestRegisterTrialPlan(t *testing.T) {
 	if u.PlanID == nil || *u.PlanID != plan.ID || u.GroupID == nil || *u.GroupID != 7 {
 		t.Fatalf("plan/group = %v/%v", u.PlanID, u.GroupID)
 	}
-	if u.TransferEnable != 10*model.BytesPerGB || *u.SpeedLimit != 100 || *u.DeviceLimit != 2 {
-		t.Fatalf("limits = %d %v %v", u.TransferEnable, u.SpeedLimit, u.DeviceLimit)
+	if u.TransferEnable != 10*model.BytesPerGB || *u.SpeedLimit != 100 || *u.DeviceLimit != 2 || u.ConnLimit == nil || *u.ConnLimit != 16 {
+		t.Fatalf("limits = %d %v %v %v", u.TransferEnable, u.SpeedLimit, u.DeviceLimit, u.ConnLimit)
 	}
 	want := before.Add(48 * time.Hour)
 	if u.ExpiredAt == nil || u.ExpiredAt.Before(want.Add(-time.Second)) || u.ExpiredAt.After(want.Add(time.Minute)) {

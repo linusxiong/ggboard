@@ -37,6 +37,7 @@ type adminPlanInput struct {
 	TransferEnable     *int64            `json:"transfer_enable" binding:"omitempty,min=0"`
 	SpeedLimit         *int              `json:"speed_limit" binding:"omitempty,min=0"`
 	DeviceLimit        *int              `json:"device_limit" binding:"omitempty,min=0"`
+	ConnLimit          *int              `json:"conn_limit" binding:"omitempty,min=0,max=100000"` // model.MaxConnLimit
 	CapacityLimit      *int              `json:"capacity_limit" binding:"omitempty,min=0"`
 	Prices             *map[string]int64 `json:"prices"`
 	ResetTrafficMethod *int8             `json:"reset_traffic_method" binding:"omitempty,min=0,max=4"`
@@ -49,6 +50,7 @@ type adminPlanInput struct {
 	// Nullable fields that PATCH should clear explicitly.
 	ClearSpeedLimit         bool `json:"-"`
 	ClearDeviceLimit        bool `json:"-"`
+	ClearConnLimit          bool `json:"-"`
 	ClearCapacityLimit      bool `json:"-"`
 	ClearResetTrafficMethod bool `json:"-"`
 }
@@ -56,7 +58,7 @@ type adminPlanInput struct {
 // adminPlanNulls reports which nullable keys were sent as JSON null (PATCH clears them).
 func adminPlanNulls(raw map[string]any, in *adminPlanInput) {
 	for key, dst := range map[string]*bool{
-		"speed_limit": &in.ClearSpeedLimit, "device_limit": &in.ClearDeviceLimit,
+		"speed_limit": &in.ClearSpeedLimit, "device_limit": &in.ClearDeviceLimit, "conn_limit": &in.ClearConnLimit,
 		"capacity_limit": &in.ClearCapacityLimit, "reset_traffic_method": &in.ClearResetTrafficMethod,
 	} {
 		if v, ok := raw[key]; ok && v == nil {
@@ -86,6 +88,9 @@ func (in *adminPlanInput) apply(p *model.Plan) {
 	}
 	if in.DeviceLimit != nil || in.ClearDeviceLimit {
 		p.DeviceLimit = in.DeviceLimit
+	}
+	if in.ConnLimit != nil || in.ClearConnLimit {
+		p.ConnLimit = in.ConnLimit
 	}
 	if in.CapacityLimit != nil || in.ClearCapacityLimit {
 		p.CapacityLimit = in.CapacityLimit
@@ -269,6 +274,7 @@ func adminUpdatePlan(a *app.App) gin.HandlerFunc {
 			}
 			return tx.Model(&model.User{}).Where("plan_id = ?", p.ID).Updates(map[string]any{
 				"group_id": p.GroupID, "transfer_enable": p.TransferBytes(), "speed_limit": p.SpeedLimit, "device_limit": p.DeviceLimit,
+				"conn_limit": p.ConnLimit,
 			}).Error
 		})
 		if err != nil {

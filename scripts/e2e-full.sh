@@ -10,8 +10,8 @@
 #
 # Flows: guest config/plans, admin CRUD (group, plans, nodes vless-REALITY/ss2022/hysteria2, route, coupon,
 # epay payment, notice, knowledge), register/login, coupon check, order → epay checkout URL → cancel, order →
-# admin mark paid, UniProxy config/user/push/alive, subscribe in every format (+ short link, ETag/304),
-# rule profile + preview, knowledge access gate, ticket ↔ staff reply, TOTP setup/enable/login/backup/disable,
+# admin mark paid, UniProxy config/user/push/alive, soga users (tcp_limit = conn_limit), subscribe in every format
+# (+ short link, ETag/304), rule profile + preview, knowledge access gate, ticket ↔ staff reply, TOTP setup/enable/login/backup/disable,
 # admin users (filter/patch/generate/export/login-as), orders assign/cancel, settings + mail-test error path,
 # rulesets, stats, system. Every step asserts the HTTP status and the fields the frontend reads.
 set -euo pipefail
@@ -145,10 +145,11 @@ expect GET /api/v1/admin/groups 200 "" "$ADMIN"
 check "any(g['id']==$GROUP and 'user_count' in g for g in d['data'])" "group list"
 ok "group create/patch/list"
 
-PRO="{\"group_id\":$GROUP,\"name\":\"Pro\",\"content\":\"- 100 GB / month\\n- 3 devices\\n- Streaming unlock\",\"tags\":[\"Popular\"],\"transfer_enable\":100,\"device_limit\":3,\"prices\":{\"monthly\":1500,\"quarterly\":4000,\"yearly\":15000,\"reset_traffic\":500},\"reset_traffic_method\":1,\"show\":true,\"sell\":true,\"renew\":true}"
+PRO="{\"group_id\":$GROUP,\"name\":\"Pro\",\"content\":\"- 100 GB / month\\n- 3 devices\\n- Streaming unlock\",\"tags\":[\"Popular\"],\"transfer_enable\":100,\"device_limit\":3,\"conn_limit\":64,\"prices\":{\"monthly\":1500,\"quarterly\":4000,\"yearly\":15000,\"reset_traffic\":500},\"reset_traffic_method\":1,\"show\":true,\"sell\":true,\"renew\":true}"
 expect POST /api/v1/admin/plans 201 "$PRO" "$ADMIN"
 PLAN_PRO="$(py "d['data']['id']")"
-check "d['data']['prices']['quarterly']==4000 and d['data']['reset_traffic_method']==1" "plan prices"
+check "d['data']['prices']['quarterly']==4000 and d['data']['reset_traffic_method']==1 and d['data']['conn_limit']==64" "plan prices + conn_limit"
+expect POST /api/v1/admin/plans 400 "{\"group_id\":$GROUP,\"name\":\"Bad\",\"conn_limit\":100001}" "$ADMIN"
 expect POST /api/v1/admin/plans 201 "{\"group_id\":$GROUP,\"name\":\"Lifetime 500G\",\"content\":\"One-time 500 GB, never expires\",\"transfer_enable\":500,\"prices\":{\"onetime\":9900},\"show\":true,\"sell\":true}" "$ADMIN"
 PLAN_ONCE="$(py "d['data']['id']")"
 expect PATCH "/api/v1/admin/plans/$PLAN_ONCE" 200 '{"sort":2,"tags":["Lifetime"]}' "$ADMIN"
@@ -307,7 +308,7 @@ expect GET "/api/v1/admin/orders/$ORDER2" 200 "" "$ADMIN"
 expect GET /api/v1/user/orders 200 "" "$USER"
 check "d['total']>=2 and d['data'][0]['trade_no']=='$TRADE2'" "user orders newest first"
 expect GET /api/v1/user/me 200 "" "$USER"
-check "d['data']['plan_id']==$PLAN_PRO and d['data']['transfer_enable']==100*1024**3 and d['data']['expired_at']" "plan granted"
+check "d['data']['plan_id']==$PLAN_PRO and d['data']['transfer_enable']==100*1024**3 and d['data']['expired_at'] and d['data']['device_limit']==3 and d['data']['conn_limit']==64" "plan granted (with limits)"
 ok "order → admin mark paid (+409) → plan granted"
 
 # ---------------------------------------------------------------------------------------------------- nodes ↔ panel
@@ -331,6 +332,28 @@ expect POST "/api/v1/server/UniProxy/alive?$NQ" 200 "{\"$USER_ID\":[\"203.0.113.
 expect GET "/api/v1/server/UniProxy/alivelist?$NQ" 200
 ok "UniProxy config (vless/hy2/ss2022), 403, user + ETag 304, push, alive, alivelist"
 
+# soga users: tcp_limit = users.conn_limit (copied from the plan); an admin PATCH changes the body and its ETag.
+soga_users() {
+	STATUS="$(curl -sS -o "$WORK/body" -D "$WORK/headers" -w '%{http_code}' -H "API-KEY: $SERVER_TOKEN" -H "NODE-ID: $N_SS" -H 'NODE-TYPE: shadowsocks' \
+		${1:+-H "If-None-Match: $1"} "$BASE/soga/api/v1/users")" || fail "curl soga users"
+}
+soga_users
+[[ "$STATUS" == 200 ]] || fail "soga users → $STATUS"
+check "[u for u in d if u['id']==$USER_ID][0]['tcp_limit']==64 and [u for u in d if u['id']==$USER_ID][0]['device_limit']==3" "soga tcp_limit from conn_limit"
+SOGA_ETAG="$(header ETag)"
+soga_users "$SOGA_ETAG"
+[[ "$STATUS" == 304 ]] || fail "soga users ETag → $STATUS"
+expect PATCH "/api/v1/admin/users/$USER_ID" 200 '{"conn_limit":8}' "$ADMIN"
+check "d['data']['conn_limit']==8" "admin user conn_limit patch"
+soga_users "$SOGA_ETAG"
+[[ "$STATUS" == 200 ]] || fail "soga users after conn_limit change → $STATUS (stale ETag)"
+check "[u for u in d if u['id']==$USER_ID][0]['tcp_limit']==8" "soga tcp_limit after patch"
+expect GET "/api/v1/server/UniProxy/user?$NQ" 200
+check "all('conn_limit' not in u and 'tcp_limit' not in u for u in d['users'])" "UniProxy users carry no connection limit"
+expect PATCH "/api/v1/admin/users/$USER_ID" 200 '{"conn_limit":null}' "$ADMIN"
+check "d['data']['conn_limit'] is None" "admin user conn_limit cleared"
+ok "soga users: tcp_limit = conn_limit (plan copy), ETag 304, admin patch → new body, clear"
+
 # Traffic is flushed every 10 s: wait for it.
 echo "  .. waiting for the traffic flush"
 want=$((1073741824 + 3221225472 + (536870912 + 536870912) * 3 / 2))
@@ -342,7 +365,7 @@ done
 check "d['data']['u']+d['data']['d']==$want" "traffic (rate applied)"
 SUB_TOKEN="$(py "d['data']['token']")"
 SUB_URL="$(py "d['data']['subscribe_url']")"
-check "d['data']['plan']['name']=='Pro' and d['data']['subscribe_url'].startswith('$BASE')" "subscription info"
+check "d['data']['plan']['name']=='Pro' and d['data']['subscribe_url'].startswith('$BASE') and 'conn_limit' in d['data']" "subscription info"
 expect GET "/api/v1/admin/nodes/$N_VLESS/online" 200 "" "$ADMIN"
 check "any(r['user_id']==$USER_ID and '203.0.113.7' in r['ips'] for r in d['data'])" "online drawer"
 expect GET /api/v1/admin/nodes 200 "" "$ADMIN"

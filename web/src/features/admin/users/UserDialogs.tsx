@@ -13,6 +13,7 @@ import { toast } from '@/lib/toast'
 import { localInputToIso } from '../shared/datetime'
 import { downloadText, stampedName } from '../shared/download'
 import { DateTimeField } from '../shared/fields'
+import { CONN_LIMIT_MAX } from '../shared/units'
 import { useAdminMutation } from '../shared/useAdminMutation'
 import { useSite } from '../shared/useSite'
 import type { UserFilterParams } from './filters'
@@ -231,7 +232,20 @@ export function CreateUserDialog({
               step={1}
               unit={t('units.devices')}
               placeholder={t('common:values.unlimited')}
-              description={t('fields.unlimitedHint')}
+              description={t('fields.deviceLimitHint')}
+            />
+          )}
+        </form.AppField>
+        <form.AppField name="conn_limit">
+          {(f) => (
+            <f.NumberField
+              label={t('fields.connLimit')}
+              minValue={0}
+              maxValue={CONN_LIMIT_MAX}
+              step={1}
+              unit={t('units.connections')}
+              placeholder={t('common:values.unlimited')}
+              description={t('fields.connLimitHint')}
             />
           )}
         </form.AppField>

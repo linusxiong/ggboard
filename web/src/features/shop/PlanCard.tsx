@@ -3,7 +3,7 @@
  * (only offered prices, with per-month equivalent and saving), "current plan" / "sold out" states.
  */
 import { Button, Chip } from '@heroui/react'
-import { Gauge, MonitorSmartphone, Sparkles } from 'lucide-react'
+import { Cable, Gauge, MonitorSmartphone, Sparkles } from 'lucide-react'
 import { type ReactNode, useId, useState } from 'react'
 import { Markdown } from '@/components/Markdown'
 import { SegmentedControl } from '@/components/SegmentedControl'
@@ -122,6 +122,9 @@ export function PlanCard({ plan, isCurrent, onBuy }: PlanCardProps) {
         <Spec icon={<MonitorSmartphone className="size-4" />}>
           {plan.device_limit ? t('card.devices', { count: plan.device_limit }) : t('card.unlimitedDevices')}
         </Spec>
+        {plan.conn_limit ? (
+          <Spec icon={<Cable className="size-4" />}>{t('card.connections', { count: plan.conn_limit })}</Spec>
+        ) : null}
         <Spec icon={<Gauge className="size-4" />}>
           {plan.speed_limit ? t('card.speed', { mbps: plan.speed_limit }) : t('card.unlimitedSpeed')}
         </Spec>

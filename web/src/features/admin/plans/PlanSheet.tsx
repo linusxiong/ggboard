@@ -11,6 +11,7 @@ import { adminGroupsQuery, qk } from '@/lib/api/queries'
 import { type AdminPlan, PLAN_PERIODS, type PlanInput } from '@/lib/api/types'
 import { FieldGroup } from '../shared/FieldGroup'
 import { FormDrawer } from '../shared/FormDrawer'
+import { CONN_LIMIT_MAX } from '../shared/units'
 import { useAdminMutation } from '../shared/useAdminMutation'
 import { useSite } from '../shared/useSite'
 import { planToValues, RESET_CHOICES, valuesToPlanInput } from './planForm'
@@ -161,7 +162,20 @@ export function PlanSheet({ plan, isOpen, onOpenChange }: PlanSheetProps) {
                   step={1}
                   unit={t('units.devices')}
                   placeholder={t('common:values.unlimited')}
-                  description={t('fields.unlimitedHint')}
+                  description={t('fields.deviceLimitHint')}
+                />
+              )}
+            </form.AppField>
+            <form.AppField name="conn_limit">
+              {(f) => (
+                <f.NumberField
+                  label={t('fields.connLimit')}
+                  minValue={0}
+                  maxValue={CONN_LIMIT_MAX}
+                  step={1}
+                  unit={t('units.connections')}
+                  placeholder={t('common:values.unlimited')}
+                  description={t('fields.connLimitHint')}
                 />
               )}
             </form.AppField>

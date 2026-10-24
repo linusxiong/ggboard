@@ -62,6 +62,9 @@
     "resetMethod": "Traffic reset",
     "speedLimit": "Speed limit",
     "deviceLimit": "Devices",
+    "deviceLimitHint": "Counted by online IPs; empty = unlimited. Behind a relay, nodes only see the relay's IP (unless the relay sends PROXY protocol), so this limit has no effect.",
+    "connLimit": "Connection limit",
+    "connLimitHint": "Simultaneous TCP connections per user on one node; empty = unlimited. Only soga enforces it (sent as tcp_limit); V2bX and XrayR ignore it. Unlike the device limit, it still works behind relays.",
     "capacityLimit": "Max users",
     "capacityHint": "Leave empty for no limit on concurrent holders",
     "unlimitedHint": "Leave empty for unlimited",
@@ -82,6 +85,7 @@
   },
   "units": {
     "devices": "devices",
+    "connections": "connections",
     "users": "users"
   },
   "priceOff": "Not offered"

@@ -55,6 +55,7 @@ const plans = [
   transfer_enable: 100,
   speed_limit: null,
   device_limit: null,
+  conn_limit: null,
   reset_traffic_method: null,
   show: true,
   sell: true,

@@ -2,7 +2,9 @@ package user_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 	"strings"
 	"testing"
@@ -244,14 +246,14 @@ func TestAvailableUsersForGroups(t *testing.T) {
 	svc := usersvc.New(a)
 	g1, g2, g3 := uint64(1), uint64(2), uint64(3)
 	future, past := time.Now().Add(time.Hour), time.Now().Add(-time.Hour)
-	speed, devices := 100, 3
+	speed, devices, conns := 100, 3, 64
 	mk := func(email string, o usersvc.CreateOptions) *model.User {
 		if o.TransferEnable == 0 {
 			o.TransferEnable = 1 << 30
 		}
 		return testutil.CreateUser(t, a, email, o)
 	}
-	ok1 := mk("ok1@example.com", usersvc.CreateOptions{GroupID: &g1, ExpiredAt: &future, SpeedLimit: &speed, DeviceLimit: &devices})
+	ok1 := mk("ok1@example.com", usersvc.CreateOptions{GroupID: &g1, ExpiredAt: &future, SpeedLimit: &speed, DeviceLimit: &devices, ConnLimit: &conns})
 	ok2 := mk("ok2@example.com", usersvc.CreateOptions{GroupID: &g2})
 	mk("other-group@example.com", usersvc.CreateOptions{GroupID: &g3})
 	mk("no-group@example.com", usersvc.CreateOptions{})
@@ -268,8 +270,13 @@ func TestAvailableUsersForGroups(t *testing.T) {
 	if len(users) != 2 || users[0].ID != ok1.ID || users[1].ID != ok2.ID {
 		t.Fatalf("users = %+v", users)
 	}
-	if users[0].UUID != ok1.UUID || users[0].SpeedLimit != 100 || users[0].DeviceLimit != 3 || users[1].SpeedLimit != 0 {
+	if users[0].UUID != ok1.UUID || users[0].SpeedLimit != 100 || users[0].DeviceLimit != 3 || users[0].ConnLimit != 64 ||
+		users[1].SpeedLimit != 0 || users[1].ConnLimit != 0 {
 		t.Fatalf("limits = %+v", users)
+	}
+	// The JSON is the UniProxy element: conn_limit only reaches soga (tcp_limit).
+	if b, err := json.Marshal(users[0]); err != nil || string(b) != fmt.Sprintf(`{"id":%d,"uuid":"%s","speed_limit":100,"device_limit":3}`, ok1.ID, ok1.UUID) {
+		t.Fatalf("UniProxy element = %s %v", b, err)
 	}
 
 	// Cached for the same group set, regardless of order.

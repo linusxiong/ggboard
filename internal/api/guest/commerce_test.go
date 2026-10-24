@@ -17,7 +17,7 @@ func TestGuestPlansAndPaymentRoutes(t *testing.T) {
 	r := testutil.NewRouterWith(t, a, guest.Register)
 	for _, p := range []model.Plan{
 		{Name: "B", Show: true, Sell: true, Sort: 2, Prices: model.JSONObject[int64]{"monthly": 200}},
-		{Name: "A", Show: true, Sell: true, Sort: 1, Prices: model.JSONObject[int64]{"monthly": 100}},
+		{Name: "A", Show: true, Sell: true, Sort: 1, Prices: model.JSONObject[int64]{"monthly": 100}, ConnLimit: testutil.Ptr(64)},
 		{Name: "Hidden", Show: false, Sell: true},
 		{Name: "Legacy", Show: true, Sell: false},
 	} {
@@ -26,11 +26,13 @@ func TestGuestPlansAndPaymentRoutes(t *testing.T) {
 		}
 	}
 	type plan struct {
-		Name   string           `json:"name"`
-		Prices map[string]int64 `json:"prices"`
+		Name      string           `json:"name"`
+		Prices    map[string]int64 `json:"prices"`
+		ConnLimit *int             `json:"conn_limit"`
 	}
 	plans, total := testutil.DecodeList[plan](t, testutil.Do(t, r, http.MethodGet, "/api/v1/guest/plans", nil, ""))
-	if total != 2 || plans[0].Name != "A" || plans[1].Name != "B" || plans[1].Prices["monthly"] != 200 {
+	if total != 2 || plans[0].Name != "A" || plans[1].Name != "B" || plans[1].Prices["monthly"] != 200 ||
+		plans[0].ConnLimit == nil || *plans[0].ConnLimit != 64 || plans[1].ConnLimit != nil {
 		t.Fatalf("plans = %+v", plans)
 	}
 

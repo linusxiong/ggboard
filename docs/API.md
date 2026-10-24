@@ -49,15 +49,17 @@ Shared object shapes:
 User (self view) {
   "id":1,"email":"a@example.com","uuid":"...","plan_id":2,"plan":{"id":2,"name":"Pro"},"group_id":1,
   "transfer_enable":107374182400,"u":0,"d":0,"expired_at":"2027-01-01T00:00:00Z"|null,"next_reset_at":"..."|null,
-  "speed_limit":null,"device_limit":null,"balance":0,"commission_balance":0,"commission_rate":null,"discount":null,
+  "speed_limit":null,"device_limit":null,"conn_limit":null,"balance":0,"commission_balance":0,"commission_rate":null,"discount":null,
   "remind_expire":true,"remind_traffic":true,"is_admin":false,"is_staff":false,"banned":false,
   "avatar_url":"https://www.gravatar.com/avatar/<md5>?s=200&d=mp","created_at":"...","last_login_at":"..."|null
 }
-Plan (admin) {"id","group_id","name","content","tags","transfer_enable"(GB),"speed_limit","device_limit","capacity_limit",
+Plan (admin) {"id","group_id","name","content","tags","transfer_enable"(GB),"speed_limit","device_limit","conn_limit","capacity_limit",
       "prices":{"monthly":1000,...}  /* period -> cents; absent period = not sold */,
       "reset_traffic_method"(null = setting),"show","sell","renew","sort","created_at","updated_at"}
       // admin endpoints add "user_count" (holders whose subscription has not expired)
-PublicPlan {"id","name","content","tags","transfer_enable"(GB),"speed_limit","device_limit","prices","reset_traffic_method",
+      // speed_limit (Mbps), device_limit (alive IPs), conn_limit (TCP connections per user, 0..100000; only soga enforces it,
+      // as tcp_limit, docs/NODE_PROTOCOLS.md §3.2): null or 0 = unlimited; negative values → 400
+PublicPlan {"id","name","content","tags","transfer_enable"(GB),"speed_limit","device_limit","conn_limit","prices","reset_traffic_method",
       "show","sell","renew","sort","sold_out"(capacity full; never for the holder),"is_current"(user's plan),"created_at","updated_at"}
       // no group_id / capacity_limit
 Node (admin) {"id","type","name","group_ids","route_ids","parent_id","host","port"(string),"server_port","tags","rate","show","sort",
@@ -105,7 +107,7 @@ Passkey {"id":1,"name":"Laptop","created_at":"…","last_used_at":null,"backup_e
 
 Rules: `stop_register` → 403; `email_whitelist_enable` (exact domain match, else 400 on `email`); `invite_force` requires a valid invite code (400 on `invite_code`);
 a valid code sets `invite_user_id` and is consumed (`status=true`) when `invite_never_expire=false` (unknown codes are ignored unless forced);
-`try_out_plan_id` grants trial on register (plan/group/limits, `transfer_enable` = GB×1024³, `expired_at` = now + `try_out_hour` h, `next_reset_at`);
+`try_out_plan_id` grants trial on register (plan/group/limits: `speed_limit`, `device_limit`, `conn_limit`; `transfer_enable` = GB×1024³, `expired_at` = now + `try_out_hour` h, `next_reset_at`);
 password limit lockout (`password_limit_*`, per email, also counts wrong `old_password` on `/user/password` and wrong passwords on `/user/security/*`) → 429; register-by-ip limit → 429; duplicate email → 409. With `email_verify` on, the invite code and then the
 email code are checked **before** the duplicate check, so without a valid code a registered and a new address get the same 400 on
 `email_code` (only the mailbox owner can see the 409); such registrations stamp `users.email_verified_at`.
@@ -172,7 +174,7 @@ Every route requires a valid JWT (401) of a user who is not banned (403).
 | PATCH | `/user/me` | `{remind_expire?, remind_traffic?}` | `User` |
 | POST | `/user/password` | `{old_password*, new_password* (8..128)}` | `true`; bumps `password_version`, so every session (the caller's too) must sign in again; wrong `old_password` → 400 on `old_password` (counts towards the password lockout, 429) |
 | GET | `/user/stats` | — | `{pending_orders, open_tickets, notices_count, invite_count, commission_pending}` (`commission_pending` as in `/user/invite` `stat`) |
-| GET | `/user/subscription` | — | `{subscribe_url, token, plan, transfer_enable, u, d, expired_at, next_reset_at, reset_day, device_limit, speed_limit, profiles}` (`plan` is `{id,name}` or null; `subscribe_url` = a random entry of `subscribe_url`, else `app_url`, + `/api/v1/client/subscribe?token=`; `profiles` = `[{slug, name, is_default, subscribe_url}]`, the default profile's link is `subscribe_url`, the others append `&profile=<slug>`; a user without stored profiles gets the virtual `default` / `默认`) |
+| GET | `/user/subscription` | — | `{subscribe_url, token, plan, transfer_enable, u, d, expired_at, next_reset_at, reset_day, device_limit, conn_limit, speed_limit, profiles}` (`plan` is `{id,name}` or null; `subscribe_url` = a random entry of `subscribe_url`, else `app_url`, + `/api/v1/client/subscribe?token=`; `profiles` = `[{slug, name, is_default, subscribe_url}]`, the default profile's link is `subscribe_url`, the others append `&profile=<slug>`; a user without stored profiles gets the virtual `default` / `默认`) |
 | POST | `/user/subscription/reset` | — | `{subscribe_url, token, auth_token}` (new uuid + token; the reset bumps `password_version`, so `auth_token` is the caller's new session JWT) |
 | POST | `/user/subscription/rotate-token` | — | `{subscribe_url, token}` (new subscription token only: uuid, node credentials and sessions are kept; the old link stops working at once) |
 | GET | `/user/subscription/preview` | `client?` (format or client name, default `clash-meta`) + every query parameter of client subscribe | `text/plain` body of the generated config (base64 formats v2ray/shadowrocket/ssr shown decoded), headers `X-Subscription-Format`, `Cache-Control: no-store`; unknown client → 400 on `client` |
@@ -386,7 +388,7 @@ nodes/users keep their ranking rows with an empty `name`/`email`.
 | --- | --- | --- | --- |
 | GET 🧑‍💼 | `/admin/users` | filters `id`, `email`, `uuid`, `token`, `plan_id`, `group_id`, `invite_user_id`, `banned`, `is_admin`, `is_staff`, `expired` (`active`, `expired` or `never`), `remarks`; `sort` (see rules) | paginated `[AdminUser]` |
 | GET 🧑‍💼 | `/admin/users/:id` | — | `AdminUser` + `stats:{orders_total, commission_total}` |
-| POST | `/admin/users` | `{email*, password* (8..128), plan_id?, group_id?, transfer_enable? (GB), expired_at?, is_admin?, is_staff?, speed_limit?, device_limit?, balance?, remarks?, invite_user_id?}` | 201 `AdminUser` |
+| POST | `/admin/users` | `{email*, password* (8..128), plan_id?, group_id?, transfer_enable? (GB), expired_at?, is_admin?, is_staff?, speed_limit?, device_limit?, conn_limit? (0..100000), balance?, remarks?, invite_user_id?}` | 201 `AdminUser` |
 | PATCH | `/admin/users/:id` | any editable field (see rules) | `AdminUser` |
 | DELETE | `/admin/users/:id` | — | `true` |
 | POST | `/admin/users/:id/reset-secret` | — | `AdminUser` (new uuid/token; bumps `password_version`, ending the user's sessions) |
@@ -405,10 +407,10 @@ and `token` blanked. `AdminUser` = self view + `token`, `commission_type`, `rema
 `invite_user_id` = `0` select null; `expired` partitions users into `active` (expires in the future), `expired` (expired) and `never`
 (no expiry). `sort` accepts `id email expired_at created_at u d transfer_enable balance last_login_at` (default `-id`).
 
-- `POST /admin/users` → 201. `plan_id` fills `group_id`, `transfer_enable`, `speed_limit`, `device_limit` when omitted;
+- `POST /admin/users` → 201. `plan_id` fills `group_id`, `transfer_enable`, `speed_limit`, `device_limit`, `conn_limit` when omitted;
   `next_reset_at` follows the plan; duplicate email → 409; unknown plan/group/inviter → 400 field error.
 - `PATCH` fields: `email password banned u d transfer_enable(bytes) expired_at plan_id group_id invite_user_id is_admin is_staff
-  speed_limit device_limit balance commission_balance commission_type commission_rate discount remarks remind_expire remind_traffic
+  speed_limit device_limit conn_limit balance commission_balance commission_type commission_rate discount remarks remind_expire remind_traffic
   telegram_id`; `null` clears nullable fields. Setting `plan_id` without `group_id` also moves the user to the plan's group;
   `next_reset_at` is recomputed when `plan_id` or `expired_at` is present. 409: banning or demoting yourself, demoting the last admin,
   duplicate email. Sessions are invalidated immediately (password, ban, roles).
@@ -418,7 +420,7 @@ and `token` blanked. `AdminUser` = self view + `token`, `commission_type`, `rema
 - `login-token` → `{url: app_url + "/login?token=<one-time, 5 min>"}`; the SPA posts the token to `/passport/login/token`.
   Administrators and staff cannot be impersonated: 409 for such a target (the token skips the second factor), and a token
   whose user was promoted after it was issued is refused with 401.
-- `generate`: emails are `<prefix><8 random [a-z0-9]>@<suffix>` (exactly `<prefix>@<suffix>` when `count` is 1 and a prefix is
+- `generate`: `plan_id` sets plan, group, traffic, `speed_limit`, `device_limit`, `conn_limit` and `next_reset_at` like `POST`. Emails are `<prefix><8 random [a-z0-9]>@<suffix>` (exactly `<prefix>@<suffix>` when `count` is 1 and a prefix is
   given). The whole batch shares `password`, or one random 12-character password when omitted (one argon2id hash per batch);
   `csv` = `email,password` rows. Taken single email → 409.
 - `export`: `text/csv` attachment `users-<timestamp>.csv` with `email,plan,expired_at,transfer_enable,u,d,balance,created_at`
@@ -433,7 +435,7 @@ and `token` blanked. `AdminUser` = self view + `token`, `commission_type`, `rema
 | GET | `/admin/plans` | — | unpaginated `[Plan + user_count]` by `sort`, `id` |
 | POST | `/admin/plans` | Plan fields (`group_id*`, `name*`; defaults `show=false`, `sell=true`, `renew=true`; `prices` keys must be periods, values ≥ 0) | 201 `Plan + user_count` |
 | GET | `/admin/plans/:id` | — | `Plan + user_count` |
-| PATCH | `/admin/plans/:id` | any Plan field (`null` clears `speed_limit`, `device_limit`, `capacity_limit`, `reset_traffic_method`) + `force_update` (push group, traffic and limits to every holder) | `Plan + user_count` |
+| PATCH | `/admin/plans/:id` | any Plan field (`null` clears `speed_limit`, `device_limit`, `conn_limit`, `capacity_limit`, `reset_traffic_method`) + `force_update` (push group, traffic, `speed_limit`, `device_limit` and `conn_limit` to every holder) | `Plan + user_count` |
 | DELETE | `/admin/plans/:id` | — | `true` (409 while any user holds the plan or it has pending/processing orders) |
 | POST | `/admin/plans/sort` | `{ids:[...]}` (1..1000) | `true` (`sort` = 0-based position) |
 | GET | `/admin/groups` | — | unpaginated `[{id, name, user_count, plan_count, node_count, created_at, updated_at}]` |

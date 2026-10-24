@@ -33,7 +33,9 @@
     "unlimitedSpeed": "Unlimited",
     "devices": "Devices",
     "deviceCount_one": "Up to {count} device",
-    "deviceCount_other": "Up to {count} devices"
+    "deviceCount_other": "Up to {count} devices",
+    "connections": "Connections per node",
+    "connCount": "Up to {count}"
   },
   "actions": {
     "title": "Quick actions",

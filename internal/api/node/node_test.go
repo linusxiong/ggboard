@@ -132,10 +132,16 @@ func (e *env) userUD(id uint64) (int64, int64) {
 }
 
 // docSetup builds the data of docs/NODE_PROTOCOLS.md §7: users 1 and 2 in group 1 and route 1.
+// docSetup creates the users of docs/NODE_PROTOCOLS.md §7: user 1 with device_limit 3, user 2 with speed_limit 100 and
+// conn_limit 64 (soga tcp_limit; the UniProxy list carries no such field).
 func docSetup(e *env) uint64 {
 	g := e.group("default")
 	e.user("one@example.com", uuid1, g, nil, testutil.Ptr(3))
-	e.user("two@example.com", uuid2, g, testutil.Ptr(100), nil)
+	two := e.user("two@example.com", uuid2, g, testutil.Ptr(100), nil)
+	if err := e.a.DB.Model(&model.User{}).Where("id = ?", two.ID).Update("conn_limit", 64).Error; err != nil {
+		e.t.Fatal(err)
+	}
+	usersvc.New(e.a).InvalidateNodeUsers()
 	e.route(model.NodeRoute{ID: 1, Match: model.JSONSlice[string]{"example-blocked.com"}, Action: "block"})
 	return g
 }
@@ -393,8 +399,8 @@ func TestSogaWorkedExample(t *testing.T) {
 			t.Fatalf("node etag %s", et)
 		}
 		rec = e.do(http.MethodGet, prefix+"/users", nil, h)
-		expectBody(t, rec, http.StatusOK, `[{"id":1,"password":"M2IxYjZmNWUtN2MyYS00ZA==","speed_limit":0,"device_limit":3,"tcp_limit":0},{"id":2,"password":"OWQ0YzJlMWEtMGIzZi00YQ==","speed_limit":100,"device_limit":0,"tcp_limit":0}]`)
-		const usersTag = `"e2e3870b1bd7ccc5eb600870fb0627dce73202d2"`
+		expectBody(t, rec, http.StatusOK, `[{"id":1,"password":"M2IxYjZmNWUtN2MyYS00ZA==","speed_limit":0,"device_limit":3,"tcp_limit":0},{"id":2,"password":"OWQ0YzJlMWEtMGIzZi00YQ==","speed_limit":100,"device_limit":0,"tcp_limit":64}]`)
+		const usersTag = `"67a29b192abd3479b4387418891f742f66e9bca0"`
 		if et := rec.Header().Get("ETag"); et != usersTag {
 			t.Fatalf("users etag %s", et)
 		}

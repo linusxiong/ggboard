@@ -13,6 +13,8 @@
     "traffic": "{gb} GB 流量",
     "devices": "{count} 台设备同时在线",
     "unlimitedDevices": "不限设备数",
+    "connections_one": "单节点最多 {count} 个连接",
+    "connections_other": "单节点最多 {count} 个连接",
     "speed": "限速 {mbps} Mbps",
     "unlimitedSpeed": "不限速",
     "buy": "立即购买",

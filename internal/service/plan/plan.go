@@ -91,6 +91,7 @@ type PublicView struct {
 	TransferEnable     int64              `json:"transfer_enable"`
 	SpeedLimit         *int               `json:"speed_limit"`
 	DeviceLimit        *int               `json:"device_limit"`
+	ConnLimit          *int               `json:"conn_limit"`
 	Prices             map[string]int64   `json:"prices"`
 	ResetTrafficMethod *model.ResetMethod `json:"reset_traffic_method"`
 	Show               bool               `json:"show"`
@@ -115,7 +116,7 @@ func Public(p *model.Plan) PublicView {
 	}
 	return PublicView{
 		ID: p.ID, Name: p.Name, Content: p.Content, Tags: tags, TransferEnable: p.TransferEnable,
-		SpeedLimit: p.SpeedLimit, DeviceLimit: p.DeviceLimit, Prices: prices, ResetTrafficMethod: p.ResetTrafficMethod,
+		SpeedLimit: p.SpeedLimit, DeviceLimit: p.DeviceLimit, ConnLimit: p.ConnLimit, Prices: prices, ResetTrafficMethod: p.ResetTrafficMethod,
 		Show: p.Show, Sell: p.Sell, Renew: p.Renew, Sort: p.Sort, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
 	}
 }

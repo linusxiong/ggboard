@@ -35,6 +35,7 @@ type UserView struct {
 	NextResetAt       *time.Time `json:"next_reset_at"`
 	SpeedLimit        *int       `json:"speed_limit"`
 	DeviceLimit       *int       `json:"device_limit"`
+	ConnLimit         *int       `json:"conn_limit"`
 	Balance           int64      `json:"balance"`
 	CommissionBalance int64      `json:"commission_balance"`
 	CommissionRate    *int       `json:"commission_rate"`
@@ -102,6 +103,7 @@ func ToUserView(u *model.User, plan *model.Plan) UserView {
 		NextResetAt:       utc(u.NextResetAt),
 		SpeedLimit:        u.SpeedLimit,
 		DeviceLimit:       u.DeviceLimit,
+		ConnLimit:         u.ConnLimit,
 		Balance:           u.Balance,
 		CommissionBalance: u.CommissionBalance,
 		CommissionRate:    u.CommissionRate,

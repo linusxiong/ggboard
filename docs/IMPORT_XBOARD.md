@@ -217,6 +217,7 @@ table, every kept row is byte-identical to an import without the flag (tested on
 | transfer_enable | transfer_enable (**GB**) | transfer_enable (**GB**) | verbatim; NULL → 0. The U column comment says "bytes" but the code multiplies by 1073741824 on purchase |
 | speed_limit | speed_limit | speed_limit | `nz()` |
 | device_limit | — | device_limit | `nz()` |
+| conn_limit | — | — | null (Xboard has no connection limit) |
 | capacity_limit | capacity_limit | capacity_limit | verbatim. NULL = unlimited; **0 = sold out**, because both versions check `limit − active > 0` |
 | prices | 8 cents columns | `prices` JSON | see below |
 | reset_traffic_method | reset_traffic_method | same | `flexInt`; NULL → null (follow setting); outside 0..4 → null, W |
@@ -322,6 +323,7 @@ kept, because L lets users buy it for free; W.
 | next_reset_at | (U column ignored) | recomputed, §4.5.2 |
 | speed_limit | speed_limit | `nz()` |
 | device_limit | U device_limit; L — | `nz()` |
+| conn_limit | — | null (Xboard has no connection limit) |
 | balance, commission_balance | same (cents) | verbatim |
 | commission_type | commission_type | 0, 1, 2 verbatim; anything else → 0, W |
 | commission_rate | commission_rate (U casts to float) | round to int; NULL → null |

@@ -56,6 +56,7 @@ const user = {
   next_reset_at: '2026-11-01T00:00:00Z',
   speed_limit: null,
   device_limit: 5,
+  conn_limit: 64 as number | null,
   balance: 1200,
   commission_balance: 4250,
   commission_rate: null,
@@ -79,6 +80,7 @@ const plan = (id: number, name: string, extra: Record<string, unknown>) => ({
   transfer_enable: 100,
   speed_limit: null,
   device_limit: 3,
+  conn_limit: null as number | null,
   capacity_limit: null as number | null,
   prices: {} as Record<string, number>,
   reset_traffic_method: 1,
@@ -102,6 +104,7 @@ const plans = [
     tags: ['推荐', '流媒体'],
     transfer_enable: 500,
     device_limit: 5,
+    conn_limit: 64,
     prices: { monthly: 3000, quarterly: 8500, half_yearly: 16000, yearly: 30000, reset_traffic: 1000 },
   }),
   plan(3, 'Ultra', {
@@ -442,6 +445,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       next_reset_at: user.next_reset_at,
       reset_day: 10,
       device_limit: user.device_limit,
+      conn_limit: user.conn_limit,
       speed_limit: user.speed_limit,
     })
 

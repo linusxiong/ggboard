@@ -12,6 +12,7 @@
   "next_reset_at": "2026-11-01T00:00:00Z",
   "speed_limit": null,
   "device_limit": 5,
+  "conn_limit": 64,
   "balance": 1200,
   "commission_balance": 0,
   "commission_rate": null,

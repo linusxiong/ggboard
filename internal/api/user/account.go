@@ -138,6 +138,7 @@ type Subscription struct {
 	NextResetAt    *time.Time       `json:"next_reset_at"`
 	ResetDay       *int             `json:"reset_day"`
 	DeviceLimit    *int             `json:"device_limit"`
+	ConnLimit      *int             `json:"conn_limit"`
 	SpeedLimit     *int             `json:"speed_limit"`
 	// Profiles are the user's rule profiles with their subscription links (subscribe_url + &profile=<slug>;
 	// the default profile's link is subscribe_url itself).
@@ -176,6 +177,7 @@ func getSubscription(a *app.App) gin.HandlerFunc {
 			NextResetAt:    view.NextResetAt,
 			ResetDay:       users.ResetDay(u),
 			DeviceLimit:    u.DeviceLimit,
+			ConnLimit:      u.ConnLimit,
 			SpeedLimit:     u.SpeedLimit,
 		})
 	}

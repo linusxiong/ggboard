@@ -19,7 +19,7 @@ var ctx = context.Background()
 func TestCreateCheckoutNotifyFulfil(t *testing.T) {
 	f := newFixture(t)
 	plan := f.plan("Pro", map[string]int64{model.PeriodMonthly: 1000, model.PeriodYearly: 10000}, func(p *model.Plan) {
-		p.SpeedLimit, p.DeviceLimit = ptr(100), ptr(3)
+		p.SpeedLimit, p.DeviceLimit, p.ConnLimit = ptr(100), ptr(3), ptr(64)
 	})
 	u := f.user("buyer@example.com", usersvc.CreateOptions{Balance: 150})
 	f.setUser(u, map[string]any{"discount": 10, "u": 5, "d": 5})
@@ -97,7 +97,8 @@ func TestCreateCheckoutNotifyFulfil(t *testing.T) {
 	wantExp := paid.PaidAt.Local().AddDate(0, 1, 0) // calendar months in the server time zone
 	if got.PlanID == nil || *got.PlanID != plan.ID || got.GroupID == nil || *got.GroupID != 7 || got.TransferEnable != 100*model.BytesPerGB ||
 		got.ExpiredAt == nil || !got.ExpiredAt.Equal(wantExp) || got.U != 0 || got.D != 0 ||
-		got.SpeedLimit == nil || *got.SpeedLimit != 100 || got.DeviceLimit == nil || *got.DeviceLimit != 3 || got.NextResetAt == nil {
+		got.SpeedLimit == nil || *got.SpeedLimit != 100 || got.DeviceLimit == nil || *got.DeviceLimit != 3 || got.ConnLimit == nil || *got.ConnLimit != 64 ||
+		got.NextResetAt == nil {
 		t.Fatalf("user after fulfil = %+v (exp want %s)", got, wantExp)
 	}
 	msgs := testutil.Mails(t, f.a)
@@ -350,5 +351,27 @@ func TestTimeoutJobRestoresBalanceAndCoupon(t *testing.T) {
 	}
 	if n, err := f.svc.CancelExpired(ctx); err != nil || n != 0 {
 		t.Fatalf("second run = %d %v", n, err)
+	}
+}
+
+// A paid order sets the user's conn_limit from the plan like speed_limit and device_limit, including clearing it when
+// the plan has none (docs/PAYMENTS.md fulfil).
+func TestFulfilCopiesConnLimit(t *testing.T) {
+	f := newFixture(t)
+	limited := f.plan("Relay", map[string]int64{model.PeriodMonthly: 0}, func(p *model.Plan) { p.ConnLimit = ptr(32) })
+	open := f.plan("Open", map[string]int64{model.PeriodMonthly: 0})
+	u := f.user("conn@example.com", usersvc.CreateOptions{ConnLimit: ptr(8)})
+
+	f.buy(u, limited, model.PeriodMonthly)
+	if got := f.reload(u); got.ConnLimit == nil || *got.ConnLimit != 32 {
+		t.Fatalf("after buying the limited plan: conn_limit %v", got.ConnLimit)
+	}
+	f.buy(u, limited, model.PeriodMonthly) // renewal keeps following the plan
+	if got := f.reload(u); got.ConnLimit == nil || *got.ConnLimit != 32 {
+		t.Fatalf("after renewal: conn_limit %v", got.ConnLimit)
+	}
+	f.buy(u, open, model.PeriodMonthly)
+	if got := f.reload(u); got.ConnLimit != nil {
+		t.Fatalf("after switching to a plan without a limit: conn_limit %v", *got.ConnLimit)
 	}
 }

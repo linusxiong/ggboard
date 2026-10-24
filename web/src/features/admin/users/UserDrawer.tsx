@@ -16,6 +16,7 @@ import { toast } from '@/lib/toast'
 import { FieldGroup } from '../shared/FieldGroup'
 import { DateTimeField } from '../shared/fields'
 import { FormDrawer } from '../shared/FormDrawer'
+import { CONN_LIMIT_MAX } from '../shared/units'
 import { useAdminMutation } from '../shared/useAdminMutation'
 import { useFormatters } from '../shared/useFormatters'
 import { useNow } from '../shared/useNow'
@@ -90,6 +91,7 @@ function Summary({
           {t('detail.limitsValue', {
             speed: user.speed_limit ? `${user.speed_limit} Mbps` : t('common:values.unlimited'),
             devices: user.device_limit ?? t('common:values.unlimited'),
+            connections: user.conn_limit || t('common:values.unlimited'),
           })}
         </Row>
         <Row label={t('columns.balance')}>{fmt.money(user.balance)}</Row>
@@ -337,7 +339,20 @@ function EditForm({ user, onSaved }: { user: AdminUser; onSaved: (user: AdminUse
                 step={1}
                 unit={t('units.devices')}
                 placeholder={t('common:values.unlimited')}
-                description={t('fields.unlimitedHint')}
+                description={t('fields.deviceLimitHint')}
+              />
+            )}
+          </form.AppField>
+          <form.AppField name="conn_limit">
+            {(f) => (
+              <f.NumberField
+                label={t('fields.connLimit')}
+                minValue={0}
+                maxValue={CONN_LIMIT_MAX}
+                step={1}
+                unit={t('units.connections')}
+                placeholder={t('common:values.unlimited')}
+                description={t('fields.connLimitHint')}
               />
             )}
           </form.AppField>

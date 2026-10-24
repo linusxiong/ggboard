@@ -13,6 +13,8 @@
     "traffic": "{gb} GB of traffic",
     "devices": "{count} devices online at once",
     "unlimitedDevices": "Unlimited devices",
+    "connections_one": "Up to {count} connection per node",
+    "connections_other": "Up to {count} connections per node",
     "speed": "Up to {mbps} Mbps",
     "unlimitedSpeed": "No speed limit",
     "buy": "Buy now",

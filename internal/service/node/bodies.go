@@ -112,14 +112,14 @@ type SogaUser struct {
 	Password    string `json:"password,omitempty"`
 	SpeedLimit  int    `json:"speed_limit"`
 	DeviceLimit int    `json:"device_limit"`
-	TCPLimit    int    `json:"tcp_limit"`
+	TCPLimit    int    `json:"tcp_limit"` // users.conn_limit
 }
 
 // SogaUserList converts node users to the soga shape for node p (docs/NODE_PROTOCOLS.md §3.2).
 func SogaUserList(p *model.Node, users []usersvc.NodeUser) []SogaUser {
 	out := make([]SogaUser, 0, len(users))
 	for _, nu := range users {
-		su := SogaUser{ID: nu.ID, SpeedLimit: nu.SpeedLimit, DeviceLimit: nu.DeviceLimit}
+		su := SogaUser{ID: nu.ID, SpeedLimit: nu.SpeedLimit, DeviceLimit: nu.DeviceLimit, TCPLimit: nu.ConnLimit}
 		creds := model.UserCredentials(&model.User{ID: nu.ID, UUID: nu.UUID}, p)
 		switch p.Type {
 		case model.NodeVmess, model.NodeVless:

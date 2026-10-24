@@ -150,7 +150,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*model.User, 
 		opts.PlanID, opts.GroupID = &plan.ID, &groupID
 		opts.TransferEnable = plan.TransferBytes()
 		opts.ExpiredAt = &exp
-		opts.SpeedLimit, opts.DeviceLimit = plan.SpeedLimit, plan.DeviceLimit
+		opts.SpeedLimit, opts.DeviceLimit, opts.ConnLimit = plan.SpeedLimit, plan.DeviceLimit, plan.ConnLimit
 	}
 
 	u, err := s.users.Create(ctx, email, in.Password, opts)

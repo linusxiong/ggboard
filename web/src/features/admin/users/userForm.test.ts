@@ -18,6 +18,7 @@ const user: AdminUser = {
   next_reset_at: null,
   speed_limit: null,
   device_limit: 3,
+  conn_limit: 64,
   balance: 1250,
   commission_balance: 0,
   commission_rate: null,
@@ -130,5 +131,34 @@ describe('user edit form payload', () => {
       is_staff: true,
       remarks: 'note',
     })
+  })
+
+  it('round-trips the connection limit: create, edit, clear to null', () => {
+    // Create: empty = omitted (the plan's value, else unlimited); a value is sent as an integer.
+    const base = { ...EMPTY_CREATE, email: 'd@example.com', password: 'password-123' }
+    expect(EMPTY_CREATE.conn_limit).toBeNull()
+    expect('conn_limit' in createValuesToInput(base, 'CNY')).toBe(false)
+    expect(createValuesToInput({ ...base, plan_id: '2', conn_limit: 32.9 }, 'CNY')).toEqual({
+      email: 'd@example.com',
+      password: 'password-123',
+      plan_id: 2,
+      conn_limit: 32,
+    })
+
+    // Edit: loaded from the user, sent only when changed.
+    const initial = userToValues(user, 'CNY')
+    expect(initial.conn_limit).toBe(64)
+    expect(valuesToPatch({ ...initial, remarks: 'x' }, initial, 'CNY')).toEqual({ remarks: 'x' })
+    expect(valuesToPatch({ ...initial, conn_limit: 200 }, initial, 'CNY')).toEqual({ conn_limit: 200 })
+
+    // Clearing sends an explicit null (PATCH: null clears the limit).
+    expect(valuesToPatch({ ...initial, conn_limit: null }, initial, 'CNY')).toEqual({ conn_limit: null })
+
+    // An unlimited user (null) loads as an empty field; a user from an older backend too.
+    expect(userToValues({ ...user, conn_limit: null }, 'CNY').conn_limit).toBeNull()
+    const legacy = { ...user, conn_limit: undefined } as unknown as AdminUser
+    const legacyValues = userToValues(legacy, 'CNY')
+    expect(legacyValues.conn_limit).toBeNull()
+    expect(valuesToPatch(legacyValues, legacyValues, 'CNY')).toEqual({})
   })
 })

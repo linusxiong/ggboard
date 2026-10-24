@@ -96,7 +96,7 @@
     "none": "None",
     "nextReset": "Next traffic reset",
     "limits": "Limits",
-    "limitsValue": "Speed {speed} · devices {devices}",
+    "limitsValue": "Speed {speed} · devices {devices} · connections {connections}",
     "commissionBalance": "Commission balance",
     "inviter": "Invited by",
     "lastLogin": "Last sign-in",
@@ -129,6 +129,9 @@
     "download": "Used download (GB)",
     "speedLimit": "Speed limit (Mbps)",
     "deviceLimit": "Device limit",
+    "deviceLimitHint": "Counted by online IPs; empty = unlimited. Behind a relay, nodes only see the relay's IP (unless the relay sends PROXY protocol), so this limit has no effect.",
+    "connLimit": "Connection limit",
+    "connLimitHint": "Simultaneous TCP connections per user on one node; empty = unlimited. Only soga enforces it (sent as tcp_limit); V2bX and XrayR ignore it. Unlike the device limit, it still works behind relays.",
     "unlimitedHint": "Leave empty for unlimited",
     "balance": "Balance",
     "commissionBalance": "Commission balance",
@@ -158,7 +161,7 @@
   "create": {
     "title": "New user",
     "done": "User created",
-    "planHint": "Choosing a plan fills in its group and traffic"
+    "planHint": "Choosing a plan fills in its group and traffic; empty speed, device and connection limits take the plan's values"
   },
   "generate": {
     "title": "Generate users",
@@ -215,6 +218,7 @@
     "tokenTag": "Token tag"
   },
   "units": {
-    "devices": "devices"
+    "devices": "devices",
+    "connections": "connections"
   }
 }

@@ -135,7 +135,7 @@ generated from it and pre-fills `Field.Default`); every admin payment response c
 4. `fulfil` (same transaction): onetime → plan/group/traffic, `u=d=0`, `expired_at=NULL`; reset_traffic → `u=d=0`;
    periods → plan/group/traffic and `expired_at` = max(now, expired_at) + 1/3/6/12/24/36 calendar months (server time
    zone; upgrades start from now); usage resets for new purchases, upgrades and one-time → periodic switches, renewals
-   keep it; speed/device limits from the plan; `next_reset_at` (`usersvc.ComputeNextResetAt`); surplus orders → status 4;
+   keep it; speed/device/connection limits (`speed_limit`, `device_limit`, `conn_limit`) from the plan; `next_reset_at` (`usersvc.ComputeNextResetAt`); surplus orders → status 4;
    `refund_amount` → balance; commission computed (`commission_status = 0`). After commit: `auth.InvalidateUser`,
    `usersvc.InvalidateNodeUsers()`, email `order_paid`.
 5. `order_timeout` job (every minute) cancels pending orders older than `order_timeout_minutes`, except orders checked

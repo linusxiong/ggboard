@@ -126,4 +126,26 @@ describe('shop', () => {
     await u.click(within(dialog).getByRole('button', { name: '取消旧订单并继续' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/orders/NEW1'))
   })
+
+  it('lists the connection limit only on plans that set one', async () => {
+    mockApi(
+      {
+        'GET /user/plans': () => [
+          makePlan({ id: 1, name: 'Lite', conn_limit: null }),
+          makePlan({ id: 2, name: 'Pro', conn_limit: 64 }),
+          makePlan({ id: 4, name: 'Zero', conn_limit: 0 }),
+        ],
+      },
+      user,
+    )
+    renderApp('/shop', user)
+
+    const card = async (name: string) =>
+      within(await screen.findByRole('article', { name }, { timeout: 4000 }))
+    expect((await card('Pro')).getByText('单节点最多 64 个连接')).toBeInTheDocument()
+    expect((await card('Pro')).getByText('3 台设备同时在线')).toBeInTheDocument()
+    // null and 0 both mean unlimited: no connection line at all.
+    expect((await card('Lite')).queryByText(/个连接/)).not.toBeInTheDocument()
+    expect((await card('Zero')).queryByText(/个连接/)).not.toBeInTheDocument()
+  })
 })

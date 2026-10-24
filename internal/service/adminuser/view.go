@@ -37,6 +37,7 @@ type View struct {
 	NextResetAt       *time.Time           `json:"next_reset_at"`
 	SpeedLimit        *int                 `json:"speed_limit"`
 	DeviceLimit       *int                 `json:"device_limit"`
+	ConnLimit         *int                 `json:"conn_limit"`
 	Balance           int64                `json:"balance"`
 	CommissionBalance int64                `json:"commission_balance"`
 	CommissionType    model.CommissionType `json:"commission_type"`
@@ -83,7 +84,7 @@ func newView(u *model.User) View {
 	return View{
 		ID: u.ID, Email: u.Email, UUID: u.UUID, Token: u.Token, PlanID: u.PlanID, GroupID: u.GroupID,
 		TransferEnable: u.TransferEnable, U: u.U, D: u.D, ExpiredAt: u.ExpiredAt, NextResetAt: u.NextResetAt,
-		SpeedLimit: u.SpeedLimit, DeviceLimit: u.DeviceLimit, Balance: u.Balance, CommissionBalance: u.CommissionBalance,
+		SpeedLimit: u.SpeedLimit, DeviceLimit: u.DeviceLimit, ConnLimit: u.ConnLimit, Balance: u.Balance, CommissionBalance: u.CommissionBalance,
 		CommissionType: u.CommissionType, CommissionRate: u.CommissionRate, Discount: u.Discount,
 		RemindExpire: u.RemindExpire, RemindTraffic: u.RemindTraffic, IsAdmin: u.IsAdmin, IsStaff: u.IsStaff,
 		Banned: u.Banned, AvatarURL: AvatarURL(u.Email), InviteUserID: u.InviteUserID, LastLoginAt: u.LastLoginAt,

@@ -47,6 +47,7 @@ export function makePlan(overrides: Partial<Plan> & Pick<Plan, 'id' | 'name'>): 
     transfer_enable: 100,
     speed_limit: null,
     device_limit: 3,
+    conn_limit: null,
     capacity_limit: null,
     prices: { monthly: 1500 },
     reset_traffic_method: 1,
