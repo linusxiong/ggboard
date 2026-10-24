@@ -59,7 +59,7 @@ function OrdersPage() {
   return (
     <PageShell
       title={t('list.title')}
-      description={t('list.subtitle')}
+      help={t('list.subtitle')}
       actions={
         <Link to="/shop" className={buttonClass({ variant: 'secondary', size: 'sm' })}>
           {t('list.shop')}

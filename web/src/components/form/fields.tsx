@@ -11,11 +11,9 @@
  */
 import {
   Button,
-  Description,
   FieldError,
   Input,
   InputGroup,
-  Label,
   ListBox,
   NumberField as HeroNumberField,
   Select,
@@ -29,7 +27,7 @@ import { cx } from '@/lib/cn'
 import { useFieldContext, useFormContext } from './context'
 import { fieldErrorMessage } from './fieldError'
 import { TagInput, type TagInputProps } from './TagInput'
-import { FieldAffix, SelectItemContent } from './parts'
+import { FieldAffix, FieldHint, FieldLabel, SelectItemContent, SwitchHelp } from './parts'
 import { labelWithUnit } from './unit'
 
 /** Remove a server-side error once the user changes the value. */
@@ -103,7 +101,7 @@ export function TextField({
       fullWidth
       className={className}
     >
-      <Label>{label}</Label>
+      <FieldLabel label={label} help={description} />
       {grouped ? (
         <InputGroup fullWidth>
           {startContent ? <InputGroup.Prefix>{startContent}</InputGroup.Prefix> : null}
@@ -113,7 +111,7 @@ export function TextField({
       ) : (
         <Input {...inputProps} />
       )}
-      {description && !error ? <Description>{description}</Description> : null}
+      {error ? null : <FieldHint>{description}</FieldHint>}
       <FieldError>{error}</FieldError>
     </HeroTextField>
   )
@@ -154,9 +152,9 @@ export function TextAreaField({
       fullWidth
       className={className}
     >
-      <Label>{label}</Label>
+      <FieldLabel label={label} help={description} />
       <TextArea placeholder={placeholder} rows={rows} maxLength={maxLength} className="w-full" />
-      {description && !error ? <Description>{description}</Description> : null}
+      {error ? null : <FieldHint>{description}</FieldHint>}
       <FieldError>{error}</FieldError>
     </HeroTextField>
   )
@@ -213,7 +211,11 @@ export function NumberField({
       validationBehavior="aria"
       className={className}
     >
-      <Label>{labelWithUnit(label, unit)}</Label>
+      <FieldLabel
+        label={labelWithUnit(label, unit)}
+        subject={typeof label === 'string' ? label : undefined}
+        help={description}
+      />
       <HeroNumberField.Group>
         {steppers ? <HeroNumberField.DecrementButton /> : null}
         {prefix ? <FieldAffix start>{prefix}</FieldAffix> : null}
@@ -221,7 +223,7 @@ export function NumberField({
         {unit ? <FieldAffix>{unit}</FieldAffix> : null}
         {steppers ? <HeroNumberField.IncrementButton /> : null}
       </HeroNumberField.Group>
-      {description && !error ? <Description>{description}</Description> : null}
+      {error ? null : <FieldHint>{description}</FieldHint>}
       <FieldError>{error}</FieldError>
     </HeroNumberField>
   )
@@ -271,12 +273,12 @@ export function SelectField({
       disabledKeys={options.filter((o) => o.isDisabled).map((o) => o.value)}
       className={className}
     >
-      <Label>{label}</Label>
+      <FieldLabel label={label} help={description} />
       <Select.Trigger>
         <Select.Value />
         <Select.Indicator />
       </Select.Trigger>
-      {description && !error ? <Description>{description}</Description> : null}
+      {error ? null : <FieldHint>{description}</FieldHint>}
       <FieldError>{error}</FieldError>
       <Select.Popover>
         <ListBox>
@@ -304,29 +306,36 @@ export function SwitchField({ label, description, isDisabled, className, layout 
   const field = useFieldContext<boolean>()
   const error = fieldErrorMessage(field.state.meta)
   return (
-    <Switch
-      name={field.name}
-      id={field.name}
-      isSelected={Boolean(field.state.value)}
-      onChange={(value) => {
-        field.handleChange(value)
-        clearServerError(field)
-      }}
-      onBlur={field.handleBlur}
-      isInvalid={Boolean(error)}
-      isDisabled={isDisabled}
-      className={cx(layout === 'row' && 'switch-row', className)}
+    <SwitchHelp
+      help={description}
+      label={label}
+      layout={layout}
+      className={description ? className : undefined}
     >
-      {/* HeroUI ≥ 3.2 anatomy: Control inside Content, plain-text label, Description/FieldError as siblings */}
-      <Switch.Content>
-        <Switch.Control>
-          <Switch.Thumb />
-        </Switch.Control>
-        {label}
-      </Switch.Content>
-      {description ? <Description>{description}</Description> : null}
-      <FieldError>{error}</FieldError>
-    </Switch>
+      <Switch
+        name={field.name}
+        id={field.name}
+        isSelected={Boolean(field.state.value)}
+        onChange={(value) => {
+          field.handleChange(value)
+          clearServerError(field)
+        }}
+        onBlur={field.handleBlur}
+        isInvalid={Boolean(error)}
+        isDisabled={isDisabled}
+        className={cx(layout === 'row' && 'switch-row', !description && className)}
+      >
+        {/* HeroUI ≥ 3.2 anatomy: Control inside Content, plain-text label, Description/FieldError as siblings */}
+        <Switch.Content>
+          <Switch.Control>
+            <Switch.Thumb />
+          </Switch.Control>
+          {label}
+        </Switch.Content>
+        <FieldHint>{description}</FieldHint>
+        <FieldError>{error}</FieldError>
+      </Switch>
+    </SwitchHelp>
   )
 }
 

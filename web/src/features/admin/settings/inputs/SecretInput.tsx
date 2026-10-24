@@ -1,7 +1,8 @@
-import { Button, Description, FieldError, InputGroup, Label, TextField } from '@heroui/react'
+import { Button, FieldError, InputGroup, TextField } from '@heroui/react'
 import { Eye, EyeOff } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { CopyButton } from '@/components/CopyButton'
+import { FieldHint, FieldLabel } from '@/components/form/parts'
 import { useT } from '@/i18n'
 
 export interface SecretInputProps {
@@ -27,7 +28,8 @@ export interface SecretInputProps {
 
 /**
  * Password-style input for secrets (`captcha_secret`, `email_password`, `server_token`, gateway keys):
- * masked by default, with reveal + copy. Never autocompleted by the browser.
+ * masked by default, with reveal + copy. Never autocompleted by the browser. The description sits
+ * behind the label's ⓘ.
  * Needs the `admin-settings` i18n namespace (preload it in the route loader).
  */
 export function SecretInput({
@@ -68,7 +70,7 @@ export function SecretInput({
       fullWidth
       className={className}
     >
-      <Label>{label}</Label>
+      <FieldLabel label={label} help={description} />
       <InputGroup fullWidth>
         <InputGroup.Input
           className={monospace ? 'w-full font-mono' : 'w-full'}
@@ -92,7 +94,7 @@ export function SecretInput({
           {actions}
         </InputGroup.Suffix>
       </InputGroup>
-      {description && !error ? <Description>{description}</Description> : null}
+      {error ? null : <FieldHint>{description}</FieldHint>}
       <FieldError>{error}</FieldError>
     </TextField>
   )

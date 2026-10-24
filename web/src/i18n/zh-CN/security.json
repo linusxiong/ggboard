@@ -1,7 +1,6 @@
 {
   "profile": {
     "title": "个人中心",
-    "subtitle": "管理账户资料、登录安全与订阅。",
     "tabs": "个人中心分区",
     "tab": {
       "account": "账户",
@@ -13,6 +12,7 @@
     "createdAt": "注册时间",
     "lastLogin": "最近登录",
     "never": "从未",
+    "avatar": "头像",
     "avatarHint": "头像来自 Gravatar，可在 gravatar.com 修改。",
     "notifications": "邮件提醒",
     "notificationsHint": "我们会通过邮件提醒你以下事项。",
@@ -43,7 +43,9 @@
     "enable": "开启两步验证",
     "disable": "关闭两步验证",
     "setupTitle": "开启两步验证",
-    "step1": "使用身份验证器 App（如 1Password、Google Authenticator、Microsoft Authenticator）扫描二维码。",
+    "step1": "使用身份验证器 App 扫描二维码。",
+    "apps": "身份验证器 App",
+    "appsHint": "例如 1Password、Google Authenticator、Microsoft Authenticator。",
     "step2": "输入 App 中显示的 6 位验证码完成绑定。",
     "qrLabel": "两步验证绑定二维码",
     "manual": "无法扫描？手动输入以下密钥：",
@@ -60,7 +62,9 @@
   },
   "backup": {
     "title": "保存备用码",
-    "once": "每个备用码只能使用一次，可在无法使用身份验证器时登录。它们只会显示这一次，请立即妥善保存。",
+    "codes": "备用码",
+    "once": "备用码只会显示这一次，请立即妥善保存。",
+    "about": "每个备用码只能使用一次，可在无法使用身份验证器时登录。",
     "copy": "复制全部",
     "download": "下载 .txt",
     "downloaded": "已下载",
@@ -79,9 +83,9 @@
     "hint": "使用指纹、面容或设备密码登录，无需输入密码；可保存在 iCloud 钥匙串、1Password、Bitwarden 等密码管理器中并跨设备同步。",
     "add": "添加通行密钥",
     "addTitle": "添加通行密钥",
-    "addHint": "为这个通行密钥起个名字，方便日后辨认。接下来请按浏览器或密码管理器的提示完成创建。",
+    "addHint": "起个名字方便日后辨认，然后按浏览器或密码管理器的提示完成创建。",
     "name": "名称",
-    "nameHint": "例如：MacBook、iPhone、1Password",
+    "namePlaceholder": "例如：MacBook、iPhone、1Password",
     "nameRequired": "请输入名称",
     "nameTooLong": "名称最多 {max} 个字符",
     "create": "创建",
@@ -103,9 +107,9 @@
     "renamed": "已重命名",
     "remove": "删除 {name}",
     "removeTitle": "删除「{name}」？",
-    "removeHint": "删除后将无法再用它登录。请输入当前密码确认，并记得同时在设备或密码管理器中移除它。",
+    "removeHint": "删除后将无法再用它登录。请输入当前密码确认。",
     "removeConfirm": "删除",
-    "removed": "通行密钥已删除"
+    "removed": "通行密钥已删除，记得也在设备或密码管理器中删除它。"
   },
   "errors": {
     "wait": "尝试次数过多，请{wait}再试。",

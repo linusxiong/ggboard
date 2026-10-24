@@ -8,9 +8,11 @@
  * Keyboard: ⌘/Ctrl+B bold, ⌘/Ctrl+I italic, ⌘/Ctrl+K link, ⌘/Ctrl+Shift+P toggles the preview.
  * Strings come from the `admin-support` namespace (`editor.*`) — preload it, or pass `labels`.
  */
-import { Button, Description, FieldError, Label, TextArea, TextField } from '@heroui/react'
+import { Button, FieldError, TextArea, TextField } from '@heroui/react'
 import { Bold, Code, Eye, Heading2, Italic, Link2, List, ListOrdered, PencilLine, Quote } from 'lucide-react'
 import { lazy, type ReactNode, Suspense, useLayoutEffect, useRef, useState } from 'react'
+import { FieldHint, FieldLabel } from '@/components/form/parts'
+import { HelpTip } from '@/components/HelpTip'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { useT } from '@/i18n'
 import { type EditResult, insertText, prefixLines, wrapSelection } from './markdownEdit'
@@ -36,13 +38,17 @@ export interface MarkdownEditorProps {
   value: string
   onChange: (value: string) => void
   name?: string
+  /** What the field is for: behind the label's ⓘ (and the textarea's accessible description). */
   description?: ReactNode
   error?: string
   isRequired?: boolean
   placeholder?: string
   rows?: number
   snippets?: readonly MarkdownSnippet[]
-  /** Extra help rendered under the toolbar (e.g. available placeholders). */
+  /**
+   * Reference for the snippet buttons (e.g. what each placeholder expands to): an ⓘ at the end of
+   * the toolbar opens it, so the explanation stays off the page's first level.
+   */
   help?: ReactNode
   className?: string
 }
@@ -142,7 +148,7 @@ export function MarkdownEditor({
       className={cx('flex flex-col gap-2', className)}
     >
       <div className="flex flex-wrap items-end justify-between gap-2">
-        <Label>{label}</Label>
+        <FieldLabel label={label} help={description} />
         <SegmentedControl
           aria-label={t('editor.mode')}
           size="sm"
@@ -193,8 +199,8 @@ export function MarkdownEditor({
                 ) : null}
               </Button>
             ))}
+            {help ? <HelpTip subject={typeof label === 'string' ? label : undefined}>{help}</HelpTip> : null}
           </div>
-          {help ? <div className="text-footnote text-label-secondary">{help}</div> : null}
           <TextArea
             ref={ref}
             rows={rows}
@@ -221,7 +227,7 @@ export function MarkdownEditor({
       )}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          {description && !error ? <Description>{description}</Description> : null}
+          {error ? null : <FieldHint>{description}</FieldHint>}
           <FieldError>{error}</FieldError>
         </div>
         <span className="shrink-0 text-caption tabular text-label-secondary" aria-live="off">

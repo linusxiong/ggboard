@@ -1,5 +1,6 @@
-import { Description, FieldError, Label, TextArea, TextField } from '@heroui/react'
+import { FieldError, TextArea, TextField } from '@heroui/react'
 import { useState } from 'react'
+import { FieldHint, FieldLabel } from '@/components/form/parts'
 import { useT } from '@/i18n'
 import type { Settings } from './protocol'
 
@@ -36,9 +37,9 @@ export function RawJsonEditor({ value, onChange, issues }: RawJsonEditorProps) {
         validationBehavior="aria"
         fullWidth
       >
-        <Label>{t('nodes.json.label')}</Label>
+        <FieldLabel label={t('nodes.json.label')} help={t('nodes.json.hint')} />
         <TextArea rows={18} className="w-full font-mono text-footnote" spellCheck={false} />
-        {error ? null : <Description>{t('nodes.json.hint')}</Description>}
+        {error ? null : <FieldHint>{t('nodes.json.hint')}</FieldHint>}
         <FieldError>{error}</FieldError>
       </TextField>
       {entries.length ? (

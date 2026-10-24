@@ -1,6 +1,6 @@
 {
   "title": "Payment methods",
-  "description": "Connect payment gateways, set handling fees and the display order. Gateways are plugins; their settings are generated from each gateway.",
+  "pageHelp": "Connect payment gateways, set handling fees and the display order. Gateways are plugins; their settings are generated from each gateway.",
   "list": {
     "add": "Add payment method",
     "emptyTitle": "No payment methods yet",

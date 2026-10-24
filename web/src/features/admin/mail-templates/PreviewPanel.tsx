@@ -2,6 +2,7 @@ import { Chip, Skeleton, Spinner } from '@heroui/react'
 import { useQuery } from '@tanstack/react-query'
 import { Eye, FileText } from 'lucide-react'
 import { useState } from 'react'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { useT } from '@/i18n'
 import { adminMailTemplatePreviewQuery } from '@/lib/api/queries'
@@ -43,13 +44,12 @@ export function PreviewPanel({ name, draft }: PreviewPanelProps) {
   return (
     <section aria-labelledby="mail-template-preview" className="flex flex-col gap-3">
       <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 px-1">
-        <div className="min-w-0">
+        <TitleWithHelp help={t('mailTemplates.preview.help')} subject={t('mailTemplates.preview.title')}>
           <h3 id="mail-template-preview" className="flex items-center gap-2 text-headline text-label">
             {t('mailTemplates.preview.title')}
             {updating ? <Spinner size="sm" color="current" aria-hidden="true" /> : null}
           </h3>
-          <p className="text-footnote text-label-secondary">{t('mailTemplates.preview.caption')}</p>
-        </div>
+        </TitleWithHelp>
         <SegmentedControl
           aria-label={t('mailTemplates.preview.mode')}
           size="sm"

@@ -6,6 +6,7 @@ import { lazy, Suspense, useMemo, useState } from 'react'
 import { createDataTableColumns, DataTable } from '@/components/data-table'
 import { EmptyState } from '@/components/EmptyState'
 import { DateTime } from '@/components/Formatters'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { PageShell } from '@/components/PageShell'
 import { StatCard } from '@/components/StatCard'
 import { CodesList } from '@/features/invite/CodesList'
@@ -95,7 +96,7 @@ function InvitePage() {
   })
 
   return (
-    <PageShell title={t('title')} description={t('subtitle')}>
+    <PageShell title={t('title')} help={t('subtitle')}>
       <h2 className="sr-only">{t('stats.label')}</h2>
       <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label={t('stats.label')}>
         <li>
@@ -115,7 +116,7 @@ function InvitePage() {
             format={money}
             icon={<Hourglass className="size-4" />}
             accent="bg-system-orange"
-            hint={t('stats.pendingHint')}
+            help={t('stats.pendingHint')}
           />
         </li>
         <li>
@@ -154,12 +155,11 @@ function InvitePage() {
             >
               <Wallet className="size-5" />
             </span>
-            <div>
+            <TitleWithHelp help={t('wallet.subtitle')} subject={t('wallet.title')}>
               <h2 id="wallet-title" className="text-headline text-label">
                 {t('wallet.title')}
               </h2>
-              <p className="text-footnote text-label-secondary">{t('wallet.subtitle')}</p>
-            </div>
+            </TitleWithHelp>
           </div>
           <SiteMoney cents={commission} className="text-large-title text-label" />
           <div className="mt-auto flex flex-wrap gap-2">

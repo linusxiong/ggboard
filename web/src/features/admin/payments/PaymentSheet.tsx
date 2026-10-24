@@ -1,4 +1,4 @@
-import { Alert, Button, Drawer, Spinner } from '@heroui/react'
+import { Alert, Button, Disclosure, Drawer, Spinner } from '@heroui/react'
 import { useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useState } from 'react'
 import { CopyButton } from '@/components/CopyButton'
@@ -293,15 +293,20 @@ function PaymentSheetInner({
               />
 
               {helpKey ? (
-                <Alert status={WEBHOOK_GATEWAYS.has(values.gateway) ? 'warning' : 'accent'}>
-                  <Alert.Indicator />
-                  <Alert.Content>
-                    <Alert.Title>
+                // The setup guide is read step by step while filling the fields: collapsed, not a popover.
+                <Disclosure key={values.gateway} className="rounded-[12px] bg-fill-quaternary">
+                  <Disclosure.Heading>
+                    <Disclosure.Trigger className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-start text-subhead text-label">
                       {t('form.helpTitle', { gateway: gateway?.label ?? values.gateway })}
-                    </Alert.Title>
-                    <Alert.Description className="whitespace-pre-line">{t(helpKey)}</Alert.Description>
-                  </Alert.Content>
-                </Alert>
+                      <Disclosure.Indicator />
+                    </Disclosure.Trigger>
+                  </Disclosure.Heading>
+                  <Disclosure.Content>
+                    <Disclosure.Body className="whitespace-pre-line px-3 pb-3 text-footnote text-label-secondary">
+                      {t(helpKey)}
+                    </Disclosure.Body>
+                  </Disclosure.Content>
+                </Disclosure>
               ) : null}
 
               {notifyUrl ? (
@@ -314,10 +319,12 @@ function PaymentSheetInner({
                     isReadOnly
                     monospace
                     endContent={<CopyButton value={notifyUrl} variant="ghost" />}
-                    description={
-                      WEBHOOK_GATEWAYS.has(values.gateway) ? t('form.notifyWebhook') : t('form.notifyAuto')
-                    }
+                    description={WEBHOOK_GATEWAYS.has(values.gateway) ? undefined : t('form.notifyAuto')}
                   />
+                  {/* A step the admin must take now, so it stays on the page. */}
+                  {WEBHOOK_GATEWAYS.has(values.gateway) ? (
+                    <p className="text-footnote text-label-orange">{t('form.notifyWebhook')}</p>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -379,6 +386,7 @@ function PaymentSheetInner({
                     onChange={(v) => set('handling_fee_fixed', v)}
                     currency={currency}
                     error={errors.handling_fee_fixed}
+                    description={t('form.feeHint')}
                   />
                   <NumberInput
                     label={t('form.feePercent')}
@@ -393,7 +401,6 @@ function PaymentSheetInner({
                     error={errors.handling_fee_percent}
                   />
                 </div>
-                <p className="-mt-2 text-footnote text-label-secondary">{t('form.feeHint')}</p>
                 <SwitchInput
                   label={t('form.enabled')}
                   name="enabled"

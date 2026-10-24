@@ -1,6 +1,6 @@
 import { Button } from '@heroui/react'
 import { useQuery } from '@tanstack/react-query'
-import { type ReactNode, useState } from 'react'
+import { useState } from 'react'
 import { FormError, useAppForm } from '@/components/form'
 import { submitError } from '@/components/form/submitError'
 import { Markdown } from '@/components/Markdown'
@@ -9,6 +9,7 @@ import { useT } from '@/i18n'
 import * as adminApi from '@/lib/api/admin'
 import { adminGroupsQuery, qk } from '@/lib/api/queries'
 import { type AdminPlan, PLAN_PERIODS, type PlanInput } from '@/lib/api/types'
+import { FieldGroup } from '../shared/FieldGroup'
 import { FormDrawer } from '../shared/FormDrawer'
 import { useAdminMutation } from '../shared/useAdminMutation'
 import { useSite } from '../shared/useSite'
@@ -18,15 +19,6 @@ interface PlanSheetProps {
   plan: AdminPlan | null
   isOpen: boolean
   onOpenChange: (open: boolean) => void
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <fieldset className="flex flex-col gap-4">
-      <legend className="mb-3 text-headline text-label">{title}</legend>
-      {children}
-    </fieldset>
-  )
 }
 
 export function PlanSheet({ plan, isOpen, onOpenChange }: PlanSheetProps) {
@@ -87,7 +79,7 @@ export function PlanSheet({ plan, isOpen, onOpenChange }: PlanSheetProps) {
     >
       <div className="flex flex-col gap-8 pb-4">
         <FormError message={formError} />
-        <Section title={t('sections.basic')}>
+        <FieldGroup title={t('sections.basic')}>
           <div className="grid gap-4 sm:grid-cols-2">
             <form.AppField name="name" validators={required(t('fields.name'))}>
               {(f) => <f.TextField label={t('fields.name')} isRequired />}
@@ -125,9 +117,9 @@ export function PlanSheet({ plan, isOpen, onOpenChange }: PlanSheetProps) {
               {(f) => <f.SwitchField label={t('fields.renew')} description={t('fields.renewHint')} />}
             </form.AppField>
           </div>
-        </Section>
+        </FieldGroup>
 
-        <Section title={t('sections.traffic')}>
+        <FieldGroup title={t('sections.traffic')}>
           <div className="grid gap-4 sm:grid-cols-2">
             <form.AppField name="transfer_enable" validators={required(t('fields.transfer'))}>
               {(f) => (
@@ -186,10 +178,9 @@ export function PlanSheet({ plan, isOpen, onOpenChange }: PlanSheetProps) {
               )}
             </form.AppField>
           </div>
-        </Section>
+        </FieldGroup>
 
-        <Section title={t('sections.prices')}>
-          <p className="-mt-2 text-footnote text-label-secondary">{t('pricesHint')}</p>
+        <FieldGroup title={t('sections.prices')} help={t('pricesHint')}>
           <div className="grid gap-4 sm:grid-cols-2">
             {PLAN_PERIODS.map((period) => (
               <form.AppField key={period} name={`prices.${period}`}>
@@ -206,9 +197,9 @@ export function PlanSheet({ plan, isOpen, onOpenChange }: PlanSheetProps) {
               </form.AppField>
             ))}
           </div>
-        </Section>
+        </FieldGroup>
 
-        <Section title={t('sections.content')}>
+        <FieldGroup title={t('sections.content')}>
           <form.Subscribe selector={(s) => s.values.content}>
             {(content) => (
               <SegmentedTabs
@@ -245,7 +236,7 @@ export function PlanSheet({ plan, isOpen, onOpenChange }: PlanSheetProps) {
               </SegmentedTabs>
             )}
           </form.Subscribe>
-        </Section>
+        </FieldGroup>
       </div>
     </FormDrawer>
   )

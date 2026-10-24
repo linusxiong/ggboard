@@ -1,6 +1,6 @@
 {
   "title": "Overview",
-  "description": "Live income, orders, users and nodes — refreshes every minute",
+  "help": "Live income, orders, users and nodes — refreshes every minute",
   "updatedAt": "Updated {time} · refreshes every minute",
   "loading": "Loading…",
   "loadError": "Could not load the data. Please try again later.",

@@ -1,6 +1,5 @@
 {
   "title": "仪表盘",
-  "subtitle": "你的套餐、流量与节点一览。",
   "greeting": {
     "morning": "早上好，{name}",
     "noon": "中午好，{name}",

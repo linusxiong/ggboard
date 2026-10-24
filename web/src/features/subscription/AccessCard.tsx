@@ -9,6 +9,7 @@ import { Link } from '@tanstack/react-router'
 import { RotateCw, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
 import { confirm } from '@/components/feedback/confirm'
+import { HelpTip, TitleWithHelp } from '@/components/HelpTip'
 import { useNow } from '@/features/admin/shared/useNow'
 import { useT } from '@/i18n'
 import { qk } from '@/lib/api/queries'
@@ -68,29 +69,31 @@ export function AccessCard() {
         >
           <ShieldCheck className="size-5" />
         </span>
-        <div className="min-w-0">
+        <TitleWithHelp
+          help={`${t('access.subtitle')}\n\n${telegramBound ? t('access.leakTelegram') : t('access.leak')}`}
+          subject={t('access.title')}
+          className="self-center"
+        >
           <h2 id="access-title" className="text-headline text-label">
             {t('access.title')}
           </h2>
-          <p className="mt-1 text-footnote text-label-secondary">{t('access.subtitle')}</p>
-        </div>
+        </TitleWithHelp>
       </div>
 
-      <div className="flex flex-col gap-1 rounded-[12px] bg-fill-quaternary px-4 py-3">
-        {log.data ? (
-          <p className="text-subhead text-label">
-            {t('access.distinct', { count: recentIpCount(log.data, now) })}
-          </p>
-        ) : null}
-        <p className="text-footnote text-label-secondary">
-          {telegramBound ? t('access.leakTelegram') : t('access.leak')}
-        </p>
-        {telegramAvailable && !telegramBound ? (
-          <Link to="/profile" className="text-footnote text-label-blue hover:underline">
-            {t('access.bindTelegram')}
-          </Link>
-        ) : null}
-      </div>
+      {log.data || (telegramAvailable && !telegramBound) ? (
+        <div className="flex flex-col gap-1 rounded-[12px] bg-fill-quaternary px-4 py-3">
+          {log.data ? (
+            <p className="text-subhead text-label">
+              {t('access.distinct', { count: recentIpCount(log.data, now) })}
+            </p>
+          ) : null}
+          {telegramAvailable && !telegramBound ? (
+            <Link to="/profile" className="text-footnote text-label-blue hover:underline">
+              {t('access.bindTelegram')}
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-2" role="group" aria-labelledby="access-recent">
         <h3 id="access-recent" className="text-subhead font-semibold text-label">
@@ -139,25 +142,17 @@ export function AccessCard() {
         )}
       </div>
 
-      <div className="flex flex-col gap-3 border-t border-hairline pt-4">
-        <div className="flex flex-col gap-1.5">
-          <Button
-            size="sm"
-            variant="secondary"
-            className="self-start"
-            isPending={rotate.isPending}
-            onPress={() => void onRotate()}
-          >
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-hairline pt-4">
+        <div className="flex items-center gap-1">
+          <Button size="sm" variant="secondary" isPending={rotate.isPending} onPress={() => void onRotate()}>
             <RotateCw className="size-4" aria-hidden="true" />
             {t('access.rotate')}
           </Button>
-          <p className="text-footnote text-label-secondary">{t('access.rotateHint')}</p>
+          <HelpTip subject={t('access.rotate')}>{t('access.rotateHint')}</HelpTip>
         </div>
-        <div className="flex flex-col gap-1.5">
-          <div className="self-start">
-            <ResetSubscription size="sm" />
-          </div>
-          <p className="text-footnote text-label-secondary">{t('access.resetHint')}</p>
+        <div className="flex items-center gap-1">
+          <ResetSubscription size="sm" />
+          <HelpTip subject={t('reset.action')}>{t('access.resetHint')}</HelpTip>
         </div>
       </div>
     </section>

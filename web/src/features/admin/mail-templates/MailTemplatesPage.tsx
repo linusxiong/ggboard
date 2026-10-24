@@ -4,6 +4,7 @@ import { MailX } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { EmptyState } from '@/components/EmptyState'
 import { confirm } from '@/components/feedback/confirm'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { PageShell } from '@/components/PageShell'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { useLocale, useT } from '@/i18n'
@@ -80,11 +81,7 @@ export function MailTemplatesPage({
   const unsupported = isApiError(list.error) && list.error.status === 404
 
   return (
-    <PageShell
-      title={t('mailTemplates.title')}
-      description={t('mailTemplates.description')}
-      actions={settingsLink}
-    >
+    <PageShell title={t('mailTemplates.title')} help={t('mailTemplates.help')} actions={settingsLink}>
       {renderGuard?.(dirty)}
       {unsupported ? (
         <EmptyState
@@ -125,16 +122,15 @@ export function MailTemplatesPage({
 
           <section aria-labelledby="mail-template-title" className="flex min-w-0 flex-col gap-6">
             <header className="flex flex-wrap items-end justify-between gap-3">
-              <div className="min-w-0 flex-1 basis-60">
-                <h2 id="mail-template-title" className="text-title2 text-label">
+              <TitleWithHelp
+                help={templateDescription(t, active.name)}
+                subject={title}
+                className="flex-1 basis-60"
+              >
+                <h2 id="mail-template-title" className="min-w-0 text-title2 text-label">
                   {title}
                 </h2>
-                {templateDescription(t, active.name) ? (
-                  <p className="mt-1 text-subhead text-label-secondary">
-                    {templateDescription(t, active.name)}
-                  </p>
-                ) : null}
-              </div>
+              </TitleWithHelp>
               <SegmentedControl
                 aria-label={t('mailTemplates.localeLabel')}
                 value={activeLocale}

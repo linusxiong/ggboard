@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, Eye, EyeOff, KeyRound, Lock, RefreshCw, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { CopyButton } from '@/components/CopyButton'
+import { HelpTip, TitleWithHelp } from '@/components/HelpTip'
 import { DateTime } from '@/components/Formatters'
 import { confirm } from '@/components/feedback/confirm'
 import { useT } from '@/i18n'
@@ -120,6 +121,16 @@ export function AgeCard({
   const clients = ageClients(key?.formats, formats)
   const enabled = hasKey && Boolean(key?.enabled)
   const privateKey = key?.private_key ?? null
+  // What it does, then which formats get encrypted and what the others receive (second level, ⓘ).
+  const about = unsupported
+    ? t('age.intro')
+    : [
+        t('age.intro'),
+        '',
+        t('age.clients', { clients: clients.join(' · ') }),
+        isStrict ? t('age.strict') : t('age.plainFallback'),
+        ...(isOptional ? [t('age.optional')] : []),
+      ].join('\n')
 
   return (
     <section className="surface-card flex min-w-0 flex-col gap-4 p-6" aria-labelledby="age-title">
@@ -130,7 +141,7 @@ export function AgeCard({
         >
           <Lock className="size-5" />
         </span>
-        <div className="min-w-0">
+        <TitleWithHelp help={about} subject={t('age.title')} className="self-center">
           <h2 id="age-title" className="flex flex-wrap items-center gap-2 text-headline text-label">
             {t('age.title')}
             {hasKey ? (
@@ -139,8 +150,7 @@ export function AgeCard({
               </Chip>
             ) : null}
           </h2>
-          <p className="mt-1 text-footnote text-label-secondary">{t('age.intro')}</p>
-        </div>
+        </TitleWithHelp>
       </div>
 
       {unsupported ? (
@@ -181,7 +191,10 @@ export function AgeCard({
               </dd>
             </div>
             <div className="flex flex-col gap-1.5">
-              <dt className="text-subhead font-medium text-label">{t('age.privateKey')}</dt>
+              <dt className="flex items-center gap-0.5 text-subhead font-medium text-label">
+                {t('age.privateKey')}
+                {privateKey ? <HelpTip subject={t('age.privateKey')}>{t('age.privateHint')}</HelpTip> : null}
+              </dt>
               {privateKey ? (
                 <dd className="flex flex-wrap items-center gap-2">
                   <code
@@ -209,7 +222,6 @@ export function AgeCard({
               ) : (
                 <dd className="text-footnote text-label-orange">{t('age.privateUnavailable')}</dd>
               )}
-              {privateKey ? <p className="text-footnote text-label-orange">{t('age.privateHint')}</p> : null}
             </div>
           </dl>
 
@@ -244,13 +256,6 @@ export function AgeCard({
 
       {unsupported ? null : (
         <>
-          <div className="flex flex-col gap-1 text-footnote text-label-secondary">
-            <p>{t('age.clients', { clients: clients.join(' · ') })}</p>
-            <p className={isStrict ? 'text-label-orange' : undefined}>
-              {isStrict ? t('age.strict') : t('age.plainFallback')}
-            </p>
-            {isOptional ? <p>{t('age.optional')}</p> : null}
-          </div>
           <details className="group rounded-[12px] bg-fill-quaternary px-4 py-3">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-subhead font-medium text-label [&::-webkit-details-marker]:hidden">
               {t('age.howto')}

@@ -13,6 +13,7 @@ import * as adminApi from '@/lib/api/admin'
 import { adminGroupsQuery, adminPlansQuery, adminUserQuery } from '@/lib/api/queries'
 import type { AdminUser, AdminUserDetail, AdminUserUpdateInput } from '@/lib/api/types'
 import { toast } from '@/lib/toast'
+import { FieldGroup } from '../shared/FieldGroup'
 import { DateTimeField } from '../shared/fields'
 import { FormDrawer } from '../shared/FormDrawer'
 import { useAdminMutation } from '../shared/useAdminMutation'
@@ -160,15 +161,6 @@ function Summary({
   )
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <fieldset className="flex min-w-0 flex-col gap-4">
-      <legend className="mb-3 text-headline text-label">{title}</legend>
-      {children}
-    </fieldset>
-  )
-}
-
 function EditForm({ user, onSaved }: { user: AdminUser; onSaved: (user: AdminUser) => void }) {
   const t = useT(['admin-users', 'common'])
   const { currency, symbol } = useSite()
@@ -223,7 +215,7 @@ function EditForm({ user, onSaved }: { user: AdminUser; onSaved: (user: AdminUse
       className="flex flex-col gap-8 pb-2"
     >
       <FormError message={formError} />
-      <Section title={t('sections.account')}>
+      <FieldGroup title={t('sections.account')}>
         <form.AppField
           name="email"
           validators={{
@@ -259,25 +251,28 @@ function EditForm({ user, onSaved }: { user: AdminUser; onSaved: (user: AdminUse
         </form.AppField>
         <form.AppField name="invite_user_id">
           {(f) => (
-            <f.NumberField
-              label={t('fields.inviter')}
-              minValue={1}
-              step={1}
-              formatOptions={{ useGrouping: false }}
-              description={
-                user.invite_user_email
-                  ? t('fields.inviterHint', { email: user.invite_user_email })
-                  : t('fields.inviterEmpty')
-              }
-            />
+            <div className="flex flex-col gap-1">
+              <f.NumberField
+                label={t('fields.inviter')}
+                minValue={1}
+                step={1}
+                formatOptions={{ useGrouping: false }}
+                description={t('fields.inviterEmpty')}
+              />
+              {user.invite_user_email ? (
+                <p className="text-footnote text-label-secondary">
+                  {t('fields.inviterCurrent', { email: user.invite_user_email })}
+                </p>
+              ) : null}
+            </div>
           )}
         </form.AppField>
         <form.AppField name="remarks">
           {(f) => <f.TextAreaField label={t('fields.remarks')} rows={3} />}
         </form.AppField>
-      </Section>
+      </FieldGroup>
 
-      <Section title={t('sections.subscription')}>
+      <FieldGroup title={t('sections.subscription')}>
         <div className="grid gap-4 sm:grid-cols-2">
           <form.AppField name="plan_id">
             {(f) => <f.SelectField label={t('fields.plan')} options={planOptions} />}
@@ -347,9 +342,9 @@ function EditForm({ user, onSaved }: { user: AdminUser; onSaved: (user: AdminUse
             )}
           </form.AppField>
         </div>
-      </Section>
+      </FieldGroup>
 
-      <Section title={t('sections.finance')}>
+      <FieldGroup title={t('sections.finance')}>
         <div className="grid gap-4 sm:grid-cols-2">
           <form.AppField name="balance">
             {(f) => (
@@ -408,9 +403,9 @@ function EditForm({ user, onSaved }: { user: AdminUser; onSaved: (user: AdminUse
             )}
           </form.AppField>
         </div>
-      </Section>
+      </FieldGroup>
 
-      <Section title={t('sections.flags')}>
+      <FieldGroup title={t('sections.flags')}>
         <div className="grid gap-3 sm:grid-cols-2">
           <form.AppField name="banned">
             {(f) => <f.SwitchField label={t('fields.banned')} description={t('fields.bannedHint')} />}
@@ -428,7 +423,7 @@ function EditForm({ user, onSaved }: { user: AdminUser; onSaved: (user: AdminUse
             {(f) => <f.SwitchField label={t('fields.remindTraffic')} />}
           </form.AppField>
         </div>
-      </Section>
+      </FieldGroup>
 
       <div className="sticky bottom-0 flex justify-end gap-2 bg-overlay py-3">
         <form.Subscribe selector={(s) => s.isDirty}>

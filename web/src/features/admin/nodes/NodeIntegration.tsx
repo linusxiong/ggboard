@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { CopyButton } from '@/components/CopyButton'
+import { HelpTip, TitleWithHelp } from '@/components/HelpTip'
 import { useT } from '@/i18n'
 import type { NodeType } from '@/lib/api/types'
 import { useSite } from '../shared/useSite'
@@ -19,7 +20,9 @@ function Snippet({
   return (
     <section className="flex flex-col gap-2 rounded-[14px] bg-fill-quaternary p-4">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-headline text-label">{title}</h3>
+        <TitleWithHelp help={code ? hint : undefined} subject={title}>
+          <h3 className="text-headline text-label">{title}</h3>
+        </TitleWithHelp>
         {code ? <CopyButton value={code} /> : null}
       </div>
       {code ? (
@@ -29,7 +32,6 @@ function Snippet({
       ) : (
         <p className="text-subhead text-label-secondary">{unsupported}</p>
       )}
-      {hint && code ? <p className="text-footnote text-label-secondary">{hint}</p> : null}
     </section>
   )
 }
@@ -57,11 +59,15 @@ export function NodeIntegration({
         <Link to="/admin/settings" className="text-label-blue underline underline-offset-2">
           {t('nodes.integration.settingsLink')}
         </Link>
+        {isChild ? (
+          <HelpTip subject={t('nodes.integration.childSubject')} className="ms-1 align-middle">
+            {t('nodes.integration.child')}
+          </HelpTip>
+        ) : null}
       </p>
       {nodeId === null ? (
         <p className="text-footnote text-label-orange">{t('nodes.integration.unsaved')}</p>
       ) : null}
-      {isChild ? <p className="text-footnote text-label-secondary">{t('nodes.integration.child')}</p> : null}
       <Snippet
         title="XrayR"
         code={snippets.xrayr}

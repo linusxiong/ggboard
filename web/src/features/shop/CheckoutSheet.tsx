@@ -10,6 +10,7 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { TicketPercent, X } from 'lucide-react'
 import { type FormEvent, type ReactNode, useState } from 'react'
 import { FormError } from '@/components/FormError'
+import { HelpTip } from '@/components/HelpTip'
 import { useT } from '@/i18n'
 import { cx } from '@/lib/cn'
 import { isApiError, userApi } from '@/lib/api'
@@ -247,21 +248,26 @@ export default function CheckoutSheet({ selection, isCurrent, onClose }: Checkou
                   hasDeductions && 'mt-1 border-t-[0.5px] border-hairline pt-3',
                 )}
               >
-                <dt className="text-headline text-label">{t('checkout.payable')}</dt>
+                <dt className="flex items-center gap-0.5 text-headline text-label">
+                  {t('checkout.payable')}
+                  <HelpTip subject={t('checkout.payable')}>
+                    {[
+                      user && user.balance > 0
+                        ? t('checkout.balanceNote', { balance: money(user.balance) })
+                        : null,
+                      user?.plan_id && !isCurrent && period !== 'reset_traffic'
+                        ? t('checkout.upgradeNote')
+                        : t('checkout.estimateNote'),
+                    ]
+                      .filter(Boolean)
+                      .join('\n')}
+                  </HelpTip>
+                </dt>
                 <dd className="text-title2 text-label">
                   <SiteMoney cents={estimate.payable} />
                 </dd>
               </div>
             </dl>
-
-            <p className="text-footnote text-label-secondary">
-              {user && user.balance > 0
-                ? `${t('checkout.balanceNote', { balance: money(user.balance) })} `
-                : null}
-              {user?.plan_id && !isCurrent && period !== 'reset_traffic'
-                ? t('checkout.upgradeNote')
-                : t('checkout.estimateNote')}
-            </p>
 
             {pending !== null ? (
               <Alert status="warning">

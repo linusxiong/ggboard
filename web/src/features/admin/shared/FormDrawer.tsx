@@ -1,5 +1,6 @@
 import { Drawer } from '@heroui/react'
 import { type FormEvent, type ReactNode, useCallback } from 'react'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { cx } from '@/lib/cn'
 import { DrawerClose } from '@/components/feedback/DrawerClose'
 import { useIsDesktop } from '@/hooks/useMediaQuery'
@@ -8,8 +9,10 @@ interface FormDrawerProps {
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   title: ReactNode
-  /** Small text under the heading. */
+  /** Small text under the heading: short facts only (counts, ids). Explanations go in `help`. */
   subtitle?: ReactNode
+  /** What the sheet is for, behind an ⓘ next to the heading. */
+  help?: ReactNode
   children: ReactNode
   footer?: ReactNode
   /** Panel width on ≥ sm screens. */
@@ -31,6 +34,7 @@ export function FormDrawer({
   onOpenChange,
   title,
   subtitle,
+  help,
   children,
   footer,
   size = 'lg',
@@ -71,7 +75,9 @@ export function FormDrawer({
           {desktop ? null : <Drawer.Handle />}
           <DrawerClose />
           <Drawer.Header>
-            <Drawer.Heading>{title}</Drawer.Heading>
+            <TitleWithHelp help={help} subject={typeof title === 'string' ? title : undefined}>
+              <Drawer.Heading>{title}</Drawer.Heading>
+            </TitleWithHelp>
             {subtitle ? <p className="text-footnote text-label-secondary">{subtitle}</p> : null}
           </Drawer.Header>
           {onSubmit ? (

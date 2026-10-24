@@ -25,7 +25,7 @@
   },
   "tickets": {
     "title": "工单",
-    "description": "回复用户工单；待回复的工单会优先显示。",
+    "help": "回复用户工单；待回复的工单会优先显示。\n在工单列表中可以用 ↑/↓ 切换工单。",
     "listLabel": "工单列表",
     "viewLabel": "工单分类",
     "views": {
@@ -57,7 +57,7 @@
     "closeTitle": "关闭此工单？",
     "closeHint": "用户仍可查看历史消息；你之后回复会自动重新打开工单。",
     "closed": "工单已关闭",
-    "closedHint": "此工单已关闭，发送回复会重新打开它。",
+    "closedHint": "此工单已关闭。",
     "reply": "回复内容",
     "replyPlaceholder": "输入回复…",
     "replySent": "回复已发送",
@@ -65,11 +65,11 @@
     "replyReopen": "回复并重新打开",
     "toSend": "发送",
     "pickTitle": "选择一个工单",
-    "pickHint": "从左侧列表选择工单查看对话，使用 ↑/↓ 在列表中移动。"
+    "pickHint": "从左侧列表选择工单查看对话。"
   },
   "notices": {
     "title": "公告",
-    "description": "发布站点公告；可设置显示状态与排序，内容支持 Markdown。",
+    "help": "发布站点公告；可设置显示状态与排序，内容支持 Markdown。",
     "create": "发布公告",
     "emptyTitle": "还没有公告",
     "emptyHint": "发布的公告会显示在用户仪表盘与公告页。",
@@ -97,14 +97,13 @@
   },
   "knowledge": {
     "title": "知识库",
-    "description": "编写使用文档与教程；按语言与分类组织，正文可插入订阅地址等占位符。",
+    "help": "编写使用文档与教程，按语言与分类组织；正文可插入订阅地址等占位符。\n筛选时，上移 / 下移只在当前可见的文章之间交换位置。",
     "create": "新建文章",
     "filters": "筛选文章",
     "allLanguages": "全部语言",
     "allCategories": "全部分类",
     "search": "搜索",
     "searchPlaceholder": "标题或分类",
-    "sortFilteredHint": "筛选状态下，排序只在当前可见的文章之间交换位置。",
     "noMatch": "没有符合条件的文章",
     "emptyTitle": "还没有文章",
     "emptyHint": "为用户编写客户端下载、导入订阅等教程。",
@@ -124,7 +123,7 @@
     "categoryHint": "选择已有分类或输入新分类。",
     "titleRequired": "请输入标题",
     "bodyRequired": "请输入正文",
-    "placeholdersHelp": "占位符会在用户查看时替换：{{siteName}} 站点名称，{{subscribeUrl}} 订阅地址，{{urlEncodeSubscribeUrl}} URL 编码的订阅地址，{{safeBase64SubscribeUrl}} URL 安全 Base64 的订阅地址；订阅占位符仅管理员可用。“付费可见”包裹的内容只对有有效套餐的用户显示。",
+    "placeholdersHelp": "占位符在用户查看时替换为实际值：\n{{siteName}} 站点名称\n{{subscribeUrl}} 订阅地址\n{{urlEncodeSubscribeUrl}} URL 编码的订阅地址\n{{safeBase64SubscribeUrl}} URL 安全 Base64 的订阅地址\n订阅占位符仅管理员可用。\n“付费可见”包裹的内容只对有有效套餐的用户显示。",
     "showHint": "关闭后用户将看不到此文章。",
     "publish": "发布",
     "languages": {

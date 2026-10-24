@@ -11,6 +11,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { CopyButton } from '@/components/CopyButton'
 import { confirm } from '@/components/feedback/confirm'
 import { ModalClose } from '@/components/feedback/ModalClose'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { isMissing, telegramKey, telegramQuery } from '@/features/subscription/queries'
 import { useT } from '@/i18n'
 import { isApiError } from '@/lib/api/client'
@@ -73,21 +74,23 @@ export function TelegramCard() {
             <Send className="size-5" />
           </span>
           <div className="min-w-0">
-            <h2 id="telegram-title" className="flex flex-wrap items-center gap-2 text-headline text-label">
-              {t('telegram.title')}
-              {data ? (
-                <Chip size="sm" variant="soft" color={data.bound ? 'success' : 'default'}>
-                  {data.bound ? t('telegram.bound') : t('telegram.unbound')}
-                </Chip>
-              ) : null}
-            </h2>
-            <p className="mt-1 text-footnote text-label-secondary">
-              {data?.bound
-                ? data.username
+            <TitleWithHelp help={t('telegram.hint')} subject={t('telegram.title')}>
+              <h2 id="telegram-title" className="flex flex-wrap items-center gap-2 text-headline text-label">
+                {t('telegram.title')}
+                {data ? (
+                  <Chip size="sm" variant="soft" color={data.bound ? 'success' : 'default'}>
+                    {data.bound ? t('telegram.bound') : t('telegram.unbound')}
+                  </Chip>
+                ) : null}
+              </h2>
+            </TitleWithHelp>
+            {data?.bound ? (
+              <p className="mt-1 text-footnote text-label-secondary">
+                {data.username
                   ? t('telegram.boundAs', { name: at(data.username) })
-                  : t('telegram.boundNoName')
-                : t('telegram.hint')}
-            </p>
+                  : t('telegram.boundNoName')}
+              </p>
+            ) : null}
           </div>
         </div>
         {data ? (
@@ -207,7 +210,9 @@ function BindDialog({
         <Modal.Dialog>
           <ModalClose />
           <Modal.Header>
-            <Modal.Heading>{t('telegram.bindTitle')}</Modal.Heading>
+            <TitleWithHelp help={t('telegram.expires')} subject={t('telegram.bindTitle')}>
+              <Modal.Heading>{t('telegram.bindTitle')}</Modal.Heading>
+            </TitleWithHelp>
           </Modal.Header>
           <Modal.Body className="flex flex-col items-center gap-4 text-center">
             {error ? (
@@ -236,7 +241,6 @@ function BindDialog({
                   {t('telegram.open')}
                 </a>
                 <p className="text-footnote text-label-secondary">{t('telegram.step2')}</p>
-                <p className="text-caption text-label-secondary">{t('telegram.expires')}</p>
                 <div className="flex w-full flex-col gap-1.5 text-start">
                   <p className="text-footnote text-label-secondary">{t('telegram.manual', { bot })}</p>
                   <div className="flex items-center gap-2">

@@ -176,6 +176,51 @@
     padding-inline-start: 0;
   }
 
+  /* Explanations behind an ⓘ (components/HelpTip.tsx, FieldLabel / SwitchHelp in components/form/parts.tsx). */
+  .button.button--icon-only.help-tip {
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    border-radius: 9999px;
+    color: var(--label-secondary);
+  }
+  .button.button--icon-only.help-tip:hover {
+    color: var(--label);
+  }
+  .field-label-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+  }
+  /* Keep the row at the label's 20 px line height, so a field with an ⓘ lines up with one without. */
+  .field-label-row > .help-tip {
+    margin-block: -2px;
+  }
+  /* HeroUI marks required fields with `[data-required] > .label`, which no longer matches inside the row. */
+  [data-required='true'] > .field-label-row > .label::after {
+    margin-inline-start: 0.125rem;
+    color: var(--color-danger);
+    content: '*';
+  }
+  .switch-help {
+    position: relative;
+  }
+  .switch-help--row > .switch.switch-row {
+    padding-inline-end: 88px;
+  }
+  .switch-help--row > .help-tip {
+    position: absolute;
+    inset-inline-end: 56px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .switch-help--inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }
+
   /* ------------------------------------------------------------------ select popovers, menus, lists */
   .select__indicator {
     color: var(--label-secondary);

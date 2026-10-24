@@ -67,11 +67,7 @@ function DashboardPage() {
   const weekTotal = days?.reduce((sum, d) => sum + d.total, 0) ?? 0
 
   return (
-    <PageShell
-      title={t(greetingKey(new Date().getHours()), { name })}
-      description={t('subtitle')}
-      setDocumentTitle={false}
-    >
+    <PageShell title={t(greetingKey(new Date().getHours()), { name })} setDocumentTitle={false}>
       <title>{`${t('title')} · GG Bond`}</title>
 
       <div className="grid gap-4 lg:grid-cols-3">

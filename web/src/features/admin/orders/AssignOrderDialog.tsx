@@ -2,6 +2,7 @@ import { Button, Modal } from '@heroui/react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { FormError, useAppForm } from '@/components/form'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { submitError } from '@/components/form/submitError'
 import { useT } from '@/i18n'
 import { adminApi, isApiError } from '@/lib/api'
@@ -73,8 +74,9 @@ export function AssignOrderDialog({ isOpen, onOpenChange, plans, currency, symbo
         <Modal.Dialog>
           <ModalClose />
           <Modal.Header>
-            <Modal.Heading>{t('assign.title')}</Modal.Heading>
-            <p className="text-subhead text-label-secondary">{t('assign.description')}</p>
+            <TitleWithHelp help={t('assign.help')} subject={t('assign.title')}>
+              <Modal.Heading>{t('assign.title')}</Modal.Heading>
+            </TitleWithHelp>
           </Modal.Header>
           <form
             noValidate

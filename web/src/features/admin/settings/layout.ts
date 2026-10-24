@@ -39,7 +39,6 @@ export const GROUP_ICON: Record<string, { icon: LucideIcon; tint: string }> = {
 }
 export const FALLBACK_ICON = { icon: SlidersHorizontal, tint: 'bg-system-gray' }
 
-/** Sections per group, in display order (title/caption: `sections.<group>.<id>.*`). */
 /**
  * Keys the server still lists (kept for compatibility) but that nothing reads any more, so they must
  * not fall into a group's trailing section. `email_template`: e-mails are customised per template on
@@ -47,7 +46,17 @@ export const FALLBACK_ICON = { icon: SlidersHorizontal, tint: 'bg-system-gray' }
  */
 export const LEGACY_KEYS: ReadonlySet<string> = new Set(['email_template'])
 
-export const GROUP_SECTIONS: Record<string, ReadonlyArray<{ id: string; keys: readonly string[] }>> = {
+/** Groups with an explanation behind the ⓘ next to their title (`groups.<group>.help`). */
+export const GROUP_HELP: ReadonlySet<string> = new Set(['server', 'email', 'telegram'])
+
+/**
+ * Sections per group, in display order. Title: `sections.<group>.<id>.title`; with `help`, an
+ * explanation behind the ⓘ next to it (`sections.<group>.<id>.help`).
+ */
+export const GROUP_SECTIONS: Record<
+  string,
+  ReadonlyArray<{ id: string; keys: readonly string[]; help?: boolean }>
+> = {
   site: [
     { id: 'identity', keys: ['app_name', 'app_description', 'logo', 'app_url', 'tos_url'] },
     { id: 'region', keys: ['default_locale', 'currency', 'currency_symbol'] },
@@ -67,6 +76,7 @@ export const GROUP_SECTIONS: Record<string, ReadonlyArray<{ id: string; keys: re
     { id: 'trial', keys: ['try_out_plan_id', 'try_out_hour'] },
     {
       id: 'protection',
+      help: true,
       keys: [
         'register_limit_by_ip_enable',
         'register_limit_count',
@@ -101,6 +111,7 @@ export const GROUP_SECTIONS: Record<string, ReadonlyArray<{ id: string; keys: re
     },
     {
       id: 'protection',
+      help: true,
       keys: [
         'subscribe_age_optional',
         'subscribe_age_strict',
@@ -232,6 +243,8 @@ export interface RowModel {
 export interface SectionModel {
   /** `null` = untitled (groups without a layout, or the trailing "other" section). */
   id: string | null
+  /** Has an explanation (`sections.<group>.<id>.help`). */
+  help?: boolean
   rows: RowModel[]
 }
 
@@ -252,7 +265,7 @@ export function sectionsOf(group: SettingGroupMeta): SectionModel[] {
   const layout = GROUP_SECTIONS[group.name] ?? []
   const listed = new Set(layout.flatMap((s) => s.keys))
   const sections: SectionModel[] = layout
-    .map((s) => ({ id: s.id, rows: rowsFor(s.keys) }))
+    .map((s) => ({ id: s.id, help: s.help, rows: rowsFor(s.keys) }))
     .filter((s) => s.rows.length > 0)
   const rest = group.keys.map((d) => d.key).filter((k) => !listed.has(k) && !LEGACY_KEYS.has(k))
   const restRows = rowsFor(rest)

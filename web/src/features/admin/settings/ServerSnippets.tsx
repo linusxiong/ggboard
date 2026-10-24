@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { CopyButton } from '@/components/CopyButton'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { SegmentedTabs } from '@/components/SegmentedControl'
 import { useT } from '@/i18n'
 import { buildSnippets } from './snippets'
@@ -25,12 +26,11 @@ export function ServerSnippets({ appUrl, token, revealed }: ServerSnippetsProps)
   const [tab, setTab] = useState<(typeof tabs)[number]['id']>('xrayr')
   return (
     <section aria-labelledby="server-snippets" className="flex flex-col gap-3">
-      <div>
+      <TitleWithHelp help={t('server.snippetsHint')} subject={t('server.snippetsTitle')}>
         <h3 id="server-snippets" className="text-headline text-label">
           {t('server.snippetsTitle')}
         </h3>
-        <p className="mt-1 text-footnote text-label-secondary">{t('server.snippetsHint')}</p>
-      </div>
+      </TitleWithHelp>
       <SegmentedTabs value={tab} onChange={setTab} className="flex flex-col gap-3">
         <SegmentedTabs.List aria-label={t('server.snippetsTitle')} size="sm" items={tabs} />
         {tabs.map((item) => (

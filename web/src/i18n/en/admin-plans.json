@@ -1,6 +1,6 @@
 {
   "title": "Plans",
-  "description": "Prices, traffic and limits. Plans with “Sell” off can only be renewed by existing users.",
+  "help": "Prices, traffic and limits. Plans with “Sell” off can only be renewed by existing users.",
   "create": "New plan",
   "edit": "Edit plan “{name}”",
   "editNamed": "Edit plan {name}",

@@ -186,6 +186,38 @@ describe('MailTemplatesPage', () => {
     client.clear()
   })
 
+  it('keeps explanations behind ⓘ buttons (page, template, variables, preview)', async () => {
+    mockApi()
+    const { client } = renderPage()
+    await subjectBox()
+    const user = userEvent.setup()
+    const opens = async (name: string, text: string) => {
+      await user.click(screen.getByRole('button', { name }))
+      expect(await screen.findByRole('dialog')).toHaveTextContent(text)
+      await user.keyboard('{Escape}')
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    }
+    // What the template is for: not in the list, behind the title's ⓘ.
+    const purpose = '注册、找回密码时发送的验证码。'
+    expect(screen.queryByText(purpose)).toBeNull()
+    await opens('关于「邮件模板」的说明', '未自定义时使用内置模板')
+    await opens('关于「邮箱验证码」的说明', purpose)
+    // The placeholder reference is opened from the end of the toolbar.
+    expect(screen.queryByText(/点击变量按钮在光标处插入/)).toBeNull()
+    await user.click(
+      within(screen.getByRole('toolbar', { name: '格式工具' })).getByRole('button', {
+        name: '关于「邮件正文」的说明',
+      }),
+    )
+    const vars = within(await screen.findByRole('dialog')).getByRole('list', { name: '可用变量' })
+    expect(vars).toHaveTextContent('{{code}}验证码')
+    expect(vars).toHaveTextContent('{{minutes}}有效期（分钟）')
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    await opens('关于「实时预览」的说明', '使用示例数据渲染')
+    client.clear()
+  })
+
   it('inserts {{variable}} at the cursor from the toolbar buttons', async () => {
     mockApi()
     const { client } = renderPage()

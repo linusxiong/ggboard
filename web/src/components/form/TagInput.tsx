@@ -10,6 +10,7 @@
  * Form-bound version: `<f.TagsField …/>` (`@/components/form`).
  */
 import { type ClipboardEvent, type KeyboardEvent, type ReactNode, useId, useRef, useState } from 'react'
+import { HelpTip } from '@/components/HelpTip'
 import { cx } from '@/lib/cn'
 import { splitTagText } from './tags'
 
@@ -140,9 +141,18 @@ export function TagInput({
       data-invalid={invalid || undefined}
       data-disabled={isDisabled || undefined}
     >
-      <label id={labelId} htmlFor={inputId} className="label">
-        {label}
-      </label>
+      {description ? (
+        <span className="field-label-row">
+          <label id={labelId} htmlFor={inputId} className="label">
+            {label}
+          </label>
+          <HelpTip subject={typeof label === 'string' ? label : undefined}>{description}</HelpTip>
+        </span>
+      ) : (
+        <label id={labelId} htmlFor={inputId} className="label">
+          {label}
+        </label>
+      )}
       <div
         role="group"
         aria-labelledby={labelId}
@@ -232,7 +242,7 @@ export function TagInput({
         </div>
       ) : null}
       {description && !invalid ? (
-        <p id={descId} className="description">
+        <p id={descId} className="sr-only">
           {description}
         </p>
       ) : null}

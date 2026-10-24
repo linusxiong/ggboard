@@ -2,6 +2,7 @@
 import { Avatar } from '@heroui/react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { DateTime } from '@/components/Formatters'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { OptionSelect, Toggle } from '@/features/subscription/controls'
 import { useT } from '@/i18n'
 import { qk } from '@/lib/api/queries'
@@ -53,9 +54,11 @@ export function AccountPanel({ user }: { user: User }) {
           <Avatar.Fallback>{initial}</Avatar.Fallback>
         </Avatar>
         <div className="min-w-0 flex-1">
-          <h2 id="identity-title" className="truncate text-title3 text-label">
-            {user.email}
-          </h2>
+          <TitleWithHelp help={t('account.avatarHint')} subject={t('account.avatar')}>
+            <h2 id="identity-title" className="truncate text-title3 text-label">
+              {user.email}
+            </h2>
+          </TitleWithHelp>
           <dl className="mt-2 grid gap-x-6 gap-y-1 text-footnote sm:grid-cols-2">
             <div className="flex gap-2">
               <dt className="text-label-secondary">{t('account.createdAt')}</dt>
@@ -70,17 +73,15 @@ export function AccountPanel({ user }: { user: User }) {
               </dd>
             </div>
           </dl>
-          <p className="mt-2 text-caption text-label-secondary">{t('account.avatarHint')}</p>
         </div>
       </section>
 
       <section className="surface-card flex flex-col gap-4 p-6" aria-labelledby="notify-title">
-        <div>
+        <TitleWithHelp help={t('account.notificationsHint')} subject={t('account.notifications')}>
           <h2 id="notify-title" className="text-headline text-label">
             {t('account.notifications')}
           </h2>
-          <p className="mt-1 text-footnote text-label-secondary">{t('account.notificationsHint')}</p>
-        </div>
+        </TitleWithHelp>
         <div className="flex flex-col gap-3">
           <Toggle
             isSelected={user.remind_expire}

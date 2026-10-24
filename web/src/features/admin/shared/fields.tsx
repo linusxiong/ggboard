@@ -3,19 +3,11 @@
  * `useFieldContext`, like `@/components/form` fields):
  *   <form.AppField name="expired_at">{() => <DateTimeField label="到期时间" />}</form.AppField>
  */
-import {
-  Button,
-  Description,
-  FieldError,
-  Input,
-  Label,
-  ListBox,
-  Select,
-  TextField as HeroTextField,
-} from '@heroui/react'
+import { Button, FieldError, Input, ListBox, Select, TextField as HeroTextField } from '@heroui/react'
 import type { ReactNode } from 'react'
 import { useFieldContext } from '@/components/form'
 import { fieldErrorMessage } from '@/components/form/fieldError'
+import { FieldHint, FieldLabel } from '@/components/form/parts'
 import type { SelectOption } from '@/components/form'
 import type { AnyFieldApi } from '@tanstack/react-form'
 
@@ -55,7 +47,7 @@ export function DateTimeField({ label, description, clearLabel, isDisabled, clas
       fullWidth
       className={className}
     >
-      <Label>{label}</Label>
+      <FieldLabel label={label} help={description} />
       <div className="flex items-center gap-2">
         <Input type="datetime-local" className="w-full min-w-0 flex-1" />
         {clearLabel ? (
@@ -72,7 +64,7 @@ export function DateTimeField({ label, description, clearLabel, isDisabled, clas
           </Button>
         ) : null}
       </div>
-      {description && !error ? <Description>{description}</Description> : null}
+      {error ? null : <FieldHint>{description}</FieldHint>}
       <FieldError>{error}</FieldError>
     </HeroTextField>
   )
@@ -115,12 +107,12 @@ export function MultiSelectField({
       validationBehavior="aria"
       className={className}
     >
-      <Label>{label}</Label>
+      <FieldLabel label={label} help={description} />
       <Select.Trigger>
         <Select.Value />
         <Select.Indicator />
       </Select.Trigger>
-      {description && !error ? <Description>{description}</Description> : null}
+      {error ? null : <FieldHint>{description}</FieldHint>}
       <FieldError>{error}</FieldError>
       <Select.Popover>
         <ListBox>

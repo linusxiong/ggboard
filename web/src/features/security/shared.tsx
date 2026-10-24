@@ -1,11 +1,15 @@
 /** Shared components for the profile → security panels: form inputs and the backup-codes view. */
-import { Button, Description, FieldError, Input, Label, TextField } from '@heroui/react'
+import { Button, FieldError, Input, TextField } from '@heroui/react'
 import { Download } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { CopyButton } from '@/components/CopyButton'
+import { FieldHint, FieldLabel } from '@/components/form/parts'
 import { useT } from '@/i18n'
 
-/** HeroUI text input with a visible label, `name`/`id` and native autocomplete hints (password managers). */
+/**
+ * HeroUI text input with a visible label, `name`/`id` and native autocomplete hints (password managers).
+ * `description` sits behind the label's ⓘ and stays the input's accessible description.
+ */
 export function PlainField({
   name,
   label,
@@ -56,7 +60,7 @@ export function PlainField({
       fullWidth
       className={className}
     >
-      <Label>{label}</Label>
+      <FieldLabel label={label} help={description} />
       <Input
         autoComplete={autoComplete}
         inputMode={inputMode}
@@ -67,7 +71,7 @@ export function PlainField({
         autoCapitalize="none"
         className={inputClassName}
       />
-      {description && !error ? <Description>{description}</Description> : null}
+      {error ? null : <FieldHint>{description}</FieldHint>}
       <FieldError>{error}</FieldError>
     </TextField>
   )

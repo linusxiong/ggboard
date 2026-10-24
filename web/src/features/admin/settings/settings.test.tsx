@@ -167,14 +167,45 @@ describe('SettingsPage', () => {
   })
   afterEach(() => vi.unstubAllGlobals())
 
-  function renderPage() {
+  function renderPage(group = 'site') {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     return render(
       <QueryClientProvider client={qc}>
-        <SettingsPage group="site" onGroupChange={() => undefined} />
+        <SettingsPage group={group} onGroupChange={() => undefined} />
       </QueryClientProvider>,
     )
   }
+
+  it('keeps explanations behind ⓘ buttons (page, group, field)', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    const panel = await screen.findByRole('form', { name: 'Site' })
+    // Page: only the title on the first level; the explanation opens from its ⓘ.
+    expect(screen.queryByText(/Each group saves on its own/)).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'About “Settings”' }))
+    expect(await screen.findByRole('dialog')).toHaveTextContent('Each group saves on its own')
+    await user.keyboard('{Escape}')
+    // Field: the hint is the input's accessible description, not visible text.
+    const name = within(panel).getByRole('textbox', { name: 'Site name' })
+    expect(name).toHaveAccessibleDescription('Used in page titles, emails and subscription file names.')
+    expect(within(panel).getByText('Used in page titles, emails and subscription file names.')).toHaveClass(
+      'sr-only',
+    )
+    // Secret inputs (own component) follow the same pattern.
+    await user.click(within(panel).getByRole('button', { name: 'About “Secret key”' }))
+    expect(await screen.findByRole('dialog')).toHaveTextContent('Server-side key, never leaves the server.')
+    await user.keyboard('{Escape}')
+  })
+
+  it('puts a group explanation next to the group title', async () => {
+    const user = userEvent.setup()
+    renderPage('email')
+    const panel = await screen.findByRole('form', { name: 'Email' })
+    expect(within(panel).queryByText(/sent with these settings/)).toBeNull()
+    await user.click(within(panel).getByRole('button', { name: 'About “Email”' }))
+    expect(await screen.findByRole('dialog')).toHaveTextContent('sent with these settings')
+    await user.keyboard('{Escape}')
+  })
 
   it('renders every metadata type and sends only the dirty keys', async () => {
     const user = userEvent.setup()
@@ -240,7 +271,7 @@ describe('SettingsPage → 注册与登录', () => {
       keys: [{ key: 'email_driver', type: 'string', default: 'log', options: ['log', 'smtp'] }],
     },
   ]
-  const registerResponse: AdminSettingsResponse = {
+  const registerResponse = (driver = 'log'): AdminSettingsResponse => ({
     register: {
       stop_register: false,
       email_verify: false,
@@ -250,9 +281,10 @@ describe('SettingsPage → 注册与登录', () => {
       try_out_plan_id: 0,
       try_out_hour: 0,
     },
-    email: { email_driver: 'log' },
+    email: { email_driver: driver },
     groups: registerGroups,
-  }
+  })
+  let driver = 'log'
   let putBodies: unknown[] = []
 
   beforeAll(async () => {
@@ -261,6 +293,7 @@ describe('SettingsPage → 注册与登录', () => {
   })
   beforeEach(() => {
     putBodies = []
+    driver = 'log'
     vi.stubGlobal(
       'fetch',
       vi.fn<typeof fetch>((input, init) => {
@@ -269,7 +302,7 @@ describe('SettingsPage → 注册与登录', () => {
           putBodies.push(JSON.parse(bodyOf(init)))
           return Promise.resolve(json(true))
         }
-        if (url.includes('/admin/settings')) return Promise.resolve(json(registerResponse))
+        if (url.includes('/admin/settings')) return Promise.resolve(json(registerResponse(driver)))
         if (url.includes('/admin/rulesets'))
           return Promise.resolve(
             json({ builtin: { sources: {}, categories: [], templates: [] }, custom: {} }),
@@ -324,6 +357,23 @@ describe('SettingsPage → 注册与登录', () => {
       email_whitelist_enable: true,
       email_whitelist_suffix: ['gmail.com', 'icloud.com'],
     })
+  })
+
+  it('shows no note under email verification when SMTP is set up (the advice is in its ⓘ)', async () => {
+    driver = 'smtp'
+    const user = userEvent.setup()
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={qc}>
+        <SettingsPage group="register" onGroupChange={() => undefined} />
+      </QueryClientProvider>,
+    )
+    const panel = await screen.findByRole('form', { name: 'Sign-up & sign-in' })
+    await user.click(within(panel).getByRole('switch', { name: 'Email verification' }))
+    expect(within(panel).queryByRole('note')).toBeNull()
+    await user.click(within(panel).getByRole('button', { name: 'About “Email verification”' }))
+    expect(await screen.findByRole('dialog')).toHaveTextContent('configure SMTP under “Email”')
+    await user.keyboard('{Escape}')
   })
 })
 

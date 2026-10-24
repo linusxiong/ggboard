@@ -25,7 +25,7 @@
   },
   "tickets": {
     "title": "Tickets",
-    "description": "Answer user tickets; tickets awaiting a reply come first.",
+    "help": "Answer user tickets; tickets awaiting a reply come first.\nUse ↑/↓ in the ticket list to move between tickets.",
     "listLabel": "Tickets",
     "viewLabel": "Ticket view",
     "views": {
@@ -57,7 +57,7 @@
     "closeTitle": "Close this ticket?",
     "closeHint": "The user can still read the history; replying later reopens the ticket automatically.",
     "closed": "Ticket closed",
-    "closedHint": "This ticket is closed. Sending a reply reopens it.",
+    "closedHint": "This ticket is closed.",
     "reply": "Reply",
     "replyPlaceholder": "Write a reply…",
     "replySent": "Reply sent",
@@ -65,11 +65,11 @@
     "replyReopen": "Reply and reopen",
     "toSend": "to send",
     "pickTitle": "Pick a ticket",
-    "pickHint": "Choose a ticket on the left to read the conversation; use ↑/↓ to move through the list."
+    "pickHint": "Choose a ticket on the left to read the conversation."
   },
   "notices": {
     "title": "Notices",
-    "description": "Publish announcements; control visibility and order. Content supports Markdown.",
+    "help": "Publish announcements; control visibility and order. Content supports Markdown.",
     "create": "New notice",
     "emptyTitle": "No notices yet",
     "emptyHint": "Published notices appear on the user dashboard and notices page.",
@@ -97,14 +97,13 @@
   },
   "knowledge": {
     "title": "Knowledge base",
-    "description": "Write guides and tutorials, organised by language and category; bodies can include subscription placeholders.",
+    "help": "Write guides and tutorials, organised by language and category; bodies can include subscription placeholders.\nWhile filtered, moving an article swaps it with the next visible article only.",
     "create": "New article",
     "filters": "Filter articles",
     "allLanguages": "All languages",
     "allCategories": "All categories",
     "search": "Search",
     "searchPlaceholder": "Title or category",
-    "sortFilteredHint": "While filtered, moving an article swaps it with the next visible article only.",
     "noMatch": "No matching articles",
     "emptyTitle": "No articles yet",
     "emptyHint": "Write guides for downloading clients, importing the subscription and more.",
@@ -124,7 +123,7 @@
     "categoryHint": "Pick an existing category or type a new one.",
     "titleRequired": "Enter a title",
     "bodyRequired": "Enter the body",
-    "placeholdersHelp": "Placeholders are replaced when users read the article: {{siteName}} site name, {{subscribeUrl}} subscription URL, {{urlEncodeSubscribeUrl}} URL-encoded subscription URL, {{safeBase64SubscribeUrl}} URL-safe Base64 subscription URL (subscription placeholders are admin-only). Content wrapped by “Subscribers only” is shown only to users with an active plan.",
+    "placeholdersHelp": "Placeholders are replaced when users read the article:\n{{siteName}} site name\n{{subscribeUrl}} subscription URL\n{{urlEncodeSubscribeUrl}} URL-encoded subscription URL\n{{safeBase64SubscribeUrl}} URL-safe Base64 subscription URL\nSubscription placeholders are admin-only.\nContent wrapped by “Subscribers only” is shown only to users with an active plan.",
     "showHint": "Hidden articles are not shown to users.",
     "publish": "Publish",
     "languages": {

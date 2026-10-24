@@ -3,13 +3,15 @@
  * profile", and a menu for the active one (rename / duplicate / set default / delete). The active profile's
  * content is rendered in the tab panel by the page.
  */
-import { Button, Description, Dropdown, FieldError, Input, Label, Modal, TextField } from '@heroui/react'
+import { Button, Dropdown, FieldError, Input, Label, Modal, TextField } from '@heroui/react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Copy, Ellipsis, PenLine, Plus, Star, Trash2 } from 'lucide-react'
 import { type FormEvent, type ReactNode, useState } from 'react'
 import { FormError } from '@/components/FormError'
 import { confirm } from '@/components/feedback/confirm'
 import { ModalClose } from '@/components/feedback/ModalClose'
+import { FieldHint, FieldLabel } from '@/components/form/parts'
+import { HelpTip } from '@/components/HelpTip'
 import { SegmentedTabs } from '@/components/SegmentedControl'
 import { useT } from '@/i18n'
 import { isApiError } from '@/lib/api/client'
@@ -134,6 +136,7 @@ export function ProfileTabs({ profiles, active, reserved, canManage, onSelect, c
             />
             {canManage ? (
               <div className="flex items-center gap-2">
+                <HelpTip subject={t('profiles.tabs')}>{t('profiles.hint')}</HelpTip>
                 <Button
                   size="sm"
                   variant="secondary"
@@ -176,10 +179,8 @@ export function ProfileTabs({ profiles, active, reserved, canManage, onSelect, c
               </div>
             ) : null}
           </div>
-          {canManage ? (
-            <p className="text-footnote text-label-secondary">
-              {full ? t('profiles.limit', { max: MAX_PROFILES }) : t('profiles.hint')}
-            </p>
+          {canManage && full ? (
+            <p className="text-footnote text-label-secondary">{t('profiles.limit', { max: MAX_PROFILES })}</p>
           ) : null}
         </div>
 
@@ -337,7 +338,7 @@ function ProfileDialog({
                   validationBehavior="aria"
                   variant="secondary"
                 >
-                  <Label>{t('profiles.slug')}</Label>
+                  <FieldLabel label={t('profiles.slug')} help={t('profiles.slugHint')} />
                   <Input
                     autoComplete="off"
                     spellCheck={false}
@@ -346,7 +347,7 @@ function ProfileDialog({
                     maxLength={32}
                     className="font-mono"
                   />
-                  {fieldError('slug') ? null : <Description>{t('profiles.slugHint')}</Description>}
+                  {fieldError('slug') ? null : <FieldHint>{t('profiles.slugHint')}</FieldHint>}
                   <FieldError>{fieldError('slug')}</FieldError>
                 </TextField>
               )}

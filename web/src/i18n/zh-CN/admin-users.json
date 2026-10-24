@@ -1,7 +1,6 @@
 {
   "title": "用户",
   "description": "共 {count} 个用户",
-  "descriptionLoading": "管理用户账户、套餐与流量",
   "empty": "没有符合条件的用户",
   "saved": "用户资料已保存",
   "noChanges": "没有需要保存的修改",
@@ -81,8 +80,9 @@
   },
   "loginAs": {
     "title": "以 {name} 登录",
-    "hint": "这是一次性登录链接。在当前浏览器打开会替换你现在的管理员会话，建议复制后在隐私窗口或其他浏览器中打开。",
-    "open": "在新标签页打开"
+    "hint": "在当前浏览器打开会替换你的管理员会话，建议复制到隐私窗口或其他浏览器中打开。",
+    "open": "在新标签页打开",
+    "help": "这是一次性登录链接，只能使用一次。"
   },
   "detail": {
     "loading": "加载中…",
@@ -116,7 +116,7 @@
     "newPasswordHint": "留空则不修改；至少 8 位",
     "generatePassword": "生成随机密码",
     "inviter": "邀请人 ID",
-    "inviterHint": "当前邀请人：{email}",
+    "inviterCurrent": "当前邀请人：{email}",
     "inviterEmpty": "留空表示没有邀请人",
     "remarks": "备注",
     "plan": "套餐",
@@ -188,7 +188,7 @@
   "subscription": {
     "tab": "订阅",
     "accessLog": "订阅访问记录",
-    "accessHint": "最近获取该用户订阅的客户端（完整 IP）。",
+    "accessHelp": "最近获取该用户订阅的客户端（完整 IP）。",
     "empty": "暂无访问记录。",
     "unavailable": "后端未提供访问记录接口。",
     "ip": "IP",
@@ -205,7 +205,7 @@
     "rotate": "轮换订阅链接",
     "rotateTitle": "轮换 {name} 的订阅链接？",
     "rotateHint": "管理端没有单独的 token 轮换接口，此操作等同于“重置订阅密钥”：UUID 与订阅 Token 一起更换，用户需要重新导入订阅，登录会话也会失效。",
-    "rotateNote": "管理端轮换会同时重置 UUID（使用“重置订阅密钥”接口）。",
+    "actionsHelp": "管理端轮换会同时重置 UUID（使用“重置订阅密钥”接口）。",
     "rotated": "已重置 UUID 与订阅 Token",
     "ageNone": "该用户还没有 age 密钥。",
     "age": "订阅加密",

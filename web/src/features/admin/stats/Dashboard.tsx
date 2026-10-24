@@ -28,8 +28,9 @@ export function AdminDashboard() {
       description={
         overview.dataUpdatedAt
           ? t('updatedAt', { time: fmt.dateTime(new Date(overview.dataUpdatedAt).toISOString()) })
-          : t('description')
+          : t('loading')
       }
+      help={t('help')}
       actions={
         <Button
           variant="secondary"

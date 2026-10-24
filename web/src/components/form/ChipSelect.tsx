@@ -6,6 +6,7 @@
  *   <ChipSelect label="通知事件" options={[{ value: 'order_paid', label: '订单支付' }]} value={v} onChange={set} />
  */
 import { type ReactNode, useId } from 'react'
+import { HelpTip } from '@/components/HelpTip'
 import { cx } from '@/lib/cn'
 
 export interface ChipOption {
@@ -52,9 +53,18 @@ export function ChipSelect({
       data-invalid={error ? true : undefined}
       data-disabled={isDisabled || undefined}
     >
-      <span id={`${id}-label`} className="label">
-        {label}
-      </span>
+      {description ? (
+        <span className="field-label-row">
+          <span id={`${id}-label`} className="label">
+            {label}
+          </span>
+          <HelpTip subject={typeof label === 'string' ? label : undefined}>{description}</HelpTip>
+        </span>
+      ) : (
+        <span id={`${id}-label`} className="label">
+          {label}
+        </span>
+      )}
       <div
         id={name}
         role="group"
@@ -89,7 +99,7 @@ export function ChipSelect({
         })}
       </div>
       {description && !error ? (
-        <p id={`${id}-desc`} className="description">
+        <p id={`${id}-desc`} className="sr-only">
           {description}
         </p>
       ) : null}

@@ -18,7 +18,6 @@
   },
   "notices": {
     "title": "Announcements",
-    "subtitle": "The latest service updates and notices.",
     "empty": "No announcements",
     "expand": "Read more",
     "collapse": "Show less"

@@ -7,6 +7,7 @@ import { Button } from '@heroui/react'
 import { useNavigate } from '@tanstack/react-router'
 import { type FormEvent, useState } from 'react'
 import { FormError } from '@/components/FormError'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { useT } from '@/i18n'
 import { changePassword } from '@/lib/api/user'
 import { PASSWORD_MIN } from '@/lib/validators'
@@ -47,12 +48,11 @@ export function ChangePasswordCard({ email }: { email: string }) {
 
   return (
     <section id="password" className="surface-card flex flex-col gap-4 p-6" aria-labelledby="password-title">
-      <div>
+      <TitleWithHelp help={t('password.hint')} subject={t('password.title')}>
         <h2 id="password-title" className="text-headline text-label">
           {t('password.title')}
         </h2>
-        <p className="mt-1 text-footnote text-label-secondary">{t('password.hint')}</p>
-      </div>
+      </TitleWithHelp>
       <form
         noValidate
         onSubmit={(e) => void submit(e)}

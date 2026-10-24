@@ -1,5 +1,6 @@
 /** Order amounts: plan price, discount, upgrade credit, balance used, refund, handling fee, total. */
 import type { ReactNode } from 'react'
+import { HelpTip } from '@/components/HelpTip'
 import { useT } from '@/i18n'
 import type { Order } from '@/lib/api/types'
 import { SiteMoney } from '@/features/shop/SiteMoney'
@@ -57,6 +58,7 @@ function Row({
   children,
 }: {
   label: string
+  /** Explanation behind an ⓘ after the label. */
   hint?: string
   negative?: boolean
   positive?: boolean
@@ -64,9 +66,9 @@ function Row({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-4">
-      <dt className="text-label-secondary">
+      <dt className="flex items-center gap-0.5 text-label-secondary">
         {label}
-        {hint ? <span className="block text-footnote">{hint}</span> : null}
+        {hint ? <HelpTip subject={label}>{hint}</HelpTip> : null}
       </dt>
       <dd className="tabular text-label">
         {negative ? '−' : positive ? '+' : null}

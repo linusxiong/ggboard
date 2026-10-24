@@ -10,6 +10,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { FileCode2 } from 'lucide-react'
 import { lazy, type ReactNode, Suspense, useCallback, useRef, useState } from 'react'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { PageShell } from '@/components/PageShell'
 import { confirm } from '@/components/feedback/confirm'
 import { SegmentedTabs } from '@/components/SegmentedControl'
@@ -106,7 +107,7 @@ export function SubscriptionPage() {
   )
 
   return (
-    <PageShell title={t('title')} description={t('subtitle')}>
+    <PageShell title={t('title')} help={t('subtitle')}>
       {list.isPending ? (
         <div className="h-10 shimmer rounded-[12px] bg-fill-quaternary" aria-busy="true" />
       ) : null}
@@ -253,14 +254,14 @@ function ProfileEditors({
               >
                 <FileCode2 className="size-4" />
               </span>
-              <div className="min-w-0">
+              <TitleWithHelp
+                help={override ? t('preview.hintOverride') : t('preview.hint')}
+                subject={t('preview.title')}
+              >
                 <h2 id="preview-title" className="text-headline text-label">
                   {t('preview.title')}
                 </h2>
-                <p className="text-footnote text-label-secondary">
-                  {override ? t('preview.hintOverride') : t('preview.hint')}
-                </p>
-              </div>
+              </TitleWithHelp>
             </div>
             <Suspense fallback={<div className="h-48 shimmer rounded-[12px] bg-fill-quaternary" />}>
               <PreviewPanel

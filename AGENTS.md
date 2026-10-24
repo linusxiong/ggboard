@@ -165,6 +165,9 @@ scripts/                e2e.sh（冒烟）、e2e-full.sh（API 全流程，也�
 - 字号层级：Large Title 34/700、Title1 28、Title2 22、Title3 20、Headline 17/600、Body 17、
   Callout 16、Subhead 15、Footnote 13、Caption 12。
 - 留白慷慨、层级清晰、动效短促（200–300ms，ease-out），尊重 `prefers-reduced-motion`。
+- **说明文字放二级**：一级页面只显示用户要读的数据和要做的操作（标题、标签、数值、状态、按钮、错误、空状态、操作当下必需的一句提示）。
+  字段/页面/分区的解释、示例、格式与兼容性说明一律放 ⓘ（字段 `description` 自动进标签旁的 ⓘ；页面/分区/抽屉用 `help`；
+  其他位置用 `components/HelpTip.tsx`），长教程用默认折叠的 Disclosure。见 MISTAKES #216。
 - 深浅色自动跟随系统并可手动切换；所有颜色通过 CSS 变量/Tailwind token 引用，禁止硬编码色值到组件。
 
 ---

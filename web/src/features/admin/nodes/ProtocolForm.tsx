@@ -3,12 +3,14 @@
  * shadowsocksr, trojan, hysteria 1/2, anytls, mieru, tuic). Edits go through `updateSetting`
  * (dependent resets); errors are keyed by path inside `protocol_settings`.
  */
-import { Alert, Button } from '@heroui/react'
-import { KeyRound, Shuffle } from 'lucide-react'
+import { Button } from '@heroui/react'
+import { KeyRound, Shuffle, TriangleAlert } from 'lucide-react'
 import { type ReactNode, useMemo } from 'react'
+import { HelpTip } from '@/components/HelpTip'
 import { useT } from '@/i18n'
 import type { NodeType, TransportNetwork } from '@/lib/api/types'
 import { toast } from '@/lib/toast'
+import { FieldGroup } from '../shared/FieldGroup'
 import {
   ANYTLS_DEFAULT_PADDING,
   compatNotes,
@@ -43,15 +45,6 @@ export interface ProtocolFormProps {
   onEdit?: (path: string) => void
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <fieldset className="flex min-w-0 flex-col gap-4">
-      <legend className="mb-3 text-headline text-label">{title}</legend>
-      {children}
-    </fieldset>
-  )
-}
-
 const Grid = ({ children }: { children: ReactNode }) => (
   <div className="grid gap-4 sm:grid-cols-2">{children}</div>
 )
@@ -66,7 +59,7 @@ function NetworkFields() {
   const networks = NETWORKS[type] ?? []
   const tp = (k: string) => t(`nodes.ps.${k}`)
   return (
-    <Section title={tp('sections.transport')}>
+    <FieldGroup title={tp('sections.transport')}>
       <PSelect
         path="network"
         label={tp('network')}
@@ -138,7 +131,7 @@ function NetworkFields() {
           />
         </div>
       </details>
-    </Section>
+    </FieldGroup>
   )
 }
 
@@ -225,7 +218,7 @@ function VmessFields() {
   return (
     <>
       <NetworkFields />
-      <Section title={tp('sections.security')}>
+      <FieldGroup title={tp('sections.security')}>
         <PSelect
           path="tls"
           label={tp('tls')}
@@ -234,7 +227,7 @@ function VmessFields() {
           description={tp('tlsLocalCert')}
         />
         {tls === 1 ? <TlsBasics /> : null}
-      </Section>
+      </FieldGroup>
     </>
   )
 }
@@ -245,7 +238,7 @@ function VlessFields() {
   return (
     <>
       <NetworkFields />
-      <Section title={tp('sections.security')}>
+      <FieldGroup title={tp('sections.security')}>
         <Grid>
           <PSelect
             path="tls"
@@ -283,8 +276,8 @@ function VlessFields() {
             <RealityKeys />
           </>
         ) : null}
-      </Section>
-      <Section title={tp('sections.encryption')}>
+      </FieldGroup>
+      <FieldGroup title={tp('sections.encryption')}>
         <Grid>
           <PText
             path="encryption"
@@ -295,7 +288,7 @@ function VlessFields() {
           />
           <PText path="decryption" label={tp('decryption')} mono description={tp('decryptionHint')} />
         </Grid>
-      </Section>
+      </FieldGroup>
     </>
   )
 }
@@ -308,7 +301,7 @@ function ShadowsocksFields() {
   const bytes = ss2022KeyBytes(cipher)
   return (
     <>
-      <Section title={tp('sections.cipher')}>
+      <FieldGroup title={tp('sections.cipher')}>
         <PSelect path="cipher" label={tp('cipher')} options={opts(SS_CIPHERS)} fallback="aes-128-gcm" />
         {isSs2022(cipher) ? (
           <PText
@@ -329,8 +322,8 @@ function ShadowsocksFields() {
             }
           />
         ) : null}
-      </Section>
-      <Section title={tp('sections.obfs')}>
+      </FieldGroup>
+      <FieldGroup title={tp('sections.obfs')}>
         <PSelect
           path="obfs"
           label={tp('obfs')}
@@ -343,8 +336,8 @@ function ShadowsocksFields() {
             <PText path="obfs_settings.path" label={tp('obfsPath')} placeholder="/" mono />
           </Grid>
         ) : null}
-      </Section>
-      <Section title={tp('sections.plugin')}>
+      </FieldGroup>
+      <FieldGroup title={tp('sections.plugin')}>
         <Grid>
           <PText path="plugin" label={tp('plugin')} placeholder="obfs-local" description={tp('pluginHint')} />
           <PText
@@ -354,7 +347,7 @@ function ShadowsocksFields() {
             mono
           />
         </Grid>
-      </Section>
+      </FieldGroup>
     </>
   )
 }
@@ -363,7 +356,7 @@ function ShadowsocksRFields() {
   const { t } = useSetting('cipher')
   const tp = (k: string) => t(`nodes.ps.${k}`)
   return (
-    <Section title={tp('sections.cipher')}>
+    <FieldGroup title={tp('sections.cipher')}>
       <Grid>
         <PSelect path="cipher" label={tp('cipher')} options={opts(SSR_CIPHERS)} fallback="chacha20-ietf" />
         <PText path="password" label={tp('ssrPassword')} mono description={tp('ssrPasswordHint')} />
@@ -378,7 +371,7 @@ function ShadowsocksRFields() {
         options={['protocol', 'obfs'].map((v) => ({ value: v, label: tp(`singlePorts.${v}`) }))}
         description={tp('singlePortHint')}
       />
-    </Section>
+    </FieldGroup>
   )
 }
 
@@ -388,11 +381,10 @@ function TrojanFields() {
   return (
     <>
       <NetworkFields />
-      <Section title={tp('sections.security')}>
-        <p className="-mt-2 text-footnote text-label-secondary">{tp('trojanTls')}</p>
+      <FieldGroup title={tp('sections.security')} help={tp('trojanTls')}>
         <PText path="server_name" label={tp('serverName')} placeholder="www.example.com" />
         <PSwitch path="allow_insecure" label={tp('allowInsecure')} description={tp('allowInsecureHint')} />
-      </Section>
+      </FieldGroup>
     </>
   )
 }
@@ -403,7 +395,7 @@ function HysteriaFields() {
   const obfs = settings.obfs ?? 'plain'
   return (
     <>
-      <Section title={tp('sections.basics')}>
+      <FieldGroup title={tp('sections.basics')}>
         <PSelect
           path="version"
           label={tp('version')}
@@ -421,8 +413,8 @@ function HysteriaFields() {
             description={tp('ignoreClientBandwidthHint')}
           />
         ) : null}
-      </Section>
-      <Section title={tp('sections.obfs')}>
+      </FieldGroup>
+      <FieldGroup title={tp('sections.obfs')}>
         <PSelect
           path="obfs"
           label={tp('obfs')}
@@ -433,15 +425,15 @@ function HysteriaFields() {
           fallback="plain"
         />
         {obfs !== 'plain' ? <PText path="obfs_password" label={tp('obfsPassword')} mono isRequired /> : null}
-      </Section>
-      <Section title={tp('sections.tls')}>
+      </FieldGroup>
+      <FieldGroup title={tp('sections.tls')}>
         <Grid>
           <PText path="server_name" label={tp('serverName')} placeholder="www.example.com" />
           <PText path="alpn" label={tp('alpn')} placeholder="h3" mono />
         </Grid>
         <PSwitch path="allow_insecure" label={tp('allowInsecure')} description={tp('allowInsecureHint')} />
         <PNumber path="hop_interval" label={tp('hopInterval')} description={tp('hopIntervalHint')} />
-      </Section>
+      </FieldGroup>
     </>
   )
 }
@@ -452,7 +444,7 @@ function AnyTlsFields() {
   const tp = (k: string) => t(`nodes.ps.${k}`)
   return (
     <>
-      <Section title={tp('sections.security')}>
+      <FieldGroup title={tp('sections.security')}>
         <PSelect
           path="tls"
           label={tp('tls')}
@@ -482,8 +474,8 @@ function AnyTlsFields() {
             <RealityKeys />
           </>
         ) : null}
-      </Section>
-      <Section title={tp('sections.padding')}>
+      </FieldGroup>
+      <FieldGroup title={tp('sections.padding')}>
         <PList
           path="padding_scheme"
           separator="line"
@@ -497,7 +489,7 @@ function AnyTlsFields() {
             </Button>
           }
         />
-      </Section>
+      </FieldGroup>
     </>
   )
 }
@@ -506,7 +498,7 @@ function MieruFields() {
   const { t } = useSetting('transport')
   const tp = (k: string) => t(`nodes.ps.${k}`)
   return (
-    <Section title={tp('sections.basics')}>
+    <FieldGroup title={tp('sections.basics')}>
       <Grid>
         <PSelect path="transport" label={tp('transport')} options={opts(['TCP', 'UDP'])} fallback="TCP" />
         <PSelect
@@ -518,7 +510,7 @@ function MieruFields() {
           ]}
         />
       </Grid>
-    </Section>
+    </FieldGroup>
   )
 }
 
@@ -527,7 +519,7 @@ function TuicFields() {
   const tp = (k: string) => t(`nodes.ps.${k}`)
   return (
     <>
-      <Section title={tp('sections.basics')}>
+      <FieldGroup title={tp('sections.basics')}>
         <Grid>
           <PSelect
             path="congestion_control"
@@ -543,14 +535,14 @@ function TuicFields() {
           />
         </Grid>
         <PSwitch path="zero_rtt_handshake" label={tp('zeroRtt')} />
-      </Section>
-      <Section title={tp('sections.tls')}>
+      </FieldGroup>
+      <FieldGroup title={tp('sections.tls')}>
         <Grid>
           <PText path="server_name" label={tp('serverName')} placeholder="www.example.com" />
           <PText path="alpn" label={tp('alpn')} placeholder="h3" mono description={tp('alpnHint')} />
         </Grid>
         <PSwitch path="allow_insecure" label={tp('allowInsecure')} description={tp('allowInsecureHint')} />
-      </Section>
+      </FieldGroup>
     </>
   )
 }
@@ -590,19 +582,18 @@ export function ProtocolForm({ type, value, onChange, errors = NO_ERRORS, onEdit
     <ProtocolContext value={ctx}>
       <div className="flex flex-col gap-8">
         {notes.length ? (
-          <Alert status="warning">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Title>{t('nodes.ps.compatTitle')}</Alert.Title>
-              <Alert.Description>
-                <ul className="list-disc ps-4">
-                  {notes.map((note) => (
-                    <li key={note}>{t(`nodes.ps.compat.${note}`)}</li>
-                  ))}
-                </ul>
-              </Alert.Description>
-            </Alert.Content>
-          </Alert>
+          // One short warning line; which backend lacks what is behind the ⓘ.
+          <div role="note" className="-mb-4 flex items-center gap-1.5 text-footnote text-label-orange">
+            <TriangleAlert className="size-4 shrink-0" aria-hidden="true" />
+            <span>{t('nodes.ps.compatTitle')}</span>
+            <HelpTip subject={t('nodes.ps.compatTitle')}>
+              <ul className="list-disc ps-4">
+                {notes.map((note) => (
+                  <li key={note}>{t(`nodes.ps.compat.${note}`)}</li>
+                ))}
+              </ul>
+            </HelpTip>
+          </div>
         ) : null}
         {errors[''] ? (
           <p role="alert" className="text-subhead text-label-red">

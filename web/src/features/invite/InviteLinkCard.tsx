@@ -3,6 +3,7 @@ import { Button, Label, ListBox, Select } from '@heroui/react'
 import { Link2, QrCode } from 'lucide-react'
 import { useState } from 'react'
 import { CopyButton } from '@/components/CopyButton'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { QRCode } from '@/components/QRCode'
 import { useT } from '@/i18n'
 import type { InviteCode } from '@/lib/api/types'
@@ -33,12 +34,11 @@ export function InviteLinkCard({ codes, canGenerate, onGenerate, isGenerating }:
         >
           <Link2 className="size-5" />
         </span>
-        <div>
+        <TitleWithHelp help={t('link.subtitle')} subject={t('link.title')}>
           <h2 id="invite-link-title" className="text-headline text-label">
             {t('link.title')}
           </h2>
-          <p className="text-footnote text-label-secondary">{t('link.subtitle')}</p>
-        </div>
+        </TitleWithHelp>
       </div>
 
       {link && code ? (

@@ -44,7 +44,7 @@ export function RulesetsPage({ tab, onTabChange }: RulesetsPageProps) {
   }
 
   return (
-    <PageShell title={t('rulesets.title')} description={t('rulesets.description')}>
+    <PageShell title={t('rulesets.title')} description={meta(q.data?.builtin)} help={t('rulesets.help')}>
       {q.isError ? (
         <Alert status="danger">
           <Alert.Indicator />
@@ -60,27 +60,22 @@ export function RulesetsPage({ tab, onTabChange }: RulesetsPageProps) {
         </div>
       ) : (
         <SegmentedTabs value={tab} onChange={onTabChange} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <SegmentedTabs.List
-              aria-label={t('rulesets.title')}
-              items={RULESET_TABS.map((id) => ({
-                id,
-                label: t(`rulesets.tabs.${id}`),
-                count: counts[id],
-                adornment:
-                  counts[id] === null && Object.values(customIds).some((ids) => ids.size > 0) ? (
-                    <span
-                      role="img"
-                      aria-label={t('rulesets.active')}
-                      className="size-2 rounded-full bg-system-orange"
-                    />
-                  ) : undefined,
-              }))}
-            />
-            {meta(q.data?.builtin) ? (
-              <p className="px-1 text-footnote text-label-secondary">{meta(q.data?.builtin)}</p>
-            ) : null}
-          </div>
+          <SegmentedTabs.List
+            aria-label={t('rulesets.title')}
+            items={RULESET_TABS.map((id) => ({
+              id,
+              label: t(`rulesets.tabs.${id}`),
+              count: counts[id],
+              adornment:
+                counts[id] === null && Object.values(customIds).some((ids) => ids.size > 0) ? (
+                  <span
+                    role="img"
+                    aria-label={t('rulesets.active')}
+                    className="size-2 rounded-full bg-system-orange"
+                  />
+                ) : undefined,
+            }))}
+          />
           <SegmentedTabs.Panel id="sources">
             <SourcesView sources={catalog.sources} customIds={customIds.sources} locale={locale} />
           </SegmentedTabs.Panel>
@@ -105,10 +100,11 @@ export function RulesetsPage({ tab, onTabChange }: RulesetsPageProps) {
     </PageShell>
   )
 
+  /** Subtitle: when the built-in catalog was generated (a fact; the explanation is in the ⓘ). */
   function meta(builtin: RulesetCatalogFull | undefined) {
     const generated = builtin?.meta?.generated_at
     return generated
       ? t('rulesets.builtinMeta', { date: generated.slice(0, 10), version: builtin?.meta?.version ?? 1 })
-      : null
+      : undefined
   }
 }

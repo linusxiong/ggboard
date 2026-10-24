@@ -29,7 +29,7 @@ function NoticesPage() {
   const total = query.data?.total ?? 0
 
   return (
-    <PageShell title={t('notices.title')} description={t('notices.subtitle')}>
+    <PageShell title={t('notices.title')}>
       {query.isPending ? (
         <div className="flex flex-col gap-4" aria-busy="true">
           {Array.from({ length: 3 }, (_, i) => (

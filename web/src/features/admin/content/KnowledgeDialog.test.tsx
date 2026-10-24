@@ -46,7 +46,10 @@ describe('knowledge editor placeholders', () => {
     const bar = await toolbar()
     for (const p of ['{{siteName}}', ...SUBSCRIPTION_PLACEHOLDERS])
       expect(bar.getByRole('button', { name: p })).toBeInTheDocument()
-    expect(screen.getByText(/订阅占位符仅管理员可用/)).toBeInTheDocument()
+    // The placeholder reference sits behind the toolbar's ⓘ, not on the page.
+    expect(screen.queryByText(/订阅占位符仅管理员可用/)).toBeNull()
+    await userEvent.click(bar.getByRole('button', { name: '关于「正文」的说明' }))
+    expect(await screen.findByRole('dialog')).toHaveTextContent('订阅占位符仅管理员可用')
   })
 
   it('hides the subscription-URL placeholders from staff', async () => {

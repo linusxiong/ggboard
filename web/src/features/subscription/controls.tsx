@@ -1,6 +1,11 @@
-/** Small controlled HeroUI inputs for the rule builder (not bound to a form library: the draft is local state). */
-import { FieldError, Label, ListBox, Select, Switch, ToggleButton, ToggleButtonGroup } from '@heroui/react'
+/**
+ * Small controlled HeroUI inputs for the rule builder (not bound to a form library: the draft is local state).
+ * Explanations (`description`, `help`, `hint`) sit behind an ⓘ next to the label or title (`HelpTip`).
+ */
+import { FieldError, ListBox, Select, Switch, ToggleButton, ToggleButtonGroup } from '@heroui/react'
 import { type ReactNode, useId } from 'react'
+import { FieldHint, FieldLabel, SwitchHelp } from '@/components/form/parts'
+import { HelpTip, TitleWithHelp } from '@/components/HelpTip'
 import { cx } from '@/lib/cn'
 
 export interface Option {
@@ -11,6 +16,7 @@ export interface Option {
 export function OptionSelect({
   label,
   hideLabel,
+  description,
   value,
   options,
   onChange,
@@ -21,6 +27,8 @@ export function OptionSelect({
 }: {
   label: string
   hideLabel?: boolean
+  /** Explanation behind the label's ⓘ (still the trigger's accessible description). */
+  description?: ReactNode
   value: string
   options: readonly Option[]
   onChange: (value: string) => void
@@ -43,12 +51,12 @@ export function OptionSelect({
       className={cx('min-w-0', className)}
       variant={variant}
     >
-      {hideLabel ? null : <Label>{label}</Label>}
+      {hideLabel ? null : <FieldLabel label={label} help={description} />}
       <Select.Trigger>
         <Select.Value />
         <Select.Indicator />
       </Select.Trigger>
-      {error ? <FieldError>{error}</FieldError> : null}
+      {error ? <FieldError>{error}</FieldError> : <FieldHint>{description}</FieldHint>}
       <Select.Popover>
         <ListBox>
           {list.map((option) => (
@@ -68,6 +76,7 @@ export function Toggle({
   onChange,
   isDisabled,
   children,
+  help,
   className,
   'aria-label': ariaLabel,
 }: {
@@ -75,10 +84,12 @@ export function Toggle({
   onChange: (value: boolean) => void
   isDisabled?: boolean
   children?: ReactNode
+  /** Explanation behind an ⓘ after the label (outside the switch's `<label>`). */
+  help?: ReactNode
   className?: string
   'aria-label'?: string
 }) {
-  return (
+  const control = (
     <Switch
       isSelected={isSelected}
       onChange={onChange}
@@ -94,9 +105,18 @@ export function Toggle({
       </Switch.Content>
     </Switch>
   )
+  return (
+    <SwitchHelp
+      help={help}
+      label={typeof children === 'string' ? children : (ariaLabel ?? '')}
+      layout="inline"
+    >
+      {control}
+    </SwitchHelp>
+  )
 }
 
-/** Section header used inside the builder card. */
+/** Section header used inside the builder card; `hint` (what the section does) goes behind the title's ⓘ. */
 export function SectionTitle({
   id,
   title,
@@ -110,12 +130,11 @@ export function SectionTitle({
 }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-2">
-      <div className="min-w-0">
+      <TitleWithHelp help={hint} subject={title} className="min-w-0">
         <h3 id={id} className="text-headline text-label">
           {title}
         </h3>
-        {hint ? <p className="mt-0.5 text-footnote text-label-secondary">{hint}</p> : null}
-      </div>
+      </TitleWithHelp>
       {end}
     </div>
   )
@@ -140,14 +159,10 @@ export function ChipSelect({
   const id = useId()
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <div>
-        <span id={id} className="text-subhead font-medium text-label">
-          {label}
-        </span>
-        {hint ? <p className="text-footnote text-label-secondary">{hint}</p> : null}
-      </div>
+      <ChipLabel id={id} label={label} hint={hint} />
       <ToggleButtonGroup
         aria-labelledby={id}
+        aria-describedby={hint ? `${id}-hint` : undefined}
         selectionMode="multiple"
         selectedKeys={value}
         onSelectionChange={(keys) => {
@@ -174,6 +189,28 @@ export function ChipSelect({
           </ToggleButton>
         ))}
       </ToggleButtonGroup>
+    </div>
+  )
+}
+
+/**
+ * Label of a chip / tag group (not a form `<label>`) with its explanation behind an ⓘ; the explanation stays
+ * in the DOM as `${id}-hint` (sr-only) for the group's `aria-describedby`.
+ */
+export function ChipLabel({ id, label, hint }: { id: string; label: string; hint?: ReactNode }) {
+  return (
+    <div className="flex min-w-0 items-center gap-0.5">
+      <span id={id} className="text-subhead font-medium text-label">
+        {label}
+      </span>
+      {hint ? (
+        <>
+          <HelpTip subject={label}>{hint}</HelpTip>
+          <span id={`${id}-hint`} className="sr-only">
+            {hint}
+          </span>
+        </>
+      ) : null}
     </div>
   )
 }

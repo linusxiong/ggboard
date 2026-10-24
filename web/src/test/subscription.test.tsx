@@ -84,6 +84,30 @@ describe('subscription page', () => {
     expect(await screen.findByText('所有更改已保存')).toBeInTheDocument()
   })
 
+  it('keeps explanations behind ⓘ buttons (second level)', async () => {
+    api()
+    renderAt('/subscription')
+    const user = userEvent.setup()
+    await screen.findByRole('switch', { name: /广告拦截/ }, { timeout: 8000 })
+    // Section and source explanations are not on the page until their ⓘ is opened.
+    expect(screen.queryByText('模板决定默认启用的分类和策略组。')).toBeNull()
+    await user.click(screen.getByRole('button', { name: '关于「模板」的说明' }))
+    expect(await screen.findByRole('dialog')).toHaveTextContent('模板决定默认启用的分类和策略组。')
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    // A switch's explanation sits outside its <label>: the switch keeps its own name.
+    const geoip = screen.getByRole('switch', { name: '中国大陆 IP 直连（GEOIP,CN,DIRECT）' })
+    expect(geoip).toBeInTheDocument()
+    await user.click(
+      screen.getByRole('button', { name: '关于「中国大陆 IP 直连（GEOIP,CN,DIRECT）」的说明' }),
+    )
+    expect(await screen.findByRole('dialog')).toHaveTextContent('在兜底规则前追加，适合国内使用。')
+    await user.keyboard('{Escape}')
+    // The source's technical description stays its radio's accessible description.
+    const source = screen.getByRole('radio', { name: /MetaCubeX/ })
+    expect(source).toHaveAccessibleDescription(/mihomo 官方 geosite\/geoip 规则集/)
+  })
+
   it('shows API validation errors inline', async () => {
     api({
       'PUT /user/rule-profile': json(

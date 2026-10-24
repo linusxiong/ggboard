@@ -3,6 +3,7 @@ import { Button } from '@heroui/react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronRight, RefreshCw } from 'lucide-react'
 import { useCallback, useMemo, useState, useRef } from 'react'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { DebouncedSearch } from '@/features/admin/orders/DebouncedSearch'
 import { SelectInput, SwitchInput } from '@/features/admin/settings/inputs/Controlled'
@@ -70,9 +71,11 @@ export function LogsViewer() {
     <section aria-labelledby="logs-title" className="surface-card flex flex-col">
       <div className="flex flex-col gap-4 p-5 hairline-b">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 id="logs-title" className="text-title3 text-label">
-            {t('logs.title')}
-          </h2>
+          <TitleWithHelp help={t('logs.help')} subject={t('logs.title')}>
+            <h2 id="logs-title" className="text-title3 text-label">
+              {t('logs.title')}
+            </h2>
+          </TitleWithHelp>
           <Button
             size="sm"
             variant="secondary"

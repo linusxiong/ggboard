@@ -288,7 +288,7 @@ export function TemplateEditor({ template, summary, title, onDirtyChange }: Temp
   )
 }
 
-/** Under the toolbar: what placeholders do, then each variable with its meaning. */
+/** Behind the toolbar's ⓘ: what placeholders do, then each variable with its meaning. */
 function VariablesHelp({
   template,
   variables,
@@ -298,13 +298,13 @@ function VariablesHelp({
 }) {
   const t = useT('admin-settings')
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-2">
       <p>{t('mailTemplates.placeholdersHelp')}</p>
-      <ul className="flex flex-wrap gap-x-4 gap-y-1" aria-label={t('mailTemplates.variablesLabel')}>
+      <ul className="flex flex-col gap-0.5" aria-label={t('mailTemplates.variablesLabel')}>
         {variables.map((v) => (
-          <li key={v.name} className="inline-flex items-baseline gap-1.5">
+          <li key={v.name} className="flex flex-wrap items-baseline gap-x-1.5">
             <code className="font-mono text-label">{placeholder(v.name)}</code>
-            <span>
+            <span className="text-label-secondary">
               {variableLabel(t, template, v.name)}
               {v.required ? (
                 <span className="text-label-red">

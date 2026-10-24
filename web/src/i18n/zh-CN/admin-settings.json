@@ -1,54 +1,46 @@
 {
   "title": "系统设置",
-  "description": "站点、注册、订阅、邀请、节点通讯、邮件等全局配置。每个分组单独保存。",
+  "help": "全站的全局配置。每个分组单独保存，切换分组时未保存的更改会保留。",
   "groupsLabel": "设置分组",
   "loadFailed": "设置加载失败",
   "unsaved": "有未保存的更改",
   "unsavedHint": "有未保存的更改（⌘/Ctrl+S 保存）",
   "groups": {
     "site": {
-      "title": "站点",
-      "hint": "名称、地址、货币与语言。"
+      "title": "站点"
     },
     "register": {
-      "title": "注册与登录",
-      "hint": "注册开关、邮箱验证、邀请码、试用与人机验证。"
+      "title": "注册与登录"
     },
     "subscribe": {
-      "title": "订阅",
-      "hint": "订阅地址、流量重置、默认分流规则。"
+      "title": "订阅"
     },
     "order": {
-      "title": "订单",
-      "hint": "订单超时等。"
+      "title": "订单"
     },
     "invite": {
-      "title": "邀请与佣金",
-      "hint": "邀请码、佣金比例与提现。"
+      "title": "邀请与佣金"
     },
     "server": {
       "title": "节点通讯",
-      "hint": "节点后端连接面板所需的密钥与间隔。"
+      "help": "节点后端（XrayR / V2bX / soga）连接面板时使用的密钥、同步间隔与限制；页面底部有可直接复制的配置示例。"
     },
     "email": {
       "title": "邮件",
-      "hint": "SMTP 发信配置与提醒邮件。"
+      "help": "验证码、提醒与通知邮件都按这里的配置发送；邮件的标题与正文在「邮件模板」中修改。"
     },
     "frontend": {
-      "title": "前端外观",
-      "hint": "主题色、背景、客服与页脚。"
+      "title": "前端外观"
     },
     "app": {
-      "title": "客户端下载",
-      "hint": "各平台客户端的下载地址与版本号。"
+      "title": "客户端下载"
     },
     "security": {
-      "title": "安全",
-      "hint": "安全相关选项。"
+      "title": "安全"
     },
     "telegram": {
       "title": "Telegram",
-      "hint": "机器人通知与账户绑定。"
+      "help": "通过 Telegram 机器人把订单、工单、登录等通知推送给管理员；用户绑定 Telegram 后也能收到自己的提醒。"
     }
   },
   "keys": {
@@ -94,7 +86,7 @@
     },
     "email_verify": {
       "label": "邮箱验证",
-      "hint": "注册时需要填写发送到邮箱的验证码。"
+      "hint": "注册时需要填写发送到邮箱的验证码。验证码通过邮件发送，请先在「邮件」中配置 SMTP 并发送测试邮件确认可用。"
     },
     "email_whitelist_enable": {
       "label": "邮箱后缀白名单",
@@ -531,10 +523,10 @@
   },
   "rulesets": {
     "title": "规则集",
-    "description": "订阅分流使用的开源规则集目录（只读），以及按 id 合并到内置目录上的自定义覆盖。",
+    "help": "订阅分流使用的开源规则集目录。各标签页显示合并自定义覆盖后的生效目录（只读）；在「自定义覆盖」中按 id 替换或追加条目。",
     "loadFailed": "规则集加载失败",
     "active": "已启用",
-    "builtinMeta": "内置目录生成于 {date}（schema v{version}），下列为合并自定义覆盖后的生效目录。",
+    "builtinMeta": "内置目录生成于 {date} · schema v{version}",
     "custom": "自定义",
     "homepage": "项目主页",
     "order": "优先级 {n}",
@@ -635,56 +627,46 @@
   "sections": {
     "site": {
       "identity": {
-        "title": "站点信息",
-        "caption": "名称、描述与访问地址。"
+        "title": "站点信息"
       },
       "region": {
-        "title": "语言与货币",
-        "caption": "新访客、邮件与价格显示。"
+        "title": "语言与货币"
       },
       "privacy": {
-        "title": "节点信息",
-        "caption": "用户能看到的节点细节。"
+        "title": "节点信息"
       }
     },
     "register": {
       "signup": {
-        "title": "注册",
-        "caption": "谁可以注册，以及注册时需要什么。"
+        "title": "注册"
       },
       "trial": {
-        "title": "试用",
-        "caption": "新用户注册后自动赠送的套餐。"
+        "title": "试用"
       },
       "protection": {
         "title": "防滥用",
-        "caption": "限制批量注册与暴力破解。"
+        "help": "限制同一 IP 批量注册，并在连续输错密码后暂时锁定账户，防止暴力破解。"
       },
       "captcha": {
-        "title": "人机验证",
-        "caption": "注册、登录与发送验证码时校验。"
+        "title": "人机验证"
       }
     },
     "subscribe": {
       "links": {
-        "title": "订阅地址",
-        "caption": "客户端拉取订阅使用的域名与更新频率。"
+        "title": "订阅地址"
       },
       "plans": {
-        "title": "套餐变更",
-        "caption": "更换套餐与流量重置。"
+        "title": "套餐变更"
       },
       "content": {
-        "title": "订阅内容与提醒",
-        "caption": "订阅里显示的信息与新用户的默认提醒。"
+        "title": "订阅内容与提醒"
       },
       "rules": {
-        "title": "分流规则",
-        "caption": "默认模板、规则来源与下载镜像。"
+        "title": "分流规则"
       },
       "protection": {
         "title": "防泄露",
-        "caption": "加密订阅与异常拉取检测。"
+        "help": "用户可以为订阅开启 age 加密，加密后只有持有其私钥、使用 mihomo 1.19.27+ 内核的客户端能解密。泄露检测统计 24 小时内拉取同一订阅的不同 IP 数。"
       }
     },
     "invite": {
@@ -703,18 +685,15 @@
     },
     "server": {
       "auth": {
-        "title": "认证",
-        "caption": "节点后端连接面板使用的密钥。"
+        "title": "认证"
       },
       "sync": {
-        "title": "同步",
-        "caption": "拉取与上报的频率、设备限制与白名单。"
+        "title": "同步"
       }
     },
     "email": {
       "delivery": {
-        "title": "发送方式",
-        "caption": "选择 SMTP 后填写服务器信息。"
+        "title": "发送方式"
       },
       "sender": {
         "title": "发件人"
@@ -728,28 +707,24 @@
     },
     "telegram": {
       "bot": {
-        "title": "机器人",
-        "caption": "Bot 凭据与 Webhook。"
+        "title": "机器人"
       },
       "admins": {
-        "title": "管理员通知",
-        "caption": "把选定的事件推送到管理员会话。"
+        "title": "管理员通知"
       },
       "users": {
-        "title": "用户",
-        "caption": "绑定后的个人提醒与社群入口。"
+        "title": "用户"
       }
     }
   },
   "register": {
-    "smtpHint": "验证码通过邮件发送，请先在「邮件」中配置 SMTP 并发送测试邮件确认可用。",
     "logWarning": "当前发信方式为「仅记录日志」，验证码不会真正发出。",
     "openEmail": "邮件设置",
     "domainInvalid": "请输入域名，例如 gmail.com"
   },
   "telegram": {
     "title": "连接测试",
-    "caption": "先保存设置，再发送测试消息或把 Webhook 指向本站。",
+    "help": "先保存设置，再发送测试消息，或把 Webhook 指向本站。",
     "test": "发送测试消息",
     "webhook": "设置 Webhook",
     "done": "操作完成",
@@ -766,7 +741,7 @@
   "nav": "设置分组",
   "mailTemplates": {
     "title": "邮件模板",
-    "description": "自定义系统发出的每封邮件的标题与正文（Markdown），中文和英文分别设置；未自定义时使用内置模板。",
+    "help": "自定义系统发出的每封邮件的标题与正文（Markdown），中文和英文分别设置；未自定义时使用内置模板。",
     "settingsLink": "邮件设置",
     "listLabel": "邮件模板",
     "formLabel": "{template}（{locale}）",
@@ -819,7 +794,7 @@
     },
     "fields": {
       "subject": "邮件标题",
-      "subjectHint": "单行，最多 255 个字符；同样可以使用下方的变量，例如 {{siteName}}。",
+      "subjectHint": "单行，最多 255 个字符；可以使用与正文相同的变量，例如 {{siteName}}。",
       "subjectRequired": "请填写邮件标题",
       "subjectTooLong": "邮件标题不能超过 {max} 个字符",
       "body": "邮件正文",
@@ -869,7 +844,7 @@
     },
     "preview": {
       "title": "实时预览",
-      "caption": "使用示例数据渲染，与用户收到的邮件一致；链接在预览中不可点击。",
+      "help": "使用示例数据渲染，与用户收到的邮件一致；链接在预览中不可点击。",
       "mode": "预览格式",
       "html": "邮件",
       "text": "纯文本",

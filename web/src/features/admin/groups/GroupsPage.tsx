@@ -104,7 +104,7 @@ export function GroupsPage() {
   )
 
   return (
-    <PageShell title={t('groups.title')} description={t('groups.description')}>
+    <PageShell title={t('groups.title')} help={t('groups.help')}>
       <form onSubmit={onCreate} className="surface-card flex flex-wrap items-end gap-3 p-4">
         <TextField value={name} onChange={setName} className="min-w-0 flex-1 sm:max-w-sm" name="group-name">
           <Label>{t('groups.create')}</Label>

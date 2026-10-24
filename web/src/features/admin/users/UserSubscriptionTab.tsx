@@ -8,6 +8,7 @@ import { Button, Chip } from '@heroui/react'
 import { useQuery } from '@tanstack/react-query'
 import { KeyRound, RotateCw } from 'lucide-react'
 import { confirm } from '@/components/feedback/confirm'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { AccessLogList } from '@/features/subscription/AccessLogList'
 import { recentIpCount, sortAccess } from '@/features/subscription/accessLog'
 import { isMissing } from '@/features/subscription/queries'
@@ -78,12 +79,11 @@ export function UserSubscriptionTab({ user }: { user: AdminUser }) {
     <div className="flex flex-col gap-5">
       <section className="flex flex-col gap-2" aria-labelledby="user-sub-log">
         <div className="flex flex-wrap items-end justify-between gap-2">
-          <div>
+          <TitleWithHelp help={t('subscription.accessHelp')} subject={t('subscription.accessLog')}>
             <h3 id="user-sub-log" className="text-headline text-label">
               {t('subscription.accessLog')}
             </h3>
-            <p className="text-footnote text-label-secondary">{t('subscription.accessHint')}</p>
-          </div>
+          </TitleWithHelp>
           {log.data ? (
             <span className="text-footnote text-label-secondary">
               {t('subscription.distinct', { count: recentIpCount(log.data, now) })}
@@ -141,9 +141,11 @@ export function UserSubscriptionTab({ user }: { user: AdminUser }) {
       ) : null}
 
       <section className="flex flex-col gap-3" aria-labelledby="user-sub-actions">
-        <h3 id="user-sub-actions" className="text-headline text-label">
-          {t('subscription.actions')}
-        </h3>
+        <TitleWithHelp help={t('subscription.actionsHelp')} subject={t('subscription.actions')}>
+          <h3 id="user-sub-actions" className="text-headline text-label">
+            {t('subscription.actions')}
+          </h3>
+        </TitleWithHelp>
         <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
@@ -165,7 +167,6 @@ export function UserSubscriptionTab({ user }: { user: AdminUser }) {
             {t('subscription.rotate')}
           </Button>
         </div>
-        <p className="text-footnote text-label-secondary">{t('subscription.rotateNote')}</p>
       </section>
     </div>
   )

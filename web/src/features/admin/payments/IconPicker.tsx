@@ -3,9 +3,10 @@
  * reveals a URL field (an image URL, a `/path`, a data URI or a single emoji). The stored value is
  * `preset:<id>` or the custom string (see `components/icons/payments/presets.ts`).
  */
-import { Description, FieldError, Label, Radio, RadioGroup } from '@heroui/react'
+import { FieldError, Radio, RadioGroup } from '@heroui/react'
 import { Link2 } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { FieldHint, FieldLabel } from '@/components/form/parts'
 import { PAYMENT_ICON_PRESETS, PaymentIcon, parsePaymentIcon } from '@/components/icons/payments'
 import { TextInput } from '@/features/admin/settings/inputs/Controlled'
 import { useLocale, useT } from '@/i18n'
@@ -40,7 +41,7 @@ export function IconPicker({ choice, customValue, onChoiceChange, onCustomChange
         validationBehavior="aria"
         className="flex-col flex-nowrap gap-2"
       >
-        <Label>{t('icons.label')}</Label>
+        <FieldLabel label={t('icons.label')} help={t('icons.hint')} />
         <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-6">
           {PAYMENT_ICON_PRESETS.map((preset) => (
             <IconTile
@@ -67,7 +68,7 @@ export function IconPicker({ choice, customValue, onChoiceChange, onCustomChange
             }
           />
         </div>
-        {error && !custom ? null : <Description>{t('icons.hint')}</Description>}
+        {error && !custom ? null : <FieldHint>{t('icons.hint')}</FieldHint>}
         <FieldError>{error}</FieldError>
       </RadioGroup>
       {custom ? (

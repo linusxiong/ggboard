@@ -1,7 +1,8 @@
 import { Alert, Button, Disclosure, Spinner } from '@heroui/react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Braces, Plus, RotateCcw } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { ComboInput } from '@/features/admin/settings/inputs/ComboInput'
 import {
   NumberInput,
@@ -68,10 +69,9 @@ function CustomEditorInner({ custom, catalog }: CustomEditorProps) {
   return (
     <div className="flex flex-col gap-4">
       <div className="surface-card flex flex-col gap-3 p-5">
-        <div>
+        <TitleWithHelp help={t('rulesets.customHint')} subject={t('rulesets.customTitle')}>
           <h2 className="text-headline text-label">{t('rulesets.customTitle')}</h2>
-          <p className="mt-1 text-subhead text-label-secondary">{t('rulesets.customHint')}</p>
-        </div>
+        </TitleWithHelp>
         <TextAreaInput
           label={t('rulesets.customJson')}
           name="rulesets_custom"
@@ -234,6 +234,7 @@ function AddCategoryForm({
   onAdd: (c: Parameters<typeof upsertCategory>[1]) => void
 }) {
   const t = useT('admin-settings')
+  const refsId = useId()
   const sources = useMemo(
     () => Object.entries(catalog.sources).sort(([, a], [, b]) => (a.order ?? 0) - (b.order ?? 0)),
     [catalog.sources],
@@ -314,7 +315,6 @@ function AddCategoryForm({
             submit()
           }}
         >
-          <p className="text-footnote text-label-secondary">{t('rulesets.form.categoryHint')}</p>
           <div className="grid gap-4 sm:grid-cols-2">
             <TextInput
               label={t('rulesets.form.id')}
@@ -358,8 +358,13 @@ function AddCategoryForm({
               description={t('rulesets.form.orderHint')}
             />
           </div>
-          <fieldset className="flex flex-col gap-3">
-            <legend className="mb-2 text-subhead font-semibold text-label">{t('rulesets.form.refs')}</legend>
+          {/* Labelled by a plain heading instead of a <legend>: the ⓘ beside it must stay out of the name. */}
+          <fieldset aria-labelledby={refsId} className="flex flex-col gap-3">
+            <TitleWithHelp help={t('rulesets.form.categoryHint')} subject={t('rulesets.form.refs')}>
+              <span id={refsId} className="text-subhead font-semibold text-label">
+                {t('rulesets.form.refs')}
+              </span>
+            </TitleWithHelp>
             {sources.map(([src, s]) => {
               const fields = fieldsOf(src)
               const r = refs[src]

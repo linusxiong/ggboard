@@ -357,7 +357,7 @@ export function NodesPage() {
   return (
     <PageShell
       title={t('nodes.title')}
-      description={t('nodes.description')}
+      help={t('nodes.help')}
       actions={
         <Button onPress={() => setPanel({ kind: 'sheet', node: null })}>
           <Plus className="size-4" aria-hidden="true" />
@@ -413,9 +413,6 @@ export function NodesPage() {
           </Button>
         ) : null}
       </div>
-      {filtered ? (
-        <p className="-mt-3 text-footnote text-label-secondary">{t('nodes.sortDisabled')}</p>
-      ) : null}
 
       <DataTable
         aria-label={t('nodes.title')}

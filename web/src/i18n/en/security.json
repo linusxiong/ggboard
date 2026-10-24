@@ -1,7 +1,6 @@
 {
   "profile": {
     "title": "Profile",
-    "subtitle": "Manage your account, sign-in security and subscription.",
     "tabs": "Profile sections",
     "tab": {
       "account": "Account",
@@ -13,6 +12,7 @@
     "createdAt": "Member since",
     "lastLogin": "Last sign-in",
     "never": "Never",
+    "avatar": "Avatar",
     "avatarHint": "Your avatar comes from Gravatar; change it at gravatar.com.",
     "notifications": "Email reminders",
     "notificationsHint": "We'll email you about the following.",
@@ -43,7 +43,9 @@
     "enable": "Turn on 2FA",
     "disable": "Turn off 2FA",
     "setupTitle": "Turn on two-factor authentication",
-    "step1": "Scan the QR code with an authenticator app (1Password, Google Authenticator, Microsoft Authenticator …).",
+    "step1": "Scan the QR code with an authenticator app.",
+    "apps": "Authenticator apps",
+    "appsHint": "For example 1Password, Google Authenticator or Microsoft Authenticator.",
     "step2": "Enter the 6-digit code shown in the app.",
     "qrLabel": "Two-factor setup QR code",
     "manual": "Can't scan? Enter this key manually:",
@@ -60,7 +62,9 @@
   },
   "backup": {
     "title": "Save your backup codes",
-    "once": "Each backup code works once and lets you sign in without your authenticator. They are shown only now, so store them somewhere safe.",
+    "codes": "Backup codes",
+    "once": "These codes are shown only now. Store them somewhere safe.",
+    "about": "Each backup code works once and lets you sign in without your authenticator.",
     "copy": "Copy all",
     "download": "Download .txt",
     "downloaded": "Downloaded",
@@ -79,9 +83,9 @@
     "hint": "Sign in with your fingerprint, face or device PIN instead of a password. Passkeys can live in iCloud Keychain, 1Password, Bitwarden and other password managers and sync across devices.",
     "add": "Add a passkey",
     "addTitle": "Add a passkey",
-    "addHint": "Name this passkey so you can recognise it later, then follow your browser's or password manager's prompt.",
+    "addHint": "Name it so you can recognise it later, then follow your browser's or password manager's prompt.",
     "name": "Name",
-    "nameHint": "For example: MacBook, iPhone, 1Password",
+    "namePlaceholder": "For example: MacBook, iPhone, 1Password",
     "nameRequired": "Enter a name",
     "nameTooLong": "Use at most {max} characters",
     "create": "Create",
@@ -103,9 +107,9 @@
     "renamed": "Passkey renamed",
     "remove": "Remove {name}",
     "removeTitle": "Remove “{name}”?",
-    "removeHint": "You won't be able to sign in with it any more. Confirm with your current password, and remove it from the device or password manager too.",
+    "removeHint": "You won't be able to sign in with it any more. Confirm with your current password.",
     "removeConfirm": "Remove",
-    "removed": "Passkey removed"
+    "removed": "Passkey removed. Remove it from the device or password manager too."
   },
   "errors": {
     "wait": "Too many attempts. Try again {wait}.",

@@ -1,6 +1,7 @@
 /** Profile → subscription: current link and UUID, with the reset action. */
 import { Link } from '@tanstack/react-router'
 import { CopyButton } from '@/components/CopyButton'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { useT } from '@/i18n'
 import { buttonClass } from '@/lib/button'
 import { ResetSubscription } from './ResetSubscription'
@@ -29,12 +30,11 @@ export function SubscriptionInfoCard({ url, uuid }: { url: string | undefined; u
   const t = useT(['subscription', 'common'])
   return (
     <section className="surface-card flex flex-col gap-5 p-6" aria-labelledby="sub-info-title">
-      <div>
+      <TitleWithHelp help={t('info.hint')} subject={t('info.title')}>
         <h2 id="sub-info-title" className="text-headline text-label">
           {t('info.title')}
         </h2>
-        <p className="mt-1 text-footnote text-label-secondary">{t('info.hint')}</p>
-      </div>
+      </TitleWithHelp>
       {url ? <ReadOnlyRow id="profile-subscribe-url" label={t('link.url')} value={url} /> : null}
       <ReadOnlyRow id="profile-uuid" label={t('info.uuid')} value={uuid} />
       <div className="flex flex-wrap items-center gap-2">

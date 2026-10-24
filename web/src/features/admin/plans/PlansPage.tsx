@@ -178,7 +178,7 @@ export function PlansPage() {
   return (
     <PageShell
       title={t('title')}
-      description={t('description')}
+      help={t('help')}
       actions={
         <Button onPress={() => setSheet({ plan: null })}>
           <Plus className="size-4" aria-hidden="true" />

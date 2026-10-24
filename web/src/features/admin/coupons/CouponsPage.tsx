@@ -184,7 +184,7 @@ export function CouponsPage({ search, onSearchChange }: CouponsPageProps) {
   return (
     <PageShell
       title={t('coupons.title')}
-      description={t('coupons.description')}
+      help={t('coupons.help')}
       actions={
         <>
           <Button

@@ -1,6 +1,7 @@
 import { Button, Dropdown, Label, Modal } from '@heroui/react'
 import { Ban, Ellipsis, KeyRound, LogIn, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react'
 import { CopyButton } from '@/components/CopyButton'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { useT } from '@/i18n'
 import { buttonClass } from '@/lib/button'
 import type { AdminUser } from '@/lib/api/types'
@@ -74,7 +75,12 @@ export function LoginAsDialog({
         <Modal.Dialog>
           <ModalClose />
           <Modal.Header>
-            <Modal.Heading>{t('loginAs.title', { name: value?.email ?? '' })}</Modal.Heading>
+            <TitleWithHelp
+              help={t('loginAs.help')}
+              subject={t('loginAs.title', { name: value?.email ?? '' })}
+            >
+              <Modal.Heading>{t('loginAs.title', { name: value?.email ?? '' })}</Modal.Heading>
+            </TitleWithHelp>
           </Modal.Header>
           <Modal.Body className="flex flex-col gap-3">
             <p className="text-subhead text-label-secondary">{t('loginAs.hint')}</p>

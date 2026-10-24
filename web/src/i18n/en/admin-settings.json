@@ -1,54 +1,46 @@
 {
   "title": "Settings",
-  "description": "Global configuration: site, sign-up, subscription, invites, node connection, email and more. Each group saves separately.",
+  "help": "Site-wide configuration. Each group saves on its own; unsaved edits are kept when you switch groups.",
   "groupsLabel": "Settings groups",
   "loadFailed": "Couldn’t load settings",
   "unsaved": "Unsaved changes",
   "unsavedHint": "Unsaved changes (⌘/Ctrl+S to save)",
   "groups": {
     "site": {
-      "title": "Site",
-      "hint": "Name, URL, currency and language."
+      "title": "Site"
     },
     "register": {
-      "title": "Sign-up & sign-in",
-      "hint": "Registration, email verification, invites, trials and CAPTCHA."
+      "title": "Sign-up & sign-in"
     },
     "subscribe": {
-      "title": "Subscription",
-      "hint": "Subscription hosts, traffic reset and default routing rules."
+      "title": "Subscription"
     },
     "order": {
-      "title": "Orders",
-      "hint": "Order timeout and related options."
+      "title": "Orders"
     },
     "invite": {
-      "title": "Invites & commission",
-      "hint": "Invite codes, commission and withdrawals."
+      "title": "Invites & commission"
     },
     "server": {
       "title": "Node connection",
-      "hint": "Token and intervals node backends use to connect."
+      "help": "The token, sync intervals and limits node backends (XrayR / V2bX / soga) use to talk to the panel. Copy-ready config snippets are at the bottom."
     },
     "email": {
       "title": "Email",
-      "hint": "SMTP delivery and reminder emails."
+      "help": "Verification codes, reminders and notices are sent with these settings; edit their subject and body under “Email templates”."
     },
     "frontend": {
-      "title": "Appearance",
-      "hint": "Accent color, background, support link and footer."
+      "title": "Appearance"
     },
     "app": {
-      "title": "Client apps",
-      "hint": "Download links and versions per platform."
+      "title": "Client apps"
     },
     "security": {
-      "title": "Security",
-      "hint": "Security options."
+      "title": "Security"
     },
     "telegram": {
       "title": "Telegram",
-      "hint": "Bot notifications and account linking."
+      "help": "A Telegram bot pushes order, ticket, sign-in and other alerts to admins; users who link Telegram get their own reminders too."
     }
   },
   "keys": {
@@ -94,7 +86,7 @@
     },
     "email_verify": {
       "label": "Email verification",
-      "hint": "Sign-up requires a code sent to the address."
+      "hint": "Sign-up requires a code sent to the address. Codes go out by email: configure SMTP under “Email” and send a test message first."
     },
     "email_whitelist_enable": {
       "label": "Email domain allow-list",
@@ -531,10 +523,10 @@
   },
   "rulesets": {
     "title": "Rule sets",
-    "description": "The open-source rule-set catalog used for subscription routing (read-only), plus custom overrides merged over it by id.",
+    "help": "The open-source rule-set catalog used for subscription routing. The tabs show the effective catalog after your custom overrides (read-only); replace or add entries by id under “Custom overrides”.",
     "loadFailed": "Couldn’t load rule sets",
     "active": "Active",
-    "builtinMeta": "Built-in catalog generated on {date} (schema v{version}); below is the effective catalog after custom overrides.",
+    "builtinMeta": "Built-in catalog generated on {date} · schema v{version}",
     "custom": "Custom",
     "homepage": "Homepage",
     "order": "Priority {n}",
@@ -635,56 +627,46 @@
   "sections": {
     "site": {
       "identity": {
-        "title": "Identity",
-        "caption": "Name, description and address."
+        "title": "Identity"
       },
       "region": {
-        "title": "Language & currency",
-        "caption": "For new visitors, emails and prices."
+        "title": "Language & currency"
       },
       "privacy": {
-        "title": "Node details",
-        "caption": "What users can see about nodes."
+        "title": "Node details"
       }
     },
     "register": {
       "signup": {
-        "title": "Sign-up",
-        "caption": "Who can register and what it takes."
+        "title": "Sign-up"
       },
       "trial": {
-        "title": "Trial",
-        "caption": "Plan given to new users automatically."
+        "title": "Trial"
       },
       "protection": {
         "title": "Abuse protection",
-        "caption": "Limits bulk sign-ups and password guessing."
+        "help": "Limits bulk sign-ups from one IP and temporarily locks an account after repeated wrong passwords, against brute-force attacks."
       },
       "captcha": {
-        "title": "CAPTCHA",
-        "caption": "Checked on sign-up, sign-in and email codes."
+        "title": "CAPTCHA"
       }
     },
     "subscribe": {
       "links": {
-        "title": "Subscription hosts",
-        "caption": "Domains clients fetch from, and how often."
+        "title": "Subscription hosts"
       },
       "plans": {
-        "title": "Plan changes",
-        "caption": "Switching plans and traffic resets."
+        "title": "Plan changes"
       },
       "content": {
-        "title": "Content & reminders",
-        "caption": "What subscriptions show, and default reminders."
+        "title": "Content & reminders"
       },
       "rules": {
-        "title": "Routing rules",
-        "caption": "Default template, rule source and mirror."
+        "title": "Routing rules"
       },
       "protection": {
         "title": "Leak protection",
-        "caption": "Encrypted subscriptions and unusual-fetch detection."
+        "help": "Users can turn on age encryption for their subscription; it can then only be decrypted by a client on the mihomo 1.19.27+ core holding their secret key. Leak detection counts the distinct IPs fetching one subscription within 24 hours."
       }
     },
     "invite": {
@@ -703,18 +685,15 @@
     },
     "server": {
       "auth": {
-        "title": "Authentication",
-        "caption": "Token node backends use to connect."
+        "title": "Authentication"
       },
       "sync": {
-        "title": "Sync",
-        "caption": "Pull/push frequency, device limits and allow-list."
+        "title": "Sync"
       }
     },
     "email": {
       "delivery": {
-        "title": "Delivery",
-        "caption": "Choose SMTP, then fill in the server."
+        "title": "Delivery"
       },
       "sender": {
         "title": "Sender"
@@ -728,28 +707,24 @@
     },
     "telegram": {
       "bot": {
-        "title": "Bot",
-        "caption": "Bot credentials and webhook."
+        "title": "Bot"
       },
       "admins": {
-        "title": "Admin notifications",
-        "caption": "Selected events are pushed to the admin chats."
+        "title": "Admin notifications"
       },
       "users": {
-        "title": "Users",
-        "caption": "Personal reminders after linking, and the community link."
+        "title": "Users"
       }
     }
   },
   "register": {
-    "smtpHint": "Codes are sent by email — configure SMTP under “Email” and send a test message first.",
     "logWarning": "Email delivery is set to “log only”, so codes are not actually sent.",
     "openEmail": "Email settings",
     "domainInvalid": "Enter a domain, e.g. gmail.com"
   },
   "telegram": {
     "title": "Connection",
-    "caption": "Save first, then send a test message or point the webhook at this site.",
+    "help": "Save first, then send a test message or point the webhook at this site.",
     "test": "Send test message",
     "webhook": "Set webhook",
     "done": "Done",
@@ -766,7 +741,7 @@
   "nav": "Settings groups",
   "mailTemplates": {
     "title": "Email templates",
-    "description": "Customise the subject and body (Markdown) of every email the panel sends, separately for Chinese and English. Templates you haven't customised use the built-in text.",
+    "help": "Customise the subject and body (Markdown) of every email the panel sends, separately for Chinese and English. Templates you haven't customised use the built-in text.",
     "settingsLink": "Email settings",
     "listLabel": "Email templates",
     "formLabel": "{template} ({locale})",
@@ -819,7 +794,7 @@
     },
     "fields": {
       "subject": "Subject",
-      "subjectHint": "One line, up to 255 characters; the variables below work here too, e.g. {{siteName}}.",
+      "subjectHint": "One line, up to 255 characters; the body's variables work here too, e.g. {{siteName}}.",
       "subjectRequired": "Enter a subject",
       "subjectTooLong": "The subject can't be longer than {max} characters",
       "body": "Body",
@@ -869,7 +844,7 @@
     },
     "preview": {
       "title": "Live preview",
-      "caption": "Rendered with sample data, exactly as users receive it; links don't open in the preview.",
+      "help": "Rendered with sample data, exactly as users receive it; links don't open in the preview.",
       "mode": "Preview format",
       "html": "Email",
       "text": "Plain text",

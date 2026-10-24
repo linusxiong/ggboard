@@ -50,7 +50,7 @@
   },
   "transfer": {
     "title": "佣金转入余额",
-    "body": "可转入 {available}，转入后可直接用于购买套餐。",
+    "body": "可转入 {available}。",
     "amount": "转入金额",
     "invalid": "请输入大于 0 的金额",
     "tooMuch": "最多可转入 {available}",
@@ -59,7 +59,8 @@
   },
   "withdraw": {
     "title": "申请提现",
-    "body": "当前可提现佣金 {available}。提交后会创建一个工单，由工作人员人工处理。",
+    "body": "当前可提现佣金 {available}。",
+    "process": "提交后会创建一个工单，由工作人员人工处理。",
     "method": "提现方式",
     "methodPlaceholder": "例如 USDT、Alipay",
     "methodRequired": "请填写提现方式",

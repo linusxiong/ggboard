@@ -36,7 +36,7 @@ function ShopPage() {
   const resetPrice = current?.prices.reset_traffic
 
   return (
-    <PageShell title={t('title')} description={t('subtitle')}>
+    <PageShell title={t('title')} help={t('subtitle')}>
       {current && typeof resetPrice === 'number' ? (
         <ResetTrafficCard
           plan={current}

@@ -1,7 +1,7 @@
 {
   "groups": {
     "title": "Server groups",
-    "description": "Groups decide which nodes a user can use; buying a plan grants the plan's group.",
+    "help": "Groups decide which nodes a user can use; buying a plan grants the plan's group.",
     "name": "Name",
     "users": "Users",
     "plans": "Plans",
@@ -21,7 +21,7 @@
   },
   "routes": {
     "title": "Routes",
-    "description": "Routes sent to XrayR / V2bX; “Block” rules are also soga audit rules.",
+    "help": "Routes sent to XrayR / V2bX; “Block” rules are also soga audit rules.",
     "create": "New route",
     "edit": "Edit route",
     "editNamed": "Edit route {name}",
@@ -46,7 +46,7 @@
     "actionValue": "Action value",
     "dnsServer": "DNS server",
     "dnsHint": "e.g. 1.1.1.1 or https://dns.example.com/dns-query",
-    "matchHintBlock": "One per line, up to {max}. All lines joined with | must form a valid Go regexp (XrayR crashes on an invalid one); soga also understands domain:, full:, regexp:, geosite:, ip: prefixes.",
+    "matchHintBlock": "One per line, up to {max}.\nAll lines joined with | must form a valid Go regexp (XrayR crashes on an invalid one).\nsoga also understands domain:, full:, regexp:, geosite:, ip: prefixes.",
     "matchHintDns": "One domain per line, up to {max}.",
     "errors": {
       "required": "Add at least one match rule",
@@ -57,7 +57,7 @@
   },
   "nodes": {
     "title": "Nodes",
-    "description": "Status refreshes every minute; green means traffic reports, orange means heartbeats only.",
+    "help": "Status refreshes every minute; green means traffic reports, orange means heartbeats only.\nSorting is unavailable while filtered.",
     "create": "New node",
     "edit": "Edit node “{name}”",
     "editNamed": "Edit node {name}",
@@ -77,7 +77,6 @@
     "noGroups": "No groups",
     "moveUp": "Move {name} up",
     "moveDown": "Move {name} down",
-    "sortDisabled": "Reordering is disabled while filters are active.",
     "fixProtocol": "Please fix the errors in the protocol settings.",
     "hasErrors": "Has errors",
     "sections": "Node configuration",
@@ -199,11 +198,12 @@
       "intro": "Configure the backend with the snippet below. The shared secret (server_token) is in",
       "settingsLink": "Settings → Node communication",
       "unsaved": "The node ID exists after saving; save first, then copy the snippet.",
-      "child": "Child node: the backend may use the child's or the parent's ID; the panel answers with the parent's configuration either way.",
+      "child": "The backend may use the child's or the parent's ID; the panel answers with the parent's configuration either way.",
       "unsupported": "This backend does not support the protocol.",
       "xrayrHint": "XrayR ignores the panel's intervals: set UpdatePeriodic to at most the panel's push interval. With no eligible users XrayR logs an error and keeps the previous user list.",
       "v2bxHint": "V2bX uses the panel's pull/push intervals and enforces device limits through alivelist.",
-      "sogaHint": "Use the /soga/ prefix for webapi_url; the soga licence binds to the full webapi_url."
+      "sogaHint": "Use the /soga/ prefix for webapi_url; the soga licence binds to the full webapi_url.",
+      "childSubject": "Child nodes"
     },
     "ps": {
       "sections": {

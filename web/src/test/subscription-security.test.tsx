@@ -119,6 +119,11 @@ describe('subscription security', () => {
     expect(screen.getByText('近 24 小时有 3 个不同 IP 获取过订阅。')).toBeInTheDocument()
     // Telegram is available but not bound → link to bind it.
     expect(screen.getByRole('link', { name: '绑定 Telegram 接收提醒' })).toHaveAttribute('href', '/profile')
+    // The leak-protection explanation is second level: behind the card title's ⓘ.
+    expect(screen.queryByText(/疑似泄露/)).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: '关于「订阅安全」的说明' }))
+    expect(await screen.findByRole('dialog')).toHaveTextContent(/疑似泄露并发邮件提醒你/)
+    await userEvent.keyboard('{Escape}')
   })
 
   it('rotates only the token (separate from the full reset)', async () => {
@@ -157,8 +162,14 @@ describe('subscription security', () => {
     renderAt('/subscription')
     const user = userEvent.setup()
     const card = (await screen.findByRole('heading', { name: /订阅加密/ }, T)).closest('section')!
-    expect(await within(card).findByText('加密的格式：Clash Meta (mihomo)')).toBeInTheDocument()
-    expect(within(card).getByText('需要明文时，可在 Clash Meta 链接后追加 &age=0。')).toBeInTheDocument()
+    // Which formats are encrypted (and the &age=0 escape hatch) sit behind the title's ⓘ.
+    expect(await within(card).findByRole('button', { name: '生成密钥' }, T)).toBeInTheDocument()
+    expect(within(card).queryByText(/加密的格式/)).toBeNull()
+    await user.click(within(card).getByRole('button', { name: '关于「订阅加密」的说明' }))
+    const about = await screen.findByRole('dialog')
+    expect(about).toHaveTextContent('加密的格式：Clash Meta (mihomo)')
+    expect(about).toHaveTextContent('需要明文时，可在 Clash Meta 链接后追加 &age=0。')
+    await user.keyboard('{Escape}')
 
     await user.click(await within(card).findByRole('button', { name: '生成密钥' }, T))
     expect(await within(card).findByText(PUB(1))).toBeInTheDocument()
@@ -201,8 +212,11 @@ describe('subscription security', () => {
     const card = (await screen.findByRole('heading', { name: /订阅加密/ }, T)).closest('section')!
     expect(await within(card).findByText(/私钥已无法显示/, undefined, T)).toBeInTheDocument()
     expect(within(card).queryByRole('button', { name: '显示私钥' })).not.toBeInTheDocument()
-    expect(within(card).getByText(/站点启用了严格模式/)).toBeInTheDocument()
-    expect(within(card).queryByText(/&age=0/)).not.toBeInTheDocument()
+    await userEvent.click(within(card).getByRole('button', { name: '关于「订阅加密」的说明' }))
+    const about = await screen.findByRole('dialog')
+    expect(about).toHaveTextContent(/站点启用了严格模式/)
+    expect(about).not.toHaveTextContent(/&age=0/)
+    await userEvent.keyboard('{Escape}')
     expect(within(card).getByLabelText('proxy-providers 示例')).toHaveTextContent(`url: "${BASE_URL}"`)
   })
 })

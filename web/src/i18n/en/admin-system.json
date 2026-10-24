@@ -1,6 +1,6 @@
 {
   "title": "System status",
-  "description": "Runtime status, scheduled jobs, mail queue, cache and logs. Refreshes every 30 seconds.",
+  "help": "Runtime status, scheduled jobs, mail queue, cache and logs. Refreshes every 30 seconds.",
   "loadFailed": "Couldn’t load the system status",
   "cards": {
     "panel": "Panel",
@@ -58,7 +58,8 @@
     "auto": "Auto-refresh every 10 s",
     "empty": "No log entries.",
     "attrs": "{n} attrs",
-    "footer": "Showing {shown} of {total} (the in-memory buffer keeps the last 1000)"
+    "footer": "Showing {shown} of {total}",
+    "help": "The in-memory buffer keeps the last 1000 entries."
   },
   "diagnostics": {
     "copy": "Copy diagnostics",

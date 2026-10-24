@@ -31,7 +31,7 @@ export function NodeStatsDrawer({ node, onClose }: DrawerProps) {
       onOpenChange={(open) => !open && onClose()}
       size="xl"
       title={t('nodes.stats.title', { name: node.name })}
-      subtitle={node.parent_id ? t('nodes.stats.childHint') : undefined}
+      help={node.parent_id ? t('nodes.stats.childHint') : undefined}
     >
       <div className="flex flex-col gap-5">
         <SegmentedControl
@@ -91,10 +91,10 @@ export function NodeOnlineDrawer({ node, onClose }: DrawerProps) {
       size="lg"
       title={t('nodes.online.title', { name: node.name })}
       subtitle={t('nodes.online.count', { count: rows.length })}
+      help={t('nodes.online.hint')}
     >
       <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-footnote text-label-secondary">{t('nodes.online.hint')}</p>
+        <div className="flex items-center justify-end gap-2">
           <Button
             size="sm"
             variant="secondary"

@@ -1,7 +1,7 @@
 {
   "groups": {
     "title": "权限组",
-    "description": "权限组决定用户能使用哪些节点；购买套餐后用户获得套餐对应的权限组。",
+    "help": "权限组决定用户能使用哪些节点；购买套餐后用户获得套餐对应的权限组。",
     "name": "名称",
     "users": "用户",
     "plans": "套餐",
@@ -21,7 +21,7 @@
   },
   "routes": {
     "title": "路由规则",
-    "description": "下发给 XrayR / V2bX 的路由；“阻断”规则同时作为 soga 审计规则。",
+    "help": "下发给 XrayR / V2bX 的路由；“阻断”规则同时作为 soga 审计规则。",
     "create": "新建规则",
     "edit": "编辑规则",
     "editNamed": "编辑规则 {name}",
@@ -46,7 +46,7 @@
     "actionValue": "动作参数",
     "dnsServer": "DNS 服务器",
     "dnsHint": "例如 1.1.1.1 或 https://dns.example.com/dns-query",
-    "matchHintBlock": "每行一条，最多 {max} 条。所有行以 | 连接后必须是合法的 Go 正则（XrayR 遇到非法正则会崩溃）；soga 另支持 domain:、full:、regexp:、geosite:、ip: 等前缀。",
+    "matchHintBlock": "每行一条，最多 {max} 条。\n所有行以 | 连接后必须是合法的 Go 正则（XrayR 遇到非法正则会崩溃）。\nsoga 另支持 domain:、full:、regexp:、geosite:、ip: 等前缀。",
     "matchHintDns": "每行一个域名，最多 {max} 条。",
     "errors": {
       "required": "至少填写一条匹配规则",
@@ -57,7 +57,7 @@
   },
   "nodes": {
     "title": "节点",
-    "description": "节点状态每分钟刷新；绿色表示有流量上报，橙色表示仅有心跳。",
+    "help": "节点状态每分钟刷新；绿色表示有流量上报，橙色表示仅有心跳。\n筛选时无法调整排序。",
     "create": "新建节点",
     "edit": "编辑节点「{name}」",
     "editNamed": "编辑节点 {name}",
@@ -77,7 +77,6 @@
     "noGroups": "未分配权限组",
     "moveUp": "上移 {name}",
     "moveDown": "下移 {name}",
-    "sortDisabled": "筛选时无法调整排序。",
     "fixProtocol": "请修正协议配置中的错误。",
     "hasErrors": "有错误",
     "sections": "节点配置",
@@ -199,11 +198,12 @@
       "intro": "在后端填写以下配置。通信密钥（server_token）在",
       "settingsLink": "系统设置 → 节点通信",
       "unsaved": "节点保存后才有节点 ID，请先保存再复制配置。",
-      "child": "子节点：后端可以用子节点或父节点的 ID 对接，面板都会按父节点下发配置。",
+      "child": "后端可以用子节点或父节点的 ID 对接，面板都会按父节点下发配置。",
       "unsupported": "该后端不支持此协议。",
       "xrayrHint": "XrayR 不读取面板的拉取间隔，请把 UpdatePeriodic 设为不大于面板的上报间隔；节点没有可用用户时 XrayR 会报错并保留旧用户列表。",
       "v2bxHint": "V2bX 使用面板下发的拉取/上报间隔，并通过 alivelist 限制设备数。",
-      "sogaHint": "webapi_url 推荐使用 /soga/ 前缀；soga 许可证会绑定完整的 webapi_url。"
+      "sogaHint": "webapi_url 推荐使用 /soga/ 前缀；soga 许可证会绑定完整的 webapi_url。",
+      "childSubject": "子节点"
     },
     "ps": {
       "sections": {

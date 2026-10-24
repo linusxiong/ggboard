@@ -158,7 +158,7 @@ export function SystemPage() {
   return (
     <PageShell
       title={t('title')}
-      description={t('description')}
+      help={t('help')}
       actions={
         <Button variant="secondary" isPending={copying} onPress={() => void copyDiagnostics()}>
           <ClipboardCopy className="size-4" aria-hidden />

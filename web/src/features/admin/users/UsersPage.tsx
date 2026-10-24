@@ -197,7 +197,7 @@ export function UsersPage() {
   return (
     <PageShell
       title={t('title')}
-      description={users.data ? t('description', { count: users.data.total }) : t('descriptionLoading')}
+      description={t('description', { count: users.data ? users.data.total : '…' })}
       actions={
         canEdit ? (
           <>

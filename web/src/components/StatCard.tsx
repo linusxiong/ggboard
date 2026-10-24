@@ -1,4 +1,5 @@
 import { lazy, type ReactNode, Suspense } from 'react'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { useAnimationsReady } from '@/lib/motion'
 import { cx } from '@/lib/cn'
 
@@ -11,8 +12,10 @@ interface StatCardProps {
   /** Formats numeric values (money, bytes…). Required for correct final text when animating. */
   format?: (value: number) => string
   icon?: ReactNode
-  /** Small text below the value. */
+  /** Small text below the value: short facts only. */
   hint?: ReactNode
+  /** What the figure means, behind an ⓘ next to the label. */
+  help?: ReactNode
   /** Decorative accent for the icon chip, e.g. `bg-system-blue`. */
   accent?: string
   className?: string
@@ -20,13 +23,14 @@ interface StatCardProps {
   static?: boolean
 }
 
-/** KPI tile used on dashboards: symbol badge + label, large tabular value, optional hint. */
+/** KPI tile used on dashboards: symbol badge + label (+ ⓘ), large tabular value, optional hint. */
 export function StatCard({
   label,
   value,
   format,
   icon,
   hint,
+  help,
   accent = 'bg-system-blue',
   className,
   static: isStatic,
@@ -49,7 +53,9 @@ export function StatCard({
             {icon}
           </span>
         ) : null}
-        <h3 className="min-w-0 truncate text-subhead font-medium text-label-secondary">{label}</h3>
+        <TitleWithHelp help={help} subject={typeof label === 'string' ? label : undefined}>
+          <h3 className="min-w-0 truncate text-subhead font-medium text-label-secondary">{label}</h3>
+        </TitleWithHelp>
       </div>
       <p className="mt-1 text-title1 font-semibold tabular tracking-tight text-label">
         {numeric && animate && !isStatic ? (

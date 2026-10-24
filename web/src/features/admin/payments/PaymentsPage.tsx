@@ -112,7 +112,7 @@ export function PaymentsPage() {
   return (
     <PageShell
       title={t('title')}
-      description={t('description')}
+      help={t('pageHelp')}
       actions={
         <Button isDisabled={!gateways.data?.length} onPress={() => setSheet({ open: true, payment: null })}>
           <Plus className="size-4" aria-hidden />

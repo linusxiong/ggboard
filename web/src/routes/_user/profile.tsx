@@ -51,7 +51,7 @@ function ProfilePage() {
   const user = me.data ?? stored
 
   return (
-    <PageShell title={t('profile.title')} description={t('profile.subtitle')}>
+    <PageShell title={t('profile.title')}>
       <SegmentedTabs
         value={tab}
         onChange={(next) => {

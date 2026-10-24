@@ -19,6 +19,8 @@ import { useMutation } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, Lock, Plus, Trash2 } from 'lucide-react'
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { FormError } from '@/components/FormError'
+import { FieldHint, FieldLabel } from '@/components/form/parts'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { confirm } from '@/components/feedback/confirm'
 import { useT } from '@/i18n'
@@ -28,7 +30,7 @@ import type { NodeOperations, RuleProfile, UserNode } from '@/lib/api/types'
 import { cx } from '@/lib/cn'
 import { errorMessage } from '@/lib/errors'
 import { toast } from '@/lib/toast'
-import { ChipSelect, SectionTitle, Toggle } from './controls'
+import { ChipLabel, ChipSelect, SectionTitle, Toggle } from './controls'
 import {
   applyNodeOps,
   compilePattern,
@@ -185,13 +187,14 @@ export function NodeOpsEditor({
       className="surface-card flex flex-col gap-8 p-6"
       aria-labelledby="nodeops-title"
     >
-      <div className="flex flex-col gap-1">
+      <TitleWithHelp
+        help={`${t('nodeOps.subtitle')}\n\n${t('nodeOps.pipeline')}`}
+        subject={t('nodeOps.title')}
+      >
         <h2 id="nodeops-title" className="text-title3 text-label">
           {t('nodeOps.title')}
         </h2>
-        <p className="text-subhead text-label-secondary">{t('nodeOps.subtitle')}</p>
-        <p className="text-footnote text-label-secondary">{t('nodeOps.pipeline')}</p>
-      </div>
+      </TitleWithHelp>
 
       {readOnly ? (
         <div className="flex items-start gap-3 rounded-[12px] bg-fill-quaternary px-4 py-3" role="note">
@@ -342,16 +345,14 @@ export function NodeOpsEditor({
               />
             </div>
             <div className="grid items-start gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-1">
-                <Toggle
-                  isSelected={draft.dedupe}
-                  onChange={(dedupe) => patch({ dedupe })}
-                  isDisabled={readOnly}
-                >
-                  {t('nodeOps.dedupe')}
-                </Toggle>
-                <p className="pl-1 text-footnote text-label-secondary">{t('nodeOps.dedupeHint')}</p>
-              </div>
+              <Toggle
+                isSelected={draft.dedupe}
+                onChange={(dedupe) => patch({ dedupe })}
+                isDisabled={readOnly}
+                help={t('nodeOps.dedupeHint')}
+              >
+                {t('nodeOps.dedupe')}
+              </Toggle>
               <NumberField
                 value={draft.limit}
                 onChange={(limit) => patch({ limit: Number.isNaN(limit) ? 0 : limit })}
@@ -364,13 +365,13 @@ export function NodeOpsEditor({
                 variant="secondary"
                 formatOptions={{ maximumFractionDigits: 0, useGrouping: false }}
               >
-                <Label>{t('nodeOps.limit')}</Label>
+                <FieldLabel label={t('nodeOps.limit')} help={t('nodeOps.limitHint')} />
                 <NumberField.Group>
                   <NumberField.DecrementButton />
                   <NumberField.Input className="w-full" />
                   <NumberField.IncrementButton />
                 </NumberField.Group>
-                {errorFor('limit') ? null : <Description>{t('nodeOps.limitHint')}</Description>}
+                {errorFor('limit') ? null : <FieldHint>{t('nodeOps.limitHint')}</FieldHint>}
                 <FieldError>{errorFor('limit')}</FieldError>
               </NumberField>
             </div>
@@ -467,14 +468,10 @@ function PatternList({
 
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <div>
-        <span id={`${id}-label`} className="text-subhead font-medium text-label">
-          {label}
-        </span>
-        <p className="text-footnote text-label-secondary">{hint}</p>
-      </div>
+      <ChipLabel id={`${id}-label`} label={label} hint={hint} />
       <TagGroup
         aria-labelledby={`${id}-label`}
+        aria-describedby={`${id}-label-hint`}
         onRemove={readOnly ? undefined : (keys) => onChange(values.filter((_, i) => !keys.has(String(i))))}
       >
         <TagGroup.List
@@ -684,12 +681,11 @@ function NodePreview({
       aria-labelledby="nodeops-preview-title"
       className="flex min-w-0 flex-col gap-3 self-start rounded-[14px] bg-fill-quaternary p-4 xl:sticky xl:top-20"
     >
-      <div>
+      <TitleWithHelp help={t('nodeOps.previewHint')} subject={t('nodeOps.preview')}>
         <h3 id="nodeops-preview-title" className="text-headline text-label">
           {t('nodeOps.preview')}
         </h3>
-        <p className="text-footnote text-label-secondary">{t('nodeOps.previewHint')}</p>
-      </div>
+      </TitleWithHelp>
       {!preview ? (
         <div className="h-40 shimmer rounded-[10px] bg-fill-tertiary" aria-busy="true" />
       ) : total === 0 ? (

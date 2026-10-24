@@ -6,6 +6,7 @@ import { Button } from '@heroui/react'
 import { QrCode } from 'lucide-react'
 import { lazy, type ReactNode, Suspense, useState } from 'react'
 import { CopyButton } from '@/components/CopyButton'
+import { HelpTip, TitleWithHelp } from '@/components/HelpTip'
 import { useLocale, useT } from '@/i18n'
 import type { RulesetCatalog } from '@/lib/api/types'
 import { buttonClass } from '@/lib/button'
@@ -51,12 +52,14 @@ export function SubscribeCard({
   return (
     <section className="surface-card flex flex-col gap-6 p-6" aria-labelledby="link-title">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
+        <TitleWithHelp
+          help={allowOverride ? t('link.subtitle') : `${t('link.subtitle')}\n${t('link.savedHint')}`}
+          subject={t('link.title')}
+        >
           <h2 id="link-title" className="text-title3 text-label">
             {t('link.title')}
           </h2>
-          <p className="mt-1 text-subhead text-label-secondary">{t('link.subtitle')}</p>
-        </div>
+        </TitleWithHelp>
         {actions}
       </div>
 
@@ -89,15 +92,13 @@ export function SubscribeCard({
         {allowOverride ? (
           <OptionSelect
             label={t('link.rules')}
+            description={override ? t('link.overrideHint') : t('link.savedHint')}
             value={override}
             options={profileOptions}
             onChange={onOverride}
             className="max-w-sm"
           />
         ) : null}
-        <p className="text-footnote text-label-secondary">
-          {override ? t('link.overrideHint') : t('link.savedHint')}
-        </p>
       </div>
 
       {showQr ? (
@@ -113,7 +114,12 @@ export function SubscribeCard({
       ) : null}
 
       <div className="flex flex-col gap-3">
-        <h3 className="text-headline text-label">{t('import.title')}</h3>
+        <div className="flex items-center gap-1">
+          <h3 className="text-headline text-label">{t('import.title')}</h3>
+          <HelpTip subject={t('import.title')}>
+            {t('import.copyOnly', { clients: COPY_ONLY_CLIENTS.join(' · ') })}
+          </HelpTip>
+        </div>
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,13.5rem),1fr))] gap-2">
           {IMPORT_CLIENTS.map((client) => (
             <li key={client.id}>
@@ -135,9 +141,6 @@ export function SubscribeCard({
             </li>
           ))}
         </ul>
-        <p className="text-footnote text-label-secondary">
-          {t('import.copyOnly', { clients: COPY_ONLY_CLIENTS.join(' · ') })}
-        </p>
       </div>
     </section>
   )

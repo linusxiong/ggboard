@@ -2,6 +2,7 @@ import { Button } from '@heroui/react'
 import { useMutation } from '@tanstack/react-query'
 import { Send, Webhook } from 'lucide-react'
 import { useState } from 'react'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { useT } from '@/i18n'
 import { api, isApiError } from '@/lib/api/client'
 import { errorMessage } from '@/lib/errors'
@@ -97,12 +98,11 @@ export function TelegramActions({
 
   return (
     <section aria-labelledby="telegram-actions" className="flex flex-col gap-2">
-      <div className="px-1">
+      <TitleWithHelp help={t('telegram.help')} subject={t('telegram.title')} className="px-1">
         <h3 id="telegram-actions" className="text-headline text-label">
           {t('telegram.title')}
         </h3>
-        <p className="text-footnote text-label-secondary">{t('telegram.caption')}</p>
-      </div>
+      </TitleWithHelp>
       <div className="surface-card flex flex-col gap-3 px-5 py-4 sm:px-6">
         <div className="flex flex-wrap gap-2">
           <Button

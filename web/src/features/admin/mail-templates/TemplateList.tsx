@@ -4,7 +4,7 @@ import { useT } from '@/i18n'
 import type { AdminMailTemplateSummary } from '@/lib/api/types'
 import { cx } from '@/lib/cn'
 import { MAIL_LOCALES } from './search'
-import { templateDescription, templateTitle } from './variables'
+import { templateTitle } from './variables'
 
 /** Sidebar symbol + background per template (raw system colour utilities: icons only). */
 const TEMPLATE_ICON: Record<string, { icon: LucideIcon; tint: string }> = {
@@ -37,8 +37,9 @@ interface TemplateListProps {
 }
 
 /**
- * System-Settings-style list of the templates: symbol, title, one-line description and the state of each
- * locale (customised or built-in). A chip strip with titles only on phones.
+ * System-Settings-style list of the templates: symbol, title and the state of each locale (customised or
+ * built-in); what a template is for sits behind the ⓘ of the selected one's title. A chip strip with
+ * titles only on phones.
  */
 export function TemplateList({ items, active, dirty, onSelect }: TemplateListProps) {
   const t = useT('admin-settings')
@@ -49,7 +50,6 @@ export function TemplateList({ items, active, dirty, onSelect }: TemplateListPro
           const { icon: Icon, tint } = TEMPLATE_ICON[item.name] ?? FALLBACK_ICON
           const selected = item.name === active
           const anyCustom = MAIL_LOCALES.some((l) => item.locales[l]?.custom)
-          const description = templateDescription(t, item.name)
           return (
             <li key={item.name} className="shrink-0" ref={selected ? revealOnPhone : undefined}>
               <button
@@ -96,9 +96,6 @@ export function TemplateList({ items, active, dirty, onSelect }: TemplateListPro
                       />
                     ) : null}
                   </span>
-                  {description ? (
-                    <span className="text-footnote text-label-secondary max-md:hidden">{description}</span>
-                  ) : null}
                   <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-caption text-label-secondary max-md:hidden">
                     {MAIL_LOCALES.map((l) => {
                       const custom = item.locales[l]?.custom === true

@@ -40,7 +40,7 @@ export function TicketsPage({ search, onSearchChange }: TicketsPageProps) {
   const selected = search.id
 
   return (
-    <PageShell title={t('tickets.title')} description={t('tickets.description')}>
+    <PageShell title={t('tickets.title')} help={t('tickets.help')}>
       <div className="grid min-h-[70dvh] gap-4 md:h-[calc(100dvh-14rem)] md:grid-cols-[minmax(17rem,22rem)_1fr]">
         <TicketList
           search={search}

@@ -59,7 +59,7 @@ export function NoticesPage() {
   return (
     <PageShell
       title={t('notices.title')}
-      description={t('notices.description')}
+      help={t('notices.help')}
       actions={
         <Button onPress={() => open(null)}>
           <Plus className="size-4" aria-hidden />

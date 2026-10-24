@@ -10,6 +10,7 @@ import { type FormEvent, type ReactNode, useState } from 'react'
 import { EmptyState } from '@/components/EmptyState'
 import { DateTime } from '@/components/Formatters'
 import { FormError } from '@/components/FormError'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { useT } from '@/i18n'
 import { isApiError } from '@/lib/api/client'
 import type { Passkey } from '@/lib/api/types'
@@ -51,12 +52,11 @@ export function PasskeysCard({
           >
             <KeyRound className="size-5" />
           </span>
-          <div className="min-w-0">
+          <TitleWithHelp help={t('passkeys.hint')} subject={t('passkeys.title')} className="self-center">
             <h2 id="passkeys-title" className="text-headline text-label">
               {t('passkeys.title')}
             </h2>
-            <p className="mt-1 text-footnote text-label-secondary">{t('passkeys.hint')}</p>
-          </div>
+          </TitleWithHelp>
         </div>
         <Button size="sm" isDisabled={!supported} onPress={() => setDialog({ kind: 'add' })}>
           <Plus className="size-4" aria-hidden="true" />
@@ -255,7 +255,7 @@ function AddDialog({ onClose }: { onClose: () => void }) {
         autoComplete="off"
         maxLength={NAME_MAX}
         autoFocus
-        description={t('passkeys.nameHint')}
+        placeholder={t('passkeys.namePlaceholder')}
       />
     </FormDialog>
   )

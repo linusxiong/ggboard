@@ -65,7 +65,7 @@ function KnowledgePage() {
   return (
     <PageShell
       title={t('knowledge.title')}
-      description={t('knowledge.subtitle')}
+      help={t('knowledge.subtitle')}
       actions={
         locales.length > 1 ? (
           <SegmentedControl

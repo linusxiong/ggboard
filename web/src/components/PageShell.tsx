@@ -1,9 +1,13 @@
 import { type ReactNode, useEffect } from 'react'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { cx } from '@/lib/cn'
 
 interface PageShellProps {
   title: string
+  /** Short subtitle the user reads (counts, last update). Explanations go in `help`. */
   description?: ReactNode
+  /** What the page is for / how it works, behind an ⓘ next to the title. */
+  help?: ReactNode
   /** Right-aligned header actions (buttons, filters). */
   actions?: ReactNode
   children?: ReactNode
@@ -21,6 +25,7 @@ interface PageShellProps {
 export function PageShell({
   title,
   description,
+  help,
   actions,
   children,
   className,
@@ -35,7 +40,9 @@ export function PageShell({
     <div className={cx('mx-auto flex w-full max-w-page flex-col gap-8', className)}>
       <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div className="min-w-0 flex-1 basis-72">
-          <h1 className="text-large-title text-label">{title}</h1>
+          <TitleWithHelp help={help} subject={title}>
+            <h1 className="text-large-title text-label">{title}</h1>
+          </TitleWithHelp>
           {description ? (
             <p className="mt-1.5 max-w-3xl text-subhead text-label-secondary">{description}</p>
           ) : null}

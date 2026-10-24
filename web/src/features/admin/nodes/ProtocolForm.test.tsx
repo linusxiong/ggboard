@@ -108,7 +108,11 @@ describe('<ProtocolForm> per node type', () => {
     )
     expect(await screen.findByText('传输')).toBeInTheDocument()
     expect(screen.getAllByText('低').length).toBeGreaterThan(0)
-    expect(screen.getByText(/仅 soga 支持/)).toBeInTheDocument() // compatibility note
+    // Compatibility: one warning line on the page, the backend details behind its ⓘ.
+    expect(screen.getByText('后端兼容性提示')).toBeInTheDocument()
+    expect(screen.queryByText(/仅 soga 支持/)).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: '关于「后端兼容性提示」的说明' }))
+    expect(await screen.findByRole('dialog')).toHaveTextContent(/仅 soga 支持/)
   })
 
   it('shows server errors on the matching input', async () => {

@@ -1,6 +1,7 @@
-import { Button, Description, FieldError, Input, Label, TextField } from '@heroui/react'
+import { Button, FieldError, Input, Label, TextField } from '@heroui/react'
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
 import { type ReactNode, useId } from 'react'
+import { HelpTip } from '@/components/HelpTip'
 import { useT } from '@/i18n'
 
 interface UrlListEditorProps {
@@ -18,7 +19,8 @@ const isHttpUrl = (v: string) => /^https?:\/\/[^\s/$.?#][^\s]*$/i.test(v.trim())
 
 /**
  * Ordered list of URLs (`subscribe_url`: alternative subscription hosts; the first is the default
- * shown to users, empty list → `app_url`). Rows can be added, removed and reordered.
+ * shown to users, empty list → `app_url`). Rows can be added, removed and reordered. The description
+ * sits behind the label's ⓘ (and stays the group's accessible description).
  */
 export function UrlListEditor({
   label,
@@ -41,10 +43,20 @@ export function UrlListEditor({
     onChange(next)
   }
   return (
-    <div role="group" aria-labelledby={`${id}-label`} className="flex flex-col gap-2">
-      <Label id={`${id}-label`} elementType="span">
-        {label}
-      </Label>
+    <div
+      role="group"
+      aria-labelledby={`${id}-label`}
+      aria-describedby={description && !error ? `${id}-desc` : undefined}
+      className="flex flex-col gap-2"
+    >
+      <span className="field-label-row">
+        <Label id={`${id}-label`} elementType="span">
+          {label}
+        </Label>
+        {description ? (
+          <HelpTip subject={typeof label === 'string' ? label : undefined}>{description}</HelpTip>
+        ) : null}
+      </span>
       {value.length === 0 ? (
         <p className="text-footnote text-label-secondary">{t('urlList.empty')}</p>
       ) : (
@@ -118,7 +130,11 @@ export function UrlListEditor({
           {t('urlList.add')}
         </Button>
       </div>
-      {description && !error ? <Description>{description}</Description> : null}
+      {description && !error ? (
+        <p id={`${id}-desc`} className="sr-only">
+          {description}
+        </p>
+      ) : null}
       {error ? (
         <p className="text-footnote text-danger" role="alert">
           {error}

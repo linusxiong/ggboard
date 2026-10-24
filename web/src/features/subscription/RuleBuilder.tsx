@@ -2,12 +2,14 @@
  * Rule-set builder: template → source → categories (toggle + target) → policy groups → final/mirror/DNS,
  * saved with `PUT /user/rule-profile`. The draft is local state; `ruleProfile.ts` holds the pure logic.
  */
-import { Button, Description, FieldError, Input, Label, NumberField, TextField } from '@heroui/react'
+import { Button, FieldError, Input, Label, NumberField, TextField } from '@heroui/react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, ExternalLink, Lock, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { FormError } from '@/components/FormError'
 import { confirm } from '@/components/feedback/confirm'
+import { FieldHint, FieldLabel } from '@/components/form/parts'
+import { HelpTip, TitleWithHelp } from '@/components/HelpTip'
 import { useLocale, useT } from '@/i18n'
 import { isApiError } from '@/lib/api/client'
 import { qk } from '@/lib/api/queries'
@@ -159,12 +161,11 @@ export function RuleBuilder({
 
   return (
     <section ref={sectionRef} className="surface-card flex flex-col gap-8 p-6" aria-labelledby="rules-title">
-      <div className="flex flex-col gap-1">
+      <TitleWithHelp help={t('builder.subtitle')} subject={t('builder.title')}>
         <h2 id="rules-title" className="text-title3 text-label">
           {t('builder.title')}
         </h2>
-        <p className="text-subhead text-label-secondary">{t('builder.subtitle')}</p>
-      </div>
+      </TitleWithHelp>
 
       {readOnly ? (
         <div className="flex items-start gap-3 rounded-[12px] bg-fill-quaternary px-4 py-3" role="note">
@@ -238,24 +239,26 @@ export function RuleBuilder({
                   selected ? 'border-tint bg-accent-soft' : 'border-hairline',
                 )}
               >
-                <label className={cx('flex flex-col gap-1', !readOnly && 'cursor-pointer')}>
-                  <span className="flex items-center gap-2">
+                <div className="flex min-w-0 items-center gap-1">
+                  <label className={cx('flex min-w-0 items-center gap-2', !readOnly && 'cursor-pointer')}>
                     <input
                       type="radio"
                       name="rule-source"
                       value={id}
                       checked={selected}
                       onChange={() => setDraft({ ...draft, source: id })}
+                      aria-describedby={`src-${id}-desc`}
                       className="size-4 accent-tint"
                     />
                     <span className="min-w-0 truncate text-subhead font-semibold text-label">
                       {source.name}
                     </span>
-                  </span>
-                  <span className="text-footnote text-label-secondary">
+                  </label>
+                  <HelpTip subject={source.name}>{localized(source.description, locale)}</HelpTip>
+                  <span id={`src-${id}-desc`} className="sr-only">
                     {localized(source.description, locale)}
                   </span>
-                </label>
+                </div>
                 <div className="flex flex-wrap items-center justify-between gap-2 text-caption text-label-secondary">
                   <span>
                     {t('builder.coverage', {
@@ -384,16 +387,14 @@ export function RuleBuilder({
             error={errorFor('dns')}
           />
         </div>
-        <div className="flex flex-col gap-1">
-          <Toggle
-            isSelected={draft.geoip_cn_direct}
-            onChange={(geoip_cn_direct) => setDraft({ ...draft, geoip_cn_direct })}
-            isDisabled={readOnly}
-          >
-            {t('builder.geoip')}
-          </Toggle>
-          <p className="pl-1 text-footnote text-label-secondary">{t('builder.geoipHint')}</p>
-        </div>
+        <Toggle
+          isSelected={draft.geoip_cn_direct}
+          onChange={(geoip_cn_direct) => setDraft({ ...draft, geoip_cn_direct })}
+          isDisabled={readOnly}
+          help={t('builder.geoipHint')}
+        >
+          {t('builder.geoip')}
+        </Toggle>
       </div>
 
       {/* ------------------------------------------------------------ save bar */}
@@ -581,9 +582,16 @@ function GroupEditor({
           variant="secondary"
           className="min-w-40 flex-1"
         >
-          <Label id={`${id}-name`}>{t('builder.groupName')}</Label>
+          {isProxy ? (
+            <span className="field-label-row">
+              <Label id={`${id}-name`}>{t('builder.groupName')}</Label>
+              <HelpTip subject={t('builder.groupName')}>{t('builder.proxyHint')}</HelpTip>
+            </span>
+          ) : (
+            <Label id={`${id}-name`}>{t('builder.groupName')}</Label>
+          )}
           <Input autoComplete="off" spellCheck={false} />
-          {isProxy ? <Description>{t('builder.proxyHint')}</Description> : null}
+          {isProxy ? <FieldHint>{t('builder.proxyHint')}</FieldHint> : null}
           <FieldError>{nameError ?? errorFor(`groups.${index}.name`)}</FieldError>
         </TextField>
         <OptionSelect
@@ -639,9 +647,9 @@ function GroupEditor({
         variant="secondary"
         fullWidth
       >
-        <Label>{t('builder.include')}</Label>
+        <FieldLabel label={t('builder.include')} help={index === 0 ? t('builder.includeHint') : undefined} />
         <Input autoComplete="off" spellCheck={false} className="font-mono text-footnote" />
-        {index === 0 ? <Description>{t('builder.includeHint')}</Description> : null}
+        {index === 0 ? <FieldHint>{t('builder.includeHint')}</FieldHint> : null}
         <FieldError>{errorFor(`groups.${index}.include`)}</FieldError>
       </TextField>
       {probe ? (

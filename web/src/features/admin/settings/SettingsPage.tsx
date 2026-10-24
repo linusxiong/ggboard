@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { MailCheck } from 'lucide-react'
 import { type ReactNode, useMemo, useRef, useState } from 'react'
 import { focusFirstInvalid } from '@/components/form/focus'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { SaveBar } from '@/components/form/SaveBar'
 import { PageShell } from '@/components/PageShell'
 import { useLocale, useT } from '@/i18n'
@@ -13,7 +14,7 @@ import { cx } from '@/lib/cn'
 import { errorMessage } from '@/lib/errors'
 import { toast } from '@/lib/toast'
 import { RULESETS_FULL_KEY } from '@/features/admin/rulesets/catalog'
-import { DEPENDS_ON, FALLBACK_ICON, GROUP_ICON, type RowModel, sectionsOf } from './layout'
+import { DEPENDS_ON, FALLBACK_ICON, GROUP_HELP, GROUP_ICON, type RowModel, sectionsOf } from './layout'
 import { ServerSnippets } from './ServerSnippets'
 import { SettingField, type SettingFieldContext } from './SettingField'
 import { buildGroups, dirtyPatch, type Edits, flattenValues, isGroupDirty } from './settingsMeta'
@@ -180,7 +181,7 @@ export function SettingsPage({
     return text === key || text === '' ? undefined : text
   }
   const groupTitle = (name: string) => optional(`groups.${name}.title`) ?? name
-  const groupHint = (name: string) => optional(`groups.${name}.hint`)
+  const groupHelp = (name: string) => (GROUP_HELP.has(name) ? optional(`groups.${name}.help`) : undefined)
 
   const renderField = (def: SettingDef) => (
     <SettingField
@@ -193,16 +194,10 @@ export function SettingsPage({
     />
   )
 
-  /** Extra content under a row (contextual help and shortcuts). */
+  /** Extra content under a row: warnings about the current configuration, with a shortcut to fix it. */
   const rowExtra = (key: string): ReactNode => {
-    if (key === 'email_verify' && values.email_verify === true)
-      return (
-        <EmailVerifyNote
-          smtp={values.email_driver === 'smtp'}
-          onOpenEmail={() => onGroupChange('email')}
-          onTest={() => setTestOpen(true)}
-        />
-      )
+    if (key === 'email_verify' && values.email_verify === true && values.email_driver !== 'smtp')
+      return <EmailLogOnlyNote onOpenEmail={() => onGroupChange('email')} />
     return null
   }
 
@@ -228,7 +223,7 @@ export function SettingsPage({
   }
 
   return (
-    <PageShell title={t('title')} description={t('description')}>
+    <PageShell title={t('title')} help={t('help')}>
       {renderGuard?.(dirtyGroups.size > 0)}
       {settings.isError ? (
         <Alert status="danger">
@@ -312,14 +307,11 @@ export function SettingsPage({
             }}
           >
             <header className="flex flex-wrap items-end justify-between gap-3">
-              <div className="min-w-0">
-                <h2 id={`settings-${active.name}`} className="text-title2 text-label">
+              <TitleWithHelp help={groupHelp(active.name)} subject={groupTitle(active.name)}>
+                <h2 id={`settings-${active.name}`} className="min-w-0 text-title2 text-label">
                   {groupTitle(active.name)}
                 </h2>
-                {groupHint(active.name) ? (
-                  <p className="mt-1 text-subhead text-label-secondary">{groupHint(active.name)}</p>
-                ) : null}
-              </div>
+              </TitleWithHelp>
               {active.name === 'email' ? (
                 <div className="flex flex-wrap gap-2">
                   {mailTemplatesLink}
@@ -337,7 +329,7 @@ export function SettingsPage({
               const base = section.id ? `sections.${active.name}.${section.id}` : null
               const title =
                 section.id === 'other' ? optional('sections.other.title') : base && optional(`${base}.title`)
-              const caption = base ? optional(`${base}.caption`) : undefined
+              const help = base && section.help ? optional(`${base}.help`) : undefined
               const headingId = `settings-${active.name}-${section.id ?? 'main'}`
               return (
                 <section
@@ -347,10 +339,11 @@ export function SettingsPage({
                 >
                   {title ? (
                     <div className="px-1">
-                      <h3 id={headingId} className="text-headline text-label">
-                        {title}
-                      </h3>
-                      {caption ? <p className="text-footnote text-label-secondary">{caption}</p> : null}
+                      <TitleWithHelp help={help} subject={title}>
+                        <h3 id={headingId} className="text-headline text-label">
+                          {title}
+                        </h3>
+                      </TitleWithHelp>
                     </div>
                   ) : null}
                   <div className="inset-group shadow-card [--separator-inset:20px] sm:[--separator-inset:24px]">
@@ -395,35 +388,21 @@ export function SettingsPage({
   )
 }
 
-/** Under "邮箱验证": codes need working mail delivery — link to the Email group + a test shortcut. */
-function EmailVerifyNote({
-  smtp,
-  onOpenEmail,
-  onTest,
-}: {
-  smtp: boolean
-  onOpenEmail: () => void
-  onTest: () => void
-}) {
+/**
+ * Under "邮箱验证" while mail delivery is "log only": codes would never reach anyone. One line plus a
+ * shortcut to the Email group (the SMTP advice itself is in the switch's ⓘ).
+ */
+function EmailLogOnlyNote({ onOpenEmail }: { onOpenEmail: () => void }) {
   const t = useT('admin-settings')
   return (
     <div
-      className={cx(
-        'flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[12px] px-3.5 py-2.5 text-footnote',
-        smtp ? 'bg-fill-quaternary text-label-secondary' : 'bg-warning-soft text-label-orange-soft',
-      )}
-      role={smtp ? undefined : 'note'}
+      className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[12px] bg-warning-soft px-3.5 py-2.5 text-footnote text-label-orange-soft"
+      role="note"
     >
-      <p className="min-w-0 flex-1 basis-60">{smtp ? t('register.smtpHint') : t('register.logWarning')}</p>
-      <div className="flex shrink-0 gap-1">
-        <Button size="sm" variant="secondary" onPress={onOpenEmail}>
-          {t('register.openEmail')}
-        </Button>
-        <Button size="sm" variant="secondary" onPress={onTest}>
-          <MailCheck className="size-4" aria-hidden />
-          {t('email.test')}
-        </Button>
-      </div>
+      <p className="min-w-0 flex-1 basis-60">{t('register.logWarning')}</p>
+      <Button size="sm" variant="secondary" className="shrink-0" onPress={onOpenEmail}>
+        {t('register.openEmail')}
+      </Button>
     </div>
   )
 }

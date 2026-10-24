@@ -9,6 +9,7 @@ import { type FormEvent, lazy, type ReactNode, Suspense, useEffect, useRef, useS
 import { CopyButton } from '@/components/CopyButton'
 import { DateTime } from '@/components/Formatters'
 import { FormError } from '@/components/FormError'
+import { HelpTip, TitleWithHelp } from '@/components/HelpTip'
 import { useT } from '@/i18n'
 import type { SecurityOverview, TotpSetup } from '@/lib/api/types'
 import { regenerateBackupCodes, totpDisable, totpEnable, totpSetup } from '@/lib/api/user'
@@ -45,21 +46,19 @@ export function TwoFactorCard({
             <Smartphone className="size-5" />
           </span>
           <div className="min-w-0">
-            <h2 id="totp-title" className="flex flex-wrap items-center gap-2 text-headline text-label">
-              {t('totp.title')}
-              <Chip size="sm" variant="soft" color={overview.totp_enabled ? 'success' : 'default'}>
-                {overview.totp_enabled ? t('totp.on') : t('totp.off')}
-              </Chip>
-            </h2>
-            <p className="mt-1 text-footnote text-label-secondary">
-              {overview.totp_enabled && overview.totp_enabled_at ? (
-                <>
-                  {t('totp.enabledSince')} <DateTime value={overview.totp_enabled_at} format="date" />
-                </>
-              ) : (
-                t('totp.hint')
-              )}
-            </p>
+            <TitleWithHelp help={t('totp.hint')} subject={t('totp.title')}>
+              <h2 id="totp-title" className="flex flex-wrap items-center gap-2 text-headline text-label">
+                {t('totp.title')}
+                <Chip size="sm" variant="soft" color={overview.totp_enabled ? 'success' : 'default'}>
+                  {overview.totp_enabled ? t('totp.on') : t('totp.off')}
+                </Chip>
+              </h2>
+            </TitleWithHelp>
+            {overview.totp_enabled && overview.totp_enabled_at ? (
+              <p className="mt-1 text-footnote text-label-secondary">
+                {t('totp.enabledSince')} <DateTime value={overview.totp_enabled_at} format="date" />
+              </p>
+            ) : null}
           </div>
         </div>
         {overview.totp_enabled ? (
@@ -76,12 +75,15 @@ export function TwoFactorCard({
 
       {overview.totp_enabled ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] bg-fill-quaternary px-4 py-3">
-          <p className="text-subhead text-label">
-            {t('backup.remaining', { count: overview.backup_codes_remaining })}
+          <div className="min-w-0">
+            <p className="flex items-center gap-0.5 text-subhead text-label">
+              {t('backup.remaining', { count: overview.backup_codes_remaining })}
+              <HelpTip subject={t('backup.codes')}>{t('backup.about')}</HelpTip>
+            </p>
             {overview.backup_codes_remaining <= 3 ? (
-              <span className="block text-footnote text-label-orange">{t('backup.low')}</span>
+              <p className="text-footnote text-label-orange">{t('backup.low')}</p>
             ) : null}
-          </p>
+          </div>
           <Button size="sm" variant="secondary" onPress={() => setDialog('regenerate')}>
             {t('backup.regenerate')}
           </Button>
@@ -249,8 +251,11 @@ function EnableDialog({ email, appName, onClose }: { email: string; appName: str
       <FormError message={errors.form} />
       <ol className="flex flex-col gap-4 text-subhead text-label">
         <li className="flex flex-col gap-3">
-          <p>
-            <span className="font-semibold">1.</span> {t('totp.step1')}
+          <p className="flex items-center gap-0.5">
+            <span>
+              <span className="font-semibold">1.</span> {t('totp.step1')}
+            </span>
+            <HelpTip subject={t('totp.apps')}>{t('totp.appsHint')}</HelpTip>
           </p>
           <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
             {setup ? (

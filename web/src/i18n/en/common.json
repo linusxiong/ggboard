@@ -85,5 +85,9 @@
   },
   "qr": {
     "label": "QR code: {value}"
+  },
+  "help": {
+    "label": "More info",
+    "about": "About “{name}”"
   }
 }

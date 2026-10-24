@@ -1,5 +1,6 @@
-import { ComboBox, Description, FieldError, Input, Label, ListBox } from '@heroui/react'
+import { ComboBox, FieldError, Input, ListBox } from '@heroui/react'
 import type { ReactNode } from 'react'
+import { FieldHint, FieldLabel } from '@/components/form/parts'
 
 export interface ComboOption {
   value: string
@@ -30,7 +31,7 @@ const showAll = () => true
 /**
  * Free-text input with suggestions (HeroUI ComboBox + `allowsCustomValue`). Used where the backend
  * accepts any string but common values exist: EPay `type`, Epusdt `currency_type`, knowledge
- * language/category, rule-set mirror prefix.
+ * language/category, rule-set mirror prefix. The description sits behind the label's ⓘ.
  */
 export function ComboInput({
   label,
@@ -63,12 +64,12 @@ export function ComboInput({
       fullWidth
       className={className}
     >
-      <Label>{label}</Label>
+      <FieldLabel label={label} help={description} />
       <ComboBox.InputGroup>
         <Input placeholder={placeholder} className={monospace ? 'font-mono' : undefined} autoComplete="off" />
         <ComboBox.Trigger />
       </ComboBox.InputGroup>
-      {description && !error ? <Description>{description}</Description> : null}
+      {error ? null : <FieldHint>{description}</FieldHint>}
       <FieldError>{error}</FieldError>
       <ComboBox.Popover>
         <ListBox>

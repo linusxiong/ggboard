@@ -122,7 +122,7 @@ export function OrdersPage({ search, onSearchChange }: OrdersPageProps) {
   return (
     <PageShell
       title={t('title')}
-      description={t('description')}
+      help={t('help')}
       actions={
         <Button onPress={() => setAssignOpen(true)}>
           <Plus className="size-4" aria-hidden />

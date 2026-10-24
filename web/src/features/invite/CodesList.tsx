@@ -3,6 +3,7 @@ import { Button } from '@heroui/react'
 import { Plus } from 'lucide-react'
 import { CopyButton } from '@/components/CopyButton'
 import { EmptyState } from '@/components/EmptyState'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { DateTime } from '@/components/Formatters'
 import { useT } from '@/i18n'
 import type { InviteCode } from '@/lib/api/types'
@@ -24,12 +25,16 @@ export function CodesList({ codes, limit, onGenerate, isGenerating }: CodesListP
     <section className="flex flex-col gap-3" aria-labelledby="invite-codes-title">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 id="invite-codes-title" className="text-title3 text-label">
-            {t('codes.title')}
-          </h2>
-          <p className="text-footnote text-label-secondary">
-            {limit > 0 ? t('codes.usage', { count: codes.length, limit }) : t('codes.subtitle')}
-          </p>
+          <TitleWithHelp help={t('codes.subtitle')} subject={t('codes.title')}>
+            <h2 id="invite-codes-title" className="text-title3 text-label">
+              {t('codes.title')}
+            </h2>
+          </TitleWithHelp>
+          {limit > 0 ? (
+            <p className="text-footnote text-label-secondary">
+              {t('codes.usage', { count: codes.length, limit })}
+            </p>
+          ) : null}
         </div>
         <Button
           size="sm"

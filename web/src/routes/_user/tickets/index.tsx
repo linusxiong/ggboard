@@ -138,7 +138,7 @@ function TicketsPage() {
   return (
     <PageShell
       title={t('list.title')}
-      description={t('list.subtitle')}
+      help={t('list.subtitle')}
       actions={
         <Button onPress={() => setCreating(true)}>
           <Plus className="size-4" aria-hidden="true" />

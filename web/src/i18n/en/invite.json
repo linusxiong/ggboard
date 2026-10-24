@@ -50,7 +50,7 @@
   },
   "transfer": {
     "title": "Move commission to balance",
-    "body": "You can move up to {available}. Your balance pays for plans directly.",
+    "body": "You can move up to {available}.",
     "amount": "Amount",
     "invalid": "Enter an amount greater than 0",
     "tooMuch": "You can move at most {available}",
@@ -59,7 +59,8 @@
   },
   "withdraw": {
     "title": "Withdraw commission",
-    "body": "You have {available} available. We'll open a ticket and our staff will process it by hand.",
+    "body": "You have {available} available.",
+    "process": "We'll open a ticket and our staff will process it by hand.",
     "method": "Method",
     "methodPlaceholder": "e.g. USDT, Alipay",
     "methodRequired": "Enter a withdrawal method",

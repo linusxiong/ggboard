@@ -1,6 +1,6 @@
 {
   "title": "Orders",
-  "description": "Review and handle every order: confirm payments manually, cancel, set commission status or assign orders to users.",
+  "help": "Review and handle every order: confirm payments manually, cancel, set commission status or assign orders to users.",
   "filters": {
     "title": "Filter orders",
     "all": "All",
@@ -83,7 +83,7 @@
   "assign": {
     "open": "Assign order",
     "title": "Assign an order",
-    "description": "Creates a pending order; the user can pay it under “My orders”, or you can mark it as paid.",
+    "help": "Creates a pending order; the user can pay it under “My orders”, or you can mark it as paid.",
     "user": "User",
     "userPlaceholder": "Email or user ID",
     "userRequired": "Enter the user's email or ID",
@@ -100,7 +100,7 @@
   },
   "coupons": {
     "title": "Coupons",
-    "description": "Generate and manage coupon codes: amount or percent off, usage limits, plans, periods and validity.",
+    "help": "Generate and manage coupon codes: amount or percent off, usage limits, plans, periods and validity.",
     "generate": "Generate coupons",
     "copyPage": "Copy codes on this page",
     "copyAll": "Copy all",

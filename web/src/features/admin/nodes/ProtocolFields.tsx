@@ -1,20 +1,11 @@
 /**
  * Inputs bound to a `protocol_settings` path through `ProtocolContext` (value, setter and the
- * server/client error for that path). HeroUI components with visible labels.
+ * server/client error for that path). HeroUI components with visible labels; a `description`
+ * goes behind the label's ⓘ (`FieldLabel` / `SwitchHelp`).
  */
-import {
-  Description,
-  FieldError,
-  Input,
-  Label,
-  ListBox,
-  NumberField,
-  Select,
-  Switch,
-  TextArea,
-  TextField,
-} from '@heroui/react'
+import { FieldError, Input, ListBox, NumberField, Select, Switch, TextArea, TextField } from '@heroui/react'
 import { type ReactNode, useState } from 'react'
+import { FieldHint, FieldLabel, SwitchHelp } from '@/components/form/parts'
 import { cx } from '@/lib/cn'
 import { useSetting } from './protocol-context'
 
@@ -48,7 +39,7 @@ export function PText({
       fullWidth
       className={className}
     >
-      <Label>{label}</Label>
+      <FieldLabel label={label} help={description} />
       <div className="flex items-center gap-2">
         <Input
           placeholder={placeholder}
@@ -58,7 +49,7 @@ export function PText({
         />
         {end}
       </div>
-      {description && !error ? <Description>{description}</Description> : null}
+      {error ? null : <FieldHint>{description}</FieldHint>}
       <FieldError>{error}</FieldError>
     </TextField>
   )
@@ -87,11 +78,11 @@ export function PNumber({
       validationBehavior="aria"
       className={className}
     >
-      <Label>{label}</Label>
+      <FieldLabel label={label} help={description} />
       <NumberField.Group>
         <NumberField.Input className="w-full" />
       </NumberField.Group>
-      {description && !error ? <Description>{description}</Description> : null}
+      {error ? null : <FieldHint>{description}</FieldHint>}
       <FieldError>{error}</FieldError>
     </NumberField>
   )
@@ -100,23 +91,30 @@ export function PNumber({
 export function PSwitch({ path, label, description, className }: BaseProps) {
   const { value, set, error, id } = useSetting(path)
   return (
-    <Switch
-      id={id}
-      name={id}
-      isSelected={value === true}
-      onChange={set}
-      isInvalid={Boolean(error)}
-      className={className}
+    <SwitchHelp
+      help={description}
+      label={label}
+      layout="inline"
+      className={description ? className : undefined}
     >
-      <Switch.Content>
-        <Switch.Control>
-          <Switch.Thumb />
-        </Switch.Control>
-        {label}
-      </Switch.Content>
-      {description ? <Description>{description}</Description> : null}
-      <FieldError>{error}</FieldError>
-    </Switch>
+      <Switch
+        id={id}
+        name={id}
+        isSelected={value === true}
+        onChange={set}
+        isInvalid={Boolean(error)}
+        className={description ? undefined : className}
+      >
+        <Switch.Content>
+          <Switch.Control>
+            <Switch.Thumb />
+          </Switch.Control>
+          {label}
+        </Switch.Content>
+        <FieldHint>{description}</FieldHint>
+        <FieldError>{error}</FieldError>
+      </Switch>
+    </SwitchHelp>
   )
 }
 
@@ -154,12 +152,12 @@ export function PSelect({
       validationBehavior="aria"
       className={className}
     >
-      <Label>{label}</Label>
+      <FieldLabel label={label} help={description} />
       <Select.Trigger>
         <Select.Value />
         <Select.Indicator />
       </Select.Trigger>
-      {description && !error ? <Description>{description}</Description> : null}
+      {error ? null : <FieldHint>{description}</FieldHint>}
       <FieldError>{error}</FieldError>
       <Select.Popover>
         <ListBox>
@@ -223,7 +221,7 @@ export function PList({
       className={className}
     >
       <div className="flex items-center justify-between gap-2">
-        <Label>{label}</Label>
+        <FieldLabel label={label} help={description} />
         {end}
       </div>
       {separator === 'line' ? (
@@ -236,7 +234,7 @@ export function PList({
       ) : (
         <Input placeholder={placeholder} className="w-full" spellCheck={false} autoComplete="off" />
       )}
-      {description && !error ? <Description>{description}</Description> : null}
+      {error ? null : <FieldHint>{description}</FieldHint>}
       <FieldError>{error}</FieldError>
     </TextField>
   )
@@ -282,9 +280,9 @@ export function PJson({
       fullWidth
       className={className}
     >
-      <Label>{label}</Label>
+      <FieldLabel label={label} help={description} />
       <TextArea rows={rows} className="w-full font-mono text-footnote" spellCheck={false} />
-      {description && !message ? <Description>{description}</Description> : null}
+      {message ? null : <FieldHint>{description}</FieldHint>}
       <FieldError>{message}</FieldError>
     </TextField>
   )

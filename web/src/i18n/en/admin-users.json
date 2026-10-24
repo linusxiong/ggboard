@@ -1,7 +1,6 @@
 {
   "title": "Users",
   "description": "{count} users",
-  "descriptionLoading": "Manage accounts, plans and traffic",
   "empty": "No users match",
   "saved": "User saved",
   "noChanges": "Nothing to save",
@@ -81,8 +80,9 @@
   },
   "loginAs": {
     "title": "Log in as {name}",
-    "hint": "This is a one-time login link. Opening it in this browser replaces your current admin session — copy it into a private window or another browser instead.",
-    "open": "Open in new tab"
+    "hint": "Opening it here replaces your admin session; copy it into a private window or another browser instead.",
+    "open": "Open in new tab",
+    "help": "This is a one-time login link; it works once."
   },
   "detail": {
     "loading": "Loading…",
@@ -116,7 +116,7 @@
     "newPasswordHint": "Leave empty to keep it; at least 8 characters",
     "generatePassword": "Generate a random password",
     "inviter": "Inviter ID",
-    "inviterHint": "Currently invited by {email}",
+    "inviterCurrent": "Currently invited by {email}",
     "inviterEmpty": "Leave empty for no inviter",
     "remarks": "Remarks",
     "plan": "Plan",
@@ -188,7 +188,7 @@
   "subscription": {
     "tab": "Subscription",
     "accessLog": "Subscription access log",
-    "accessHint": "Clients that recently fetched this user's subscription (full IP addresses).",
+    "accessHelp": "Clients that recently fetched this user's subscription (full IP addresses).",
     "empty": "No access recorded yet.",
     "unavailable": "The server does not provide an access log.",
     "ip": "IP",
@@ -205,7 +205,7 @@
     "rotate": "Rotate link",
     "rotateTitle": "Rotate the subscription link of {name}?",
     "rotateHint": "There is no separate admin token rotation endpoint, so this is the same as Reset subscription secret: the UUID and token are both replaced, the user must import again and their sessions end.",
-    "rotateNote": "Rotating from the admin console also resets the UUID (it uses Reset subscription secret).",
+    "actionsHelp": "Rotating from the admin console also resets the UUID (it uses Reset subscription secret).",
     "rotated": "UUID and subscription token reset",
     "ageNone": "This user has no age key.",
     "age": "Subscription encryption",

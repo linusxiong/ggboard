@@ -9,6 +9,7 @@ import { Link } from '@tanstack/react-router'
 import { CircleCheck } from 'lucide-react'
 import { useState } from 'react'
 import { FormError, useAppForm } from '@/components/form'
+import { HelpTip } from '@/components/HelpTip'
 import { submitError } from '@/components/form/submitError'
 import { useT } from '@/i18n'
 import { isApiError, userApi } from '@/lib/api'
@@ -137,8 +138,9 @@ export default function WithdrawDialog({ isOpen, onOpenChange, available }: With
               }}
             >
               <Modal.Body className="flex flex-col gap-4">
-                <p className="text-subhead text-label-secondary">
+                <p className="flex items-center gap-0.5 text-subhead text-label-secondary">
                   {t('withdraw.body', { available: money(available) })}
+                  <HelpTip subject={t('withdraw.title')}>{t('withdraw.process')}</HelpTip>
                 </p>
                 <form.AppField
                   name="method"

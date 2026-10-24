@@ -85,5 +85,9 @@
   },
   "qr": {
     "label": "二维码：{value}"
+  },
+  "help": {
+    "label": "说明",
+    "about": "关于「{name}」的说明"
   }
 }

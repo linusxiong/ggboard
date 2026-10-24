@@ -1,11 +1,14 @@
 import type { ReactNode } from 'react'
 import { useId } from 'react'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { cx } from '@/lib/cn'
 
 interface SectionProps {
   title?: ReactNode
-  /** 13 px caption under the title. */
+  /** 13 px caption under the title: short facts only. Explanations go in `help`. */
   caption?: ReactNode
+  /** What the section does, behind an ⓘ next to the title. */
+  help?: ReactNode
   /** Right-aligned header content (buttons, links). */
   actions?: ReactNode
   children: ReactNode
@@ -26,6 +29,7 @@ interface SectionProps {
 export function Section({
   title,
   caption,
+  help,
   actions,
   children,
   card = true,
@@ -45,9 +49,11 @@ export function Section({
         <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 px-1">
           <div className="min-w-0">
             {title ? (
-              <h2 id={headingId} className="text-title3 text-label">
-                {title}
-              </h2>
+              <TitleWithHelp help={help} subject={typeof title === 'string' ? title : undefined}>
+                <h2 id={headingId} className="text-title3 text-label">
+                  {title}
+                </h2>
+              </TitleWithHelp>
             ) : null}
             {caption ? <p className="mt-0.5 text-footnote text-label-secondary">{caption}</p> : null}
           </div>

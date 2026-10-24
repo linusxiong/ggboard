@@ -1,14 +1,12 @@
 /**
  * Controlled HeroUI fields (value/onChange/error) for metadata-driven forms (settings, gateway
  * config) where the set of fields is only known at runtime. Same anatomy as `@/components/form`:
- * visible `<Label>`, `name`/`id`, `isInvalid` + `<FieldError>`, description hidden while invalid.
+ * visible `<Label>`, `name`/`id`, `isInvalid` + `<FieldError>`, description behind the label's ⓘ.
  */
 import {
-  Description,
   FieldError,
   Input,
   InputGroup,
-  Label,
   ListBox,
   NumberField,
   Select,
@@ -17,7 +15,7 @@ import {
   TextField,
 } from '@heroui/react'
 import type { ReactNode } from 'react'
-import { FieldAffix, SelectItemContent } from '@/components/form/parts'
+import { FieldAffix, FieldHint, FieldLabel, SelectItemContent, SwitchHelp } from '@/components/form/parts'
 import { labelWithUnit } from '@/components/form/unit'
 import { cx } from '@/lib/cn'
 
@@ -90,7 +88,7 @@ export function TextInput({
       fullWidth
       className={className}
     >
-      <Label>{label}</Label>
+      <FieldLabel label={label} help={description} />
       {startContent || endContent ? (
         <InputGroup fullWidth>
           {startContent ? <InputGroup.Prefix>{startContent}</InputGroup.Prefix> : null}
@@ -100,7 +98,7 @@ export function TextInput({
       ) : (
         <Input {...inputProps} />
       )}
-      {description && !error ? <Description>{description}</Description> : null}
+      {error ? null : <FieldHint>{description}</FieldHint>}
       <FieldError>{error}</FieldError>
     </TextField>
   )
@@ -141,14 +139,14 @@ export function TextAreaInput({
       fullWidth
       className={className}
     >
-      <Label>{label}</Label>
+      <FieldLabel label={label} help={description} />
       <TextArea
         rows={rows}
         placeholder={placeholder}
         spellCheck={monospace ? false : undefined}
         className={cx('w-full', monospace && 'font-mono text-footnote')}
       />
-      {description && !error ? <Description>{description}</Description> : null}
+      {error ? null : <FieldHint>{description}</FieldHint>}
       <FieldError>{error}</FieldError>
     </TextField>
   )
@@ -205,7 +203,11 @@ export function NumberInput({
       validationBehavior="aria"
       className={className}
     >
-      <Label>{labelWithUnit(label, unit)}</Label>
+      <FieldLabel
+        label={labelWithUnit(label, unit)}
+        subject={typeof label === 'string' ? label : undefined}
+        help={description}
+      />
       <NumberField.Group>
         {steppers ? <NumberField.DecrementButton /> : null}
         {prefix ? <FieldAffix start>{prefix}</FieldAffix> : null}
@@ -213,7 +215,7 @@ export function NumberInput({
         {unit ? <FieldAffix>{unit}</FieldAffix> : null}
         {steppers ? <NumberField.IncrementButton /> : null}
       </NumberField.Group>
-      {description && !error ? <Description>{description}</Description> : null}
+      {error ? null : <FieldHint>{description}</FieldHint>}
       <FieldError>{error}</FieldError>
     </NumberField>
   )
@@ -261,12 +263,12 @@ export function SelectInput({
       className={className}
       fullWidth
     >
-      <Label>{label}</Label>
+      <FieldLabel label={label} help={description} />
       <Select.Trigger>
         <Select.Value />
         <Select.Indicator />
       </Select.Trigger>
-      {description && !error ? <Description>{description}</Description> : null}
+      {error ? null : <FieldHint>{description}</FieldHint>}
       <FieldError>{error}</FieldError>
       <Select.Popover>
         <ListBox>
@@ -318,12 +320,12 @@ export function MultiSelectInput({
       className={className}
       fullWidth
     >
-      <Label>{label}</Label>
+      <FieldLabel label={label} help={description} />
       <Select.Trigger>
         <Select.Value />
         <Select.Indicator />
       </Select.Trigger>
-      {description && !error ? <Description>{description}</Description> : null}
+      {error ? null : <FieldHint>{description}</FieldHint>}
       <FieldError>{error}</FieldError>
       <Select.Popover>
         <ListBox selectionMode="multiple">
@@ -361,23 +363,30 @@ export function SwitchInput({
   layout = 'row',
 }: SwitchInputProps) {
   return (
-    <Switch
-      name={name}
-      id={name}
-      isSelected={value}
-      onChange={onChange}
-      isInvalid={Boolean(error)}
-      isDisabled={isDisabled}
-      className={cx(layout === 'row' && 'switch-row', className)}
+    <SwitchHelp
+      help={description}
+      label={label}
+      layout={layout}
+      className={description ? className : undefined}
     >
-      <Switch.Content>
-        <Switch.Control>
-          <Switch.Thumb />
-        </Switch.Control>
-        {label}
-      </Switch.Content>
-      {description ? <Description>{description}</Description> : null}
-      <FieldError>{error}</FieldError>
-    </Switch>
+      <Switch
+        name={name}
+        id={name}
+        isSelected={value}
+        onChange={onChange}
+        isInvalid={Boolean(error)}
+        isDisabled={isDisabled}
+        className={cx(layout === 'row' && 'switch-row', !description && className)}
+      >
+        <Switch.Content>
+          <Switch.Control>
+            <Switch.Thumb />
+          </Switch.Control>
+          {label}
+        </Switch.Content>
+        <FieldHint>{description}</FieldHint>
+        <FieldError>{error}</FieldError>
+      </Switch>
+    </SwitchHelp>
   )
 }

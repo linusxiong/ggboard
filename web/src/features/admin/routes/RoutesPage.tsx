@@ -85,7 +85,7 @@ export function RoutesPage() {
   return (
     <PageShell
       title={t('routes.title')}
-      description={t('routes.description')}
+      help={t('routes.help')}
       actions={
         <Button onPress={() => setDialog({ route: null })}>
           <Plus className="size-4" aria-hidden="true" />

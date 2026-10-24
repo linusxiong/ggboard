@@ -145,8 +145,11 @@ describe('PaymentSheet (dynamic gateway form)', () => {
     const notes = screen.getByRole('textbox', { name: 'Notes' })
     expect(notes.tagName).toBe('TEXTAREA')
     expect(screen.getByText('Free text')).toBeInTheDocument()
-    // per-gateway help + webhook warning
-    expect(screen.getByText('Setting up Stripe')).toBeInTheDocument()
+    // per-gateway setup guide, collapsed until opened
+    expect(screen.getByRole('button', { name: 'Setting up Stripe' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
   })
 
   it('validates required config and sends the config map', async () => {

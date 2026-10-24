@@ -95,7 +95,7 @@ export function KnowledgePage({ filters, onFiltersChange }: KnowledgePageProps) 
   return (
     <PageShell
       title={t('knowledge.title')}
-      description={t('knowledge.description')}
+      help={t('knowledge.help')}
       actions={
         <Button onPress={() => open(null)}>
           <Plus className="size-4" aria-hidden />
@@ -139,10 +139,6 @@ export function KnowledgePage({ filters, onFiltersChange }: KnowledgePageProps) 
           delay={200}
         />
       </section>
-
-      {filtered && visible.length > 1 ? (
-        <p className="-mt-2 text-footnote text-label-secondary">{t('knowledge.sortFilteredHint')}</p>
-      ) : null}
 
       {q.isPending ? (
         <div className="surface-card flex flex-col gap-3 p-4" aria-busy="true">
