@@ -193,7 +193,7 @@ func TestAdminNodesCRUD(t *testing.T) {
 	}
 
 	e.a.Online.TouchPush(n.ID)
-	e.a.Online.SetOnline(n.ID, 4)
+	e.a.Online.SetTrafficUsers(n.ID, []uint64{9001, 9002, 9003, 9004})
 	e.a.Online.SetVersion(n.ID, "V2bX/1.0")
 	rec = e.do(http.MethodGet, fmt.Sprintf("/nodes/%d", n.ID), nil)
 	got = testutil.Decode[nodesAdminView](t, rec)
@@ -275,21 +275,30 @@ func TestAdminNodeStatsOnlineAudit(t *testing.T) {
 
 	u := testutil.CreateUser(t, e.a, "alice@example.com", usersvc.CreateOptions{GroupID: &g, TransferEnable: 1 << 30})
 	e.a.Online.SetAliveIPs(n.ID, u.ID, []string{"203.0.113.9", "198.51.100.7"})
+	e.a.Online.TouchPush(n.ID)
+	e.a.Online.SetTrafficUsers(n.ID, []uint64{u.ID, 9001, 9002, 9003, 9004})
 	type onlineUser struct {
 		UserID uint64   `json:"user_id"`
 		Email  string   `json:"email"`
 		IPs    []string `json:"ips"`
 	}
-	ou := testutil.Decode[[]onlineUser](t, e.do(http.MethodGet, fmt.Sprintf("/nodes/%d/online", child.ID), nil))
-	if len(ou) != 1 || ou[0].Email != "alice@example.com" || len(ou[0].IPs) != 2 || ou[0].IPs[0] != "198.51.100.7" {
-		t.Fatalf("online %+v", ou)
+	// The list is the one behind status.online: alive users plus the latest traffic report's users, who have no IPs
+	// (an empty array, never null).
+	rec := e.do(http.MethodGet, fmt.Sprintf("/nodes/%d/online", child.ID), nil)
+	ou := testutil.Decode[[]onlineUser](t, rec)
+	if len(ou) != 5 || ou[0].Email != "alice@example.com" || len(ou[0].IPs) != 2 || ou[0].IPs[0] != "198.51.100.7" ||
+		ou[1].UserID != 9001 || ou[1].IPs == nil || strings.Contains(rec.Body.String(), "null") {
+		t.Fatalf("online %s", rec.Body.String())
+	}
+	if v := testutil.Decode[nodesAdminView](t, e.do(http.MethodGet, fmt.Sprintf("/nodes/%d", child.ID), nil)); v.Status.Online != len(ou) {
+		t.Fatalf("status.online = %d, list has %d", v.Status.Online, len(ou))
 	}
 
 	rt := e.do(http.MethodPost, "/routes", map[string]any{"remarks": "ads", "match": []string{"ads.example.com"}, "action": "block"})
 	testutil.ExpectStatus(t, rt, http.StatusCreated)
 	route := testutil.Decode[model.NodeRoute](t, rt)
 	testutil.ExpectStatus(t, e.do(http.MethodPatch, fmt.Sprintf("/nodes/%d", n.ID), map[string]any{"route_ids": []uint64{route.ID}}), http.StatusOK)
-	rec := testutil.DoWithHeaders(t, e.r, http.MethodPost, "/soga/api/v1/audit_log", fmt.Sprintf(`[{"user_id":%d,"audit_id":%d}]`, u.ID, route.ID*1000), "",
+	rec = testutil.DoWithHeaders(t, e.r, http.MethodPost, "/soga/api/v1/audit_log", fmt.Sprintf(`[{"user_id":%d,"audit_id":%d}]`, u.ID, route.ID*1000), "",
 		map[string]string{"API-KEY": nodesAdminServerToken, "NODE-ID": fmt.Sprint(child.ID), "NODE-TYPE": "vless"})
 	testutil.ExpectStatus(t, rec, http.StatusOK)
 	hits := testutil.Decode[[]nodesvc.AuditHit](t, e.do(http.MethodGet, fmt.Sprintf("/nodes/%d/audit", n.ID), nil))

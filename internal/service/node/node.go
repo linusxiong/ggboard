@@ -303,7 +303,7 @@ type StatusView struct {
 func (s *Service) Status(id uint64) StatusView {
 	st, _ := s.a.Online.NodeStatus(id)
 	now, w := time.Now(), s.Window()
-	v := StatusView{Online: st.Online(now, w), LastCheckAt: st.LastCheckAt, LastPushAt: st.LastPushAt, Load: st.Load, Version: st.Version}
+	v := StatusView{Online: s.a.Online.NodeOnlineCount(id, w), LastCheckAt: st.LastCheckAt, LastPushAt: st.LastPushAt, Load: st.Load, Version: st.Version}
 	switch st.State(now, w) {
 	case online.StateOnline:
 		v.State = StateOnline

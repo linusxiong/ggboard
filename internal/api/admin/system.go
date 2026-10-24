@@ -57,7 +57,8 @@ type systemMemory struct {
 func systemStatusHandler(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		now := time.Now()
-		_, onlineNodes, err := statsvc.New(a).NodeCounts(c.Request.Context(), now)
+		stats := statsvc.New(a)
+		_, onlineNodes, err := stats.NodeCounts(c.Request.Context(), now)
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -76,7 +77,7 @@ func systemStatusHandler(a *app.App) gin.HandlerFunc {
 			MailQueue:  mailStats.Pending,
 			Notify:     notify.Stats(a),
 			Cache:      a.Cache.Stats(),
-			Online:     systemOnline{Nodes: onlineNodes, Users: a.Online.OnlineUserCount()},
+			Online:     systemOnline{Nodes: onlineNodes, Users: stats.OnlineUsers()},
 			Goroutines: runtime.NumGoroutine(),
 			Memory:     systemMemory{Alloc: ms.Alloc, Sys: ms.Sys},
 		})

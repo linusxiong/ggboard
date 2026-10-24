@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"math"
 	"net"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -331,13 +333,13 @@ func ParseStatus(body []byte, strict bool) (online.Load, error) {
 }
 
 // RecordTraffic charges a report to P (docs/NODE_PROTOCOLS.md §2.3/§5.3): raw bytes go to the traffic
-// accumulator at P.rate, LastPushAt(P) = now and Online(P) = number of kept entries (also for empty reports).
+// accumulator at P.rate, LastPushAt(P) = now and the kept uids become P's traffic users (also for empty reports).
 func (s *Service) RecordTraffic(r *Resolved, entries map[uint64]Traffic) {
 	for uid, t := range entries {
 		s.a.Traffic.Add(r.P.ID, uid, r.P.Rate, t.Up, t.Down)
 	}
 	s.a.Online.TouchPush(r.P.ID)
-	s.a.Online.SetOnline(r.P.ID, len(entries))
+	s.a.Online.SetTrafficUsers(r.P.ID, slices.Collect(maps.Keys(entries)))
 }
 
 // RecordAlive replaces the alive IPs of every reported user on P; users not in the report keep their entries
@@ -477,16 +479,17 @@ func (s *Service) AuditHits(nodeID uint64) []AuditHit {
 	return out
 }
 
-// OnlineUser is a user currently alive on a node.
+// OnlineUser is a user currently online on a node (docs/NODE_PROTOCOLS.md §5.1).
 type OnlineUser struct {
 	UserID uint64   `json:"user_id"`
 	Email  string   `json:"email"`
 	IPs    []string `json:"ips"`
 }
 
-// OnlineUsers returns the users alive on node id (pass EffectiveID for children) with their emails, by user id.
+// OnlineUsers returns the users online on node id (pass EffectiveID for children) with their emails and live
+// IPs, by user id. It is the list behind StatusView.Online.
 func (s *Service) OnlineUsers(ctx context.Context, id uint64) ([]OnlineUser, error) {
-	alive := s.a.Online.NodeAlive(id)
+	alive := s.a.Online.NodeOnline(id, s.Window())
 	out := make([]OnlineUser, 0, len(alive))
 	if len(alive) == 0 {
 		return out, nil

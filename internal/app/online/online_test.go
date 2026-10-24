@@ -20,19 +20,19 @@ func TestAliveIPsAcrossNodes(t *testing.T) {
 		t.Fatalf("AliveIPs = %v", ips)
 	}
 	counts := s.AliveCounts()
-	if counts[7] != 3 || counts[8] != 1 || s.OnlineUserCount() != 2 {
+	if counts[7] != 3 || counts[8] != 1 || s.OnlineUserCount(time.Minute) != 2 {
 		t.Fatalf("AliveCounts = %v", counts)
 	}
-	if n := s.NodeAlive(2); len(n) != 2 || len(n[7]) != 2 {
-		t.Fatalf("NodeAlive = %v", n)
+	if n := s.NodeOnline(2, time.Minute); len(n) != 2 || len(n[7]) != 2 {
+		t.Fatalf("NodeOnline = %v", n)
 	}
 
 	s.SetNodeAlive(2, map[uint64][]string{8: {"9.9.9.9"}, 9: nil})
 	if s.AliveCount(7) != 2 {
 		t.Fatal("SetNodeAlive must replace the node's entries")
 	}
-	if st, _ := s.NodeStatus(2); st.OnlineUsers != 1 {
-		t.Fatalf("online = %d", st.OnlineUsers)
+	if got := s.NodeOnlineCount(2, time.Minute); got != 1 {
+		t.Fatalf("online = %d", got)
 	}
 
 	s.SetAliveIPs(1, 7, nil)
@@ -90,13 +90,13 @@ func TestNodeStatusStates(t *testing.T) {
 		t.Fatal("NodeStatus must return a copy")
 	}
 	s.TouchPush(1)
-	s.SetOnline(1, 5)
+	s.SetTrafficUsers(1, []uint64{1, 2, 3, 4, 5, 5})
 	st, _ = s.NodeStatus(1)
-	if st.State(now, w) != StateOnline || st.Online(now, w) != 5 {
-		t.Fatalf("pushing node = %+v", st)
+	if st.State(now, w) != StateOnline || s.NodeOnlineCount(1, w) != 5 {
+		t.Fatalf("pushing node = %+v, online %d", st, s.NodeOnlineCount(1, w))
 	}
-	later := now.Add(3 * time.Minute)
-	if st.State(later, w) != StateOffline || st.Online(later, w) != 0 {
+	now = now.Add(3 * time.Minute)
+	if st.State(now, w) != StateOffline || s.NodeOnlineCount(1, w) != 0 {
 		t.Fatal("stale node must be offline with 0 online")
 	}
 	if len(s.Snapshot()) != 1 {
@@ -104,11 +104,60 @@ func TestNodeStatusStates(t *testing.T) {
 	}
 	now = now.Add(time.Hour)
 	s.Purge()
-	if st, _ := s.NodeStatus(1); st.OnlineUsers != 0 {
-		t.Fatal("purge must zero online users of stale nodes")
+	if s.nodes[1].traffic != nil {
+		t.Fatal("purge must drop the traffic users of stale nodes")
 	}
 	s.Forget(1)
 	if len(s.Snapshot()) != 0 {
 		t.Fatal("forget")
+	}
+}
+
+// The node's online count and its online-users list are one set: the latest traffic report's users (while the
+// report is within W) plus the users the node reported alive within W. Alive IPs older than W but still within the
+// device TTL only fill in the IPs of users who are online through traffic. (Before, the count was the latest
+// traffic report and the list every unexpired alive entry, so a node showed "1 online" over a list of 7.)
+func TestNodeOnline(t *testing.T) {
+	now := time.Unix(90_000, 0)
+	s := New(func() time.Duration { return 5 * time.Minute })
+	s.SetClock(func() time.Time { return now })
+	w := 2 * time.Minute
+
+	now = now.Add(-3 * time.Minute)
+	s.SetAliveIPs(1, 4, []string{"192.0.2.4"}) // reported 3 min ago: unexpired, but outside W
+	now = now.Add(3 * time.Minute)
+	s.SetAliveIPs(1, 2, []string{"192.0.2.2"})
+	s.SetAliveIPs(1, 3, []string{"192.0.2.3"})
+	s.TouchPush(1)
+	s.SetTrafficUsers(1, []uint64{1, 2})
+
+	got := s.NodeOnline(1, w)
+	if len(got) != 3 || got[1] == nil || len(got[1]) != 0 || got[2][0] != "192.0.2.2" || got[3][0] != "192.0.2.3" {
+		t.Fatalf("NodeOnline = %#v", got)
+	}
+	if _, ok := got[4]; ok || s.NodeOnlineCount(1, w) != len(got) {
+		t.Fatalf("user 4 is outside W; count %d", s.NodeOnlineCount(1, w))
+	}
+	got[2][0] = "changed" // copies must not alias the store
+	if s.NodeOnline(1, w)[2][0] != "192.0.2.2" {
+		t.Fatal("NodeOnline must return copies")
+	}
+
+	s.SetTrafficUsers(1, []uint64{4}) // traffic brings user 4 back, with its unexpired IPs
+	if got = s.NodeOnline(1, w); len(got) != 3 || got[4][0] != "192.0.2.4" {
+		t.Fatalf("after traffic from user 4: %#v", got)
+	}
+	s.TouchPush(2)
+	s.SetTrafficUsers(2, []uint64{3, 9})
+	if n := s.OnlineUserCount(w); n != 4 { // users 2, 3, 4, 9
+		t.Fatalf("OnlineUserCount = %d", n)
+	}
+
+	now = now.Add(w + time.Second) // traffic reports and alive reports are now older than W
+	if n := s.NodeOnlineCount(1, w); n != 0 || s.OnlineUserCount(w) != 0 || s.NodeOnlineCount(99, w) != 0 {
+		t.Fatalf("stale node online = %d", n)
+	}
+	if len(s.NodeOnline(99, w)) != 0 {
+		t.Fatal("unknown node")
 	}
 }

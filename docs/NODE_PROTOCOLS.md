@@ -394,7 +394,7 @@ XrayR and V2bX send it only when at least one user has traffic [XrayR controller
   - `stat_users(user, P, rate)` += the rated values
   - `stat_nodes(P)` += the raw values (Xboard: TrafficFetchJob, StatUserJob, StatServerJob)
   - Writes are buffered and flushed every 10 s (ARCHITECTURE). Unknown uids are ignored at flush.
-- Set `LastPushAt(P) = now` and `Online(P) = number of kept entries` (§5.1). Do this even for an empty body.
+- Set `LastPushAt(P) = now` and replace P's traffic users with the kept uids (§5.1). Do this even for an empty body.
 - Response: 200 `{"data":true}`. Invalid JSON, or a body that is neither an object nor `[]`, gets 400
   `{"code":"validation_failed","message":"invalid data format"}` (upstream answers 422).
 
@@ -408,7 +408,7 @@ For each uid:
 1. Normalise each IP: strip `:port`, and turn `[v6]:port` into `v6`. Addresses longer than 64 bytes are dropped.
 2. Deduplicate; keep at most 256 addresses per user and node (memory bound of the online store).
 3. **Replace** the IP set stored for `(uid, P)` with this list, stamped `now` (Xboard `setDevices`). Users not in the body
-   keep their entries until the TTL expires (§5.2).
+   keep their entries until the TTL expires (§5.2), but count as online only while the stamp is within W (§5.1).
 
 Response: `{"data":true}`. Invalid JSON gets 400 `{"code":"validation_failed","message":"invalid online data"}`.
 
@@ -535,7 +535,7 @@ Returns the settings value `server_white_list` ([]string) verbatim, `[]` if unse
 ### 3.5 `POST /api/v1/traffic`
 
 Body: `[{"id":uid,"u":bytes,"d":bytes}]`. Uses the **same pipeline as §2.3**: the same rate and stats, `LastPushAt`, and
-`Online` = the number of distinct kept ids. Entries with `id <= 0` or negative values are dropped; duplicate ids are summed.
+the distinct kept ids become P's traffic users. Entries with `id <= 0` or negative values are dropped; duplicate ids are summed.
 soga may skip users below `submit_traffic_min_traffic` KB.
 
 ### 3.6 `POST /api/v1/alive_ip`
@@ -599,7 +599,13 @@ Derivations. `uuid[:n]` is the first n *bytes of the 36-char string, hyphens inc
 
 - `LastCheckAt` is set on **every** authenticated node request. `LastPushAt` is set on every successful `push` or `traffic`,
   including empty ones.
-- `Online` is the number of distinct uids in the latest push or traffic body. It reads as 0 once `LastPushAt` is older than W.
+- A user is **online** on P when the latest push or traffic body contains the uid and `LastPushAt` is within W, or when
+  P reported an alive list (§2.4/§3.6) for the uid within W. `Online` is the number of such users. The admin
+  online-users list (`/admin/nodes/:id/online`) is exactly this set, so it always matches `Online`; each user carries
+  P's unexpired alive IPs (§5.2), an empty list when there are none. XrayR newV2board never reports alive IPs, and V2bX
+  and soga skip users below their minimum-traffic thresholds, so being in the traffic body is enough on its own.
+  The admin totals (`online_users` in `/admin/stats/overview`, `online.users` in `/admin/system/status`) count distinct
+  online users across all nodes.
 - Window `W = 2 × max(push_iv, pull_iv)` seconds.
 - Status (`online.State*`; the admin API shows it as the string `state`):
   - 2 `online`: `LastPushAt` is within W
@@ -633,7 +639,7 @@ their next poll.
   - soga: per node from `/users.device_limit`. Limits apply across nodes only when soga's `redis_ip_limit_*` is configured.
   - XrayR newV2board: ignores the panel's `device_limit`.
 
-  The panel never blocks anything itself. `/admin/nodes/:id/online` reads this store.
+  The panel never blocks anything itself. `/admin/nodes/:id/online` shows these IPs for the online users of §5.1.
 
 ### 5.3 Child nodes (`parent_id`)
 

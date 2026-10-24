@@ -153,7 +153,9 @@ or `W/`, in a list); a substring is not enough, so a plaintext tag never matches
 ## Runtime node state
 
 `app.Online` keeps, per effective node, `last_check_at` (any authenticated node request), `last_push_at` (push/traffic),
-online users, load and the backend's User-Agent as `version`. Status uses the window `W = 2 × max(push, pull interval)`
+the users of the latest traffic report, alive IPs, load and the backend's User-Agent as `version`. Online users are the
+latest traffic report's users plus users reported alive within W; one definition serves the node count, the node's
+online-users list and the totals (docs/NODE_PROTOCOLS.md §5.1). Status uses the window `W = 2 × max(push, pull interval)`
 and has three states (docs/NODE_PROTOCOLS.md §5.1):
 
 - **2 online**: push within W

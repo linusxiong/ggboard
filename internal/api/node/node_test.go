@@ -119,6 +119,9 @@ func (e *env) flush() {
 	}
 }
 
+// online is the admin view's online count of node id.
+func (e *env) online(id uint64) int { return nodesvc.New(e.a).Status(id).Online }
+
 func (e *env) userUD(id uint64) (int64, int64) {
 	e.t.Helper()
 	var u model.User
@@ -181,8 +184,8 @@ func TestUniProxyWorkedExample(t *testing.T) {
 	rec = e.do(http.MethodPost, uniURL("push", 3, "vless"), `{"1":[1048576,52428800],"2":[2048,8192]}`, nil)
 	expectBody(t, rec, http.StatusOK, `{"data":true}`)
 	st, _ := e.a.Online.NodeStatus(3)
-	if st.OnlineUsers != 2 || st.LastPushAt == nil || st.LastCheckAt == nil {
-		t.Fatalf("status %+v", st)
+	if e.online(3) != 2 || st.LastPushAt == nil || st.LastCheckAt == nil {
+		t.Fatalf("status %+v, online %d", st, e.online(3))
 	}
 	e.flush()
 	if u, d := e.userUD(1); u != 1572864 || d != 78643200 {
@@ -256,13 +259,12 @@ func TestUniProxyPushValidation(t *testing.T) {
 	expectBody(t, e.do(http.MethodPost, uniURL("push", 3, "vless"), `null`, nil), http.StatusBadRequest, `{"code":"validation_failed","message":"invalid data format"}`)
 	expectBody(t, e.do(http.MethodPost, uniURL("push", 3, "vless"), `[]`, nil), http.StatusOK, `{"data":true}`)
 	st, _ := e.a.Online.NodeStatus(3)
-	if st.LastPushAt == nil || st.OnlineUsers != 0 {
-		t.Fatalf("empty push status %+v", st)
+	if st.LastPushAt == nil || e.online(3) != 0 {
+		t.Fatalf("empty push status %+v, online %d", st, e.online(3))
 	}
 	expectBody(t, e.do(http.MethodPost, uniURL("push", 3, "vless"), `{"1":[100,200],"2":[-1,5],"x":[1,1],"999":[10,10]}`, nil), http.StatusOK, `{"data":true}`)
-	st, _ = e.a.Online.NodeStatus(3)
-	if st.OnlineUsers != 2 {
-		t.Fatalf("online = %d, want 2 (users 1 and 999)", st.OnlineUsers)
+	if got := e.online(3); got != 2 {
+		t.Fatalf("online = %d, want 2 (users 1 and 999)", got)
 	}
 	e.flush() // unknown uid 999 is ignored at flush
 	if u, d := e.userUD(1); u != 150 || d != 300 {
@@ -320,8 +322,8 @@ func TestChildNodeResolution(t *testing.T) {
 	if _, ok := e.a.Online.NodeStatus(child.ID); ok {
 		t.Fatal("child must not have its own runtime status")
 	}
-	if st, _ := e.a.Online.NodeStatus(parent.ID); st.OnlineUsers != 1 {
-		t.Fatalf("parent status %+v", st)
+	if got := e.online(parent.ID); got != 1 {
+		t.Fatalf("parent online = %d", got)
 	}
 
 	n, err := nodesvc.New(e.a).Find(context.Background(), child.ID, "vless")
@@ -408,8 +410,8 @@ func TestSogaWorkedExample(t *testing.T) {
 	ok := `{"code":0,"message":""}`
 	expectBody(t, e.do(http.MethodPost, "/soga/api/v1/traffic", `[{"id":1,"u":1024,"d":4096},{"id":2,"u":0,"d":512}]`, h), http.StatusOK, ok)
 	st, _ := e.a.Online.NodeStatus(7)
-	if st.OnlineUsers != 2 || st.LastPushAt == nil {
-		t.Fatalf("status %+v", st)
+	if e.online(7) != 2 || st.LastPushAt == nil {
+		t.Fatalf("status %+v, online %d", st, e.online(7))
 	}
 	e.flush()
 	if u, d := e.userUD(1); u != 1024 || d != 4096 {

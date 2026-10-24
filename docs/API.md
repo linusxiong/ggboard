@@ -373,7 +373,7 @@ tickets, notices and knowledge (🧑‍💼).
 Stats rules (`internal/service/stat`): days are calendar days in the server time zone. "Paid" orders are `status ∈ {1 processing,
 3 completed, 4 discounted}` bucketed by `paid_at` (a discounted order was paid and later credited to an upgrade, so it stays
 revenue); `income` = Σ `total_amount`, `today.commission` = Σ `commission_balance` of today's paid orders. `active_users` = not
-banned, not expired and `u + d < transfer_enable`; `online_users` = users with an alive IP; `pending_tickets` = open and awaiting
+banned, not expired and `u + d < transfer_enable`; `online_users` = distinct users online on any node (docs/NODE_PROTOCOLS.md §5.1); `pending_tickets` = open and awaiting
 staff; `pending_orders` = status 0; `pending_commission` = paid orders with an inviter, `commission_balance > 0` and
 `commission_status = 0`; `nodes.online` counts nodes in state online or idle (a child reports its parent, docs/NODE_PROTOCOLS.md §5.1).
 `series` returns `range` points, oldest first, today last; past days read the `stats` row written by `stats_daily`
@@ -448,7 +448,7 @@ and `token` blanked. `AdminUser` = self view + `token`, `commission_type`, `rema
 | POST | `/admin/nodes/:id/copy` | — | 201 `Node` (`name + " (copy)"`, `show=false`) |
 | POST | `/admin/nodes/sort` | `{ids}` | `true` (`sort` = 0-based position in `ids`) |
 | GET | `/admin/nodes/:id/stats` | `range?` (`7d` default or `30d`) | array `[{date, u, d}]` one point per day, oldest first, zero-filled (raw bytes of the parent P) |
-| GET | `/admin/nodes/:id/online` | — | array `[{user_id, email, ips[]}]` (alive on P) |
+| GET | `/admin/nodes/:id/online` | — | array `[{user_id, email, ips[]}]`: the users online on P, by `user_id`; their number is P's `status.online` (docs/NODE_PROTOCOLS.md §5.1). `ips` is `[]` when P reported none |
 | GET | `/admin/nodes/:id/audit` | — | array `[{at, node_id, user_id, audit_id, route_id, rule}]`: soga audit hits of P, newest first (in memory, last 1000 overall) |
 | GET | `/admin/routes` | — | unpaginated `[Route]` by `id` |
 | POST | `/admin/routes` | `{remarks?, match* (1..999 entries), action* (block or dns), action_value}` | 201 `Route` (block: `match` joined by a pipe must compile as a Go regexp; dns: `action_value` required unless `match[0]=="main"`) |

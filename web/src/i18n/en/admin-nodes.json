@@ -149,10 +149,11 @@
     "online": {
       "title": "Online users on “{name}”",
       "count": "{count} users",
-      "hint": "From the backend's alive reports (V2bX alive / soga alive_ip).",
+      "hint": "Users with traffic or a reported IP in the last two report intervals. IPs come from V2bX alive / soga alive_ip; XrayR doesn't report them.",
       "empty": "Nobody is online right now",
       "user": "User",
       "ips": "IP addresses",
+      "noIp": "No IP reported",
       "open": "Show the {count} online users of {name}"
     },
     "fields": {

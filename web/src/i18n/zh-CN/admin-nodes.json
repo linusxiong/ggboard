@@ -149,10 +149,11 @@
     "online": {
       "title": "「{name}」在线用户",
       "count": "{count} 个用户",
-      "hint": "来自后端上报的在线 IP（V2bX alive / soga alive_ip）。",
+      "hint": "最近两个上报周期内有流量或上报了在线 IP 的用户。IP 来自 V2bX alive / soga alive_ip，XrayR 不上报。",
       "empty": "当前没有在线用户",
       "user": "用户",
       "ips": "IP 地址",
+      "noIp": "未上报 IP",
       "open": "查看 {name} 的 {count} 个在线用户"
     },
     "fields": {

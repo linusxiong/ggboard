@@ -1,5 +1,9 @@
 // Package online keeps runtime node state (last check/push, online users, load) and the alive IPs reported
 // by nodes. Everything is in memory; entries expire by TTL and are purged by the online_cleanup job.
+//
+// A user is online on a node within window W when the node's latest traffic report (at most W old) contains the
+// user, or when the node reported the user's alive IPs at most W ago. The node's online count, its online-users
+// list and the online-user totals all use this one definition (docs/NODE_PROTOCOLS.md §5.1).
 package online
 
 import (
@@ -20,9 +24,8 @@ type Load struct {
 
 // Status is the runtime status of one node.
 type Status struct {
-	OnlineUsers int        `json:"online"`
 	LastCheckAt *time.Time `json:"last_check_at"` // last config/user pull
-	LastPushAt  *time.Time `json:"last_push_at"`  // last traffic/alive/status push
+	LastPushAt  *time.Time `json:"last_push_at"`  // last traffic report
 	Load        *Load      `json:"load"`
 	Version     string     `json:"version,omitempty"`
 }
@@ -62,14 +65,6 @@ func (s Status) State(now time.Time, w time.Duration) int {
 	return StateOffline
 }
 
-// Online returns OnlineUsers, or 0 once LastPushAt is older than w.
-func (s Status) Online(now time.Time, w time.Duration) int {
-	if s.LastPushAt == nil || now.Sub(*s.LastPushAt) > w {
-		return 0
-	}
-	return s.OnlineUsers
-}
-
 // IsOnline reports whether the node was seen within maxAge of now.
 func (s Status) IsOnline(now time.Time, maxAge time.Duration) bool {
 	t := s.LastSeen()
@@ -78,12 +73,34 @@ func (s Status) IsOnline(now time.Time, maxAge time.Duration) bool {
 
 type aliveEntry struct {
 	ips     []string
+	seen    time.Time // when the node last reported these IPs
 	expires time.Time
 }
 
 type nodeState struct {
-	status Status
-	alive  map[uint64]aliveEntry // userID -> IPs
+	status  Status
+	alive   map[uint64]aliveEntry // userID -> IPs
+	traffic map[uint64]struct{}   // users in the latest traffic report (at status.LastPushAt)
+}
+
+// online returns the users online within w (see the package doc), each with the node's live IPs (shared with the
+// store, nil when the node reported none). The caller holds the lock.
+func (n *nodeState) online(now time.Time, w time.Duration) map[uint64][]string {
+	out := map[uint64][]string{}
+	if n.status.LastPushAt != nil && now.Sub(*n.status.LastPushAt) <= w {
+		for uid := range n.traffic {
+			out[uid] = nil
+		}
+	}
+	for uid, e := range n.alive {
+		if !now.Before(e.expires) {
+			continue
+		}
+		if _, ok := out[uid]; ok || now.Sub(e.seen) <= w {
+			out[uid] = e.ips
+		}
+	}
+	return out
 }
 
 func (n *nodeState) clone() Status {
@@ -162,11 +179,15 @@ func (s *Store) TouchPush(nodeID uint64) {
 	s.node(nodeID).status.LastPushAt = &t
 }
 
-// SetOnline sets the node's online user count.
-func (s *Store) SetOnline(nodeID uint64, users int) {
+// SetTrafficUsers replaces the users of the node's latest traffic report.
+func (s *Store) SetTrafficUsers(nodeID uint64, userIDs []uint64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.node(nodeID).status.OnlineUsers = users
+	set := make(map[uint64]struct{}, len(userIDs))
+	for _, uid := range userIDs {
+		set[uid] = struct{}{}
+	}
+	s.node(nodeID).traffic = set
 }
 
 // SetLoad records the node's machine load.
@@ -192,23 +213,23 @@ func (s *Store) SetAliveIPs(nodeID, userID uint64, ips []string) {
 		delete(n.alive, userID)
 		return
 	}
-	n.alive[userID] = aliveEntry{ips: dedupe(ips), expires: s.now().Add(s.aliveTTL())}
+	now := s.now()
+	n.alive[userID] = aliveEntry{ips: dedupe(ips), seen: now, expires: now.Add(s.aliveTTL())}
 }
 
-// SetNodeAlive replaces every alive entry of nodeID with alive (userID -> IPs) and sets OnlineUsers to the
-// number of users in it.
+// SetNodeAlive replaces every alive entry of nodeID with alive (userID -> IPs).
 func (s *Store) SetNodeAlive(nodeID uint64, alive map[uint64][]string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	n := s.node(nodeID)
-	exp := s.now().Add(s.aliveTTL())
+	now := s.now()
+	exp := now.Add(s.aliveTTL())
 	n.alive = make(map[uint64]aliveEntry, len(alive))
 	for uid, ips := range alive {
 		if len(ips) > 0 {
-			n.alive[uid] = aliveEntry{ips: dedupe(ips), expires: exp}
+			n.alive[uid] = aliveEntry{ips: dedupe(ips), seen: now, expires: exp}
 		}
 	}
-	n.status.OnlineUsers = len(n.alive)
 }
 
 // AliveIPs returns the distinct live IPs of userID across all nodes, sorted.
@@ -311,11 +332,24 @@ func (s *Store) AliveCounts() map[uint64]int {
 	return out
 }
 
-// OnlineUserCount returns the number of distinct users with live IPs on any node.
-func (s *Store) OnlineUserCount() int { return len(s.AliveCounts()) }
+// OnlineUserCount returns the number of distinct users online (NodeOnline) on any node within w.
+func (s *Store) OnlineUserCount(w time.Duration) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	now := s.now()
+	users := map[uint64]struct{}{}
+	for _, n := range s.nodes {
+		for uid := range n.online(now, w) {
+			users[uid] = struct{}{}
+		}
+	}
+	return len(users)
+}
 
-// NodeAlive returns userID -> IPs currently alive on nodeID.
-func (s *Store) NodeAlive(nodeID uint64) map[uint64][]string {
+// NodeOnline returns the users online on nodeID within w (see the package doc), each with its live IPs on the
+// node; the list is empty, never nil, when the node reported none (XrayR, or a user below the backend's
+// minimum-traffic threshold).
+func (s *Store) NodeOnline(nodeID uint64, w time.Duration) map[uint64][]string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := map[uint64][]string{}
@@ -323,13 +357,21 @@ func (s *Store) NodeAlive(nodeID uint64) map[uint64][]string {
 	if n == nil {
 		return out
 	}
-	now := s.now()
-	for uid, e := range n.alive {
-		if now.Before(e.expires) {
-			out[uid] = append([]string(nil), e.ips...)
-		}
+	for uid, ips := range n.online(s.now(), w) {
+		out[uid] = append(make([]string, 0, len(ips)), ips...)
 	}
 	return out
+}
+
+// NodeOnlineCount returns len(NodeOnline(nodeID, w)).
+func (s *Store) NodeOnlineCount(nodeID uint64, w time.Duration) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	n := s.nodes[nodeID]
+	if n == nil {
+		return 0
+	}
+	return len(n.online(s.now(), w))
 }
 
 // NodeStatus returns a copy of the node's status.
@@ -361,8 +403,8 @@ func (s *Store) Forget(nodeID uint64) {
 	s.mu.Unlock()
 }
 
-// Purge removes expired alive entries, zeroes OnlineUsers of nodes that have not pushed within the TTL and
-// returns the number of removed alive entries.
+// Purge removes expired alive entries, drops the traffic-report users of nodes that have not pushed within the
+// TTL and returns the number of removed alive entries.
 func (s *Store) Purge() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -375,7 +417,7 @@ func (s *Store) Purge() int {
 			}
 		}
 		if n.status.LastPushAt == nil || now.Sub(*n.status.LastPushAt) > ttl {
-			n.status.OnlineUsers = 0
+			n.traffic = nil
 		}
 	}
 	return removed

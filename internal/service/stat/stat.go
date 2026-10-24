@@ -187,12 +187,23 @@ func (s *Service) Overview(ctx context.Context, now time.Time) (*Overview, error
 			return nil, fmt.Errorf("stat: totals: %w", err)
 		}
 	}
-	out.Totals.OnlineUsers = s.a.Online.OnlineUserCount()
+	out.Totals.OnlineUsers = s.OnlineUsers()
 	if out.Nodes.Total, out.Nodes.Online, err = s.NodeCounts(ctx, now); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
+
+// window is the node status window W = 2 x max(server_push_interval, server_pull_interval).
+func (s *Service) window() time.Duration {
+	return online.Window(
+		s.a.Settings.Duration("server_push_interval", time.Second),
+		s.a.Settings.Duration("server_pull_interval", time.Second),
+	)
+}
+
+// OnlineUsers returns the number of distinct users online on any node (docs/NODE_PROTOCOLS.md §5.1).
+func (s *Service) OnlineUsers() int { return s.a.Online.OnlineUserCount(s.window()) }
 
 // NodeCounts returns the number of nodes and how many are online (state >= idle within
 // W = 2 x max(server_push_interval, server_pull_interval)); a child node reports its parent's state.
@@ -201,10 +212,7 @@ func (s *Service) NodeCounts(ctx context.Context, now time.Time) (total, onlineC
 	if err := s.db(ctx).Select("id", "parent_id").Find(&nodes).Error; err != nil {
 		return 0, 0, fmt.Errorf("stat: nodes: %w", err)
 	}
-	w := online.Window(
-		s.a.Settings.Duration("server_push_interval", time.Second),
-		s.a.Settings.Duration("server_pull_interval", time.Second),
-	)
+	w := s.window()
 	snap := s.a.Online.Snapshot()
 	for _, n := range nodes {
 		id := n.ID

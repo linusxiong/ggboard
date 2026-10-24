@@ -1,11 +1,12 @@
 /** Per-node drawers: traffic chart (7d/30d) and online users with their IPs. */
 import { Button } from '@heroui/react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { RefreshCw } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BarChart, byteUnit } from '@/components/charts'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { useT } from '@/i18n'
+import { qk } from '@/lib/api/queries'
 import type { Node, StatsRange } from '@/lib/api/types'
 import { FormDrawer } from '../shared/FormDrawer'
 import { adminNodeOnlineQuery, adminNodeStatsQuery } from '../shared/queries'
@@ -75,8 +76,14 @@ export function NodeStatsDrawer({ node, onClose }: DrawerProps) {
 
 export function NodeOnlineDrawer({ node, onClose }: DrawerProps) {
   const t = useT(['admin-nodes', 'common'])
+  const queryClient = useQueryClient()
   const online = useQuery(adminNodeOnlineQuery(node.id))
   const rows = online.data ?? []
+  // The list's "N online" counts this same set; refetch it with every load here so the two agree.
+  const updatedAt = online.dataUpdatedAt
+  useEffect(() => {
+    if (updatedAt) void queryClient.invalidateQueries({ queryKey: qk.admin.nodes() })
+  }, [updatedAt, queryClient])
   return (
     <FormDrawer
       isOpen
@@ -125,13 +132,17 @@ export function NodeOnlineDrawer({ node, onClose }: DrawerProps) {
                     <span className="text-footnote text-label-secondary">#{r.user_id}</span>
                   </th>
                   <td className="py-2">
-                    <ul className="flex flex-col gap-0.5 font-mono text-footnote text-label">
-                      {r.ips.map((ip) => (
-                        <li key={ip} className="break-all">
-                          {ip}
-                        </li>
-                      ))}
-                    </ul>
+                    {r.ips.length === 0 ? (
+                      <span className="text-footnote text-label-secondary">{t('nodes.online.noIp')}</span>
+                    ) : (
+                      <ul className="flex flex-col gap-0.5 font-mono text-footnote text-label">
+                        {r.ips.map((ip) => (
+                          <li key={ip} className="break-all">
+                            {ip}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </td>
                 </tr>
               ))}
