@@ -7,14 +7,14 @@
 
 | 主题 | 条目 |
 | --- | --- |
-| Shell / zsh / 命令行工具 | 2, 7, 8, 9, 11, 17, 22, 23, 52, 64, 65, 91, 93, 94, 95, 108, 110, 114, 120, 133, 147, 154, 179, 185, 191, 192, 193, 195, 197, 199, 200, 203, 208, 213, 220, 222, 223, 224 |
+| Shell / zsh / 命令行工具 | 2, 7, 8, 9, 11, 17, 22, 23, 52, 64, 65, 91, 93, 94, 95, 108, 110, 114, 120, 133, 147, 154, 179, 185, 191, 192, 193, 195, 197, 199, 200, 203, 208, 213, 220, 222, 223, 224, 225, 226, 227 |
 | Go | 21, 30, 31, 33, 34, 35, 37, 38, 39, 40, 41, 44, 45, 46, 47, 48, 49, 50, 53, 57, 61, 62, 63, 97, 98, 99, 102, 112, 115, 117, 121, 122, 123, 124, 125, 175, 176, 177, 178, 181, 182, 183, 184, 196, 198, 204, 205, 206, 207, 211 |
-| GORM / SQLite / 数据库 | 18, 19, 20, 42, 54, 55, 96, 116, 118 |
+| GORM / SQLite / 数据库 | 18, 19, 20, 42, 54, 55, 96, 116, 118, 227 |
 | 前端（React / HeroUI / Vite / Vitest / pnpm） | 3, 15, 16, 24, 25, 26, 27, 28, 29, 58, 66, 67, 68, 69, 70, 71, 72, 74, 75, 76, 77, 80, 81, 82, 83, 84, 85, 86, 100, 101, 103, 104, 105, 106, 126, 127, 128, 129, 130, 131, 132, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 148, 149, 150, 151, 152, 153, 174, 186, 188, 189, 190, 214, 215, 216, 217, 218, 219 |
 | 文档 / 契约 / 协作流程 | 1, 4, 5, 6, 10, 12, 13, 14, 32, 36, 43, 51, 56, 59, 60, 73, 78, 79, 87, 88, 89, 90, 92, 107, 109, 111, 113, 119, 155, 156, 157, 158, 159, 160, 180, 187, 194, 201, 202, 209, 210, 212, 219, 221, 224 |
 
 同一问题被多个 agent 分别记录过（均保留原文，便于对照）：
-zsh glob 未加引号 8 / 64 / 94 / 147 / 154 / 185 / 195；手算测试向量 23 / 41；路由选项把依赖拉进首屏入口 66 / 84 / 100；
+zsh glob 未加引号 8 / 64 / 94 / 147 / 154 / 185 / 195 / 227；手算测试向量 23 / 41；路由选项把依赖拉进首屏入口 66 / 84 / 100；
 Vitest 缓存 `import.meta.glob` 结果 67 / 72 / 77 / 85；`useLiteForm` 抢焦点 68 / 86；浏览器面板共用标签页 73 / 78；隐藏面板下截图不可信 79 / 151 / 188；rtk 截断长输出 9 / 91 / 191；
 替换脚本的锚点或切分位置出错 88 / 134 / 148 / 157；对比度只在白底上验证 104 / 141。
 
@@ -1745,3 +1745,45 @@ Vitest 缓存 `import.meta.glob` 结果 67 / 72 / 77 / 85；`useLiteForm` 抢焦
   `HTTPClient.kt` / `HTTPClient.swift` 写（`SFA (sing-box 1.14.4; language zh_CN)`，旧版 `SFA/<app> (<build>; sing-box <core>; …)`）。
 - **规则**：shell 分隔符一律加引号且不以 `=` 开头。契约或测试里写“某客户端发什么 UA / 支持什么字段”，先读该客户端源码或官方二进制实测，
   查不到就不写。
+
+## 2026-10-25
+
+### 225. （CI·发布）Docker 镜像的版本取 `git describe`，同一提交上还有别的 tag 时，镜像 tag 是 `1.0.0`，`ggboard version` 和 OCI 标签却是另一个 tag
+
+- **现象**：做 v1.0.0 发布流水线时核对 docker.yml：版本号来自 `git describe --tags --always`，镜像 tag 来自 `GITHUB_REF_NAME`。在临时克隆里给同一提交打上
+  `aaa`、`v1.0.0-rc.1`、`v1.0.0`，用 metadata-action v6.2.0 的官方打包脚本本地重放：手动构建 `v1.0.0` 得到 `1.0.0, 1.0, 1, latest`，OCI `version` 和二进制版本却是 `aaa`。
+  另外 release.yml 从 `main` 手动重跑某个 tag 时，被调用的 docker.yml 里 `github.ref`/`github.sha` 是 main 的，semver tag 会缺失、`sha-` tag 和 `revision` 指向 main。
+- **根因**：`git describe` 在一个提交有多个 tag 时按自己的规则挑一个（轻量 tag 之间的顺序没有保证），不一定是正在构建的那个；
+  workflow_call 下 `github` 上下文属于调用方，不是被构建的 ref。
+- **修复**：docker.yml 构建 tag 时版本就是 tag 名，其他 ref 才用 `git describe`；新增仅 workflow_call 的 `ref` 输入，checkout、semver tag（`type=semver,value=`）、
+  `sha-` tag（`type=raw`）和 `revision` 标签都跟随实际检出的提交；release.yml 给二进制注入同一个 tag 名。手动运行的 tag/标签在 main、rc、非 semver tag 三种情况下与旧版逐项相同（同一脚本对比）。
+- **规则**：发布物的版本号直接用 tag 名，不从 `git describe` 推导；可复用工作流里不要直接读 `github.ref`/`github.sha`/`GITHUB_REF_*` 来决定构建什么，把要构建的 ref 作为输入传进去，
+  改 metadata-action 配置后用它的官方 `dist/index.cjs` 加本地 API 桩把各触发方式重放一遍再提交。
+
+### 226. （工具·Shell）在容器里先 `ln -sf "$(command -v busybox)" /tmp/x/awk` 再 `printf … > /tmp/x/awk` 想写包装脚本，重定向顺着符号链接写进了 `/bin/busybox`
+
+- **现象**：用 alpine 容器比较 busybox awk / mawk / gawk 时，循环里对每种 awk 先建符号链接，busybox 分支又用 `>` 往同一路径写包装脚本，报 `can't create /tmp/busybox/awk: Text file busy`。
+  只是因为 busybox 正在运行才没被覆盖；换成没在运行的二进制、以 root 身份执行，就会把系统文件改掉。
+- **根因**：`>` 打开的是符号链接指向的文件，不会替换链接本身；同一路径先后用两种方式创建。
+- **修复**：一次性容器，丢弃即可；busybox 以 `awk` 的名字被符号链接调用时本来就是 awk applet，结果仍有效（三种 awk 输出的 sha256 一致）。
+- **规则**：写文件前目标路径不能是符号链接（先 `rm -f` 再写，或只用一种方式创建）；包装脚本放在新建的空目录里，不要和 `ln -s` 共用路径。
+
+### 227. （数据库·PostgreSQL）pgx 把 `timestamptz` 读成进程本地时区，SQLite / MySQL 读回 UTC：API 时间带 `+08:00`、续费按本地时区加月；`grep --include=*.go` 又没加引号（重犯 #8）
+
+- **现象**：做 `ggboard db copy` 的端到端验证：e2e-full 播种的 SQLite 跑一遍、复制到 PostgreSQL 17 再跑一遍，逐项比对管理端列表、订阅和
+  UniProxy 返回，脚本报 73 处差异，例如 `created_at` 一边是 `2026-10-25T06:12:22.70424Z`，另一边是 `2026-10-25T02:12:22.70424-04:00`；
+  Surge 订阅正文和 ETag 也不同。同一天开工时 `grep -rn --include=*.go …` 在 zsh 里报 `no matches found`。
+- **根因**：pgx 把 `timestamptz` 读成进程本地时区（`time.Local`）的 `time.Time`，SQLite 驱动（与 `loc=UTC` 的 MySQL）读回 UTC，
+  API 的 RFC3339 输出随之带不同的偏移；时刻相同，但按时间自身时区做的日历运算会变：续费时 `expired_at.AddDate(0, months, 0)`，
+  `TZ=Asia/Shanghai` 下 2027-01-31 20:00 UTC 续一个月得到 02-28 20:00 UTC，SQLite 上是 03-03 20:00 UTC。从支持 PostgreSQL 起就是这样，
+  只是从没在非 UTC 的进程时区下跑过 PostgreSQL 的测试。另外 Surge 的 `#!MANAGED-CONFIG` 里带着服务端自己的地址（每次端口不同），ETag 跟着变，
+  比对脚本起初把这些都当成了数据差异。glob 问题同 #8：zsh 先展开 `*.go`。
+- **修复**：`db.Open` 自己建 PostgreSQL 连接池（`internal/db/postgres_utc.go`：`pgx.ParseConfig` + `stdlib.OpenDB`，AfterConnect 给每个连接注册
+  `pgtype.TimestamptzCodec{ScanLocation: time.UTC}`，再交给 `postgres.New(postgres.Config{Conn: …})`；不用驱动自建连接池，因为 DSN 带 `TimeZone=` 时驱动会装自己的
+  AfterConnect、覆盖别的钩子）。测试：`TestScanTimestamptzInUTC`（单元，先断言默认 pgx 返回本地时区）、`TestSQLiteTimesStayUTCInAnotherZone` 与
+  `TestIntegrationTimesStayUTCInAnotherZone`（进程时区设为 +08:00，PostgreSQL、带 `TimeZone=Asia/Shanghai` 的 DSN、MySQL：读回 UTC、JSON 是 `…Z`、
+  经订单服务续费得到 03-03 20:00 UTC）；去掉修复后两个都失败（续费得到 02-28）。比对脚本另外把 RFC3339 解析成时刻、把订阅正文里的服务端地址替换成占位符，
+  SQLite 与 PostgreSQL 两次运行 42 项读接口 0 处差异。grep 的模式加引号：`--include='*.go'`。
+- **规则**：每个驱动读回的时间都必须是 UTC（`db.Open` 保证，新增驱动或换连接方式时同样要做到），涉及时间的数据库测试要在非 UTC 的进程时区下
+  对 SQLite、PostgreSQL、MySQL 各跑一遍。跨驱动比较时间一律比时刻（`time.Equal` / 解析后比较），不要比字符串；比对两次运行的输出前先列出
+  天然会变的部分（自身 URL、运行时状态）。shell 里 `--include=`、`-name` 的模式永远加引号。

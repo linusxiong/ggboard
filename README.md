@@ -7,14 +7,16 @@
 <em>A fast, simple proxy panel: one Go binary with an embedded React SPA.</em></p>
 
 <p align="center">
+  <a href="https://github.com/linusxiong/ggboard/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/linusxiong/ggboard"></a>
   <a href="LICENSE"><img alt="GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-blue.svg"></a>
   <img alt="Go" src="https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white">
   <img alt="React" src="https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white">
   <img alt="Lighthouse" src="https://img.shields.io/badge/Lighthouse-100%20%C2%B7%20100%20%C2%B7%20100%20%C2%B7%20100-brightgreen">
 </p>
 
-> **状态 / Status：v0.1.0-alpha** — 早期预览版，API、数据模型与配置项在 1.0 前仍可能变化；升级前请先备份 `data/`。
-> Early preview: APIs, schema and settings may still change before 1.0 — back up `data/` before upgrading.
+> **状态 / Status：1.0 正式版** — 每个版本的变更见 [CHANGELOG.md](CHANGELOG.md)，二进制与镜像见 [Releases](https://github.com/linusxiong/ggboard/releases)；
+> 升级前请先备份 `data/`。
+> Stable since 1.0: changes per version in CHANGELOG.md, binaries and images on the Releases page; back up `data/` before upgrading.
 
 ---
 
@@ -45,7 +47,8 @@
 - **前端**：React 19 + HeroUI v3 + TanStack（Router / Query / Table / Form）+ zustand，Apple HIG 设计语言
   （系统色、iOS 分段控件、分组表单、底部保存栏），浅色 / 深色自动切换，中英文；动效组件全部原创；公开页面构建时预渲染，
   Lighthouse 四项 100 分（桌面与移动端）。
-- **零依赖部署**：SQLite 默认即可运行，无需 Redis / 队列进程；也支持 PostgreSQL 与 MySQL。
+- **零依赖部署**：SQLite 默认即可运行，无需 Redis / 队列进程；也支持 PostgreSQL 与 MySQL，`ggboard db copy`
+  把已有数据整库复制过去并逐行校验（也能复制回来），见 [DEPLOY.md §5](docs/DEPLOY.md#从-sqlite-迁移到-postgresql--moving-from-sqlite-to-postgresql)。
 
 ## 性能 / Performance
 
@@ -132,15 +135,15 @@ appear and tokens and secrets are masked.
 mkdir ggboard && cd ggboard
 curl -fsSLO https://raw.githubusercontent.com/linusxiong/ggboard/main/deploy/docker-compose.prebuilt.yml
 curl -fsSL https://raw.githubusercontent.com/linusxiong/ggboard/main/.env.example -o .env
-echo 'GGBOARD_VERSION=main' >> .env        # 镜像 tag：main 为滚动构建，生产环境请固定到发布版本（如 0.1.0）
+echo 'GGBOARD_VERSION=1.0.0' >> .env       # 镜像 tag：固定到一个发布版本；main 是 main 分支的滚动构建
 docker compose -f docker-compose.prebuilt.yml up -d
 docker compose -f docker-compose.prebuilt.yml exec ggboard ggboard admin create --email admin@example.com
 ```
 
 不带 `--password` 时会生成随机密码并只打印一次。`.env` 必须和 compose 文件放在同一个目录；`GGBOARD_JWT_SECRET` 留空会自动生成。
 面板只监听 `127.0.0.1:8080`，请用 nginx / Caddy 反向代理并启用 HTTPS（见 [docs/DEPLOY.md](docs/DEPLOY.md)）。
-镜像由手动触发的 [Docker 工作流](.github/workflows/docker.yml)构建（amd64 + arm64），发布在 `ghcr.io/linusxiong/ggboard`；
-升级时改 `GGBOARD_VERSION`，再 `pull` 和 `up -d`。
+每个 `v*` tag 由[发布工作流](.github/workflows/release.yml)构建镜像（amd64 + arm64），发布在 `ghcr.io/linusxiong/ggboard`
+（如 `1.0.0`、`1.0`、`1`、`latest`）；升级时改 `GGBOARD_VERSION`，再 `pull` 和 `up -d`。
 
 *Prebuilt multi-arch image from GHCR: download the compose file and `.env`, set `GGBOARD_VERSION`, `up -d`, create the admin.*
 
@@ -157,7 +160,13 @@ docker compose -f deploy/docker-compose.yml exec ggboard ggboard admin create --
 并把代理地址写进 `server.trusted_proxies`。完整部署（两种 Compose、systemd、TLS、备份、升级、PostgreSQL / MySQL）见
 [docs/DEPLOY.md](docs/DEPLOY.md)。
 
-### 二进制 / From source
+### 二进制 · Release / Release binaries
+
+[Releases](https://github.com/linusxiong/ggboard/releases) 页面提供 linux / darwin（amd64、arm64）与 windows/amd64 的压缩包和
+`SHA256SUMS`，二进制内嵌前端、静态链接。下载、校验并装成 systemd 服务的步骤见
+[docs/DEPLOY.md §2](docs/DEPLOY.md#二进制安装release--release-binaries)。
+
+### 二进制 · 从源码 / From source
 
 ```bash
 make web && make build          # 构建前端并嵌入，产物 bin/ggboard
@@ -215,6 +224,7 @@ ggboard import xboard --dsn "mysql://user:pass@127.0.0.1:3306/xboard" --with-sta
 | 文档 | 内容 |
 | --- | --- |
 | [AGENTS.md](AGENTS.md) | 项目约定、技术栈、设计规范、可插拔点 |
+| [CHANGELOG.md](CHANGELOG.md) | 每个版本的变更（也是 GitHub Release 的说明） |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | 部署：Docker Compose、systemd、nginx / Caddy、配置参考、备份与升级 |
 | [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md) | 管理员指南：设置、节点对接、套餐与支付（预设图标）、Telegram 机器人、订阅防泄露、规则集、2FA 策略 |
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | 用户指南：各客户端一键导入、订阅配置与节点处理、age 加密、访问日志、Telegram 绑定、2FA / Passkey、密码管理器 |

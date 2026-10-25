@@ -2,7 +2,7 @@
 # Put this file and a `.env` next to each other, then run from that directory:
 #   curl -fsSLO https://raw.githubusercontent.com/linusxiong/ggboard/main/deploy/docker-compose.prebuilt.yml
 #   curl -fsSL https://raw.githubusercontent.com/linusxiong/ggboard/main/.env.example -o .env
-#   echo 'GGBOARD_VERSION=main' >> .env      # rolling build of main; pin a release tag such as 0.1.0 in production
+#   echo 'GGBOARD_VERSION=1.0.0' >> .env     # a release (1.0.0, 1.0, 1 or latest); `main` is the rolling build of main
 #   docker compose -f docker-compose.prebuilt.yml up -d
 #   docker compose -f docker-compose.prebuilt.yml exec ggboard ggboard admin create --email admin@example.com
 # Upgrade: change GGBOARD_VERSION, then `docker compose -f docker-compose.prebuilt.yml pull && ... up -d`. Guide: docs/DEPLOY.md.
@@ -15,7 +15,9 @@ name: ggboard
 
 services:
   ggboard:
-    # GGBOARD_IMAGE is for forks and mirrors; GGBOARD_VERSION is a tag from the "Docker" workflow (1.2.3, 1.2, latest, main, sha-<short>).
+    # GGBOARD_IMAGE is for forks and mirrors. GGBOARD_VERSION is an image tag: the "Release" workflow publishes every v* tag
+    # (v1.0.0 as 1.0.0, 1.0, 1 and latest; pre-releases never move latest), a manual run of the "Docker" workflow on main
+    # publishes main, and every build is also sha-<short>.
     image: ${GGBOARD_IMAGE:-ghcr.io/linusxiong/ggboard}:${GGBOARD_VERSION:-latest}
     restart: unless-stopped
     env_file:
@@ -37,5 +39,25 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  # Optional PostgreSQL for operators without a database server (docs/DEPLOY.md §5). Not started unless the profile
+  # is enabled (`--profile postgres`, or COMPOSE_PROFILES=postgres in .env); the default install stays on SQLite.
+  # Set GGBOARD_POSTGRES_PASSWORD in .env (the image refuses to initialize without one), copy the data with
+  # `ggboard db copy`, then point the panel at it:
+  #   GGBOARD_DATABASE_DRIVER=postgres
+  #   GGBOARD_DATABASE_DSN=postgres://ggboard:<the same password>@postgres:5432/ggboard?sslmode=disable
+  postgres:
+    image: postgres:17-alpine
+    profiles: [postgres]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ggboard
+      POSTGRES_DB: ggboard
+      POSTGRES_PASSWORD: ${GGBOARD_POSTGRES_PASSWORD:-}
+    # Not published: only the ggboard service (same project network) connects to it.
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    stop_grace_period: 60s
+
 volumes:
   ggboard-data:
+  postgres-data:

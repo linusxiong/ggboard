@@ -34,7 +34,7 @@ GG Bond 是**一个 Go 二进制**：内嵌 SPA、定时任务、邮件队列、
 
 ### 方式 A：预构建镜像 / Prebuilt image
 
-镜像由手动触发的流水线构建并发布到 GHCR，怎么构建见[本节末尾](#构建并发布镜像--publishing-the-image)。
+每推送一个 `v*` tag，发布流水线就构建多架构镜像并推送到 GHCR（也可以手动构建某个分支），见[本节末尾](#发布版本与镜像--releases-and-images)。
 
 **1. 取文件。** 新建一个空目录，放进 compose 文件和 `.env`；`.env` 必须和 compose 文件在同一个目录：
 
@@ -47,14 +47,14 @@ curl -fsSL https://raw.githubusercontent.com/linusxiong/ggboard/main/.env.exampl
 **2. 选版本。** 把镜像 tag 写进 `.env`：
 
 ```bash
-echo 'GGBOARD_VERSION=main' >> .env
+echo 'GGBOARD_VERSION=1.0.0' >> .env
 ```
 
 | `GGBOARD_VERSION` | 含义 |
 | --- | --- |
-| `0.1.0` | 一个具体的发布版本，生产环境用这种 |
-| `0.1` | 0.1.x 里最新的一版（`1` 同理；主版本为 0 时没有） |
-| `latest` | 最新的稳定发布版；在构建出不带 `-rc` 之类后缀的 `v*` tag 之前不存在 |
+| `1.0.0` | 一个具体的发布版本，生产环境用这种（版本列表见 [Releases](https://github.com/linusxiong/ggboard/releases)） |
+| `1.0` / `1` | 1.0.x / 1.x 里最新的稳定版（主版本为 0 时没有 `0`） |
+| `latest` | 最新的稳定发布版（不带 `-rc` 之类后缀的 `v*` tag）；compose 文件里没设 `GGBOARD_VERSION` 时用它 |
 | `main` | `main` 分支最近一次手动构建，滚动更新，适合先试用 |
 | `sha-<7 位>` | 某个提交的构建 |
 
@@ -108,7 +108,7 @@ docker image prune -f                      # 可选：清理旧镜像
 之后所有命令都加 `-p deploy`（命令行的 `-p` 优先于文件里的 `name:`），例如
 `docker compose -p deploy -f docker-compose.prebuilt.yml up -d`。
 
-*Option A needs only `deploy/docker-compose.prebuilt.yml` and a `.env` beside it: set `GGBOARD_VERSION` (a release such as `0.1.0`,
+*Option A needs only `deploy/docker-compose.prebuilt.yml` and a `.env` beside it: set `GGBOARD_VERSION` (a release such as `1.0.0`,
 or `main`), `up -d`, create the admin, put a TLS proxy in front. Upgrade by changing the version, then `pull` and `up -d`.*
 
 ### 方式 B：从源码构建 / Build from source
@@ -148,38 +148,79 @@ docker compose -f deploy/docker-compose.yml exec ggboard ggboard admin create --
 *Compose publishes 8080 on localhost only, keeps state in the `ggboard-data` volume, and its `environment:` block
 overrides `.env`, so only `GGBOARD_DATA_DIR` is set there and the database settings live in `.env`.*
 
-### 构建并发布镜像 / Publishing the image
+### 发布版本与镜像 / Releases and images
 
-给维护者：镜像由手动触发的流水线 `.github/workflows/docker.yml` 构建，并以多架构镜像推送到 `ghcr.io/linusxiong/ggboard`。
+给维护者。两条流水线：
 
-1. 把工作流文件合并到默认分支，Actions 页面才会出现 **Docker** 的 Run workflow 按钮。
-2. Actions → **Docker** → Run workflow，“Use workflow from” 选 `main`，其余保持默认：得到 `main` 和 `sha-<7 位>` 两个 tag。
-3. 发版：打 tag 并推送（`git tag v0.1.0 && git push origin v0.1.0`），再对这个 tag 跑一次 Run workflow（推 tag 本身不会触发构建）。
+- **`.github/workflows/release.yml`**：推送 `v*` tag 时自动运行，一次产出全部发布物：五个平台的二进制压缩包与 `SHA256SUMS`
+  （见 [§2](#2-二进制--systemd--binary--systemd)）、多架构镜像（调用 `docker.yml`），最后创建这个 tag 的 GitHub Release，
+  说明取自 [`CHANGELOG.md`](../CHANGELOG.md) 里对应的 `## [X.Y.Z]` 小节。tag 带 `-` 后缀（如 `v1.1.0-rc.1`）时是预发布版。
+- **`.github/workflows/docker.yml`**：只构建镜像。release.yml 调用它；也可以手动运行（Actions → **Docker** → Run workflow），
+  “Use workflow from” 选哪个分支或 tag 就构建哪个，例如选 `main` 得到 `main` 和 `sha-<7 位>` 两个 tag。
+
+发版：
+
+1. 在 `CHANGELOG.md` 写好 `## [1.0.0] - <日期>` 小节并合并到 `main`。没有这一节（或这一节是空的）时，流水线在推送任何镜像之前就失败。
+2. 在这个提交上打 tag 并推送：`git tag -a v1.0.0 -m v1.0.0 && git push origin v1.0.0`。推 tag 时运行的是 tag 所指提交里的工作流文件，
+   所以工作流本身的改动要先合并再打 tag。
+3. 等 Actions → **Release** 跑完：先核对 tag 和更新日志，然后二进制与镜像并行构建，两者都成功后才创建 Release（附件上传完才公开）。
 4. 首次推送后包可能是私有的：GitHub → Packages → ggboard → Package settings，把可见性改成 Public，服务器上才能匿名 `docker pull`。
 
-| 选择的 ref | 镜像 tag |
+重跑：Actions → **Release** → Run workflow，填已有的 tag。用的是所选分支（通常是 `main`）上的工作流文件，构建的仍是 tag 的代码，
+说明也仍取自 tag 里的 `CHANGELOG.md`；镜像重新构建并推送，Release 的说明和附件被替换（仓库开启了 immutable releases 时，
+已发布 Release 的附件不能再替换）。只改说明的话，直接在 GitHub 上编辑这个 Release。
+
+| tag / 选择的 ref | 镜像 tag |
 | --- | --- |
 | tag `v1.2.3` | `1.2.3`、`1.2`、`1`、`latest`、`sha-<7 位>`（主版本为 0 时没有 `0`） |
 | 预发布 tag `v1.2.3-rc.1` | `1.2.3-rc.1`、`sha-<7 位>`（不动 `latest`） |
-| 其他 tag | `<tag>`、`sha-<7 位>` |
-| 分支（如 `main`） | `<分支名>`（`/` 换成 `-`）、`sha-<7 位>` |
+| 其他 tag（只能手动构建） | `<tag>`、`sha-<7 位>` |
+| 分支（如 `main`，只能手动构建） | `<分支名>`（`/` 换成 `-`）、`sha-<7 位>` |
 
-输入项：`push`（取消勾选 = 只构建不推送，用来验证 Dockerfile 并预热缓存）、`platforms`（默认 `linux/amd64,linux/arm64`）、
+手动运行 Docker 工作流的输入项：`push`（取消勾选 = 只构建不推送，用来验证 Dockerfile 并预热缓存）、`platforms`（默认 `linux/amd64,linux/arm64`）、
 `no_cache`（忽略缓存并重新拉取基础镜像，新层仍会写回缓存）。
 
+- **版本号**：tag 构建就是 tag 本身（`v1.2.3`），其他 ref 取 `git describe --tags --always`（与 `make build` 相同）。同一个 tag 的
+  镜像 OCI `version`、`ggboard version`、`/healthz` 与发布二进制报告的是同一个字符串；压缩包文件名和镜像 tag 里的版本去掉了 `v`。
 - **元数据**：镜像带 OCI 标签，manifest 和 index 上也带同样的注解（GHCR 页面读的是 index 注解）：`source`、`revision`、
-  `version`、`created`、`licenses` 等。`version` 取 `git describe --tags --always`，与 `ggboard version` 输出一致。
-  构建完会回读 registry，核对平台、注解、标签、每个 tag 的 digest 和二进制报告的版本，任一不符就让任务失败；同时附带 SBOM 与 provenance。
+  `version`、`created`、`licenses` 等。构建完会回读 registry，核对平台、注解、标签、每个 tag 的 digest 和二进制报告的版本，任一不符就让任务失败；同时附带 SBOM 与 provenance。
 - **缓存**：BuildKit 的 GitHub Actions 缓存（`mode=max`，把 pnpm 安装、Chromium、`go mod download` 这些中间阶段也存下来）。
   每次运行能读自己所在 ref 和默认分支的缓存，所以发版前先在 `main` 上构建一次，tag 构建就能命中；缓存仓库上限 10 GB，7 天未用会被淘汰。
 - **多架构不用 QEMU**：前端和 Go 编译阶段都在 runner 本机架构上运行（`--platform=$BUILDPLATFORM`），Go 交叉编译到目标架构。
 
 服务器上怎么用这个镜像，见[方式 A](#方式-a预构建镜像--prebuilt-image)。
 
-*A manual workflow builds and pushes a multi-arch image to GHCR (tags: semver → `1.2.3`/`1.2`/`1`/`latest`, branch → its name, plus
-`sha-<short>`), with OCI labels and annotations, SBOM and provenance, a GitHub Actions layer cache, and a post-push check of what the registry holds.*
+*Pushing a `v*` tag runs `release.yml`: binaries for five platforms with `SHA256SUMS`, the multi-arch image through `docker.yml`
+(semver → `1.2.3`/`1.2`/`1`/`latest`, plus `sha-<short>`), then a GitHub release whose notes are the tag's `CHANGELOG.md` section.
+`docker.yml` can still be run by hand for any branch or tag. Images carry OCI labels and annotations, SBOM and provenance, use a
+GitHub Actions layer cache, and are checked against the registry after the push.*
 
 ## 2. 二进制 + systemd / Binary + systemd
+
+### 二进制安装（Release） / Release binaries
+
+[Releases](https://github.com/linusxiong/ggboard/releases) 页面每个版本都有 linux、darwin（amd64、arm64）的
+`ggboard_<版本>_<系统>_<架构>.tar.gz`、`ggboard_<版本>_windows_amd64.zip` 和 `SHA256SUMS`。二进制静态链接、内嵌前端，不依赖 glibc；
+压缩包里是一个同名目录，内有 `ggboard`（Windows 为 `ggboard.exe`）、`LICENSE`、`README.md`、`config.example.yaml`，linux 包另有 `ggboard.service`。
+
+```bash
+VERSION=1.0.0 ARCH=amd64                     # arm64 机器写 ARCH=arm64
+curl -fsSLO "https://github.com/linusxiong/ggboard/releases/download/v$VERSION/ggboard_${VERSION}_linux_${ARCH}.tar.gz"
+curl -fsSLO "https://github.com/linusxiong/ggboard/releases/download/v$VERSION/SHA256SUMS"
+sha256sum --ignore-missing -c SHA256SUMS     # 必须输出 "…: OK"；macOS 用 shasum -a 256 --ignore-missing -c SHA256SUMS
+tar xzf "ggboard_${VERSION}_linux_${ARCH}.tar.gz" && cd "ggboard_${VERSION}_linux_${ARCH}"
+./ggboard version                            # ggboard v1.0.0 (go1.27.x linux/amd64)
+
+sudo useradd --system --home /var/lib/ggboard --shell /usr/sbin/nologin ggboard
+sudo install -m 0755 ggboard /usr/local/bin/ggboard
+sudo install -d -m 0750 /etc/ggboard         # 可选：/etc/ggboard/ggboard.env 放 GGBOARD_* 变量
+sudo cp ggboard.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now ggboard
+```
+
+然后用下面的 `systemd-run` 命令创建管理员。升级见 [§8](#8-升级--upgrading)。
+
+### 从源码构建 / From source
 
 ```bash
 make web && make build                      # 产物 bin/ggboard（静态链接，内嵌前端）
@@ -189,6 +230,8 @@ sudo install -d -m 0750 /etc/ggboard        # 可选：/etc/ggboard/ggboard.env 
 sudo cp deploy/ggboard.service /etc/systemd/system/
 sudo systemctl daemon-reload && sudo systemctl enable --now ggboard
 ```
+
+### 服务与运维命令 / The unit and CLI commands
 
 `deploy/ggboard.service`：
 
@@ -213,8 +256,9 @@ sudo systemd-run --uid=ggboard --gid=ggboard --pty --wait --collect \
 
 `.env` 只被 compose 读取；二进制本身只读环境变量与 YAML。手动运行时可 `set -a; . ./.env; set +a; ./bin/ggboard serve`。
 
-*The unit runs as `ggboard` with a strict sandbox; only `/var/lib/ggboard` is writable. Run CLI commands as the
-same user with the same environment.*
+*Download the archive for your platform from Releases, check it against `SHA256SUMS`, install the binary and `ggboard.service`
+(or build from source). The unit runs as `ggboard` with a strict sandbox; only `/var/lib/ggboard` is writable. Run CLI commands as
+the same user with the same environment.*
 
 ## 3. 反向代理与 TLS / Reverse proxy
 
@@ -318,7 +362,8 @@ approaches it, but it can be exceeded): in measured 10 s login bursts it lowered
 `busy_timeout(5000)`、`foreign_keys(1)`、`journal_mode(WAL)`、`synchronous(NORMAL)`，并设 `_txlock=immediate`。
 连接池 8。数据目录里会出现 `ggboard.db`、`ggboard.db-wal`、`ggboard.db-shm`。
 
-**PostgreSQL**：DSN 原样交给 `gorm.io/driver/postgres`，URL 或 `key=value` 均可：
+**PostgreSQL**：DSN 交给 pgx（`pgx.ParseConfig`），URL 或 `key=value` 均可；`TimeZone=` 之类的参数作为会话设置发给服务端。
+无论进程时区是什么（例如容器里 `TZ=Asia/Shanghai`），读回的时间一律是 UTC，与 SQLite、MySQL 相同：
 
 ```yaml
 database:
@@ -337,6 +382,137 @@ database:
 
 PostgreSQL / MySQL 连接池：最多 32 个连接、8 个空闲、单连接最长 30 分钟。Compose 下把 `GGBOARD_DATABASE_DRIVER` /
 `GGBOARD_DATABASE_DSN` 写进 `.env` 即可（方式 A 是 compose 文件旁边的 `.env`，方式 B 是仓库根目录的 `.env`），不用改 compose 文件。
+
+### 从 SQLite 迁移到 PostgreSQL / Moving from SQLite to PostgreSQL
+
+`ggboard db copy` 把**当前配置的数据库**（`database.driver` / `database.dsn`，和 `serve` 读的是同一个）整库复制到
+`--to-driver` / `--to-dsn` 指定的库，方向不限（SQLite → PostgreSQL，以及回滚用的 PostgreSQL → SQLite；MySQL 同样可用）：
+
+1. 目标库先执行与 `serve` 相同的建表（`migrate`），表结构和直接在 PostgreSQL 上安装的一模一样。
+2. 源库在一个只读快照事务里读，目标库在**一个事务**里写：每张表按主键分批（默认 500 行）插入，主键和每一列原样保留
+   （NULL、0、false、JSON 文本逐字节、时间戳），不经过 GORM 的钩子、默认值与自动时间戳。
+3. 提交前校验：两边的表一致、每张表 `COUNT(*)` 相等、每一行所有列从两边读回后的 SHA-256 相同；PostgreSQL 上把每个自增序列
+   设到 `max(id)+1`，再确认下一个值不会撞号。任何一步失败都整体回滚，目标库里只留下空表。
+4. 拒绝执行：源和目标是同一个库；任一边有 ggboard 不创建的表或列（其中的数据会丢）；目标库已有数据（加 `--overwrite`
+   才会在同一个事务里先清空）；源里的值目标存不下（例如超过 `varchar` 长度、PostgreSQL 不接受的 NUL 字节或非法 UTF-8，
+   报错里写明表、主键和列，不打印值）。
+
+时间戳按目标库的精度保存：PostgreSQL 保留到微秒、MySQL 到毫秒（SQLite 里多出的位数被截掉，校验也按这个精度比较）；
+`date` 列保持日历日。完成后打印每张表的行数和摘要（SHA-256 前 16 位），退出码非 0 即失败。
+
+**必须先停服务**：复制期间写进源库的行不会被复制，流量统计在内存里缓冲、在优雅退出（`SIGTERM`）时才落库。
+`--dry-run` 完整执行复制和校验后回滚（只留下建好的空表），可以在服务运行时先演练：SQLite 源会在复制期间持有写锁，
+服务端的写入排队等待（`busy_timeout` 5 秒，几百 KB 的库不到一秒就完成）。
+
+**准备 PostgreSQL（已有服务器）**。建一个专用角色和库（PostgreSQL 15 起 `public` schema 归库的属主，属主可以建表）：
+
+```sql
+CREATE ROLE ggboard LOGIN PASSWORD '<口令>';
+CREATE DATABASE ggboard OWNER ggboard ENCODING 'UTF8' TEMPLATE template0;
+```
+
+DSN 用 URL 形式 `postgres://ggboard:<口令>@<主机>:5432/ggboard?sslmode=<模式>`：同一台机器或同一个 Docker 网络里用
+`sslmode=disable`，经公网用 `sslmode=require`（加密但不校验证书）或 `verify-full`（校验证书与主机名；私有 CA 再加
+`sslrootcert=<CA 文件>`，容器里要把它挂进去）。
+口令里的 `@ : / ? # % &` 等字符必须做 URL 编码，例如：
+
+```bash
+python3 -c 'import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=""))' '<口令>'
+```
+
+**准备 PostgreSQL（随面板一起跑）**。`deploy/docker-compose.prebuilt.yml` 带一个默认不启动的 `postgres` 服务
+（`postgres:17-alpine`，`--profile postgres` 才启用，数据卷 `ggboard_postgres-data`）。在 `.env` 里设口令，DSN 的主机名就是 `postgres`：
+
+```bash
+GGBOARD_POSTGRES_PASSWORD=<openssl rand -hex 24 的输出>
+# 复制完成后再加这两行（见下面第 5 步）：
+# GGBOARD_DATABASE_DRIVER=postgres
+# GGBOARD_DATABASE_DSN=postgres://ggboard:<同一个口令>@postgres:5432/ggboard?sslmode=disable
+```
+
+以后每条 compose 命令都带 `--profile postgres`（或在 `.env` 里写 `COMPOSE_PROFILES=postgres`），否则 `up -d` 不会启动数据库。
+
+**Docker Compose 步骤**（方式 A；方式 B 把 `-f` 换成 `deploy/docker-compose.yml`，卷名换成 `deploy_ggboard-data`）：
+
+```bash
+dc() { docker compose -f docker-compose.prebuilt.yml "$@"; }   # 随面板跑 PostgreSQL 时：... --profile postgres "$@"
+PG_DSN='postgres://ggboard:<URL 编码的口令>@<主机>:5432/ggboard?sslmode=disable'
+
+# 0. 随面板跑 PostgreSQL 时先启动它：dc --profile postgres up -d postgres
+# 1. 演练（可选，服务可以不停）
+dc run --rm ggboard db copy --to-driver postgres --to-dsn "$PG_DSN" --dry-run
+# 2. 停服务（SIGTERM，缓冲的流量落库）
+dc stop ggboard
+# 3. 备份数据卷（ggboard.db 与 jwt.secret 都在里面）
+docker run --rm -v ggboard_ggboard-data:/data:ro -v "$PWD":/backup alpine \
+  tar czf /backup/ggboard-data-$(date +%F).tgz -C /data .
+# 4. 复制并校验
+dc run --rm ggboard db copy --to-driver postgres --to-dsn "$PG_DSN"
+# 5. 切换配置：在 .env 里写入（$PG_DSN 的值原样写进去）
+#      GGBOARD_DATABASE_DRIVER=postgres
+#      GGBOARD_DATABASE_DSN=postgres://ggboard:<URL 编码的口令>@<主机>:5432/ggboard?sslmode=disable
+# 6. 启动
+dc up -d
+dc logs --tail 30 ggboard     # 启动摘要里数据库一行应是 postgres · <主机>:5432/ggboard
+```
+
+`run --rm` 用的是同一个服务定义：同样的 `.env`（此时还指向 SQLite，即复制的源）、同样的数据卷和网络。
+PostgreSQL 在另一个 compose 项目或另一个容器里时，ggboard 服务要加入它所在的 Docker 网络，DSN 的主机写它的容器名；
+不改官方 compose 文件，另写一个覆盖文件（`docker network ls` 查看网络名），之后每条命令都带上两个 `-f`：
+
+```yaml
+# docker-compose.local.yml
+services:
+  ggboard:
+    networks: [default, pg]
+networks:
+  pg:
+    external: true
+    name: <PostgreSQL 所在的网络>
+```
+
+数据卷要一直挂着：`jwt.secret` 在里面（除非用 `GGBOARD_JWT_SECRET` 提供），换了它所有人都要重新登录、已绑定的 TOTP 失效（见 §4）。
+原来的 `ggboard.db` 复制后不会被修改，确认无误前不要删。
+
+**验证**：用自己的账号登录（会话不变，已登录的人不会被踢出），看用户数、节点、套餐和订单与复制摘要一致；
+等一个节点上报周期，在后台节点页看到节点在线；随便拉一次订阅。复制摘要里每张表的行数就是迁移前的行数。
+
+**回滚**：
+
+- 刚切换、还没有需要保留的新数据：停服务，把 `.env` 里的 `GGBOARD_DATABASE_DRIVER` 改回 `sqlite`、删掉
+  `GGBOARD_DATABASE_DSN`（回到默认的 `/data/ggboard.db`），`up -d`。原 SQLite 库没被动过，PostgreSQL 上产生的新数据就丢了。
+- 要带上 PostgreSQL 上的新数据：停服务，此时 `.env` 指向 PostgreSQL，所以它是复制的源，复制到数据卷里的一个新 SQLite 文件，
+  再把配置指过去：
+
+  ```bash
+  dc stop ggboard
+  dc run --rm ggboard db copy --to-driver sqlite --to-dsn /data/ggboard-from-postgres.db
+  # .env：GGBOARD_DATABASE_DRIVER=sqlite，GGBOARD_DATABASE_DSN=/data/ggboard-from-postgres.db
+  dc up -d
+  ```
+
+**systemd**：同样的顺序，命令以 `ggboard` 用户、带服务的环境运行（`EnvironmentFile` 此时还指向 SQLite）：
+
+```bash
+sudo systemctl stop ggboard
+sudo -u ggboard sqlite3 /var/lib/ggboard/ggboard.db ".backup '/var/lib/ggboard/ggboard-before-postgres.db'"
+sudo systemd-run --uid=ggboard --gid=ggboard --pty --wait --collect \
+  -p WorkingDirectory=/var/lib/ggboard -p EnvironmentFile=-/etc/ggboard/ggboard.env \
+  -E GGBOARD_DATA_DIR=/var/lib/ggboard \
+  /usr/local/bin/ggboard db copy --to-driver postgres --to-dsn "$PG_DSN"
+# /etc/ggboard/ggboard.env：GGBOARD_DATABASE_DRIVER=postgres、GGBOARD_DATABASE_DSN=<同一个 DSN>（chmod 600）
+sudo systemctl start ggboard
+```
+
+回滚同上：把驱动改回 `sqlite`、删掉 DSN，或用 `db copy --to-driver sqlite --to-dsn /var/lib/ggboard/ggboard-from-postgres.db`
+把 PostgreSQL 的数据复制回来再指过去。迁移到 PostgreSQL 之后的备份见 [§7](#7-备份--backups)。
+
+*`ggboard db copy --to-driver postgres --to-dsn …` copies the configured database (the one `serve` uses) into another one:
+migrate, then every row with its primary key and columns as stored, in one transaction, verified by row counts and a
+SHA-256 of every row on both sides, with PostgreSQL sequences moved past the copied ids; any error rolls back. It refuses
+the same database, unknown tables or columns, and a non-empty target without `--overwrite`. Stop the server, back up the
+data volume, copy, set `GGBOARD_DATABASE_DRIVER` / `GGBOARD_DATABASE_DSN`, keep `jwt.secret`, start. Roll back by
+switching the config back, or by copying PostgreSQL into a new SQLite file.*
 
 ## 6. 首次启动后 / After the first start
 
@@ -375,7 +551,22 @@ docker run --rm -v deploy_ggboard-data:/data:ro -v "$PWD":/backup alpine \
 docker compose -f deploy/docker-compose.yml start
 ```
 
-**PostgreSQL / MySQL**：用 `pg_dump` / `mysqldump`。
+**PostgreSQL**：`pg_dump` 的自定义格式（压缩、可选择性恢复），服务不用停（它在一个一致性快照里读）：
+
+```bash
+# 随面板跑的 postgres 服务（-T：不分配 TTY，否则二进制输出会被改写）
+docker compose -f docker-compose.prebuilt.yml --profile postgres exec -T postgres \
+  pg_dump -U ggboard -Fc ggboard > ggboard-$(date +%F).dump
+# 已有服务器（客户端版本不低于服务端）
+pg_dump "postgres://ggboard:<URL 编码的口令>@db.example.com:5432/ggboard?sslmode=require" -Fc -f ggboard-$(date +%F).dump
+```
+
+恢复：停服务，`pg_restore --clean --if-exists --no-owner -d "<DSN>" ggboard-<日期>.dump`（Docker 里用
+`docker compose … exec -T postgres pg_restore -U ggboard -d ggboard --clean --if-exists --no-owner < ggboard-<日期>.dump`），再启动。
+`jwt.secret` 照旧要单独备份（在数据卷 / 数据目录里）。不想装客户端时，`ggboard db copy --to-driver sqlite --to-dsn <新文件>`
+也能在服务运行时导出一份经过校验的 SQLite 快照（PostgreSQL 源在快照事务里读，不阻塞服务）。
+
+**MySQL**：用 `mysqldump --single-transaction`。
 
 恢复：停服务 → 放回 `ggboard.db`（删掉旧的 `-wal`/`-shm`）与 `jwt.secret` → 启动。流量按批缓冲在内存、在优雅退出时落库，
 所以停服务请用 `SIGTERM`（`systemctl stop` / `docker compose stop`），不要 `kill -9`。
@@ -391,7 +582,8 @@ docker compose -f deploy/docker-compose.yml start
 2. Docker 方式 A（预构建镜像）：改 `.env` 里的 `GGBOARD_VERSION`，再
    `docker compose -f docker-compose.prebuilt.yml pull && docker compose -f docker-compose.prebuilt.yml up -d`。
    Docker 方式 B（源码构建）：`git pull && docker compose -f deploy/docker-compose.yml up -d --build`。
-   二进制：`git pull && make web && make build`，替换 `/usr/local/bin/ggboard`，`systemctl restart ggboard`。
+   二进制：下载并校验新版本的压缩包（见 [§2](#二进制安装release--release-binaries)），或 `git pull && make web && make build`；
+   用 `sudo install -m 0755` 替换 `/usr/local/bin/ggboard`，再 `systemctl restart ggboard`。
 3. 新版本启动时自动迁移数据库；`ggboard migrate` 可在不启动服务的情况下单独执行迁移（打印 `database migrated (<driver>)`，终端里前面带 `✓`）。
 4. `ggboard version` / `GET /healthz` 确认版本。
 
@@ -413,6 +605,7 @@ docker compose -f deploy/docker-compose.yml start
 | `ggboard admin reset-password --email E [--password P]` | 重置密码并让该用户已有会话失效 |
 | `ggboard admin promote --email E` | 把已有用户提升为管理员 |
 | `ggboard import xboard --dsn DSN [--driver] [--dry-run] [--force] [--skip-banned] [--with-stats] [--stats-days N] [--source-tz TZ]` | 从 Xboard 导入，见 [IMPORT_XBOARD.md](IMPORT_XBOARD.md) |
+| `ggboard db copy --to-driver D --to-dsn DSN [--overwrite] [--dry-run] [--batch-size N]` | 把当前配置的数据库整库复制到另一个库（如 SQLite → PostgreSQL）并校验，见 [§5](#从-sqlite-迁移到-postgresql--moving-from-sqlite-to-postgresql)；先停服务 |
 | `ggboard version` | 打印版本、Go 版本与平台 |
 
 **终端输出 / Terminal output**。每个输出流在启动时判断一次（不是每条日志都判断）：

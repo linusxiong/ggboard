@@ -1,7 +1,10 @@
 name: Docker
 
-# Manual only: Actions -> Docker -> Run workflow. The ref picked in "Use workflow from" (a branch or a tag) is what gets
-# built. The workflow file has to exist on the default branch for the button to show up.
+# Two ways in:
+#   - by hand: Actions -> Docker -> Run workflow. The ref picked in "Use workflow from" (a branch or a tag) is what gets
+#     built. The workflow file has to exist on the default branch for the button to show up.
+#   - from release.yml, for every v* tag (workflow_call): it passes `ref: refs/tags/<tag>`, so a release re-run that
+#     was started from main still builds, tags and labels the tag's commit rather than main.
 #
 # Image tags (ghcr.io/<owner>/<repo>):
 #   tag v1.2.3        -> 1.2.3, 1.2, 1 (no "1" while the major is 0), latest, sha-<short>
@@ -9,6 +12,25 @@ name: Docker
 #   any other tag     -> <tag>, sha-<short>
 #   branch            -> <branch>, sha-<short>                       (e.g. main)
 on:
+  # Same inputs and defaults as the manual run. A reusable workflow has no `choice` type, so platforms is a plain string.
+  workflow_call:
+    inputs:
+      push:
+        description: Push to GHCR (false for a dry run that only builds and refreshes the cache)
+        type: boolean
+        default: true
+      platforms:
+        description: Target platforms, comma-separated
+        type: string
+        default: linux/amd64,linux/arm64
+      no_cache:
+        description: Ignore the build cache and re-pull base images (the fresh layers are still saved to the cache)
+        type: boolean
+        default: false
+      ref:
+        description: Release tag to build, as refs/tags/vX.Y.Z[-pre]; empty builds the caller's ref
+        type: string
+        default: ""
   workflow_dispatch:
     inputs:
       push:
@@ -32,8 +54,9 @@ permissions:
   contents: read
 
 # One build per ref at a time; queue instead of cancelling so a push in flight is never cut short.
+# `inputs.ref` only exists under workflow_call; a manual run reads it as empty.
 concurrency:
-  group: docker-${{ github.ref }}
+  group: docker-${{ inputs.ref || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -47,27 +70,44 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.ref }} # empty = the event's own ref and commit
           fetch-depth: 0 # full history and tags, so `git describe` is exact
           persist-credentials: false
 
       # Single source of truth for everything derived from the ref. Expressions are passed in through env, never
-      # interpolated into the script.
+      # interpolated into the script. The ref and commit come from REF and the checkout, not GITHUB_REF_*/GITHUB_SHA:
+      # under workflow_call those belong to the caller, which may have been started from main.
       - name: Resolve version and metadata
         id: prep
         env:
           REPO: ${{ github.repository }}
+          REF: ${{ inputs.ref || github.ref }}
+          REF_INPUT: ${{ inputs.ref }}
         run: |
           set -euo pipefail
 
-          # Same value as `make build`, so the OCI version label, the image tag and `ggboard version` agree.
-          version="$(git describe --tags --always)"
+          case "$REF" in
+            refs/tags/*) ref_type=tag ref_name="${REF#refs/tags/}" ;;
+            refs/heads/*) ref_type=branch ref_name="${REF#refs/heads/}" ;;
+            *) ref_type=other ref_name="$REF" ;;
+          esac
+          sha="$(git rev-parse HEAD)"
+
+          # A tag builds as the tag itself: `git describe` would name another tag on the same commit (say v1.0.0-rc.1
+          # promoted to v1.0.0). Anything else gets the same value as `make build`. The OCI version label, the image tag,
+          # `ggboard version` and the release binaries (release.yml) all agree.
+          if [[ "$ref_type" == tag ]]; then
+            version="$ref_name"
+          else
+            version="$(git describe --tags --always)"
+          fi
           version="${version//[^A-Za-z0-9._+-]/-}"
 
-          semver=false stable=false major_alias=false
-          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+          semver=false semver_tag="" stable=false major_alias=false
+          if [[ "$ref_type" == tag ]]; then
             re='^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$'
-            if [[ "$GITHUB_REF_NAME" =~ $re ]]; then
-              semver=true
+            if [[ "$ref_name" =~ $re ]]; then
+              semver=true semver_tag="$ref_name"
               if [[ -z "${BASH_REMATCH[4]}" ]]; then # no pre-release suffix
                 stable=true
                 if [[ "${BASH_REMATCH[1]}" != 0 ]]; then
@@ -77,25 +117,41 @@ jobs:
             fi
           fi
 
+          # The branch and non-semver tag entries below read metadata-action's own context (the event's ref), so an
+          # explicit ref may only be a semver tag, whose tags are all computed from ref_name.
+          if [[ -n "$REF_INPUT" && "$semver" != true ]]; then
+            echo "::error::ref must be a release tag such as refs/tags/v1.2.3, got '$REF_INPUT'"
+            exit 1
+          fi
+
           {
             echo "version=$version"
+            echo "ref_type=$ref_type"
+            echo "ref_name=$ref_name"
+            echo "sha=$sha"
+            echo "short_sha=${sha:0:7}" # metadata-action's type=sha,format=short length
             echo "image=ghcr.io/${REPO,,}" # registry paths must be lower case
             echo "semver=$semver"
+            echo "semver_tag=$semver_tag"
             echo "stable=$stable"
             echo "major_alias=$major_alias"
             # Used for both image labels and manifest/index annotations (metadata-action takes them separately).
+            # revision overrides metadata-action's default, which is the event's commit.
             echo "oci<<OCI_EOF"
             echo "org.opencontainers.image.title=ggboard"
             echo "org.opencontainers.image.description=GG Bond (ggboard): a fast, simple proxy panel. One Go binary with an embedded React SPA."
             echo "org.opencontainers.image.url=https://github.com/$REPO"
-            echo "org.opencontainers.image.documentation=https://github.com/$REPO/blob/$GITHUB_SHA/docs/DEPLOY.md"
+            echo "org.opencontainers.image.documentation=https://github.com/$REPO/blob/$sha/docs/DEPLOY.md"
             echo "org.opencontainers.image.version=$version"
+            echo "org.opencontainers.image.revision=$sha"
             echo "org.opencontainers.image.licenses=GPL-3.0-only"
             echo "OCI_EOF"
           } >> "$GITHUB_OUTPUT"
 
       # `latest` is an explicit tag, not flavor latest=auto: metadata-action lets the first enabled tag entry decide
       # `latest`, so the result would depend on the order of the lines below.
+      # The semver entries get the tag through `value=` and the sha tag is raw, so both follow the checked-out ref
+      # rather than the event's. The `type=ref` entries only fire without an explicit ref (prep enforces that).
       - name: Image tags and labels
         id: meta
         uses: docker/metadata-action@v6
@@ -105,12 +161,12 @@ jobs:
           images: ${{ steps.prep.outputs.image }}
           flavor: latest=false
           tags: |
-            type=semver,pattern={{version}},enable=${{ steps.prep.outputs.semver }}
-            type=semver,pattern={{major}}.{{minor}},enable=${{ steps.prep.outputs.semver }}
-            type=semver,pattern={{major}},enable=${{ steps.prep.outputs.major_alias }}
-            type=ref,event=tag,enable=${{ github.ref_type == 'tag' && steps.prep.outputs.semver != 'true' }}
-            type=ref,event=branch
-            type=sha,format=short
+            type=semver,pattern={{version}},value=${{ steps.prep.outputs.semver_tag }},enable=${{ steps.prep.outputs.semver }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.prep.outputs.semver_tag }},enable=${{ steps.prep.outputs.semver }}
+            type=semver,pattern={{major}},value=${{ steps.prep.outputs.semver_tag }},enable=${{ steps.prep.outputs.major_alias }}
+            type=ref,event=tag,enable=${{ steps.prep.outputs.ref_type == 'tag' && steps.prep.outputs.semver != 'true' }}
+            type=ref,event=branch,enable=${{ steps.prep.outputs.ref_type == 'branch' }}
+            type=raw,value=sha-${{ steps.prep.outputs.short_sha }}
             type=raw,value=latest,enable=${{ steps.prep.outputs.stable }}
           labels: ${{ steps.prep.outputs.oci }}
           annotations: ${{ steps.prep.outputs.oci }}
@@ -156,6 +212,7 @@ jobs:
           IMAGE: ${{ steps.prep.outputs.image }}
           DIGEST: ${{ steps.build.outputs.digest }}
           VERSION: ${{ steps.prep.outputs.version }}
+          SHA: ${{ steps.prep.outputs.sha }}
           PLATFORMS: ${{ inputs.platforms }}
           TAGS: ${{ steps.meta.outputs.tags }}
         run: |
@@ -176,7 +233,7 @@ jobs:
             and .["org.opencontainers.image.version"] == $ver
             and .["org.opencontainers.image.source"] == $src
             and .["org.opencontainers.image.licenses"] == "GPL-3.0-only"'
-          args=(--arg sha "$GITHUB_SHA" --arg ver "$VERSION" --arg src "https://github.com/$GITHUB_REPOSITORY")
+          args=(--arg sha "$SHA" --arg ver "$VERSION" --arg src "https://github.com/$GITHUB_REPOSITORY")
           jq -e "${args[@]}" ".manifest.annotations | $check" "$inspect" >/dev/null \
             || { echo "::error::index annotations are wrong"; jq .manifest.annotations "$inspect"; exit 1; }
           jq -e "${args[@]}" ".image | to_entries | all(.[]; .value.config.Labels | $check)" "$inspect" >/dev/null \

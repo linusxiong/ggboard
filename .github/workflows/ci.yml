@@ -26,7 +26,7 @@ jobs:
           check-latest: true
           cache: true
       - name: gofmt
-        run: test -z "$(gofmt -l $(git ls-files '*.go'))"
+        run: test -z "$(git ls-files -z '*.go' | xargs -0 gofmt -l)"
       - name: Build
         run: CGO_ENABLED=0 go build ./...
       - name: Vet
