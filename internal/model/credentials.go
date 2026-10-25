@@ -11,7 +11,7 @@ import (
 type Credentials struct {
 	UUID string `json:"uuid"`
 	// Password is what the client sends: uuid for trojan/hysteria/anytls/tuic/ssr/plain shadowsocks;
-	// "<server_key>:<user_key>" for shadowsocks-2022 (multi-user EIH, identical to Xboard).
+	// SS2022Password for shadowsocks-2022.
 	Password string `json:"password"`
 	// SS2022Key is the user PSK for shadowsocks-2022 ciphers ("" otherwise).
 	SS2022Key string `json:"ss2022_key,omitempty"`
@@ -41,6 +41,16 @@ func SS2022UserKey(uuid, cipher string) string {
 		n = len(uuid)
 	}
 	return base64.StdEncoding.EncodeToString([]byte(uuid[:n]))
+}
+
+// SS2022Password is the client password of a shadowsocks-2022 node: "<server_key>:<user_key>" (multi-user EIH,
+// identical to Xboard) for the AES ciphers, the user key alone for 2022-blake3-chacha20-poly1305. SIP022 has no
+// EIH for ChaCha, and sing-box and mihomo reject the whole config when such an outbound carries two keys.
+func SS2022Password(cipher, serverKey, userKey string) string {
+	if cipher == "2022-blake3-chacha20-poly1305" {
+		return userKey
+	}
+	return serverKey + ":" + userKey
 }
 
 // NodeServerKey returns the shadowsocks-2022 server PSK of a node: protocol_settings.server_key when set,
@@ -80,7 +90,7 @@ func UserCredentials(u *User, n *Node) Credentials {
 		var ss ShadowsocksSettings
 		if err := ss.Decode(n.ProtocolSettings); err == nil && ss.Is2022() {
 			c.SS2022Key = SS2022UserKey(u.UUID, ss.Cipher)
-			c.Password = NodeServerKey(n) + ":" + c.SS2022Key
+			c.Password = SS2022Password(ss.Cipher, NodeServerKey(n), c.SS2022Key)
 		}
 	case NodeMieru:
 		c.MieruUser = u.UUID

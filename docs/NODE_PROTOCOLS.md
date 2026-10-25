@@ -156,8 +156,13 @@ The key must be **present** for vmess, vless and trojan (`null` is fine):
 
 XrayR and V2bX switch to multi-user SS2022 mode **only when `server_key` is non-empty** [XrayR inboundbuilder; V2bX
 core/xray/ss.go `if serverKey == ""`]. Upstream emits no `server_key` for `2022-blake3-chacha20-poly1305`; ggboard emits the
-32-byte key. Admin UI must warn that chacha20-2022 is unreliable multi-user: V2bX's sing core only base64-encodes user keys
-for the two AES ciphers [core/sing/user.go].
+32-byte key. Admin UI must warn that chacha20-2022 has no multi-user mode: SIP022 defines the identity header (EIH) for the
+AES ciphers only. XrayR and V2bX always add users for 2022 ciphers, and neither core starts such an inbound for ChaCha:
+Xray refuses it [infra/conf/shadowsocks.go v25.3.6: "shadowsocks 2022 (multi-user): only blake3-aes-*-gcm methods are
+supported"], and sing-box's multi-user service is AES-only [sing-shadowsocks `shadowaead_2022.NewMultiService`, v0.2.13;
+V2bX's sing core also base64-encodes user keys for the two AES ciphers only, core/sing/user.go]. Subscriptions give
+chacha20-2022 clients the user key alone (§4); the node connects only if its backend accepts each user's key as the
+connection PSK (soga: unverified).
 
 ```json
 {"protocol":"shadowsocks","listen_ip":"0.0.0.0","server_port":8388,"host":"ss.example.com","network":null,"networkSettings":null,"network_settings":null,
@@ -577,7 +582,7 @@ Body: `{"cpu":23.5,"mem":{"total":int,"used":int},"swap":{...},"disk":{...},"upt
 | vmess / vless | `uuid` | id = uuid | `uuid` | uuid |
 | trojan | `uuid` | password = uuid (XrayR userbuilder; V2bX sing user.go) | `password`=uuid | uuid |
 | shadowsocks AEAD | `uuid` | password = uuid (XrayR `Passwd = UUID`; V2bX core/xray/ss.go) | `password`=uuid | uuid |
-| shadowsocks 2022 | `uuid` + config `server_key` | user key = `base64(uuid[:16])` for aes-128, `base64(uuid[:32])` otherwise (XrayR `checkShadowsocksPassword`, only for panel types containing "V2board"; V2bX xray identical; V2bX sing aes-only) | `password` = user key; node `config.password` = node key | `"<nodeKey>:<userKey>"` (Xboard `generateServerPassword`) |
+| shadowsocks 2022 | `uuid` + config `server_key` | user key = `base64(uuid[:16])` for aes-128, `base64(uuid[:32])` otherwise (XrayR `checkShadowsocksPassword`, only for panel types containing "V2board"; V2bX xray identical; V2bX sing aes-only) | `password` = user key; node `config.password` = node key | AES ciphers: `"<nodeKey>:<userKey>"` (Xboard `generateServerPassword`); chacha20: `userKey` alone (see below) |
 | hysteria v1 / v2 | `uuid` | auth string / password = uuid (V2bX sing user.go, hy2 user.go) | `password`=uuid (hy2 only) | uuid |
 | tuic | `uuid` | uuid = uuid, password = uuid | n/a | uuid / uuid |
 | anytls | `uuid` | password = uuid | `password`=uuid | uuid |
@@ -592,6 +597,11 @@ Derivations. `uuid[:n]` is the first n *bytes of the 36-char string, hyphens inc
 - Node key: `ps.server_key` if set. Otherwise `base64(hex(md5(strconv.FormatInt(P.created_at.Unix(),10)))[:n])`, with the
   same n. For example, created_at `1735689600` gives 16 → `YjVkODdhNWRlMWEzNWIyMg==` and 32 →
   `YjVkODdhNWRlMWEzNWIyMmQwMjM0NThjNDYyMGVjYWE=`.
+- Client password (`model.SS2022Password`): `"<nodeKey>:<userKey>"` (EIH) for `2022-blake3-aes-128-gcm` and
+  `2022-blake3-aes-256-gcm`; the user key alone for `2022-blake3-chacha20-poly1305`. SIP022 has no EIH for ChaCha, and
+  sing-box 1.14.4 and mihomo 1.19.33 refuse the **whole** config for one such outbound (`Shadowsocks 2022 EIH support only
+  available in AES ciphers`, from sing-shadowsocks, which Xray's `shadowsocks_2022` also builds on). Xboard sends `<nodeKey>:<userKey>`
+  for ChaCha too. The node key is never sent alone: it is shared by every user and survives bans and resets.
 - soga needs the node key in base64, per the soga doc ("当加密方式为 ss2022 时需要节点密码，格式为 base64"). The soga doc does not
   state the user-password format. We send the user PSK because it is the only value consistent with the
   `"<nodeKey>:<userKey>"` that clients receive. **Verify this against a live soga during the e2e smoke test.**

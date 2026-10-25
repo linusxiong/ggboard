@@ -7,11 +7,11 @@
 
 | 主题 | 条目 |
 | --- | --- |
-| Shell / zsh / 命令行工具 | 2, 7, 8, 9, 11, 17, 22, 23, 52, 64, 65, 91, 93, 94, 95, 108, 110, 114, 120, 133, 147, 154, 179, 185, 191, 192, 193, 195, 197, 199, 200, 203, 208, 213, 220 |
+| Shell / zsh / 命令行工具 | 2, 7, 8, 9, 11, 17, 22, 23, 52, 64, 65, 91, 93, 94, 95, 108, 110, 114, 120, 133, 147, 154, 179, 185, 191, 192, 193, 195, 197, 199, 200, 203, 208, 213, 220, 222, 223 |
 | Go | 21, 30, 31, 33, 34, 35, 37, 38, 39, 40, 41, 44, 45, 46, 47, 48, 49, 50, 53, 57, 61, 62, 63, 97, 98, 99, 102, 112, 115, 117, 121, 122, 123, 124, 125, 175, 176, 177, 178, 181, 182, 183, 184, 196, 198, 204, 205, 206, 207, 211 |
 | GORM / SQLite / 数据库 | 18, 19, 20, 42, 54, 55, 96, 116, 118 |
 | 前端（React / HeroUI / Vite / Vitest / pnpm） | 3, 15, 16, 24, 25, 26, 27, 28, 29, 58, 66, 67, 68, 69, 70, 71, 72, 74, 75, 76, 77, 80, 81, 82, 83, 84, 85, 86, 100, 101, 103, 104, 105, 106, 126, 127, 128, 129, 130, 131, 132, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 148, 149, 150, 151, 152, 153, 174, 186, 188, 189, 190, 214, 215, 216, 217, 218, 219 |
-| 文档 / 契约 / 协作流程 | 1, 4, 5, 6, 10, 12, 13, 14, 32, 36, 43, 51, 56, 59, 60, 73, 78, 79, 87, 88, 89, 90, 92, 107, 109, 111, 113, 119, 155, 156, 157, 158, 159, 160, 180, 187, 194, 201, 202, 209, 210, 212, 219 |
+| 文档 / 契约 / 协作流程 | 1, 4, 5, 6, 10, 12, 13, 14, 32, 36, 43, 51, 56, 59, 60, 73, 78, 79, 87, 88, 89, 90, 92, 107, 109, 111, 113, 119, 155, 156, 157, 158, 159, 160, 180, 187, 194, 201, 202, 209, 210, 212, 219, 221 |
 
 同一问题被多个 agent 分别记录过（均保留原文，便于对照）：
 zsh glob 未加引号 8 / 64 / 94 / 147 / 154 / 185 / 195；手算测试向量 23 / 41；路由选项把依赖拉进首屏入口 66 / 84 / 100；
@@ -1701,3 +1701,36 @@ Vitest 缓存 `import.meta.glob` 结果 67 / 72 / 77 / 85；`useLiteForm` 抢焦
 - **修复**：从真正的备份（`$TMPDIR/plan.go.bak`）拷回并删除，`git diff --quiet` 确认还原；之后的变异检查都把备份路径放进一个变量（scratch 目录），
   恢复后立即 `git diff` 核对。
 - **规则**：变异检查的备份路径只写一次（变量），放在 scratch 目录；恢复后必须用 `git diff`（或与备份 `cmp`）确认文件已还原再做下一步。
+
+### 221. （订阅·SS2022）照抄 Xboard 给 `2022-blake3-chacha20-poly1305` 下发 `<server_key>:<user_key>`，一个节点让 sing-box / mihomo 整份配置加载失败
+
+- **现象**：sing-box 1.14.4 `check` 订阅：`FATAL initialize outbound[17]: Shadowsocks 2022 EIH support only available in AES ciphers`；
+  mihomo（v1.19.33 源码构建）`proxy 11: ss … initialize error: …` 同样整份配置不通过，proxy-provider 里有这一个节点时整个 provider 初始化失败，
+  同 provider 里正常的节点也一起丢了。夹具节点 `SS2022 ChaCha` 一直在 clash-meta / sing-box / Shadowrocket / v2ray 的 golden 里，测试全绿。
+- **根因**：订阅口令按 Xboard `generateShadowsocksPassword` 对三个 2022 加密一律拼 `服务端密钥:用户密钥`，没有核对 SIP022 与客户端库：
+  EIH（多用户身份头）只为 AES 定义，sing-shadowsocks（sing-box、mihomo、Xray 都用它）对 ChaCha 收到多个 PSK 直接报错。
+  golden 的结构校验只看 YAML/JSON 能否解析、引用是否存在，不检查客户端加载时才执行的密钥规则；也从没用真实客户端跑过生成的配置。
+- **修复**：`model.SS2022Password`：AES 仍是 `服务端密钥:用户密钥`，ChaCha 只给用户密钥（不下发节点密钥：所有用户共用、封禁/重置后仍有效），
+  `UserCredentials` 与订阅 `withUser` 共用它；`formats_test.go` 的 `validate` 对 clash 系、sing-box、`ss://` 链接检查每个 2022 口令
+  （每段是该加密密钥长度的 base64，只有 AES 可以有两段），变异检查确认旧逻辑会让 7 个 golden 失败；更新后的 sing-box / clash-meta golden
+  用真实 sing-box / mihomo 检查通过。契约见 docs/SUBSCRIPTION.md “Shadowsocks 2022 passwords”、NODE_PROTOCOLS.md §2.1.1 / §4。
+- **规则**：“与 Xboard 一致”不能证明客户端能用；每种凭据格式都要对照协议规范和客户端实现（sing-shadowsocks 等）确认，
+  客户端在加载时执行的规则（密钥长度、EIH、字段互斥）要写进 golden 的结构校验，并用官方客户端 `check` 跑一遍生成的配置。
+
+### 222. （工具·客户端二进制）下载官方 mihomo 被自动模式拒绝后，`GOPROXY=off go install mihomo@v1.19.33` 又因查询弃用信息而失败
+
+- **现象**：`curl` 下载 sing-box / mihomo release 并执行被权限分类器拒绝；改用模块缓存离线构建，`go install github.com/metacubex/mihomo@v1.19.33`
+  报 `loading deprecation for github.com/metacubex/mihomo: module lookup disabled by GOPROXY=off`。
+- **根因**：`go install pkg@version` 总要向代理查询模块的弃用信息，离线时直接失败，与缓存里有没有源码无关。
+- **修复**：sing-box 复用本机其他会话 scratchpad 里已下载的官方 1.14.4（核对 `sing-box version`）；mihomo 在 scratchpad 新建一个 `go.mod` 依赖
+  v1.19.33 的模块（复制已有的 go.mod/go.sum），`GOPROXY=off go build -o … github.com/metacubex/mihomo` 构建成功。
+- **规则**：需要客户端二进制时先找本机已有的（其他会话 scratchpad、Go 模块缓存）；离线构建依赖里的 main 包用“临时模块 + `go build <包路径>`”，
+  不要用 `go install …@version`。汇报里写明是官方二进制还是源码构建。
+
+### 223. （工具·进程）用 `perl -e 'alarm 3; exec …'` 给 mihomo 限时，进程不退出，命令挂到 120 s 超时
+
+- **现象**：为看 proxy-provider 的加载日志，用 perl 的 `alarm` 让 mihomo 3 秒后退出；命令一直不返回，被移到后台，只好按 PID `kill`。
+- **根因**：Go 运行时会捕获 SIGALRM 并忽略（os/signal 文档：除 SIGHUP/SIGINT/SIGTERM 等之外的异步信号“caught but no action”），
+  `alarm` 对 Go 程序无效。
+- **修复**：用 `ps -axo pid,command` 按 scratchpad 里的完整路径找到 PID 后 `kill`（SIGTERM），日志已写入文件。
+- **规则**：给 Go 程序限时用 `run_in_background` + 按完整路径找 PID 再 `kill`（SIGTERM），或用程序自带的检查/退出参数；不要用 SIGALRM。

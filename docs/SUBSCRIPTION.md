@@ -60,7 +60,8 @@ Content types: `text/yaml; charset=utf-8` (clash family), `application/json; cha
 Share-link conventions (v2ray/shadowrocket): vmess = base64 JSON `{v:"2",ps,add,port,id,aid,scy,net,type,host,path,tls,sni,fp}` (all values
 strings, as Xboard; `type` = tcp header type, `gun` for grpc, xhttp mode for xhttp);
 vless `vless://uuid@host:port?encryption=none&security=tls|reality|none&sni=&fp=&pbk=&sid=&type=tcp|ws|grpc|http|httpupgrade|xhttp&headerType=&host=&path=&serviceName=&mode=&extra=&flow=&allowInsecure=1#name`;
-ss `ss://base64url(method:password)@host:port[/?plugin=obfs-local;obfs=http;obfs-host=…]#name` (password = `<server_key>:<user_key>` for 2022 ciphers, see docs/NODE_PROTOCOLS.md §4);
+ss `ss://base64url(method:password)@host:port[/?plugin=obfs-local;obfs=http;obfs-host=…]#name` (password = `<server_key>:<user_key>` for the AES 2022 ciphers, the user key alone for `2022-blake3-chacha20-poly1305`, see
+"Shadowsocks 2022 passwords" below);
 ssr `ssr://base64url(host:port:protocol:method:obfs:base64url(pass)/?obfsparam=&protoparam=&remarks=[&group=])`;
 trojan `trojan://pass@host:port?security=tls&sni=&type=&host=&path=&serviceName=&allowInsecure=1#name`;
 hysteria2 `hysteria2://pass@host:port?sni=&insecure=1&obfs=salamander&obfs-password=&mport=10000-20000#name`;
@@ -71,6 +72,16 @@ IPv6 literals are bracketed. Params are emitted only when set (`insecure=1` only
 
 **SSR credentials** (soga/SSPanel single-port): password = node password (`protocol_settings.password`, else
 `base64(md5hex(P.created_at)[:16])`, the same value soga receives), protocol param = `"<user id>:<uuid>"`, obfs param = `obfs_param`.
+
+**Shadowsocks 2022 passwords** (every format, `model.SS2022Password`; keys per docs/NODE_PROTOCOLS.md §4):
+`<server_key>:<user_key>` (multi-user EIH) for `2022-blake3-aes-128-gcm` / `2022-blake3-aes-256-gcm`; the user key alone for
+`2022-blake3-chacha20-poly1305`. SIP022 has no EIH for ChaCha, and one ChaCha outbound with two keys makes sing-box
+(`FATAL initialize outbound[N]: Shadowsocks 2022 EIH support only available in AES ciphers`, 1.14.4) and mihomo (`proxy N: …`,
+1.19.33; a proxy-provider fails as a whole too) reject the **entire** config. The node stays in every format that can express it
+(clash-meta, sing-box, Shadowrocket, v2ray), so the subscription is valid everywhere; whether it connects depends on the backend
+accepting per-user ChaCha keys (XrayR/V2bX cannot, NODE_PROTOCOLS.md §2.1.1). Stash, Loon and Surge get no ChaCha 2022 nodes,
+classic Clash, Surfboard, Quantumult X and `ssr` no 2022 nodes at all (client table above). The golden tests check every
+rendered 2022 password: each `:`-separated key is base64 of the cipher's key size, and only AES ciphers carry two.
 
 **Child nodes** are entries of their own: child `host`, `port`, `name`, `tags`; parent `protocol_settings`, credentials, keys and status.
 **Port hopping**: a `port` like `20000-30000` renders the first port plus `ports`/`server_ports`/`port-hopping`/`mport` for

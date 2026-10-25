@@ -29,7 +29,7 @@ type Proxy struct {
 	Status int  // online.State* of the effective node (0 for info nodes)
 
 	UUID     string
-	Password string // uuid; "<server_key>:<user_key>" for shadowsocks-2022; the node password for shadowsocksr
+	Password string // uuid; model.SS2022Password for shadowsocks-2022; the node password for shadowsocksr
 	// SSRProtocolParam is the single-port protocol parameter "<user id>:<uuid>" (shadowsocksr only).
 	SSRProtocolParam string
 
@@ -345,7 +345,7 @@ func withUser(p Proxy, secret string, u *model.User) Proxy {
 	p.UUID, p.Password = u.UUID, u.UUID
 	switch {
 	case p.SS != nil && p.SS.Is2022():
-		p.Password = secret + ":" + model.SS2022UserKey(u.UUID, p.SS.Cipher)
+		p.Password = model.SS2022Password(p.SS.Cipher, secret, model.SS2022UserKey(u.UUID, p.SS.Cipher))
 	case p.SSR != nil:
 		p.Password = secret
 		p.SSRProtocolParam = strconv.FormatUint(u.ID, 10) + ":" + u.UUID

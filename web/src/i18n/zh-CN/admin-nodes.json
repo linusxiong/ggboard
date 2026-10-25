@@ -341,7 +341,7 @@
       "compat": {
         "v2bxHttp": "V2bX（xray 内核）不支持 HTTP / HTTP/2 传输。",
         "sogaHttpUpgrade": "soga 没有 HTTPUpgrade 传输，配置会原样下发并可能无法使用。",
-        "ssChacha2022": "2022-blake3-chacha20-poly1305 在 V2bX sing 内核下多用户不可靠，建议使用 AES 版本。",
+        "ssChacha2022": "2022-blake3-chacha20-poly1305 没有多用户模式：订阅只下发用户密钥，XrayR / V2bX 无法多用户运行。建议使用 AES 版本。",
         "sogaHysteria1": "soga 仅支持 Hysteria 2，该节点无法用 soga 对接。",
         "anytlsRealitySogaOnly": "V2bX 的 AnyTLS 不支持 REALITY，仅 soga 可用。",
         "mieruUdp": "soga 的 Mieru 仅支持 TCP 传输。",

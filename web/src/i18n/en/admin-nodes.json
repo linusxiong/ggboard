@@ -341,7 +341,7 @@
       "compat": {
         "v2bxHttp": "V2bX (xray core) does not support HTTP / HTTP/2 transports.",
         "sogaHttpUpgrade": "soga has no HTTPUpgrade transport; the setting is passed through and may not work.",
-        "ssChacha2022": "2022-blake3-chacha20-poly1305 is unreliable for multiple users on V2bX's sing core; prefer an AES cipher.",
+        "ssChacha2022": "2022-blake3-chacha20-poly1305 has no multi-user mode: subscriptions carry the user key only, and XrayR / V2bX cannot serve it to several users. Prefer an AES cipher.",
         "sogaHysteria1": "soga runs Hysteria 2 only; this node cannot be served by soga.",
         "anytlsRealitySogaOnly": "V2bX's AnyTLS has no REALITY; only soga can serve this.",
         "mieruUdp": "soga's Mieru supports TCP only.",
