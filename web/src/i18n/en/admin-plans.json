@@ -88,5 +88,15 @@
     "connections": "connections",
     "users": "users"
   },
-  "priceOff": "Not offered"
+  "priceOff": "Not offered",
+  "sync": {
+    "label": "Apply to current users",
+    "hint": "On save, copies the server group, traffic quota, speed limit, device limit and connection limit to every user holding this plan (expired ones included). Used traffic and expiry dates are kept.",
+    "confirmTitle_one": "Apply to {count} user?",
+    "confirmTitle_other": "Apply to {count} users?",
+    "confirmBody": "Everyone holding this plan (expired ones included) gets this plan's server group, traffic quota, speed limit, device limit and connection limit. Values adjusted for individual users, such as extra traffic added by hand, are lost. Used traffic and expiry dates are kept.",
+    "confirm": "Save and Apply",
+    "done_one": "Plan saved and applied to {count} user",
+    "done_other": "Plan saved and applied to {count} users"
+  }
 }

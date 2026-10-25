@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Plan } from '@/lib/api/types'
-import { planToValues, valuesToPlanInput } from './planForm'
+import { planToValues, valuesToPlanInput, valuesToPlanPatch } from './planForm'
 
 const plan: Plan = {
   id: 2,
@@ -86,5 +86,14 @@ describe('plan form', () => {
     // A plan from an older backend without the field loads as unlimited.
     const legacy = { ...plan, conn_limit: undefined } as unknown as Plan
     expect(planToValues(legacy, 'CNY').conn_limit).toBeNull()
+  })
+
+  it('adds force_update to the PATCH body only when asked', () => {
+    const values = planToValues(plan, 'CNY')
+    const input = valuesToPlanInput(values, 'CNY')
+    expect(valuesToPlanPatch(values, 'CNY', true)).toEqual({ ...input, force_update: true })
+    const plain = valuesToPlanPatch(values, 'CNY', false)
+    expect(plain).toEqual(input)
+    expect(plain).not.toHaveProperty('force_update')
   })
 })

@@ -2,6 +2,7 @@
  * Plan form model ↔ API `Plan` / `PlanInput`.
  * Prices: the form edits currency units (`15.5`), the API stores integer cents (`1550`); an empty
  * price means the period is not offered (key absent). Traffic stays in GB (`Plan.transfer_enable`).
+ * The PATCH body carries every field (unchanged ones included), so `force_update` alone needs no edit.
  */
 import {
   PLAN_PERIODS,
@@ -92,4 +93,16 @@ export function valuesToPlanInput(values: PlanFormValues, currency: string): Pla
     sell: values.sell,
     renew: values.renew,
   }
+}
+
+/**
+ * `PATCH /admin/plans/:id` body. `force_update: true` also overwrites, in the same transaction, the
+ * group, traffic quota, speed / device / connection limits of every user whose `plan_id` is this plan
+ * (expired ones included); it is a one-off part of a save, never a stored plan field.
+ */
+export type PlanPatch = PlanInput & { force_update?: true }
+
+export function valuesToPlanPatch(values: PlanFormValues, currency: string, forceUpdate: boolean): PlanPatch {
+  const input = valuesToPlanInput(values, currency)
+  return forceUpdate ? { ...input, force_update: true } : input
 }

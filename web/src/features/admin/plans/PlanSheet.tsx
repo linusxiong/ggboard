@@ -1,20 +1,36 @@
 import { Button } from '@heroui/react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { confirm } from '@/components/feedback/confirm'
 import { FormError, useAppForm } from '@/components/form'
 import { submitError } from '@/components/form/submitError'
 import { Markdown } from '@/components/Markdown'
 import { SegmentedTabs } from '@/components/SegmentedControl'
 import { useT } from '@/i18n'
 import * as adminApi from '@/lib/api/admin'
-import { adminGroupsQuery, qk } from '@/lib/api/queries'
-import { type AdminPlan, PLAN_PERIODS, type PlanInput } from '@/lib/api/types'
+import { adminGroupsQuery, adminUsersQuery, qk } from '@/lib/api/queries'
+import { type AdminPlan, type ID, PLAN_PERIODS } from '@/lib/api/types'
 import { FieldGroup } from '../shared/FieldGroup'
 import { FormDrawer } from '../shared/FormDrawer'
 import { CONN_LIMIT_MAX } from '../shared/units'
 import { useAdminMutation } from '../shared/useAdminMutation'
 import { useSite } from '../shared/useSite'
-import { planToValues, RESET_CHOICES, valuesToPlanInput } from './planForm'
+import { type PlanPatch, planToValues, RESET_CHOICES, valuesToPlanPatch } from './planForm'
+
+/**
+ * Everyone `force_update` rewrites: users whose `plan_id` is this plan, expired ones included (`user_count`
+ * only counts unexpired subscriptions). Only the list's `total` is used.
+ */
+const holdersQuery = (planId: ID | undefined) => adminUsersQuery({ plan_id: planId, page_size: 1 })
+
+/** Every admin user list (an empty filter matches any) and user detail (the detail key without its id). */
+const ADMIN_USER_KEYS = [qk.admin.users(), qk.admin.user(0).slice(0, -1)] as const
+
+interface SaveVars {
+  body: PlanPatch
+  /** Holders that `force_update` rewrote (only set when it was sent). */
+  synced?: number
+}
 
 interface PlanSheetProps {
   plan: AdminPlan | null
@@ -25,23 +41,54 @@ interface PlanSheetProps {
 export function PlanSheet({ plan, isOpen, onOpenChange }: PlanSheetProps) {
   const t = useT(['admin-plans', 'common'])
   const { currency, symbol } = useSite()
+  const queryClient = useQueryClient()
   const groups = useQuery(adminGroupsQuery())
+  const holders = useQuery({
+    ...holdersQuery(plan?.id),
+    enabled: plan !== null,
+    select: (page) => page.total,
+  })
+  // The switch is offered only when someone holds the plan (until the full count arrives, the active one decides).
+  const canSync = plan !== null && (holders.data ?? plan.user_count) > 0
   const [formError, setFormError] = useState<string>()
   const [contentTab, setContentTab] = useState<'edit' | 'preview'>('edit')
   const save = useAdminMutation({
-    mutationFn: (input: PlanInput) =>
-      plan ? adminApi.updatePlan(plan.id, input) : adminApi.createPlan(input),
-    success: plan ? t('saved') : t('created'),
+    mutationFn: ({ body }: SaveVars) =>
+      plan ? adminApi.updatePlan(plan.id, body) : adminApi.createPlan(body),
+    success: (_data, { synced }) =>
+      synced === undefined ? (plan ? t('saved') : t('created')) : t('sync.done', { count: synced }),
     invalidate: [qk.admin.plans(), qk.admin.groups()],
+    onSuccess: (_data, { synced }) => {
+      // The holders' group, quota and limits changed: user lists and details are stale now.
+      if (synced !== undefined)
+        for (const queryKey of ADMIN_USER_KEYS) void queryClient.invalidateQueries({ queryKey })
+    },
     silentError: true,
   })
 
   const form = useAppForm({
-    defaultValues: planToValues(plan, currency),
-    onSubmit: async ({ value, formApi }) => {
+    // `force_update` is part of this save only, not of the plan: it starts off every time the sheet opens
+    // (PlansPage mounts a fresh sheet per open).
+    defaultValues: { ...planToValues(plan, currency), force_update: false },
+    onSubmit: async ({ value: { force_update, ...values }, formApi }) => {
       setFormError(undefined)
       try {
-        await save.mutateAsync(valuesToPlanInput(value, currency))
+        let synced: number | undefined
+        if (plan && force_update) {
+          // Count right before asking, so the dialog names everyone who is about to be overwritten.
+          const { total } = await queryClient.fetchQuery(holdersQuery(plan.id))
+          if (total > 0) {
+            const yes = await confirm({
+              title: t('sync.confirmTitle', { count: total }),
+              description: t('sync.confirmBody'),
+              confirmLabel: t('sync.confirm'),
+              tone: 'danger',
+            })
+            if (!yes) return
+            synced = total
+          }
+        }
+        await save.mutateAsync({ body: valuesToPlanPatch(values, currency, synced !== undefined), synced })
         onOpenChange(false)
       } catch (error) {
         setFormError(submitError(formApi, error))
@@ -192,6 +239,13 @@ export function PlanSheet({ plan, isOpen, onOpenChange }: PlanSheetProps) {
               )}
             </form.AppField>
           </div>
+          {canSync ? (
+            <div className="rounded-[14px] bg-fill-quaternary px-4 py-3">
+              <form.AppField name="force_update">
+                {(f) => <f.SwitchField label={t('sync.label')} description={t('sync.hint')} />}
+              </form.AppField>
+            </div>
+          ) : null}
         </FieldGroup>
 
         <FieldGroup title={t('sections.prices')} help={t('pricesHint')}>
