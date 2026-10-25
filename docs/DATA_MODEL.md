@@ -61,7 +61,8 @@ Derived credentials (`model.UserCredentials(u, node)`):
 - Every protocol uses `uuid` as the UUID and, where a password is needed (trojan, hysteria, anytls, tuic, shadowsocksr,
   plain shadowsocks), as the password.
 - shadowsocks 2022: the user key is base64(uuid[:16]) for `2022-blake3-aes-128-gcm` and base64(uuid[:32]) otherwise
-  (Xboard `Helper::uuidToBase64`). The client password is `<server_key>:<user_key>`. The node key is
+  (Xboard `Helper::uuidToBase64`). The client password is `<server_key>:<user_key>` for the AES ciphers and the user key
+  alone for `2022-blake3-chacha20-poly1305`, which has no multi-user EIH (docs/NODE_PROTOCOLS.md §4). The node key is
   `protocol_settings.server_key` when set, otherwise `base64(md5hex(created_at_unix)[:16|32])` (Xboard `getServerKey`);
   a child node uses its parent's `created_at`.
 - mieru: username = password = `uuid`.

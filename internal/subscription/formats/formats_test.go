@@ -170,6 +170,11 @@ func validate(t *testing.T, format string, body []byte) {
 				t.Fatalf("duplicate proxy name %q", n)
 			}
 			names[n] = true
+			if p["type"] == "ss" {
+				cipher, _ := p["cipher"].(string)
+				password, _ := p["password"].(string)
+				checkSS2022Password(t, n, cipher, password)
+			}
 		}
 		for _, g := range doc.Groups {
 			names[g.Name] = true
@@ -206,6 +211,8 @@ func validate(t *testing.T, format string, body []byte) {
 				Type      string   `json:"type"`
 				Tag       string   `json:"tag"`
 				Outbounds []string `json:"outbounds"`
+				Method    string   `json:"method"`
+				Password  string   `json:"password"`
 			} `json:"outbounds"`
 			Route struct {
 				Rules []struct {
@@ -228,6 +235,9 @@ func validate(t *testing.T, format string, body []byte) {
 				t.Fatalf("duplicate outbound tag %q", o.Tag)
 			}
 			tags[o.Tag] = true
+			if o.Type == "shadowsocks" {
+				checkSS2022Password(t, o.Tag, o.Method, o.Password)
+			}
 		}
 		for _, o := range doc.Outbounds {
 			for _, m := range o.Outbounds {
@@ -262,6 +272,36 @@ func validate(t *testing.T, format string, body []byte) {
 					t.Fatalf("bad vmess link %q", line)
 				}
 			}
+			if rest, ok := strings.CutPrefix(line, "ss://"); ok {
+				userinfo, _, _ := strings.Cut(rest, "@")
+				raw, err := base64.RawURLEncoding.DecodeString(userinfo)
+				method, password, found := strings.Cut(string(raw), ":")
+				if err != nil || !found {
+					t.Fatalf("bad ss link %q", line)
+				}
+				checkSS2022Password(t, line, method, password)
+			}
+		}
+	}
+}
+
+// checkSS2022Password applies the shadowsocks-2022 key rules of sing-shadowsocks, which sing-box, mihomo and Xray
+// enforce when they load a config: every ":"-separated PSK is base64 of the cipher's key size, and only the AES
+// ciphers take more than one (EIH, SIP022). One ChaCha outbound with two keys makes sing-box and mihomo reject the
+// whole config (docs/SUBSCRIPTION.md "Shadowsocks 2022 passwords").
+func checkSS2022Password(t *testing.T, name, cipher, password string) {
+	t.Helper()
+	size := map[string]int{"2022-blake3-aes-128-gcm": 16, "2022-blake3-aes-256-gcm": 32, "2022-blake3-chacha20-poly1305": 32}[cipher]
+	if size == 0 {
+		return
+	}
+	keys := strings.Split(password, ":")
+	if len(keys) > 1 && !strings.Contains(cipher, "-aes-") {
+		t.Fatalf("%s: %s has no EIH, password %q has %d keys", name, cipher, password, len(keys))
+	}
+	for _, k := range keys {
+		if b, err := base64.StdEncoding.DecodeString(k); err != nil || len(b) != size {
+			t.Fatalf("%s: %s key %q is not base64 of %d bytes", name, cipher, k, size)
 		}
 	}
 }

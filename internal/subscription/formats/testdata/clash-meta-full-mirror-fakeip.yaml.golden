@@ -152,7 +152,7 @@ proxies:
     server: ss2022c.example.com
     port: 8390
     cipher: "2022-blake3-chacha20-poly1305"
-    password: "YjVkODdhNWRlMWEzNWIyMmQwMjM0NThjNDYyMGVjYWE=:M2IxYjZmNWUtN2MyYS00ZDhlLTlmMTAtMmEzYjRjNWQ="
+    password: "M2IxYjZmNWUtN2MyYS00ZDhlLTlmMTAtMmEzYjRjNWQ="
     udp: true
   - name: "HK SSR"
     type: ssr

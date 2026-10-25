@@ -147,6 +147,17 @@ func TestCredentials(t *testing.T) {
 	if k := SS2022UserKey(id, "2022-blake3-chacha20-poly1305"); len(k) != 44 {
 		t.Fatalf("32-byte user key = %s", k)
 	}
+	if c := UserCredentials(u, ss256); c.Password != "YjVkODdhNWRlMWEzNWIyMmQwMjM0NThjNDYyMGVjYWE=:"+c.SS2022Key {
+		t.Fatalf("aes-256 password = %s", c.Password)
+	}
+	// ChaCha has no EIH (SIP022): the client gets the user key alone, never "<server_key>:<user_key>".
+	chacha := &Node{Type: NodeShadowsocks, CreatedAt: created, ProtocolSettings: JSONMap{"cipher": "2022-blake3-chacha20-poly1305"}}
+	if c := UserCredentials(u, chacha); c.Password != c.SS2022Key || c.SS2022Key != SS2022UserKey(id, "2022-blake3-chacha20-poly1305") {
+		t.Fatalf("chacha20 2022 = %+v", c)
+	}
+	if NodeServerKey(chacha) != "YjVkODdhNWRlMWEzNWIyMmQwMjM0NThjNDYyMGVjYWE=" {
+		t.Fatal("chacha20 2022 keeps its node key for the backends")
+	}
 
 	custom := &Node{Type: NodeShadowsocks, ProtocolSettings: JSONMap{"cipher": "2022-blake3-aes-128-gcm", "server_key": "c2VydmVyLWtleQ=="}}
 	if NodeServerKey(custom) != "c2VydmVyLWtleQ==" {
