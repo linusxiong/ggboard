@@ -227,9 +227,11 @@ rules: [RULE-SET,cn-domain,DIRECT, RULE-SET,cn-ip,DIRECT, GEOIP,CN,DIRECT, MATCH
 Other formats:
 
 - **sing-box** (schema of sing-box ≥ 1.12: typed DNS servers, rule actions):
-  - Each key becomes a `route.rule_set` entry:
-    `{"tag":"cn-domain","type":"remote","format":"binary","url":…,"download_detour":"Proxy","update_interval":"24h"}`.
-    Use `download_detour: "direct"` when a mirror is set.
+  - Each key becomes a `route.rule_set` entry `{"type":"remote","tag":"cn-domain","format":"binary","url":…,"update_interval":"24h"}`.
+  - The download route depends on the sing-box version in the User-Agent (details in docs/SUBSCRIPTION.md, Rule emission per format):
+    sing-box ≥ 1.14 gets top-level `"http_clients":[{"tag":"rule-set","detour":"Proxy"}]` + `"route":{"default_http_client":"rule-set"}`
+    (no `detour` when a mirror is set: a detour to the empty `direct` outbound is rejected); older or unnamed versions get
+    `"download_detour":"Proxy"` on every entry, `"direct"` when a mirror is set (deprecated in 1.14, removed in 1.16).
   - Each category gets a rule `{"rule_set":["cn-domain","cn-ip"],"outbound":…}`.
   - sing-box ≥ 1.12 has no GeoIP database, so `geoip_cn_direct` adds the metacubex `geoip/cn.srs` rule set with outbound `direct`.
 - **Surge, Surfboard**: `RULE-SET,<url>,<target>`, `DOMAIN-SET,<url>,<target>`, `GEOIP,CN,DIRECT`, `FINAL,<final>,dns-failed`.

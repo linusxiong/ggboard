@@ -1,6 +1,7 @@
 package formats
 
 import (
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -9,7 +10,8 @@ import (
 )
 
 // singbox renders a sing-box >= 1.12 configuration: typed DNS servers, rule actions (sniff, hijack-dns,
-// reject) instead of the removed block/dns outbounds, remote rule sets and selector/urltest groups.
+// reject) instead of the removed block/dns outbounds, remote rule sets and selector/urltest groups. Rule sets are
+// downloaded through http_clients when the User-Agent names sing-box >= 1.14, through download_detour otherwise.
 // sing-box has no shadowsocksr, mieru, xhttp or tcp-http-header transport.
 type singboxFormat struct{}
 
@@ -41,11 +43,14 @@ func (singboxFormat) SupportsProxy(p *subscription.Proxy) bool {
 
 func (f singboxFormat) Render(ctx *subscription.RenderContext) ([]byte, string, error) {
 	root := jobj{{"log", jobj{{"level", "warn"}, {"timestamp", true}}}}
-	plan := ctx.Rules
 	dnsOn := ctx.Profile.DNS != subscription.DNSNone && ctx.Profile.DNS != ""
 	fake := ctx.Profile.DNS == subscription.DNSFakeIP
 	if dnsOn {
 		root.set("dns", f.dns(ctx, fake))
+	}
+	route, httpClients := f.route(ctx, dnsOn)
+	if len(httpClients) > 0 {
+		root.set("http_clients", httpClients)
 	}
 	root.set("inbounds", []jobj{
 		{{"type", "tun"}, {"tag", "tun-in"}, {"address", []string{"172.19.0.1/30", "fdfe:dcba:9876::1/126"}},
@@ -68,7 +73,53 @@ func (f singboxFormat) Render(ctx *subscription.RenderContext) ([]byte, string, 
 	}
 	outbounds = append(outbounds, jobj{{"type", "direct"}, {"tag", sbDirect}})
 	root.set("outbounds", outbounds)
+	root.set("route", route)
+	cache := jobj{{"enabled", true}}
+	cache.setTrue("store_fakeip", fake)
+	root.set("experimental", jobj{{"cache_file", cache}})
 
+	body, err := marshalIndent(root)
+	if err != nil {
+		return nil, "", err
+	}
+	return body, f.contentType(), nil
+}
+
+// sbRuleSetClient is the tag of the shared HTTP client that downloads remote rule sets on sing-box >= 1.14.
+const sbRuleSetClient = "rule-set"
+
+// sbVersionRE finds the core version a User-Agent names: "sing-box 1.14.4" (SFA/SFI/SFM), "sing-box/1.14.4".
+var sbVersionRE = regexp.MustCompile(`(?i)sing-box[ /]v?(\d+)\.(\d+)(?:\.(\d+))?(-[0-9a-z.]+)?`)
+
+// sbHTTPClients reports whether the User-Agent names a sing-box core >= 1.14.0, which downloads rule sets through
+// top-level http_clients (download_detour and the implicit default client are deprecated there and removed in 1.16).
+// 1.12 and 1.13 reject the new fields, so an unnamed or unparsable version gets the old form; so does a 1.14.0
+// pre-release.
+func sbHTTPClients(userAgent string) bool {
+	m := sbVersionRE.FindStringSubmatch(userAgent)
+	if m == nil {
+		return false
+	}
+	var v [3]int
+	for i, s := range m[1:4] {
+		if s == "" {
+			continue
+		}
+		n, err := strconv.Atoi(s)
+		if err != nil {
+			return false
+		}
+		v[i] = n
+	}
+	if v != [3]int{1, 14, 0} {
+		return v[0] > 1 || v[0] == 1 && v[1] >= 14
+	}
+	return m[4] == ""
+}
+
+// route builds the route section and, for sing-box >= 1.14 with rule sets, the http_clients that download them.
+func (singboxFormat) route(ctx *subscription.RenderContext, dnsOn bool) (jobj, []jobj) {
+	plan := ctx.Rules
 	rules := []jobj{
 		{{"action", "sniff"}},
 		{{"protocol", "dns"}, {"action", "hijack-dns"}},
@@ -77,16 +128,21 @@ func (f singboxFormat) Render(ctx *subscription.RenderContext) ([]byte, string, 
 	if h := hostRule(ctx); h != "" {
 		rules = append(rules, jobj{{"domain", []string{h}}, {"outbound", sbDirect}})
 	}
-	var ruleSets []jobj
+	var ruleSets, httpClients []jobj
 	final := subscription.GroupProxy
 	if plan != nil {
 		detour := subscription.GroupProxy
 		if plan.MirrorPrefix != "" {
 			detour = sbDirect
 		}
+		modern := sbHTTPClients(ctx.UserAgent)
 		addSet := func(s subscription.RuleSet) {
-			ruleSets = append(ruleSets, jobj{{"type", "remote"}, {"tag", s.Tag}, {"format", s.Format}, {"url", s.URL},
-				{"download_detour", detour}, {"update_interval", "24h"}})
+			rs := jobj{{"type", "remote"}, {"tag", s.Tag}, {"format", s.Format}, {"url", s.URL}}
+			if !modern {
+				rs.set("download_detour", detour)
+			}
+			rs.set("update_interval", "24h")
+			ruleSets = append(ruleSets, rs)
 		}
 		for _, group := range plan.CategoryGroups() {
 			tags := make([]string, 0, len(group))
@@ -99,6 +155,13 @@ func (f singboxFormat) Render(ctx *subscription.RenderContext) ([]byte, string, 
 		if plan.GeoIPCN != nil {
 			addSet(*plan.GeoIPCN)
 			rules = append(rules, jobj{{"rule_set", []string{plan.GeoIPCN.Tag}}, {"outbound", sbDirect}})
+		}
+		if modern && len(ruleSets) > 0 {
+			client := jobj{{"tag", sbRuleSetClient}}
+			if detour != sbDirect { // a dial detour to an empty direct outbound is a config error; no detour dials directly
+				client.set("detour", detour)
+			}
+			httpClients = []jobj{client}
 		}
 		final = plan.Final
 	}
@@ -115,19 +178,13 @@ func (f singboxFormat) Render(ctx *subscription.RenderContext) ([]byte, string, 
 	}
 	route.set("final", final)
 	route.set("auto_detect_interface", true)
+	if len(httpClients) > 0 {
+		route.set("default_http_client", sbRuleSetClient)
+	}
 	if dnsOn {
 		route.set("default_domain_resolver", "local")
 	}
-	root.set("route", route)
-	cache := jobj{{"enabled", true}}
-	cache.setTrue("store_fakeip", fake)
-	root.set("experimental", jobj{{"cache_file", cache}})
-
-	body, err := marshalIndent(root)
-	if err != nil {
-		return nil, "", err
-	}
-	return body, f.contentType(), nil
+	return route, httpClients
 }
 
 // sbRouteRule finishes a route rule for target (REJECT becomes the reject action).

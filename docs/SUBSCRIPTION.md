@@ -28,7 +28,7 @@ on the proxy). The per-group list is cached for 5 s (`subscription_nodes` namesp
 | `clash.meta`, `mihomo`, `clashmeta`, `clash-verge`, `clash verge`, `verge`, `flclash`, `clash nyanpasu`, `clashx meta` | `clash-meta` | all 9 (mihomo YAML). Skipped: AnyTLS+REALITY (mihomo has none), unknown ss plugins |
 | `stash` | `stash` | ss (no chacha20-2022), ssr, vmess, vless (incl. reality/xhttp), trojan, hysteria v1/v2, tuic. No anytls/mieru (Stash docs list them since 2026, kept off for older Stash builds) |
 | `clash` (plain), `clashforandroid`, `clashx` | `clash` (classic core) | ss (no 2022 ciphers, no shadow-tls), ssr, vmess (tcp/ws/grpc/h2/tcp-http), trojan (tcp/ws/grpc) |
-| `sing-box`, `singbox`, `sfa`, `sfi`, `sfm`, `nekobox`, `hiddify` | `singbox` (**sing-box ≥ 1.12** schema) | ss, vmess, vless, trojan, hysteria v1/v2, tuic, anytls (incl. reality). No ssr/mieru, no xhttp, no tcp-http-header |
+| `sing-box`, `singbox`, `sfa`, `sfi`, `sfm`, `nekobox`, `hiddify` | `singbox` (**sing-box ≥ 1.12** schema; rule-set downloads in the 1.14 form when the UA names `sing-box ≥ 1.14`, see Rule emission) | ss, vmess, vless, trojan, hysteria v1/v2, tuic, anytls (incl. reality). No ssr/mieru, no xhttp, no tcp-http-header |
 | `surfboard` | `surfboard` | ss (AEAD only), vmess, trojan (tcp/ws) |
 | `surge` | `surge` | ss (AEAD + 2022 aes), vmess, trojan (tcp/ws), hysteria2, tuic (`tuic-v5`), anytls (tls). **Surge has no VLESS** (manual 2026-10), no ssr/mieru/hysteria v1 |
 | `quantumult x`, `quantumult%20x`, `quanx` | `quantumultx` | ss (AEAD, obfs/v2ray-plugin), ssr, vmess & vless (tcp/ws, incl. reality), trojan (tcp/ws), anytls (tls) |
@@ -118,6 +118,8 @@ group or with a built-in policy (`DIRECT`, `REJECT`, `direct`, …) get a suffix
   request; the key tag is the first 8 hex digits of SHA-256 of the public key, so a new key never matches). The gzip
   middleware turns it into `W/"…"` when it compresses the body. `If-None-Match` naming the tag exactly (quoted, bare or
   `W/`, also in a list, or `*`) → 304 without body; a plaintext tag never matches an encrypted one or the reverse.
+  The body (so the tag) of a format can depend on the User-Agent: sing-box gets one of two rule-set download forms by the
+  core version it names (Rule emission per format), so a tag from one version bucket never matches the other.
 - `X-Subscription-Encryption: age` on encrypted bodies (ggboard-specific, informational).
 - `Cache-Control: no-store`.
 
@@ -485,8 +487,19 @@ docs/RULESETS.md is authoritative for source and key selection.
   outbounds = groups (`selector`/`urltest`; fallback/load-balance map to urltest), proxies, `direct`; route rules
   `sniff` → `hijack-dns` → `ip_is_private` direct → host → one rule per category (`rule_set: [...]`, `outbound` or `action: reject`)
   → `geoip-cn` (metacubex `geoip/cn.srs`, unless a category already ships that file); `route.rule_set` entries
-  `{type: remote, format: binary|source, url, download_detour: Proxy|direct (mirror), update_interval: 24h}`; `final` (REJECT final =
-  trailing `reject` action, final `direct`); `experimental.cache_file` enabled (`store_fakeip` with fakeip). No clash_api.
+  `{type: remote, format: binary|source, url, update_interval: 24h}`; `final` (REJECT final = trailing `reject` action,
+  final `direct`); `experimental.cache_file` enabled (`store_fakeip` with fakeip). No clash_api.
+  How rule sets are downloaded depends on the sing-box core version the User-Agent names (`sing-box <x.y[.z]>` or
+  `sing-box/<x.y[.z]>`, case-insensitive, first match; SFA/SFI/SFM send `SFA (sing-box 1.14.4; language zh_CN)`, older builds
+  `SFA/1.11.4 (…; sing-box 1.11.4; …)`):
+  - **≥ 1.14.0** (a 1.14.0 pre-release counts as older): top-level `http_clients: [{tag: rule-set, detour: Proxy}]` and
+    `route.default_http_client: rule-set`; rule sets carry no download field. With a mirror the client has **no** `detour`
+    (it dials directly and resolves through `default_domain_resolver`): sing-box rejects a dial detour to an empty `direct`
+    outbound. sing-box 1.14 deprecated `download_detour` and the implicit default HTTP client; 1.16 removes both.
+  - **anything else** (no version or `unknown`, 1.12, 1.13; Hiddify's `HiddifyNext/<v> (<os>) like ClashMeta v2ray sing-box`
+    names none; the panel's preview sends the browser's User-Agent): every rule set carries `download_detour: Proxy`, or
+    `direct` with a mirror, and there is no `http_clients` (1.12 / 1.13 reject unknown fields).
+  Without rule sets (template `none`, rules off) neither form appears and both buckets get the same body.
 - **surge / surfboard**: managed profile `#!MANAGED-CONFIG <request URL> interval=<hours*3600> strict=false`, `[General]`, `[Proxy]`,
   `[Proxy Group]`, `[Rule]` with `RULE-SET,<url>,<target>` (classical), `DOMAIN-SET,<url>,<target>` (domain), `GEOIP,CN,DIRECT`,
   `FINAL,<final>,dns-failed`.

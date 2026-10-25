@@ -1,0 +1,810 @@
+{
+  "log": {
+    "level": "warn",
+    "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      {
+        "type": "https",
+        "tag": "remote",
+        "server": "1.1.1.1",
+        "detour": "Proxy"
+      },
+      {
+        "type": "https",
+        "tag": "local",
+        "server": "223.5.5.5"
+      }
+    ],
+    "rules": [
+      {
+        "domain": [
+          "panel.example.com"
+        ],
+        "server": "local"
+      },
+      {
+        "rule_set": [
+          "lan-domain",
+          "cn-domain"
+        ],
+        "server": "local"
+      }
+    ],
+    "final": "remote"
+  },
+  "http_clients": [
+    {
+      "tag": "rule-set",
+      "detour": "Proxy"
+    }
+  ],
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "address": [
+        "172.19.0.1/30",
+        "fdfe:dcba:9876::1/126"
+      ],
+      "auto_route": true,
+      "strict_route": true,
+      "stack": "mixed"
+    },
+    {
+      "type": "mixed",
+      "tag": "mixed-in",
+      "listen": "127.0.0.1",
+      "listen_port": 2080
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "selector",
+      "tag": "Proxy",
+      "outbounds": [
+        "auto",
+        "剩余流量：97 GB",
+        "套餐到期：2027-01-01",
+        "距离下次重置剩余：10 天",
+        "🇭🇰 HK VMess WS",
+        "JP VMess TCP",
+        "🇺🇸 US VLESS Reality",
+        "TW VLESS WS",
+        "KR VLESS gRPC",
+        "HK SS obfs",
+        "JP SS2022， Premium",
+        "SS2022 ChaCha",
+        "US Trojan",
+        "US Trojan WS",
+        "US Trojan gRPC",
+        "HK Hysteria1",
+        "JP Hysteria2 Hop",
+        "SG Hysteria2",
+        "US TUIC",
+        "HK AnyTLS",
+        "JP AnyTLS Reality",
+        "🇺🇸 US Relay",
+        "IPv6 SS",
+        "VMess HTTPUpgrade",
+        "VLESS H2"
+      ]
+    },
+    {
+      "type": "selector",
+      "tag": "AI",
+      "outbounds": [
+        "Proxy",
+        "JP VMess TCP",
+        "🇺🇸 US VLESS Reality",
+        "TW VLESS WS",
+        "JP SS2022， Premium",
+        "US Trojan",
+        "US Trojan WS",
+        "US Trojan gRPC",
+        "JP Hysteria2 Hop",
+        "SG Hysteria2",
+        "US TUIC",
+        "JP AnyTLS Reality",
+        "🇺🇸 US Relay"
+      ]
+    },
+    {
+      "type": "selector",
+      "tag": "Streaming",
+      "outbounds": [
+        "Proxy",
+        "🇭🇰 HK VMess WS",
+        "JP VMess TCP",
+        "🇺🇸 US VLESS Reality",
+        "TW VLESS WS",
+        "KR VLESS gRPC",
+        "HK SS obfs",
+        "JP SS2022， Premium",
+        "SS2022 ChaCha",
+        "US Trojan",
+        "US Trojan WS",
+        "US Trojan gRPC",
+        "HK Hysteria1",
+        "JP Hysteria2 Hop",
+        "SG Hysteria2",
+        "US TUIC",
+        "HK AnyTLS",
+        "JP AnyTLS Reality",
+        "🇺🇸 US Relay",
+        "IPv6 SS",
+        "VMess HTTPUpgrade",
+        "VLESS H2"
+      ]
+    },
+    {
+      "type": "selector",
+      "tag": "Telegram",
+      "outbounds": [
+        "Proxy",
+        "🇭🇰 HK VMess WS",
+        "JP VMess TCP",
+        "🇺🇸 US VLESS Reality",
+        "TW VLESS WS",
+        "KR VLESS gRPC",
+        "HK SS obfs",
+        "JP SS2022， Premium",
+        "SS2022 ChaCha",
+        "US Trojan",
+        "US Trojan WS",
+        "US Trojan gRPC",
+        "HK Hysteria1",
+        "JP Hysteria2 Hop",
+        "SG Hysteria2",
+        "US TUIC",
+        "HK AnyTLS",
+        "JP AnyTLS Reality",
+        "🇺🇸 US Relay",
+        "IPv6 SS",
+        "VMess HTTPUpgrade",
+        "VLESS H2"
+      ]
+    },
+    {
+      "type": "selector",
+      "tag": "Microsoft",
+      "outbounds": [
+        "direct",
+        "Proxy"
+      ]
+    },
+    {
+      "type": "selector",
+      "tag": "Apple",
+      "outbounds": [
+        "direct",
+        "Proxy"
+      ]
+    },
+    {
+      "type": "urltest",
+      "tag": "auto",
+      "outbounds": [
+        "🇭🇰 HK VMess WS",
+        "JP VMess TCP",
+        "🇺🇸 US VLESS Reality",
+        "TW VLESS WS",
+        "KR VLESS gRPC",
+        "HK SS obfs",
+        "JP SS2022， Premium",
+        "SS2022 ChaCha",
+        "US Trojan",
+        "US Trojan WS",
+        "US Trojan gRPC",
+        "HK Hysteria1",
+        "JP Hysteria2 Hop",
+        "SG Hysteria2",
+        "US TUIC",
+        "HK AnyTLS",
+        "JP AnyTLS Reality",
+        "🇺🇸 US Relay",
+        "IPv6 SS",
+        "VMess HTTPUpgrade",
+        "VLESS H2"
+      ],
+      "url": "http://www.gstatic.com/generate_204",
+      "interval": "300s",
+      "tolerance": 50
+    },
+    {
+      "type": "shadowsocks",
+      "tag": "剩余流量：97 GB",
+      "server": "127.0.0.1",
+      "server_port": 1080,
+      "method": "aes-128-gcm",
+      "password": "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    },
+    {
+      "type": "shadowsocks",
+      "tag": "套餐到期：2027-01-01",
+      "server": "127.0.0.1",
+      "server_port": 1080,
+      "method": "aes-128-gcm",
+      "password": "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    },
+    {
+      "type": "shadowsocks",
+      "tag": "距离下次重置剩余：10 天",
+      "server": "127.0.0.1",
+      "server_port": 1080,
+      "method": "aes-128-gcm",
+      "password": "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    },
+    {
+      "type": "vmess",
+      "tag": "🇭🇰 HK VMess WS",
+      "server": "hk1.example.com",
+      "server_port": 443,
+      "uuid": "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",
+      "security": "auto",
+      "alter_id": 0,
+      "tls": {
+        "enabled": true,
+        "server_name": "hk1.example.com"
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/ws",
+        "headers": {
+          "Host": "cdn.example.com"
+        }
+      }
+    },
+    {
+      "type": "vmess",
+      "tag": "JP VMess TCP",
+      "server": "192.0.2.10",
+      "server_port": 10086,
+      "uuid": "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",
+      "security": "auto",
+      "alter_id": 0
+    },
+    {
+      "type": "vless",
+      "tag": "🇺🇸 US VLESS Reality",
+      "server": "us1.example.com",
+      "server_port": 443,
+      "uuid": "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",
+      "flow": "xtls-rprx-vision",
+      "packet_encoding": "xudp",
+      "tls": {
+        "enabled": true,
+        "server_name": "www.example.org",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "reality": {
+          "enabled": true,
+          "public_key": "PUBLIC_KEY_BASE64URL",
+          "short_id": "0123abcd"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "TW VLESS WS",
+      "server": "tw1.example.com",
+      "server_port": 443,
+      "uuid": "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",
+      "packet_encoding": "xudp",
+      "tls": {
+        "enabled": true,
+        "server_name": "tw1.example.com",
+        "insecure": true
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/vl",
+        "headers": {
+          "Host": "tw1.example.com"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "KR VLESS gRPC",
+      "server": "kr1.example.com",
+      "server_port": 443,
+      "uuid": "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",
+      "packet_encoding": "xudp",
+      "tls": {
+        "enabled": true,
+        "server_name": "kr1.example.com"
+      },
+      "transport": {
+        "type": "grpc",
+        "service_name": "vless-grpc"
+      }
+    },
+    {
+      "type": "shadowsocks",
+      "tag": "HK SS obfs",
+      "server": "ss.example.com",
+      "server_port": 8388,
+      "method": "aes-128-gcm",
+      "password": "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",
+      "plugin": "obfs-local",
+      "plugin_opts": "obfs=http;obfs-host=www.example.net"
+    },
+    {
+      "type": "shadowsocks",
+      "tag": "JP SS2022， Premium",
+      "server": "ss2022.example.com",
+      "server_port": 8389,
+      "method": "2022-blake3-aes-128-gcm",
+      "password": "YjVkODdhNWRlMWEzNWIyMg==:M2IxYjZmNWUtN2MyYS00ZA=="
+    },
+    {
+      "type": "shadowsocks",
+      "tag": "SS2022 ChaCha",
+      "server": "ss2022c.example.com",
+      "server_port": 8390,
+      "method": "2022-blake3-chacha20-poly1305",
+      "password": "M2IxYjZmNWUtN2MyYS00ZDhlLTlmMTAtMmEzYjRjNWQ="
+    },
+    {
+      "type": "trojan",
+      "tag": "US Trojan",
+      "server": "t1.example.com",
+      "server_port": 443,
+      "password": "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",
+      "tls": {
+        "enabled": true,
+        "server_name": "t1.example.com"
+      }
+    },
+    {
+      "type": "trojan",
+      "tag": "US Trojan WS",
+      "server": "t2.example.com",
+      "server_port": 443,
+      "password": "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",
+      "tls": {
+        "enabled": true,
+        "server_name": "t2.example.com"
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/tj",
+        "headers": {
+          "Host": "t2.example.com"
+        }
+      }
+    },
+    {
+      "type": "trojan",
+      "tag": "US Trojan gRPC",
+      "server": "t3.example.com",
+      "server_port": 443,
+      "password": "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",
+      "tls": {
+        "enabled": true,
+        "server_name": "t3.example.com",
+        "insecure": true
+      },
+      "transport": {
+        "type": "grpc",
+        "service_name": "trojan-grpc"
+      }
+    },
+    {
+      "type": "hysteria",
+      "tag": "HK Hysteria1",
+      "server": "hy1.example.com",
+      "server_port": 36712,
+      "up_mbps": 200,
+      "down_mbps": 1000,
+      "obfs": "obfs-pass-123",
+      "auth_str": "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",
+      "tls": {
+        "enabled": true,
+        "server_name": "hy1.example.com"
+      }
+    },
+    {
+      "type": "hysteria2",
+      "tag": "JP Hysteria2 Hop",
+      "server": "hy2.example.com",
+      "server_ports": [
+        "20000:30000"
+      ],
+      "hop_interval": "30s",
+      "up_mbps": 100,
+      "down_mbps": 500,
+      "obfs": {
+        "type": "salamander",
+        "password": "obfs-pass-456"
+      },
+      "password": "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",
+      "tls": {
+        "enabled": true,
+        "server_name": "hy2.example.com"
+      }
+    },
+    {
+      "type": "hysteria2",
+      "tag": "SG Hysteria2",
+      "server": "198.51.100.20",
+      "server_port": 8443,
+      "password": "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",
+      "tls": {
+        "enabled": true,
+        "server_name": "hy2s.example.com",
+        "insecure": true
+      }
+    },
+    {
+      "type": "tuic",
+      "tag": "US TUIC",
+      "server": "tuic.example.com",
+      "server_port": 8443,
+      "uuid": "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",
+      "password": "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",
+      "congestion_control": "bbr",
+      "udp_relay_mode": "native",
+      "heartbeat": "10s",
+      "tls": {
+        "enabled": true,
+        "server_name": "tuic.example.com",
+        "alpn": [
+          "h3"
+        ]
+      }
+    },
+    {
+      "type": "anytls",
+      "tag": "HK AnyTLS",
+      "server": "anytls.example.com",
+      "server_port": 8443,
+      "password": "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",
+      "tls": {
+        "enabled": true,
+        "server_name": "anytls.example.com"
+      }
+    },
+    {
+      "type": "anytls",
+      "tag": "JP AnyTLS Reality",
+      "server": "anytlsr.example.com",
+      "server_port": 443,
+      "password": "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",
+      "tls": {
+        "enabled": true,
+        "server_name": "www.example.org",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "reality": {
+          "enabled": true,
+          "public_key": "PUBLIC_KEY_BASE64URL",
+          "short_id": "0123abcd"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "🇺🇸 US Relay",
+      "server": "relay.example.com",
+      "server_port": 8443,
+      "uuid": "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",
+      "flow": "xtls-rprx-vision",
+      "packet_encoding": "xudp",
+      "tls": {
+        "enabled": true,
+        "server_name": "www.example.org",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "reality": {
+          "enabled": true,
+          "public_key": "PUBLIC_KEY_BASE64URL",
+          "short_id": "0123abcd"
+        }
+      }
+    },
+    {
+      "type": "shadowsocks",
+      "tag": "IPv6 SS",
+      "server": "2001:db8::10",
+      "server_port": 8388,
+      "method": "chacha20-ietf-poly1305",
+      "password": "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f"
+    },
+    {
+      "type": "vmess",
+      "tag": "VMess HTTPUpgrade",
+      "server": "vu.example.com",
+      "server_port": 443,
+      "uuid": "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",
+      "security": "auto",
+      "alter_id": 0,
+      "tls": {
+        "enabled": true,
+        "server_name": "vu.example.com"
+      },
+      "transport": {
+        "type": "httpupgrade",
+        "host": "vu.example.com",
+        "path": "/up"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "VLESS H2",
+      "server": "vh2.example.com",
+      "server_port": 443,
+      "uuid": "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f",
+      "packet_encoding": "xudp",
+      "tls": {
+        "enabled": true,
+        "server_name": "vh2.example.com"
+      },
+      "transport": {
+        "type": "http",
+        "host": [
+          "vh2.example.com"
+        ],
+        "path": "/h2"
+      }
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "protocol": "dns",
+        "action": "hijack-dns"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "direct"
+      },
+      {
+        "domain": [
+          "panel.example.com"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "rule_set": [
+          "ads-domain"
+        ],
+        "action": "reject"
+      },
+      {
+        "rule_set": [
+          "lan-domain",
+          "lan-ip"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "rule_set": [
+          "openai-domain"
+        ],
+        "outbound": "AI"
+      },
+      {
+        "rule_set": [
+          "claude-domain"
+        ],
+        "outbound": "AI"
+      },
+      {
+        "rule_set": [
+          "gemini-domain"
+        ],
+        "outbound": "AI"
+      },
+      {
+        "rule_set": [
+          "telegram-domain",
+          "telegram-ip"
+        ],
+        "outbound": "Telegram"
+      },
+      {
+        "rule_set": [
+          "youtube-domain"
+        ],
+        "outbound": "Streaming"
+      },
+      {
+        "rule_set": [
+          "netflix-domain",
+          "netflix-ip"
+        ],
+        "outbound": "Streaming"
+      },
+      {
+        "rule_set": [
+          "disney-domain"
+        ],
+        "outbound": "Streaming"
+      },
+      {
+        "rule_set": [
+          "spotify-domain"
+        ],
+        "outbound": "Streaming"
+      },
+      {
+        "rule_set": [
+          "microsoft-domain"
+        ],
+        "outbound": "Microsoft"
+      },
+      {
+        "rule_set": [
+          "apple-domain"
+        ],
+        "outbound": "Apple"
+      },
+      {
+        "rule_set": [
+          "gfw-domain"
+        ],
+        "outbound": "Proxy"
+      },
+      {
+        "rule_set": [
+          "cn-domain",
+          "cn-ip"
+        ],
+        "outbound": "direct"
+      }
+    ],
+    "rule_set": [
+      {
+        "type": "remote",
+        "tag": "ads-domain",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/category-ads-all.srs",
+        "update_interval": "24h"
+      },
+      {
+        "type": "remote",
+        "tag": "lan-domain",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/private.srs",
+        "update_interval": "24h"
+      },
+      {
+        "type": "remote",
+        "tag": "lan-ip",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/private.srs",
+        "update_interval": "24h"
+      },
+      {
+        "type": "remote",
+        "tag": "openai-domain",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/openai.srs",
+        "update_interval": "24h"
+      },
+      {
+        "type": "remote",
+        "tag": "claude-domain",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/anthropic.srs",
+        "update_interval": "24h"
+      },
+      {
+        "type": "remote",
+        "tag": "gemini-domain",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/google-gemini.srs",
+        "update_interval": "24h"
+      },
+      {
+        "type": "remote",
+        "tag": "telegram-domain",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/telegram.srs",
+        "update_interval": "24h"
+      },
+      {
+        "type": "remote",
+        "tag": "telegram-ip",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/telegram.srs",
+        "update_interval": "24h"
+      },
+      {
+        "type": "remote",
+        "tag": "youtube-domain",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/youtube.srs",
+        "update_interval": "24h"
+      },
+      {
+        "type": "remote",
+        "tag": "netflix-domain",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/netflix.srs",
+        "update_interval": "24h"
+      },
+      {
+        "type": "remote",
+        "tag": "netflix-ip",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/netflix.srs",
+        "update_interval": "24h"
+      },
+      {
+        "type": "remote",
+        "tag": "disney-domain",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/disney.srs",
+        "update_interval": "24h"
+      },
+      {
+        "type": "remote",
+        "tag": "spotify-domain",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/spotify.srs",
+        "update_interval": "24h"
+      },
+      {
+        "type": "remote",
+        "tag": "microsoft-domain",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/microsoft.srs",
+        "update_interval": "24h"
+      },
+      {
+        "type": "remote",
+        "tag": "apple-domain",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/apple.srs",
+        "update_interval": "24h"
+      },
+      {
+        "type": "remote",
+        "tag": "gfw-domain",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/gfw.srs",
+        "update_interval": "24h"
+      },
+      {
+        "type": "remote",
+        "tag": "cn-domain",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/cn.srs",
+        "update_interval": "24h"
+      },
+      {
+        "type": "remote",
+        "tag": "cn-ip",
+        "format": "binary",
+        "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geoip/cn.srs",
+        "update_interval": "24h"
+      }
+    ],
+    "final": "Proxy",
+    "auto_detect_interface": true,
+    "default_http_client": "rule-set",
+    "default_domain_resolver": "local"
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true
+    }
+  }
+}
