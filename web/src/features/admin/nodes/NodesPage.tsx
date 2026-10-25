@@ -1,25 +1,27 @@
-/** `/admin/nodes` — node list with status, filters (URL), reorder, create/edit sheet and per-node drawers. */
+/**
+ * `/admin/nodes` — node list with status, filters (URL), drag-to-reorder, show/hide toggle, create/edit
+ * sheet and per-node drawers.
+ */
 import { Button, Chip, Dropdown, Label, ListBox, SearchField, Select } from '@heroui/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
-import { BarChart3, Copy, Ellipsis, Eye, EyeOff, Pencil, Plus, Server, Trash2, Users } from 'lucide-react'
+import { BarChart3, Copy, Ellipsis, Pencil, Plus, Server, Trash2, Users } from 'lucide-react'
 import { type Key, useMemo, useState } from 'react'
 import { EmptyState } from '@/components/EmptyState'
-import { createDataTableColumns, DataTable } from '@/components/data-table'
+import { createDataTableColumns, DataTable, DragHandle, useRowReorder } from '@/components/data-table'
 import { confirm } from '@/components/feedback/confirm'
 import { PageShell } from '@/components/PageShell'
 import { useT } from '@/i18n'
 import * as adminApi from '@/lib/api/admin'
 import { adminGroupsQuery, adminNodesQuery, qk } from '@/lib/api/queries'
 import { type Node, NODE_TYPES } from '@/lib/api/types'
+import { cx } from '@/lib/cn'
 import { errorMessage } from '@/lib/errors'
 import { toast } from '@/lib/toast'
-import { moveId } from '../shared/sort'
-import { SortButtons } from '../shared/SortButtons'
 import { useAdminMutation } from '../shared/useAdminMutation'
 import { useFormatters } from '../shared/useFormatters'
 import { useNow } from '../shared/useNow'
-import { LoadBars, StatusBadge } from './NodeBits'
+import { LoadBars, StatusBadge, VisibilityToggle } from './NodeBits'
 import { NodeOnlineDrawer, NodeStatsDrawer } from './NodeDrawers'
 import { NodeSheet } from './NodeSheet'
 import type { NodeSearch } from './search'
@@ -85,7 +87,8 @@ export function NodesPage() {
 
   const groupName = useMemo(() => new Map((groups.data ?? []).map((g) => [g.id, g.name])), [groups.data])
   const all = useMemo(() => nodes.data ?? [], [nodes.data])
-  const allIds = useMemo(() => all.map((n) => n.id), [all])
+  const rowIds = useMemo(() => all.map((n) => String(n.id)), [all])
+  const nameById = useMemo(() => new Map(all.map((n) => [String(n.id), n.name])), [all])
   const childCount = useMemo(() => {
     const m = new Map<number, number>()
     for (const n of all) if (n.parent_id) m.set(n.parent_id, (m.get(n.parent_id) ?? 0) + 1)
@@ -137,6 +140,13 @@ export function NodesPage() {
     onError: (e, _ids, ctx) => rollback(e, ctx),
     onSettled: () => queryClient.invalidateQueries({ queryKey: qk.admin.nodes() }),
   })
+  // Sort = position in the full list, so reordering is off while filtered (help text says so).
+  const dragAndDropHooks = useRowReorder({
+    ids: rowIds,
+    getLabel: (id) => nameById.get(id) ?? id,
+    onReorder: (ids) => reorderMutate(ids.map(Number)),
+    isDisabled: filtered || reorderPending,
+  })
   const copy = useAdminMutation({
     mutationFn: (id: number) => adminApi.copyNode(id),
     success: (n) => t('nodes.copied', { name: n.name }),
@@ -164,21 +174,9 @@ export function NodesPage() {
         col.display({
           id: 'order',
           header: () => <span className="sr-only">{t('nodes.columns.order')}</span>,
-          meta: { hideOnMobile: true, className: 'w-20' },
-          cell: (c) => {
-            const index = allIds.indexOf(c.row.original.id)
-            return (
-              <SortButtons
-                name={c.row.original.name}
-                isFirst={index <= 0}
-                isLast={index === allIds.length - 1}
-                isDisabled={filtered || reorderPending}
-                onMove={(dir) => reorderMutate(moveId(allIds, c.row.original.id, dir))}
-                upLabel={(name) => t('nodes.moveUp', { name })}
-                downLabel={(name) => t('nodes.moveDown', { name })}
-              />
-            )
-          },
+          // Handle only: 16 px gutter + 32 px button, the name column supplies the gap.
+          meta: { hideOnMobile: true, className: 'w-px pe-0' },
+          cell: (c) => <DragHandle label={t('nodes.reorder', { name: c.row.original.name })} />,
         }),
         col.accessor('name', {
           header: t('nodes.columns.name'),
@@ -193,15 +191,14 @@ export function NodesPage() {
                     type="button"
                     onClick={() => setPanel({ kind: 'sheet', node: n })}
                     aria-label={t('nodes.editNamed', { name: n.name })}
-                    className="text-start font-medium text-label-blue underline-offset-2 hover:underline focus-visible:rounded-[6px] focus-visible:outline-2 focus-visible:outline-focus"
+                    className={cx(
+                      'text-start font-medium underline-offset-2 hover:underline focus-visible:rounded-[6px] focus-visible:outline-2 focus-visible:outline-focus',
+                      // Hidden from users → dimmed (the eye-off toggle in the row says why).
+                      n.show ? 'text-label-blue' : 'text-label-secondary',
+                    )}
                   >
                     {n.name}
                   </button>
-                  {!n.show ? (
-                    <Chip size="sm" variant="soft" color="default">
-                      {t('nodes.hidden')}
-                    </Chip>
-                  ) : null}
                 </span>
                 {n.parent_id ? (
                   <span className="text-footnote text-label-secondary">
@@ -315,7 +312,7 @@ export function NodesPage() {
           ),
         }),
       ]),
-    [t, fmt, allIds, filtered, reorderMutate, reorderPending, groupName],
+    [t, fmt, groupName],
   )
 
   const onAction = (n: Node, key: Key) => {
@@ -331,9 +328,6 @@ export function NodesPage() {
         break
       case 'online':
         setPanel({ kind: 'online', node: n })
-        break
-      case 'toggleShow':
-        toggleShowMutate({ id: n.id, show: !n.show })
         break
       case 'delete':
         askDelete(n)
@@ -424,47 +418,44 @@ export function NodesPage() {
         emptyState={
           <EmptyState compact icon={<Server />} title={filtered ? t('nodes.noMatch') : t('nodes.empty')} />
         }
+        dragAndDropHooks={dragAndDropHooks}
         rowActions={(n) => (
-          <Dropdown>
-            <Button size="sm" variant="ghost" isIconOnly aria-label={t('nodes.moreFor', { name: n.name })}>
-              <Ellipsis className="size-4" aria-hidden="true" />
-            </Button>
-            <Dropdown.Popover placement="bottom end">
-              <Dropdown.Menu onAction={(k) => onAction(n, k)}>
-                <Dropdown.Item id="edit" textValue={t('common:actions.edit')}>
-                  <Pencil className="size-4" aria-hidden="true" />
-                  <Label>{t('common:actions.edit')}</Label>
-                </Dropdown.Item>
-                <Dropdown.Item id="stats" textValue={t('nodes.actions.stats')}>
-                  <BarChart3 className="size-4" aria-hidden="true" />
-                  <Label>{t('nodes.actions.stats')}</Label>
-                </Dropdown.Item>
-                <Dropdown.Item id="online" textValue={t('nodes.actions.online')}>
-                  <Users className="size-4" aria-hidden="true" />
-                  <Label>{t('nodes.actions.online')}</Label>
-                </Dropdown.Item>
-                <Dropdown.Item
-                  id="toggleShow"
-                  textValue={n.show ? t('nodes.actions.hide') : t('nodes.actions.show')}
-                >
-                  {n.show ? (
-                    <EyeOff className="size-4" aria-hidden="true" />
-                  ) : (
-                    <Eye className="size-4" aria-hidden="true" />
-                  )}
-                  <Label>{n.show ? t('nodes.actions.hide') : t('nodes.actions.show')}</Label>
-                </Dropdown.Item>
-                <Dropdown.Item id="copy" textValue={t('nodes.actions.copy')}>
-                  <Copy className="size-4" aria-hidden="true" />
-                  <Label>{t('nodes.actions.copy')}</Label>
-                </Dropdown.Item>
-                <Dropdown.Item id="delete" textValue={t('common:actions.delete')} variant="danger">
-                  <Trash2 className="size-4" aria-hidden="true" />
-                  <Label>{t('common:actions.delete')}</Label>
-                </Dropdown.Item>
-              </Dropdown.Menu>
-            </Dropdown.Popover>
-          </Dropdown>
+          <>
+            <VisibilityToggle
+              name={n.name}
+              shown={n.show}
+              onChange={(show) => toggleShowMutate({ id: n.id, show })}
+            />
+            <Dropdown>
+              <Button size="sm" variant="ghost" isIconOnly aria-label={t('nodes.moreFor', { name: n.name })}>
+                <Ellipsis className="size-4" aria-hidden="true" />
+              </Button>
+              <Dropdown.Popover placement="bottom end">
+                <Dropdown.Menu onAction={(k) => onAction(n, k)}>
+                  <Dropdown.Item id="edit" textValue={t('common:actions.edit')}>
+                    <Pencil className="size-4" aria-hidden="true" />
+                    <Label>{t('common:actions.edit')}</Label>
+                  </Dropdown.Item>
+                  <Dropdown.Item id="stats" textValue={t('nodes.actions.stats')}>
+                    <BarChart3 className="size-4" aria-hidden="true" />
+                    <Label>{t('nodes.actions.stats')}</Label>
+                  </Dropdown.Item>
+                  <Dropdown.Item id="online" textValue={t('nodes.actions.online')}>
+                    <Users className="size-4" aria-hidden="true" />
+                    <Label>{t('nodes.actions.online')}</Label>
+                  </Dropdown.Item>
+                  <Dropdown.Item id="copy" textValue={t('nodes.actions.copy')}>
+                    <Copy className="size-4" aria-hidden="true" />
+                    <Label>{t('nodes.actions.copy')}</Label>
+                  </Dropdown.Item>
+                  <Dropdown.Item id="delete" textValue={t('common:actions.delete')} variant="danger">
+                    <Trash2 className="size-4" aria-hidden="true" />
+                    <Label>{t('common:actions.delete')}</Label>
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown.Popover>
+            </Dropdown>
+          </>
         )}
       />
 

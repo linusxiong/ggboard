@@ -4,16 +4,21 @@
  * Server-driven: pass the current page of rows plus `total`, `page`, `pageSize`, `sort` and the
  * change handlers (usually wired to route search params + React Query). Below `md` it switches
  * to a card list. See web/README.md → "List pages".
+ *
+ * Reorderable rows: pass `dragAndDropHooks={useRowReorder(...)}` and render a `<DragHandle>` in one
+ * column (see `useRowReorder.tsx`). Desktop table only; the mobile cards ignore it.
  */
 import { Pagination, Table } from '@heroui/react'
 import type { SortDescriptor } from '@heroui/react'
 import { type RowData, useTable } from '@tanstack/react-table'
-import { type ReactNode, useMemo, useSyncExternalStore } from 'react'
+import { type ReactNode, useMemo, useRef, useSyncExternalStore } from 'react'
+import type { DragAndDropHooks } from 'react-aria-components'
 import { EmptyState } from '@/components/EmptyState'
 import { useLocale, useT } from '@/i18n'
 import { formatNumber } from '@/lib/format'
 import { cx } from '@/lib/cn'
 import { type DataTableColumn, type DataTableColumnMeta, dataTableFeatures } from './features'
+import { DRAG_HANDLE_ATTR } from './reorder'
 import { pageWindow, parseSort, toSortParam } from './sort'
 
 export interface DataTableProps<TData extends RowData> {
@@ -42,6 +47,11 @@ export interface DataTableProps<TData extends RowData> {
   emptyState?: ReactNode
   /** Custom mobile card; defaults to a label/value list built from the columns. */
   renderCard?: (row: TData) => ReactNode
+  /**
+   * Drag-to-reorder rows on the desktop table (`useRowReorder(...)`); one column must render a
+   * `<DragHandle>` per row. Pointer drags start only from the handle.
+   */
+  dragAndDropHooks?: DragAndDropHooks
   className?: string
 }
 
@@ -53,6 +63,10 @@ const subscribeMd = (cb: () => void) => {
   return () => mql?.removeEventListener('change', cb)
 }
 const isDesktop = () => window.matchMedia?.(MD).matches ?? true
+
+/** Plain text of a row-header value (string / number accessor columns), else undefined. */
+const rowText = (value: unknown) =>
+  typeof value === 'string' ? value : typeof value === 'number' ? String(value) : undefined
 
 /** Numbers (end-aligned columns) use tabular figures so digits line up. */
 const alignClass = (meta: DataTableColumnMeta | undefined) =>
@@ -74,11 +88,14 @@ export function DataTable<TData extends RowData>(props: DataTableProps<TData>) {
     rowActions,
     emptyState,
     renderCard,
+    dragAndDropHooks,
     className,
   } = props
   const t = useT('common')
   const desktop = useSyncExternalStore(subscribeMd, isDesktop, () => true)
   const sorting = useMemo(() => parseSort(sort), [sort])
+  /** Whether the current pointer press began on a `<DragHandle>` (see `dragAndDropHooks`). */
+  const pressOnHandle = useRef(false)
 
   const table = useTable({
     features: dataTableFeatures,
@@ -184,10 +201,37 @@ export function DataTable<TData extends RowData>(props: DataTableProps<TData>) {
   }
 
   // ------------------------------------------------------------- desktop table
+  // Skeleton rows have no drag handle, so drag and drop starts with the real rows. React Aria wants
+  // the hooks on every render or none: the `key` gives the table a fresh instance when they appear.
+  const dnd = showSkeleton ? undefined : dragAndDropHooks
   return (
-    <Table variant="secondary" className={cx('gg-table surface-card overflow-hidden', className)}>
+    <Table
+      variant="secondary"
+      className={cx('gg-table surface-card overflow-hidden', className)}
+      // React Aria makes the whole row draggable; keep pointer drags to the handle so a press-and-move
+      // elsewhere in the row (selecting text, a slipped click) never reorders the list. Chromium/WebKit
+      // also get the handle as the only drag source (rows: `-webkit-user-drag: none`, see below), which
+      // keeps the row text selectable; elsewhere this guard cancels drags that did not start on it.
+      onPointerDownCapture={
+        dnd
+          ? (e) => {
+              pressOnHandle.current =
+                e.target instanceof Element && e.target.closest(`[${DRAG_HANDLE_ATTR}]`) !== null
+            }
+          : undefined
+      }
+      onDragStartCapture={
+        dnd
+          ? (e) => {
+              if (!pressOnHandle.current) e.preventDefault()
+            }
+          : undefined
+      }
+    >
       <Table.ScrollContainer>
         <Table.Content
+          key={dnd ? 'dnd' : 'static'}
+          dragAndDropHooks={dnd}
           aria-label={props['aria-label']}
           aria-busy={isLoading || isFetching || undefined}
           sortDescriptor={sortDescriptor}
@@ -245,7 +289,15 @@ export function DataTable<TData extends RowData>(props: DataTableProps<TData>) {
                   </Table.Row>
                 ))
               : rows.map((row) => (
-                  <Table.Row key={row.id} id={row.id}>
+                  <Table.Row
+                    key={row.id}
+                    id={row.id}
+                    // Names the row in drag-and-drop announcements ("Insert between A and B").
+                    textValue={dnd ? rowText(row.getValue(rowHeaderId ?? '')) : undefined}
+                    // `draggable` rows get `user-select: none` + `-webkit-user-drag: element` from the
+                    // browser; undo both so only the <DragHandle> drags and the text stays selectable.
+                    className={dnd ? 'select-text [-webkit-user-drag:none]' : undefined}
+                  >
                     {[
                       ...row.getAllCells().map((cell) => {
                         const meta = cell.column.columnDef.meta

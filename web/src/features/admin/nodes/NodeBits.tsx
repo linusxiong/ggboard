@@ -1,5 +1,6 @@
-/** Small node table pieces: status badge (with last check/push tooltip) and load mini-bars. */
-import { Tooltip } from '@heroui/react'
+/** Small node table pieces: status badge (with last check/push tooltip), load mini-bars, show/hide toggle. */
+import { Button, Tooltip } from '@heroui/react'
+import { Eye, EyeOff } from 'lucide-react'
 import { useT } from '@/i18n'
 import type { NodeLoadValue, NodeStatus } from '@/lib/api/types'
 import { cx } from '@/lib/cn'
@@ -84,5 +85,38 @@ export function LoadBars({
         <Bar key={i.key} label={t(`nodes.load.${i.key}`)} ratio={i.ratio} locale={fmt.locale} />
       ))}
     </span>
+  )
+}
+
+/**
+ * Icon-only show/hide toggle (`aria-pressed` = shown in user subscriptions). Hidden nodes get the
+ * eye-off glyph in the secondary label colour; the tooltip names the current state.
+ */
+export function VisibilityToggle({
+  name,
+  shown,
+  onChange,
+}: {
+  name: string
+  shown: boolean
+  onChange: (shown: boolean) => void
+}) {
+  const t = useT('admin-nodes')
+  const Icon = shown ? Eye : EyeOff
+  return (
+    <Tooltip delay={200}>
+      <Button
+        size="sm"
+        variant="ghost"
+        isIconOnly
+        aria-label={t('nodes.visibility.label', { name })}
+        aria-pressed={shown}
+        onPress={() => onChange(!shown)}
+        className={shown ? undefined : 'text-label-secondary'}
+      >
+        <Icon className="size-4" aria-hidden="true" />
+      </Button>
+      <Tooltip.Content>{shown ? t('nodes.visibility.shown') : t('nodes.visibility.hidden')}</Tooltip.Content>
+    </Tooltip>
   )
 }

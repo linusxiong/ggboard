@@ -57,7 +57,7 @@
   },
   "nodes": {
     "title": "节点",
-    "help": "节点状态每分钟刷新；绿色表示有流量上报，橙色表示仅有心跳。\n筛选时无法调整排序。",
+    "help": "节点状态每分钟刷新；绿色表示有流量上报，橙色表示仅有心跳。\n拖动行首的把手调整排序（键盘：聚焦把手后按 Enter，用 ↑/↓ 选择位置，再按 Enter）；筛选时无法调整排序。",
     "create": "新建节点",
     "edit": "编辑节点「{name}」",
     "editNamed": "编辑节点 {name}",
@@ -71,12 +71,15 @@
     "deleteChildren": "该节点有 {count} 个子节点，删除前请确认它们已改挂其他父节点。",
     "empty": "还没有节点",
     "noMatch": "没有符合筛选条件的节点",
-    "hidden": "已隐藏",
     "childOf": "子节点 · 父节点 {name}",
     "serverPortShort": "服务端口 {port}",
     "noGroups": "未分配权限组",
-    "moveUp": "上移 {name}",
-    "moveDown": "下移 {name}",
+    "reorder": "拖动以排序：{name}",
+    "visibility": {
+      "label": "对用户显示「{name}」",
+      "shown": "用户可见",
+      "hidden": "已对用户隐藏"
+    },
     "fixProtocol": "请修正协议配置中的错误。",
     "hasErrors": "有错误",
     "sections": "节点配置",
@@ -133,9 +136,7 @@
     "actions": {
       "stats": "流量统计",
       "online": "在线用户",
-      "copy": "复制节点",
-      "show": "向用户显示",
-      "hide": "对用户隐藏"
+      "copy": "复制节点"
     },
     "stats": {
       "title": "「{name}」流量",

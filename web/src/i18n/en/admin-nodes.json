@@ -57,7 +57,7 @@
   },
   "nodes": {
     "title": "Nodes",
-    "help": "Status refreshes every minute; green means traffic reports, orange means heartbeats only.\nSorting is unavailable while filtered.",
+    "help": "Status refreshes every minute; green means traffic reports, orange means heartbeats only.\nDrag a row by its handle to reorder (keyboard: focus the handle, press Enter, choose the spot with ↑/↓, press Enter). Sorting is unavailable while filtered.",
     "create": "New node",
     "edit": "Edit node “{name}”",
     "editNamed": "Edit node {name}",
@@ -71,12 +71,15 @@
     "deleteChildren": "This node has {count} child nodes. Make sure they point to another parent first.",
     "empty": "No nodes yet",
     "noMatch": "No nodes match the filters",
-    "hidden": "Hidden",
     "childOf": "Child · parent {name}",
     "serverPortShort": "Server port {port}",
     "noGroups": "No groups",
-    "moveUp": "Move {name} up",
-    "moveDown": "Move {name} down",
+    "reorder": "Reorder {name}",
+    "visibility": {
+      "label": "Show {name} to users",
+      "shown": "Visible to users",
+      "hidden": "Hidden from users"
+    },
     "fixProtocol": "Please fix the errors in the protocol settings.",
     "hasErrors": "Has errors",
     "sections": "Node configuration",
@@ -133,9 +136,7 @@
     "actions": {
       "stats": "Traffic",
       "online": "Online users",
-      "copy": "Duplicate",
-      "show": "Show to users",
-      "hide": "Hide from users"
+      "copy": "Duplicate"
     },
     "stats": {
       "title": "Traffic of “{name}”",
