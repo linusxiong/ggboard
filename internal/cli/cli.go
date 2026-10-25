@@ -1,4 +1,4 @@
-// Package cli builds the ggboard command tree. Built-in commands: serve, migrate, admin, version.
+// Package cli builds the ggboard command tree. Built-in commands: serve, migrate, admin, db, version.
 // Other packages add subcommands without editing main.go:
 //
 //	// cmd/ggboard/import_xboard.go
@@ -110,7 +110,7 @@ func NewRoot(version string) (*cobra.Command, *app.App) {
 		return nil
 	}
 
-	root.AddCommand(serveCmd(a), migrateCmd(a), adminCmd(a), versionCmd(version))
+	root.AddCommand(serveCmd(a), migrateCmd(a), adminCmd(a), dbCmd(a), versionCmd(version))
 	for _, f := range registered() {
 		if c := f(a); c != nil {
 			root.AddCommand(c)

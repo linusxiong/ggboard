@@ -15,10 +15,11 @@ internal/
   auth/        JWT, password hashing, middlewares, one-time login tokens
   cache/       ristretto wrapper + TTLMap
   captcha/     none / turnstile / recaptcha / hcaptcha
-  cli/         cobra root: serve, migrate, admin, version (+ registered subcommands)
+  cli/         cobra root: serve, migrate, admin, db, version (+ registered subcommands)
   config/      viper configuration
   console/     terminal style detection (--color / log.color / NO_COLOR) and the lipgloss printer for CLI output
-  db/          gorm open (sqlite/postgres/mysql), AutoMigrate and idempotent schema upgrades (upgrade.go)
+  db/          gorm open (sqlite/postgres/mysql), AutoMigrate, idempotent schema upgrades (upgrade.go) and the
+               verified database-to-database copy behind `ggboard db copy` (copy.go)
   httpx/       engine, middleware, responses, errors, binding, pagination, rate limits, gzip
   importer/xboard/                              `ggboard import xboard`
   logx/        slog handler + ring buffer for /admin/system/logs
@@ -357,12 +358,19 @@ Every service is cheap to build: call `New(a)` per request. Import aliases used 
   GORM quotes the identifiers it generates.
 - The driver wrapper normalizes every `time.Time` parameter to UTC on SQLite. Always pass `time.Time`, never preformatted
   strings. Use `model.Day(t)` for `date` columns.
+- Every driver returns times in UTC whatever the process time zone (`db.Open`: SQLite's UTC connector, MySQL `loc=UTC`,
+  a PostgreSQL `timestamptz` codec with `ScanLocation: time.UTC`), so API timestamps end in `Z` and `AddDate` on stored
+  times runs in UTC. Time-related database tests run under a non-UTC `time.Local` (`internal/db/utc_test.go`).
 - Do not add `default:true` to bool columns: GORM skips zero values on insert, so `false` would become `true`. Set defaults in code.
 - No foreign-key constraints are created, so delete dependants explicitly. When saving a struct with loaded relations use
   `db.Omit(clause.Associations)`.
 - Never reuse a model variable whose primary key is set for another `First`/`Find`: GORM adds it to the WHERE clause.
 - Inside `a.DB.Transaction(func(tx *gorm.DB) error {…})` use `tx` for every query. On SQLite, writes through `a.DB`
   wait for the lock.
+- Every table is a model in `model.All()` with a single-column integer or string primary key, and every column type
+  is one `db.Copy` knows (bool, integers, floats, strings/TEXT JSON types, bytes, `time.Time`, `type:date`): `ggboard db copy`
+  refuses tables and columns outside the schema and fails on an unknown column type. A new model must also get rows in the
+  seed of `internal/db/copy_test.go` (the test fails on an empty table).
 
 ## 10. Tests (`internal/testutil`)
 

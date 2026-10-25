@@ -26,7 +26,8 @@ const SlowQueryThreshold = 300 * time.Millisecond
 
 // Open connects to the database described by cfg. SQLite runs with WAL, busy_timeout=5000, foreign_keys=1
 // and immediate transactions; every time.Time parameter is normalized to UTC so text comparisons stay
-// correct. MySQL DSNs get parseTime=true (and loc=UTC unless set). log may be nil.
+// correct. MySQL DSNs get parseTime=true and loc=UTC. PostgreSQL scans timestamptz in UTC (postgres_utc.go). Every
+// driver therefore returns times in UTC whatever the process time zone. log may be nil.
 func Open(cfg config.DatabaseConfig, log *slog.Logger) (*gorm.DB, error) {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
@@ -44,7 +45,7 @@ func Open(cfg config.DatabaseConfig, log *slog.Logger) (*gorm.DB, error) {
 
 	var (
 		dialector gorm.Dialector
-		sqlite3   *sql.DB
+		pool      *sql.DB // opened here (SQLite, PostgreSQL): closed again when gorm.Open fails
 		memory    bool
 	)
 	switch cfg.Driver {
@@ -55,10 +56,15 @@ func Open(cfg config.DatabaseConfig, log *slog.Logger) (*gorm.DB, error) {
 		if err != nil {
 			return nil, err
 		}
-		sqlite3 = conn
+		pool = conn
 		dialector = &sqlite.Dialector{DriverName: sqlite.DriverName, DSN: dsn, Conn: conn}
 	case config.DriverPostgres:
-		dialector = postgres.Open(cfg.DSN)
+		conn, err := openPostgres(cfg.DSN)
+		if err != nil {
+			return nil, err
+		}
+		pool = conn
+		dialector = postgres.New(postgres.Config{Conn: conn})
 	case config.DriverMySQL:
 		dsn, err := MySQLDSN(cfg.DSN)
 		if err != nil {
@@ -71,8 +77,8 @@ func Open(cfg config.DatabaseConfig, log *slog.Logger) (*gorm.DB, error) {
 
 	gdb, err := gorm.Open(dialector, gcfg)
 	if err != nil {
-		if sqlite3 != nil {
-			_ = sqlite3.Close()
+		if pool != nil {
+			_ = pool.Close()
 		}
 		return nil, fmt.Errorf("db: open %s: %w", cfg.Driver, err)
 	}

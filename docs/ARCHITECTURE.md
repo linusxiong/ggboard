@@ -87,6 +87,7 @@ batched DB writes.
 | `ggboard admin reset-password --email E [--password P]` | set a password (signs out existing sessions) |
 | `ggboard admin promote --email E` | grant `is_admin` to an existing user |
 | `ggboard import xboard --dsn … [--driver] [--dry-run] [--force] [--skip-banned] [--with-stats] [--stats-days N] [--source-tz TZ]` | Xboard import, see docs/IMPORT_XBOARD.md |
+| `ggboard db copy --to-driver D --to-dsn DSN [--overwrite] [--dry-run] [--batch-size N]` | copy the configured database into another one (SQLite ↔ PostgreSQL, MySQL) and verify it: `db.Copy` migrates the target, copies every `model.All()` table as raw column values in one transaction, compares row counts and per-row SHA-256 of both sides, resets PostgreSQL sequences. Guide: docs/DEPLOY.md §5 |
 | `ggboard version` | print the version (no config or DB needed) |
 
 Global flags: `-c/--config`, `--data-dir`, `--log-level`, `--log-format`, `--color`, `--db-driver`, `--db-dsn`.
