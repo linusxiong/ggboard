@@ -183,6 +183,9 @@ profile's node operations (`nodes`: filters, rename, emoji, sort, limit, with th
 
    The first source that has a RuleRef with at least one key of the client's family wins.
    For example, a sing-box user who chose `blackmatrix7` falls back to `metacubex`.
+   So the chosen source never costs a client rules: whatever the source, each client gets every enabled category that
+   some source publishes for it (tested for every source × client). blackmatrix7, Loyalsoldier and ACL4SSR have no
+   sing-box files, so with any of them sing-box gets the same MetaCubeX sets as a profile that chose `metacubex`.
 3. **Pick keys per RuleRef**, in array order, from its `formats`:
 
    | client format | keys used |
@@ -198,7 +201,9 @@ profile's node operations (`nodes`: filters, rename, emoji, sort, limit, with th
 
    The `shadowrocket` keys stay in the catalog, but the shadowrocket format is links-only (Shadowrocket users configure rules in the
    app), so it consumes no rule sets. The implementation is `rulesets.BuildPlan` (`internal/subscription/rulesets/plan.go`); the
-   public catalog (`GET /guest/rulesets/catalog`) lists per category and source which formats can use them.
+   public catalog (`GET /guest/rulesets/catalog`) lists per category and source which formats can use them
+   (`source_clients`) and the per-format preferred source (`preferred_sources`), so the rule builder shows which source
+   each client actually gets.
 
 4. **Name each rule set** deterministically as `<category>[-<n>]-<domain|ip|classical>`.
    `n` (starting at 1) is added only when the RuleRef value is an array. The suffix comes from the key's behavior.

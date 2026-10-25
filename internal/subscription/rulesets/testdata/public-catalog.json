@@ -1,0 +1,2011 @@
+{
+  "sources": {
+    "acl4ssr": {
+      "name": "ACL4SSR/ACL4SSR",
+      "homepage": "https://github.com/ACL4SSR/ACL4SSR",
+      "license": "CC-BY-SA-4.0. Referenced by URL only.",
+      "order": 50,
+      "description": {
+        "en": "ACL4SSR lists used by subconverter (Clash/ and Clash/Ruleset/ .list files); Surge-compatible syntax.",
+        "zh-CN": "subconverter 常用的 ACL4SSR 规则（Clash/ 与 Clash/Ruleset/ 下的 .list）；语法与 Surge 兼容。"
+      },
+      "clients": [
+        "clash-meta",
+        "stash",
+        "surge",
+        "surfboard",
+        "loon"
+      ]
+    },
+    "blackmatrix7": {
+      "name": "blackmatrix7/ios_rule_script",
+      "homepage": "https://github.com/blackmatrix7/ios_rule_script",
+      "license": "GPL-2.0. Rule data is aggregated from public sources; ggboard only references the raw URLs (clients download them), nothing is vendored.",
+      "order": 10,
+      "description": {
+        "en": "Largest per-service rule collection for Clash, Surge, Quantumult X, Shadowrocket and Loon, updated daily; it has no sing-box files, so sing-box subscriptions use MetaCubeX.",
+        "zh-CN": "最全的分应用规则（Clash / Surge / Quantumult X / Shadowrocket / Loon），每日更新；没有 sing-box 文件，sing-box 订阅自动改用 MetaCubeX。"
+      },
+      "clients": [
+        "clash-meta",
+        "stash",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ]
+    },
+    "dustinwin": {
+      "name": "DustinWin/ruleset_geodata",
+      "homepage": "https://github.com/DustinWin/ruleset_geodata",
+      "license": "GPL-3.0. Referenced by URL only.",
+      "order": 60,
+      "description": {
+        "en": "Curated mihomo / sing-box rule sets (branches mihomo-ruleset and sing-box-ruleset); domain sets and *ip sets are separate files.",
+        "zh-CN": "为 mihomo / sing-box 定制的精选规则集（mihomo-ruleset、sing-box-ruleset 分支），域名集与 *ip 集分开。"
+      },
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox"
+      ]
+    },
+    "loyalsoldier": {
+      "name": "Loyalsoldier/clash-rules",
+      "homepage": "https://github.com/Loyalsoldier/clash-rules",
+      "license": "GPL-3.0. Referenced by URL only.",
+      "order": 30,
+      "description": {
+        "en": "Classic Clash rule providers (release branch, built daily); the .txt files contain YAML payloads.",
+        "zh-CN": "经典 Clash 规则集（release 分支，每日构建）；.txt 文件内容是 YAML payload。"
+      },
+      "clients": [
+        "clash-meta",
+        "stash"
+      ]
+    },
+    "metacubex": {
+      "name": "MetaCubeX/meta-rules-dat",
+      "homepage": "https://github.com/MetaCubeX/meta-rules-dat",
+      "license": "GPL-3.0. Built from v2fly/domain-list-community (MIT) and public GeoIP data; referenced by URL only.",
+      "order": 20,
+      "description": {
+        "en": "Official mihomo geosite/geoip rule sets: .mrs/.yaml on branch meta, .srs/.json on branch sing; fastest option.",
+        "zh-CN": "mihomo 官方 geosite/geoip 规则集：meta 分支提供 .mrs/.yaml，sing 分支提供 .srs/.json；速度最快。"
+      },
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox"
+      ]
+    },
+    "sagernet": {
+      "name": "SagerNet/sing-geosite + SagerNet/sing-geoip",
+      "homepage": "https://github.com/SagerNet/sing-geosite",
+      "license": "GPL-3.0-or-later (per LICENSE file; GitHub shows NOASSERTION). Data from v2fly/domain-list-community and GeoIP databases; referenced by URL only.",
+      "order": 40,
+      "description": {
+        "en": "Official sing-box rule sets (branch rule-set, .srs only); geoip offers country codes only.",
+        "zh-CN": "sing-box 官方规则集（rule-set 分支，仅 .srs）；geoip 只有国家/地区代码。"
+      },
+      "clients": [
+        "singbox"
+      ]
+    }
+  },
+  "categories": [
+    {
+      "id": "ads",
+      "name": {
+        "en": "Ad blocking",
+        "zh-CN": "广告拦截"
+      },
+      "default_target": "REJECT",
+      "order": 10,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "loyalsoldier",
+        "sagernet",
+        "acl4ssr",
+        "dustinwin"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "dustinwin": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "loyalsoldier": [
+          "clash-meta",
+          "stash"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "lan",
+      "name": {
+        "en": "LAN / private network",
+        "zh-CN": "局域网 / 私有网络"
+      },
+      "default_target": "DIRECT",
+      "order": 20,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "loyalsoldier",
+        "sagernet",
+        "acl4ssr",
+        "dustinwin"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "dustinwin": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "loyalsoldier": [
+          "clash-meta",
+          "stash"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "applications",
+      "name": {
+        "en": "Direct apps (download / P2P clients)",
+        "zh-CN": "直连软件（下载 / P2P 客户端）"
+      },
+      "default_target": "DIRECT",
+      "order": 25,
+      "sources": [
+        "loyalsoldier"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash"
+      ],
+      "source_clients": {
+        "loyalsoldier": [
+          "clash-meta",
+          "stash"
+        ]
+      }
+    },
+    {
+      "id": "openai",
+      "name": {
+        "en": "OpenAI / ChatGPT",
+        "zh-CN": "OpenAI / ChatGPT"
+      },
+      "default_target": "AI",
+      "order": 30,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "sagernet",
+        "acl4ssr"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "claude",
+      "name": {
+        "en": "Claude / Anthropic",
+        "zh-CN": "Claude / Anthropic"
+      },
+      "default_target": "AI",
+      "order": 31,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "sagernet",
+        "acl4ssr"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "gemini",
+      "name": {
+        "en": "Gemini / Google AI",
+        "zh-CN": "Gemini / Google AI"
+      },
+      "default_target": "AI",
+      "order": 32,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "sagernet",
+        "acl4ssr"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "copilot",
+      "name": {
+        "en": "Copilot / Microsoft AI",
+        "zh-CN": "Copilot / 微软 AI"
+      },
+      "default_target": "AI",
+      "order": 33,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "sagernet"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "ai",
+      "name": {
+        "en": "Other AI services (non-CN)",
+        "zh-CN": "其他海外 AI 服务"
+      },
+      "default_target": "AI",
+      "order": 34,
+      "sources": [
+        "metacubex",
+        "sagernet",
+        "acl4ssr",
+        "dustinwin"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "dustinwin": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "telegram",
+      "name": {
+        "en": "Telegram",
+        "zh-CN": "Telegram"
+      },
+      "default_target": "Telegram",
+      "order": 40,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "loyalsoldier",
+        "sagernet",
+        "acl4ssr",
+        "dustinwin"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "dustinwin": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "loyalsoldier": [
+          "clash-meta",
+          "stash"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "youtube",
+      "name": {
+        "en": "YouTube",
+        "zh-CN": "YouTube"
+      },
+      "default_target": "Streaming",
+      "order": 50,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "sagernet",
+        "acl4ssr",
+        "dustinwin"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "dustinwin": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "netflix",
+      "name": {
+        "en": "Netflix",
+        "zh-CN": "Netflix"
+      },
+      "default_target": "Streaming",
+      "order": 51,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "sagernet",
+        "acl4ssr",
+        "dustinwin"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "dustinwin": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "disney",
+      "name": {
+        "en": "Disney+",
+        "zh-CN": "Disney+"
+      },
+      "default_target": "Streaming",
+      "order": 52,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "sagernet",
+        "acl4ssr",
+        "dustinwin"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "dustinwin": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "hbo",
+      "name": {
+        "en": "HBO Max",
+        "zh-CN": "HBO Max"
+      },
+      "default_target": "Streaming",
+      "order": 53,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "sagernet",
+        "acl4ssr",
+        "dustinwin"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "dustinwin": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "spotify",
+      "name": {
+        "en": "Spotify",
+        "zh-CN": "Spotify"
+      },
+      "default_target": "Streaming",
+      "order": 54,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "sagernet",
+        "acl4ssr",
+        "dustinwin"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "dustinwin": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "tiktok",
+      "name": {
+        "en": "TikTok",
+        "zh-CN": "TikTok"
+      },
+      "default_target": "Streaming",
+      "order": 55,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "sagernet",
+        "acl4ssr",
+        "dustinwin"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "dustinwin": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "twitch",
+      "name": {
+        "en": "Twitch",
+        "zh-CN": "Twitch"
+      },
+      "default_target": "Streaming",
+      "order": 56,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "sagernet",
+        "acl4ssr"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "bahamut",
+      "name": {
+        "en": "Bahamut Anime Crazy",
+        "zh-CN": "巴哈姆特动画疯"
+      },
+      "default_target": "Streaming",
+      "order": 57,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "sagernet",
+        "acl4ssr"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "bilibili",
+      "name": {
+        "en": "Bilibili",
+        "zh-CN": "哔哩哔哩"
+      },
+      "default_target": "DIRECT",
+      "order": 58,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "sagernet",
+        "acl4ssr",
+        "dustinwin"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "dustinwin": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "github",
+      "name": {
+        "en": "GitHub",
+        "zh-CN": "GitHub"
+      },
+      "default_target": "GitHub",
+      "order": 60,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "sagernet",
+        "acl4ssr"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "google",
+      "name": {
+        "en": "Google",
+        "zh-CN": "Google"
+      },
+      "default_target": "Google",
+      "order": 61,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "loyalsoldier",
+        "sagernet",
+        "acl4ssr"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "loyalsoldier": [
+          "clash-meta",
+          "stash"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "microsoft",
+      "name": {
+        "en": "Microsoft",
+        "zh-CN": "微软服务"
+      },
+      "default_target": "Microsoft",
+      "order": 62,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "sagernet",
+        "acl4ssr"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "icloud",
+      "name": {
+        "en": "iCloud",
+        "zh-CN": "iCloud"
+      },
+      "default_target": "Apple",
+      "order": 63,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "loyalsoldier",
+        "sagernet"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "loyalsoldier": [
+          "clash-meta",
+          "stash"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "apple",
+      "name": {
+        "en": "Apple",
+        "zh-CN": "苹果服务"
+      },
+      "default_target": "Apple",
+      "order": 64,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "loyalsoldier",
+        "sagernet",
+        "acl4ssr"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "loyalsoldier": [
+          "clash-meta",
+          "stash"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "twitter",
+      "name": {
+        "en": "X / Twitter",
+        "zh-CN": "X / Twitter"
+      },
+      "default_target": "Proxy",
+      "order": 65,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "sagernet",
+        "acl4ssr"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "facebook",
+      "name": {
+        "en": "Meta (Facebook / Instagram / WhatsApp)",
+        "zh-CN": "Meta（Facebook / Instagram / WhatsApp）"
+      },
+      "default_target": "Proxy",
+      "order": 66,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "sagernet",
+        "acl4ssr"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "paypal",
+      "name": {
+        "en": "PayPal",
+        "zh-CN": "PayPal"
+      },
+      "default_target": "Proxy",
+      "order": 67,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "sagernet"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "speedtest",
+      "name": {
+        "en": "Speedtest",
+        "zh-CN": "网络测速"
+      },
+      "default_target": "Proxy",
+      "order": 68,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "sagernet",
+        "dustinwin"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "dustinwin": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "steam",
+      "name": {
+        "en": "Steam",
+        "zh-CN": "Steam"
+      },
+      "default_target": "Games",
+      "order": 70,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "sagernet",
+        "acl4ssr"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "epic",
+      "name": {
+        "en": "Epic Games",
+        "zh-CN": "Epic Games"
+      },
+      "default_target": "Games",
+      "order": 71,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "sagernet",
+        "acl4ssr"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "gfw",
+      "name": {
+        "en": "Blocked sites (GFWList)",
+        "zh-CN": "被墙网站（GFWList）"
+      },
+      "default_target": "Proxy",
+      "order": 80,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "loyalsoldier",
+        "acl4ssr",
+        "dustinwin"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "dustinwin": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "loyalsoldier": [
+          "clash-meta",
+          "stash"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "global",
+      "name": {
+        "en": "Foreign sites (non-CN)",
+        "zh-CN": "海外网站（非中国大陆）"
+      },
+      "default_target": "Proxy",
+      "order": 85,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "loyalsoldier",
+        "sagernet",
+        "dustinwin"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "dustinwin": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "loyalsoldier": [
+          "clash-meta",
+          "stash"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    },
+    {
+      "id": "cn",
+      "name": {
+        "en": "Mainland China",
+        "zh-CN": "中国大陆"
+      },
+      "default_target": "DIRECT",
+      "order": 90,
+      "sources": [
+        "blackmatrix7",
+        "metacubex",
+        "loyalsoldier",
+        "sagernet",
+        "acl4ssr",
+        "dustinwin"
+      ],
+      "clients": [
+        "clash-meta",
+        "stash",
+        "singbox",
+        "surge",
+        "surfboard",
+        "loon",
+        "quantumultx"
+      ],
+      "source_clients": {
+        "acl4ssr": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon"
+        ],
+        "blackmatrix7": [
+          "clash-meta",
+          "stash",
+          "surge",
+          "surfboard",
+          "loon",
+          "quantumultx"
+        ],
+        "dustinwin": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "loyalsoldier": [
+          "clash-meta",
+          "stash"
+        ],
+        "metacubex": [
+          "clash-meta",
+          "stash",
+          "singbox"
+        ],
+        "sagernet": [
+          "singbox"
+        ]
+      }
+    }
+  ],
+  "templates": [
+    {
+      "id": "none",
+      "name": {
+        "en": "None (global proxy)",
+        "zh-CN": "无规则（全局代理）"
+      },
+      "description": {
+        "en": "No rules; all traffic goes through the proxy.",
+        "zh-CN": "不下发任何分流规则，所有流量走代理。"
+      },
+      "categories": {},
+      "groups": [
+        {
+          "name": "Proxy",
+          "type": "select",
+          "include": "auto, *"
+        },
+        {
+          "name": "auto",
+          "type": "url-test",
+          "include": "*",
+          "url": "http://www.gstatic.com/generate_204",
+          "interval": 300
+        }
+      ],
+      "final": "Proxy",
+      "geoip_cn_direct": false
+    },
+    {
+      "id": "minimal",
+      "name": {
+        "en": "Minimal (China direct)",
+        "zh-CN": "精简（国内直连）"
+      },
+      "description": {
+        "en": "LAN and mainland China go direct; everything else is proxied.",
+        "zh-CN": "局域网与中国大陆直连，其余走代理。"
+      },
+      "categories": {
+        "cn": "DIRECT",
+        "lan": "DIRECT"
+      },
+      "groups": [
+        {
+          "name": "Proxy",
+          "type": "select",
+          "include": "auto, *"
+        },
+        {
+          "name": "auto",
+          "type": "url-test",
+          "include": "*",
+          "url": "http://www.gstatic.com/generate_204",
+          "interval": 300
+        }
+      ],
+      "final": "Proxy",
+      "geoip_cn_direct": true
+    },
+    {
+      "id": "standard",
+      "name": {
+        "en": "Standard",
+        "zh-CN": "标准分流"
+      },
+      "description": {
+        "en": "Ad blocking plus AI, Telegram, streaming, Microsoft and Apple groups; blocked sites proxied, China direct.",
+        "zh-CN": "去广告、AI、Telegram、流媒体、微软与苹果分组，被墙网站代理，国内直连。"
+      },
+      "categories": {
+        "ads": "REJECT",
+        "apple": "Apple",
+        "claude": "AI",
+        "cn": "DIRECT",
+        "disney": "Streaming",
+        "gemini": "AI",
+        "gfw": "Proxy",
+        "lan": "DIRECT",
+        "microsoft": "Microsoft",
+        "netflix": "Streaming",
+        "openai": "AI",
+        "spotify": "Streaming",
+        "telegram": "Telegram",
+        "youtube": "Streaming"
+      },
+      "groups": [
+        {
+          "name": "Proxy",
+          "type": "select",
+          "include": "auto, *"
+        },
+        {
+          "name": "AI",
+          "type": "select",
+          "include": "Proxy, 美国|新加坡|日本|台湾|US|SG|JP|TW"
+        },
+        {
+          "name": "Streaming",
+          "type": "select",
+          "include": "Proxy, *"
+        },
+        {
+          "name": "Telegram",
+          "type": "select",
+          "include": "Proxy, *"
+        },
+        {
+          "name": "Microsoft",
+          "type": "select",
+          "include": "DIRECT, Proxy"
+        },
+        {
+          "name": "Apple",
+          "type": "select",
+          "include": "DIRECT, Proxy"
+        },
+        {
+          "name": "auto",
+          "type": "url-test",
+          "include": "*",
+          "url": "http://www.gstatic.com/generate_204",
+          "interval": 300
+        }
+      ],
+      "final": "Proxy",
+      "geoip_cn_direct": true
+    },
+    {
+      "id": "full",
+      "name": {
+        "en": "Full",
+        "zh-CN": "精细分流"
+      },
+      "description": {
+        "en": "Every category enabled with its default target, plus Games, Google and GitHub groups.",
+        "zh-CN": "启用全部分类（按默认目标），额外提供游戏、Google、GitHub 分组。"
+      },
+      "categories": {
+        "ads": "REJECT",
+        "ai": "AI",
+        "apple": "Apple",
+        "applications": "DIRECT",
+        "bahamut": "Streaming",
+        "bilibili": "DIRECT",
+        "claude": "AI",
+        "cn": "DIRECT",
+        "copilot": "AI",
+        "disney": "Streaming",
+        "epic": "Games",
+        "facebook": "Proxy",
+        "gemini": "AI",
+        "gfw": "Proxy",
+        "github": "GitHub",
+        "global": "Proxy",
+        "google": "Google",
+        "hbo": "Streaming",
+        "icloud": "Apple",
+        "lan": "DIRECT",
+        "microsoft": "Microsoft",
+        "netflix": "Streaming",
+        "openai": "AI",
+        "paypal": "Proxy",
+        "speedtest": "Proxy",
+        "spotify": "Streaming",
+        "steam": "Games",
+        "telegram": "Telegram",
+        "tiktok": "Streaming",
+        "twitch": "Streaming",
+        "twitter": "Proxy",
+        "youtube": "Streaming"
+      },
+      "groups": [
+        {
+          "name": "Proxy",
+          "type": "select",
+          "include": "auto, *"
+        },
+        {
+          "name": "AI",
+          "type": "select",
+          "include": "Proxy, 美国|新加坡|日本|台湾|US|SG|JP|TW"
+        },
+        {
+          "name": "Streaming",
+          "type": "select",
+          "include": "Proxy, *"
+        },
+        {
+          "name": "Telegram",
+          "type": "select",
+          "include": "Proxy, *"
+        },
+        {
+          "name": "Microsoft",
+          "type": "select",
+          "include": "DIRECT, Proxy"
+        },
+        {
+          "name": "Apple",
+          "type": "select",
+          "include": "DIRECT, Proxy"
+        },
+        {
+          "name": "Games",
+          "type": "select",
+          "include": "Proxy, DIRECT, *"
+        },
+        {
+          "name": "Google",
+          "type": "select",
+          "include": "Proxy, *"
+        },
+        {
+          "name": "GitHub",
+          "type": "select",
+          "include": "Proxy, DIRECT, *"
+        },
+        {
+          "name": "auto",
+          "type": "url-test",
+          "include": "*",
+          "url": "http://www.gstatic.com/generate_204",
+          "interval": 300
+        }
+      ],
+      "final": "Proxy",
+      "geoip_cn_direct": true
+    }
+  ],
+  "mirrors": [
+    {
+      "id": "direct",
+      "name": {
+        "en": "Direct (GitHub)",
+        "zh-CN": "直连 GitHub"
+      },
+      "prefix": ""
+    },
+    {
+      "id": "ghfast",
+      "name": {
+        "en": "ghfast.top",
+        "zh-CN": "ghfast.top"
+      },
+      "prefix": "https://ghfast.top/"
+    },
+    {
+      "id": "gh-proxy",
+      "name": {
+        "en": "gh-proxy.com",
+        "zh-CN": "gh-proxy.com"
+      },
+      "prefix": "https://gh-proxy.com/"
+    },
+    {
+      "id": "ghproxy-net",
+      "name": {
+        "en": "ghproxy.net",
+        "zh-CN": "ghproxy.net"
+      },
+      "prefix": "https://ghproxy.net/"
+    },
+    {
+      "id": "gh-llkk",
+      "name": {
+        "en": "gh.llkk.cc",
+        "zh-CN": "gh.llkk.cc"
+      },
+      "prefix": "https://gh.llkk.cc/"
+    }
+  ],
+  "clients": [
+    "clash-meta",
+    "stash",
+    "singbox",
+    "surge",
+    "surfboard",
+    "loon",
+    "quantumultx"
+  ],
+  "preferred_sources": {
+    "clash-meta": "metacubex"
+  },
+  "defaults": {
+    "template": "standard",
+    "source": "blackmatrix7",
+    "mirror": "default",
+    "mirror_prefix": ""
+  },
+  "editable": true
+}

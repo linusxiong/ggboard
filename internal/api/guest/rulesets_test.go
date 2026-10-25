@@ -17,6 +17,9 @@ func TestRulesetsCatalog(t *testing.T) {
 	if cat.Defaults.Template != "minimal" || cat.Defaults.Source != "metacubex" || len(cat.Templates) != 4 || len(cat.Mirrors) == 0 {
 		t.Fatalf("catalog = %+v", cat.Defaults)
 	}
+	if cat.PreferredSources["clash-meta"] != "metacubex" || len(cat.Categories) == 0 || len(cat.Categories[0].SourceClients) == 0 {
+		t.Fatalf("per-client sources missing: %v %+v", cat.PreferredSources, cat.Categories[0])
+	}
 	if rec.Header().Get("Cache-Control") != "public, max-age=300" {
 		t.Fatal("cache header")
 	}

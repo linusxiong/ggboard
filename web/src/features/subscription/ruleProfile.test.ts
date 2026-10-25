@@ -6,8 +6,11 @@ import {
   addGroup,
   applyTemplate,
   bandOf,
+  clientSource,
+  clientSources,
   effectiveSource,
   errorKey,
+  fallbackSources,
   findTemplate,
   moveGroup,
   normalizeProfile,
@@ -29,6 +32,16 @@ const catalog = JSON.parse(
     'utf8',
   ),
 ) as RulesetCatalog
+// The public catalog the server sends (Go fixture, kept current by TestPublicCatalogFixture).
+const publicCatalog = JSON.parse(
+  readFileSync(
+    path.resolve(
+      import.meta.dirname,
+      '../../../../internal/subscription/rulesets/testdata/public-catalog.json',
+    ),
+    'utf8',
+  ),
+) as RulesetCatalog & { defaults: { template: string; source: string } }
 const standard = () => applyTemplate(findTemplate(catalog, 'standard')!, { source: 'blackmatrix7' })
 const category = (id: string) => catalog.categories.find((c) => c.id === id)!
 
@@ -123,5 +136,45 @@ describe('rule profile helpers', () => {
     expect(sourceCoverage(catalog, 'metacubex')).toBe(full)
     const apps = pub.categories.find((c) => c.id === 'applications')!
     expect(effectiveSource(pub, apps, 'blackmatrix7')).toBe('loyalsoldier')
+  })
+
+  it('shows the source each client really gets: blackmatrix7 has no sing-box files, MetaCubeX serves them', () => {
+    const pub = (id: string) => publicCatalog.categories.find((c) => c.id === id)!
+    expect(publicCatalog.defaults).toMatchObject({ template: 'standard', source: 'blackmatrix7' })
+    expect(clientSource(publicCatalog, pub('openai'), 'blackmatrix7', 'singbox')).toBe('metacubex')
+    expect(clientSource(publicCatalog, pub('openai'), 'blackmatrix7', 'surge')).toBe('blackmatrix7')
+    // mihomo prefers MetaCubeX whatever the profile chose.
+    expect(clientSource(publicCatalog, pub('openai'), 'acl4ssr', 'clash-meta')).toBe('metacubex')
+    expect(clientSource(publicCatalog, pub('applications'), 'blackmatrix7', 'singbox')).toBeNull()
+    // The full catalog has no per-client data: nothing is guessed.
+    expect(clientSource(catalog, category('openai'), 'blackmatrix7', 'singbox')).toBeNull()
+
+    // The default profile: sing-box rules come from MetaCubeX without touching the source.
+    expect(clientSources(publicCatalog, standard())).toEqual([
+      { clients: ['clash-meta', 'singbox'], sources: ['metacubex'], missing: 0 },
+      {
+        clients: ['stash', 'surge', 'surfboard', 'loon', 'quantumultx'],
+        sources: ['blackmatrix7'],
+        missing: 0,
+      },
+    ])
+    const sagernet = { ...standard(), source: 'sagernet' }
+    expect(clientSources(publicCatalog, sagernet).find((r) => r.clients.includes('singbox'))).toEqual({
+      clients: ['singbox'],
+      sources: ['sagernet', 'metacubex'], // SagerNet has no `gfw`
+      missing: 0,
+    })
+    const apps = { ...standard(), categories: { applications: 'DIRECT' } }
+    expect(clientSources(publicCatalog, apps)).toEqual([
+      { clients: ['clash-meta', 'stash'], sources: ['loyalsoldier'], missing: 0 },
+      { clients: ['singbox', 'surge', 'surfboard', 'loon', 'quantumultx'], sources: [], missing: 1 },
+    ])
+    expect(clientSources(publicCatalog, { ...standard(), categories: {} })).toEqual([])
+    expect(clientSources(catalog, standard())).toEqual([])
+
+    // A category the chosen source lacks names every source that fills in, per client.
+    expect(fallbackSources(publicCatalog, pub('gfw'), 'sagernet')).toEqual(['blackmatrix7', 'metacubex'])
+    expect(fallbackSources(publicCatalog, pub('gfw'), 'blackmatrix7')).toEqual([])
+    expect(fallbackSources(catalog, category('applications'), 'blackmatrix7')).toEqual(['loyalsoldier'])
   })
 })

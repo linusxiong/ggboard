@@ -140,7 +140,9 @@ IPv6 只显示前 64 位），并显示近 24 小时有多少个不同 IP 获取
 订阅页编辑器的 **分流规则** 标签（站点管理员关闭自定义时为只读），每个订阅配置各有一份：
 
 1. **模板**：无规则（全局代理）、精简（国内直连）、标准分流、精细分流。切换模板会覆盖分类、策略组与兜底策略的修改。
-2. **规则来源**：blackmatrix7、MetaCubeX、Loyalsoldier、SagerNet、ACL4SSR、DustinWin；当前来源缺少某个分类时自动使用其他来源。
+2. **规则来源**：blackmatrix7、MetaCubeX、Loyalsoldier、SagerNet、ACL4SSR、DustinWin；当前来源缺少某个分类，或没有某个客户端的
+   规则文件（如 blackmatrix7 没有 sing-box 规则集）时，按分类自动改用其他来源，不需要为某个客户端手动切换。来源列表下方的
+   **各客户端实际使用** 列出每个客户端拿到的来源（Clash Meta 总是优先用 MetaCubeX）。
 3. **分类**：按“基础 / AI 服务 / 通讯 / 流媒体 / 平台与服务 / 游戏 / 地区与兜底”分组，开启需要分流的服务
    （如 OpenAI、Claude、Telegram、Netflix）并为每个分类选择目标策略：某个策略组、直连（DIRECT）或拦截（REJECT）。
 4. **策略组**：类型可选手动选择、自动测速、故障转移、负载均衡；**包含** 用逗号分隔，可写其他策略组名、`DIRECT`、

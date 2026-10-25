@@ -333,3 +333,84 @@ export function effectiveSource(
   if (sources.includes(preferred)) return preferred
   return sortedSources(catalog).find((id) => sources.includes(id)) ?? null
 }
+
+/** Display names of the formats that receive rule sets (public catalog `clients`). */
+const CLIENT_NAMES: Record<string, string> = {
+  'clash-meta': 'Clash Meta',
+  stash: 'Stash',
+  singbox: 'sing-box',
+  surge: 'Surge',
+  surfboard: 'Surfboard',
+  loon: 'Loon',
+  quantumultx: 'Quantumult X',
+}
+export const clientName = (id: string) => CLIENT_NAMES[id] ?? id
+
+/**
+ * The source `client` gets for `category` (docs/SUBSCRIPTION.md → public catalog, the same order as the server's
+ * rule plan): the client's preferred source, the profile's source, then the category's sources by order; the first
+ * whose `source_clients` lists the client wins. Null when none does, or the catalog has no per-client data (full
+ * catalog, older servers).
+ */
+export function clientSource(
+  catalog: RulesetCatalog,
+  category: RulesetCategory,
+  selected: string,
+  client: string,
+): string | null {
+  const served = category.source_clients
+  if (!served) return null
+  const preferred = catalog.preferred_sources?.[client]
+  const candidates = [...(preferred ? [preferred] : []), selected, ...categorySources(category)]
+  return candidates.find((id) => served[id]?.includes(client)) ?? null
+}
+
+export interface ClientSourceRow {
+  clients: string[]
+  /** Sources used across the enabled categories: the selected source first, then by fallback order. */
+  sources: string[]
+  /** Enabled categories no source has files for, for these clients. */
+  missing: number
+}
+
+/**
+ * The sources each rule client actually gets for the profile's enabled categories; clients with the same result share
+ * a row. Empty without enabled categories or per-client catalog data.
+ */
+export function clientSources(catalog: RulesetCatalog, profile: RuleProfile): ClientSourceRow[] {
+  const enabled = catalog.categories.filter((c) => isEnabled(profile, c.id))
+  if (!enabled.some((c) => c.source_clients)) return []
+  const order = sortedSources(catalog)
+  const rank = (id: string) => (id === profile.source ? -1 : order.indexOf(id))
+  const rows = new Map<string, ClientSourceRow>()
+  for (const client of catalog.clients ?? []) {
+    const used = new Set<string>()
+    let missing = 0
+    for (const category of enabled) {
+      const id = clientSource(catalog, category, profile.source, client)
+      if (id) used.add(id)
+      else missing++
+    }
+    const sources = [...used].sort((a, b) => rank(a) - rank(b))
+    const key = `${sources.join(',')}|${missing}`
+    const row = rows.get(key)
+    if (row) row.clients.push(client)
+    else rows.set(key, { clients: [client], sources, missing })
+  }
+  return [...rows.values()]
+}
+
+/** Sources serving `category` in place of `selected` when `selected` does not publish it, by fallback order. */
+export function fallbackSources(
+  catalog: RulesetCatalog,
+  category: RulesetCategory,
+  selected: string,
+): string[] {
+  if (categorySources(category).includes(selected)) return []
+  if (!category.source_clients) {
+    const id = effectiveSource(catalog, category, selected)
+    return id ? [id] : []
+  }
+  const used = new Set((catalog.clients ?? []).map((c) => clientSource(catalog, category, selected, c)))
+  return sortedSources(catalog).filter((id) => used.has(id))
+}

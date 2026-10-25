@@ -24,6 +24,13 @@ const catalog = JSON.parse(
   ),
 ) as RulesetCatalog
 const saved: RuleProfile = applyTemplate(findTemplate(catalog, 'standard')!, { source: 'blackmatrix7' })
+// What GET /user/rulesets/catalog really returns (Go fixture, kept current by TestPublicCatalogFixture).
+const publicCatalog = JSON.parse(
+  readFileSync(
+    path.resolve(import.meta.dirname, '../../../internal/subscription/rulesets/testdata/public-catalog.json'),
+    'utf8',
+  ),
+) as RulesetCatalog
 
 function api(overrides: Record<string, unknown> = {}) {
   return mockApi({
@@ -106,6 +113,32 @@ describe('subscription page', () => {
     // The source's technical description stays its radio's accessible description.
     const source = screen.getByRole('radio', { name: /MetaCubeX/ })
     expect(source).toHaveAccessibleDescription(/mihomo 官方 geosite\/geoip 规则集/)
+  })
+
+  it('shows which source each client gets: the default source needs no switch for sing-box', async () => {
+    api({ 'GET /user/rulesets/catalog': publicCatalog })
+    renderAt('/subscription')
+    const user = userEvent.setup()
+    const list = await screen.findByRole('list', { name: '各客户端实际使用' }, { timeout: 8000 })
+    const rows = () =>
+      within(list)
+        .getAllByRole('listitem')
+        .map((li) => li.textContent)
+    expect(rows()).toEqual([
+      'Clash Meta · sing-boxMetaCubeX/meta-rules-dat',
+      'Stash · Surge · Surfboard · Loon · Quantumult Xblackmatrix7/ios_rule_script',
+    ])
+    expect(screen.getByRole('radio', { name: /blackmatrix7/ })).toBeChecked()
+    // Why, behind the ⓘ: the popover is the dialog that appears on click.
+    expect(screen.queryByText(/不需要为某个客户端手动切换来源/)).toBeNull()
+    await user.click(screen.getByRole('button', { name: '关于「各客户端实际使用」的说明' }))
+    const dialogs = await screen.findAllByRole('dialog')
+    expect(dialogs[dialogs.length - 1]).toHaveTextContent(/blackmatrix7 没有 sing-box 规则集/)
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    // The list follows the draft: SagerNet serves sing-box except `gfw`, which MetaCubeX fills in.
+    await user.click(screen.getByRole('radio', { name: /SagerNet/ }))
+    expect(rows()).toContain('sing-boxSagerNet/sing-geosite + SagerNet/sing-geoip + MetaCubeX/meta-rules-dat')
   })
 
   it('shows API validation errors inline', async () => {

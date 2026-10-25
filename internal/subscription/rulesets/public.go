@@ -21,8 +21,10 @@ type PublicCatalog struct {
 	Templates  []subscription.Template `json:"templates"`
 	Mirrors    []subscription.Mirror   `json:"mirrors"`
 	Clients    []string                `json:"clients"` // formats that receive rule sets
-	Defaults   PublicDefaults          `json:"defaults"`
-	Editable   bool                    `json:"editable"` // settings.allow_user_rule_profile
+	// PreferredSources maps a format to the source tried before the profile's source (BuildPlan's order).
+	PreferredSources map[string]string `json:"preferred_sources"`
+	Defaults         PublicDefaults    `json:"defaults"`
+	Editable         bool              `json:"editable"` // settings.allow_user_rule_profile
 }
 
 // PublicSource is a rule-set source without its URL templates.
@@ -43,6 +45,8 @@ type PublicCategory struct {
 	Order         int                        `json:"order"`
 	Sources       []string                   `json:"sources"` // source ids by order
 	Clients       []string                   `json:"clients"` // formats that can get the category (any source)
+	// SourceClients maps each source in Sources to the formats its files for this category serve.
+	SourceClients map[string][]string `json:"source_clients"`
 }
 
 // PublicDefaults are the admin defaults for new profiles.
@@ -73,6 +77,12 @@ func PublicView(c *subscription.Catalog, s *settings.Service) PublicCatalog {
 		Clients:   slices.Clone(RuleClients),
 		Editable:  s.Bool("allow_user_rule_profile"),
 	}
+	out.PreferredSources = make(map[string]string, len(preferredSource))
+	for f, sid := range preferredSource {
+		if _, ok := c.Sources[sid]; ok {
+			out.PreferredSources[f] = sid
+		}
+	}
 	if out.Templates == nil {
 		out.Templates = []subscription.Template{}
 	}
@@ -87,15 +97,20 @@ func PublicView(c *subscription.Catalog, s *settings.Service) PublicCatalog {
 	srcClients := map[string][]string{}
 	for _, cat := range c.Categories {
 		pc := PublicCategory{ID: cat.ID, Name: cat.Name, DefaultTarget: cat.DefaultTarget, Order: cat.Order,
-			Sources: []string{}, Clients: []string{}}
+			Sources: []string{}, Clients: []string{}, SourceClients: map[string][]string{}}
 		for _, sid := range ordered {
 			if refs, ok := cat.Rules[sid]; ok {
 				pc.Sources = append(pc.Sources, sid)
+				served := []string{}
 				for _, f := range RuleClients {
-					if refsServe(refs, f) && !slices.Contains(srcClients[sid], f) {
-						srcClients[sid] = append(srcClients[sid], f)
+					if refsServe(refs, f) {
+						served = append(served, f)
+						if !slices.Contains(srcClients[sid], f) {
+							srcClients[sid] = append(srcClients[sid], f)
+						}
 					}
 				}
+				pc.SourceClients[sid] = served
 			}
 		}
 		for _, f := range RuleClients {

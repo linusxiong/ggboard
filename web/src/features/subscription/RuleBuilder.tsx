@@ -22,9 +22,11 @@ import { OptionSelect, SectionTitle, Toggle, type Option } from './controls'
 import {
   addGroup,
   applyTemplate,
+  clientName,
+  clientSources,
   DNS_MODES,
-  effectiveSource,
   errorKey,
+  fallbackSources,
   finalOptions,
   findTemplate,
   GROUP_TYPES,
@@ -157,6 +159,8 @@ export function RuleBuilder({
 
   const targets: Option[] = targetOptions(draft).map((value) => ({ value, label: targetLabel(value, t) }))
   const enabledCount = catalog.categories.filter((c) => isEnabled(draft, c.id)).length
+  const usedSources = clientSources(catalog, draft)
+  const sourceName = (id: string) => catalog.sources[id]?.name ?? id
   const blocking = Object.keys(issues).length > 0
 
   return (
@@ -284,6 +288,38 @@ export function RuleBuilder({
           })}
         </div>
         {errorFor('source') ? <p className="text-footnote text-label-red">{errorFor('source')}</p> : null}
+        {usedSources.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            <TitleWithHelp help={t('builder.usedSourcesHint')} subject={t('builder.usedSources')}>
+              <h4
+                id="src-used-title"
+                className="px-1 text-footnote font-semibold uppercase tracking-wide text-label-secondary"
+              >
+                {t('builder.usedSources')}
+              </h4>
+            </TitleWithHelp>
+            <ul className="inset-group bg-fill-quaternary!" aria-labelledby="src-used-title">
+              {usedSources.map((row) => (
+                <li
+                  key={row.clients.join()}
+                  className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-2.5"
+                >
+                  <span className="min-w-0 text-subhead text-label">
+                    {row.clients.map(clientName).join(' · ')}
+                  </span>
+                  <span className="text-subhead text-label-secondary">
+                    {[
+                      row.sources.map(sourceName).join(' + '),
+                      row.missing > 0 ? t('builder.missingCategories', { count: row.missing }) : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </fieldset>
 
       {/* ------------------------------------------------------------ categories */}
@@ -487,8 +523,8 @@ function CategoryRow({
   const name = localized(category.name, locale, category.id)
   const enabled = isEnabled(profile, category.id)
   const target = profile.categories[category.id]
-  const served = effectiveSource(catalog, category, profile.source)
-  const fallback = served && served !== profile.source ? (catalog.sources[served]?.name ?? served) : null
+  const served = fallbackSources(catalog, category, profile.source)
+  const fallback = served.length > 0 ? served.map((id) => catalog.sources[id]?.name ?? id).join(' + ') : null
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5">
       <Toggle isSelected={enabled} onChange={onToggle} isDisabled={readOnly} className="min-w-0 flex-1">

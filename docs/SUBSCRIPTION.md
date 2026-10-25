@@ -135,7 +135,7 @@ The `types`/`filter` filters run before the profile's node operations.
 ```jsonc
 RuleProfile {
   "template": "standard",            // id from catalog.templates; "none" = no rules (proxy everything, clients' default)
-  "source": "blackmatrix7",          // preferred rule-set source id; categories fall back to other sources that carry them
+  "source": "blackmatrix7",          // preferred rule-set source id; per client, categories it has no files for come from other sources
   "categories": {                    // category id -> target policy group name; absent/false/null = disabled
     "ads": "REJECT", "cn": "DIRECT", "lan": "DIRECT", "openai": "AI", "claude": "AI", "telegram": "Telegram", "netflix": "Streaming"
   },
@@ -343,11 +343,19 @@ and what ggboard offers instead:
 
 ```jsonc
 {"sources": {"<id>": {"name","homepage","license","order","description","clients":["clash-meta",...]}},   // no URL templates
- "categories": [{"id","name","default_target","order","sources":["blackmatrix7",...],"clients":["clash-meta",...]}],
+ "categories": [{"id","name","default_target","order","sources":["blackmatrix7",...],"clients":["clash-meta",...],
+                 "source_clients": {"<source id>": ["clash-meta",...]}}],   // per source: the clients its files serve here
  "templates": [Template], "mirrors": [{"id","name","prefix"}],
  "clients": ["clash-meta","stash","singbox","surge","surfboard","loon","quantumultx"],   // formats that receive rule sets
+ "preferred_sources": {"clash-meta": "metacubex"},   // tried before the profile's source (docs/RULESETS.md, step 2)
  "defaults": {"template","source","mirror":"default","mirror_prefix"}, "editable": bool}
 ```
+
+The source a client gets for a category is the first of `preferred_sources[client]`, the profile's `source`, then `sources`
+(by order) whose `source_clients` lists that client; this is the rule `BuildPlan` applies. A source without files for a
+client never costs that client rules: with the default `blackmatrix7` (no sing-box files), a sing-box subscription takes
+every category from MetaCubeX `.srs` sets, byte for byte what a profile that chose `metacubex` gets, so users never switch
+sources for one client. The rule builder shows the effective source per client from these fields.
 
 Admin: `GET /admin/rulesets` → `{builtin: Catalog, custom: <rulesets_custom value or {}>, effective: merged Catalog}`;
 `PUT /admin/rulesets {"custom": <Catalog-shaped overrides> or null}` → `true` (unknown fields → 400 on `custom`; invalid

@@ -757,6 +757,8 @@ export interface RulesetCategory {
   sources?: string[]
   /** Public catalog: clients that can render it. */
   clients?: string[]
+  /** Public catalog: source id (one per `sources` entry) → clients its files serve for this category. */
+  source_clients?: Record<string, string[]>
   /** Full catalog only (admin builtin / embedded catalog.json): source id → rule reference. */
   rules?: Record<string, RulesetRuleRef>
 }
@@ -1130,6 +1132,10 @@ export interface RulesetMirror {
 export interface RulesetCatalog {
   mirrors?: RulesetMirror[]
   meta?: { generated_at: ISODateTime; version: number }
+  /** Public catalog: formats that receive rule sets, in display order. */
+  clients?: string[]
+  /** Public catalog: format → source tried before the profile's source (`clash-meta` → `metacubex`). */
+  preferred_sources?: Record<string, string>
 }
 export interface RulesetSource {
   description?: LocalizedText

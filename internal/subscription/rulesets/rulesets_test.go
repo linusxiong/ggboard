@@ -428,7 +428,20 @@ func TestPublicView(t *testing.T) {
 	if !slices.Equal(v.Sources["sagernet"].Clients, []string{subscription.FormatSingbox}) {
 		t.Fatalf("sagernet clients = %v", v.Sources["sagernet"].Clients)
 	}
+	if len(v.PreferredSources) != 1 || v.PreferredSources[subscription.FormatClashMeta] != "metacubex" {
+		t.Fatalf("preferred sources = %v", v.PreferredSources)
+	}
 	for _, cat := range v.Categories {
+		if len(cat.SourceClients) != len(cat.Sources) {
+			t.Fatalf("%s: source_clients %v for sources %v", cat.ID, cat.SourceClients, cat.Sources)
+		}
+		if cat.ID == "openai" {
+			bm7, mc := cat.SourceClients["blackmatrix7"], cat.SourceClients["metacubex"]
+			if slices.Contains(bm7, subscription.FormatSingbox) || !slices.Contains(bm7, subscription.FormatSurge) ||
+				!slices.Equal(mc, []string{subscription.FormatClashMeta, subscription.FormatStash, subscription.FormatSingbox}) {
+				t.Fatalf("openai source_clients = %v", cat.SourceClients)
+			}
+		}
 		if cat.ID == "applications" {
 			if !slices.Equal(cat.Clients, []string{subscription.FormatClashMeta, subscription.FormatStash}) || !slices.Equal(cat.Sources, []string{"loyalsoldier"}) {
 				t.Fatalf("applications = %+v", cat)
