@@ -114,3 +114,29 @@ func TestHelpers(t *testing.T) {
 		t.Fatal("policyName")
 	}
 }
+
+func TestSingboxHTTPClients(t *testing.T) {
+	for ua, want := range map[string]bool{
+		"SFA (sing-box 1.14.4; language zh_CN)":                     true, // current SFA/SFI/SFM; older builds send "SFA/<app> (<build>; sing-box <core>; …)"
+		"SFI (sing-box 1.14.0; language en_US)":                     true,
+		"SFM (sing-box 1.15.0-alpha.2; language en_US)":             true,
+		"SFA/1.14.1-beta.1 (621; sing-box 1.14.1-beta.1; language)": true,
+		"sing-box/1.14.4": true,
+		"SING-BOX v1.14":  true,
+		"sing-box 2.0.0":  true,
+		"SFT (sing-box 1.14.0-beta.3; language en)":                 false, // a 1.14.0 pre-release may predate http_clients
+		"SFA/1.11.4 (614; sing-box 1.11.4; language zh_CN)":         false,
+		"SFA/1.12.0 (sing-box 1.12.0)":                              false,
+		"SFI (sing-box 1.13.99; language en_US)":                    false,
+		"sing-box 1.9.9":                                            false,
+		"sing-box unknown":                                          false,
+		"HiddifyNext/2.5.7 (android) like ClashMeta v2ray sing-box": false,
+		"sing-box 99999999999999999999.1":                           false,
+		"clash-verge/v2.2.3":                                        false,
+		"":                                                          false,
+	} {
+		if got := sbHTTPClients(ua); got != want {
+			t.Errorf("sbHTTPClients(%q) = %v, want %v", ua, got, want)
+		}
+	}
+}

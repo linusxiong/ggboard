@@ -42,6 +42,10 @@ func withTemplate(id, source, mirror, dns string) func(c *subscription.Catalog) 
 	}
 }
 
+func userAgent(ua string) func(in *engine.Input) {
+	return func(in *engine.Input) { in.UserAgent = ua }
+}
+
 // input builds the render input of the fixture user and nodes (info nodes first, like Generate).
 func input(t testing.TB, profile subscription.RuleProfile, c *subscription.Catalog) engine.Input {
 	t.Helper()
@@ -79,6 +83,9 @@ func TestGolden(t *testing.T) {
 		{file: "clash.yaml", format: subscription.FormatClash, profile: standard},
 		{file: "singbox.json", format: subscription.FormatSingbox, profile: standard},
 		{file: "singbox-full-mirror-fakeip.json", format: subscription.FormatSingbox, profile: withTemplate("full", "sagernet", "ghfast", subscription.DNSFakeIP)},
+		{file: "singbox-1.14.json", format: subscription.FormatSingbox, profile: standard, mutate: userAgent("SFA (sing-box 1.14.4; language zh_CN)")},
+		{file: "singbox-1.14-full-mirror-fakeip.json", format: subscription.FormatSingbox, profile: withTemplate("full", "sagernet", "ghfast", subscription.DNSFakeIP),
+			mutate: userAgent("SFI (sing-box 1.14.4; language en_US)")},
 		{file: "surge.conf", format: subscription.FormatSurge, profile: standard},
 		{file: "surge-list.conf", format: subscription.FormatSurge, profile: standard, mutate: func(in *engine.Input) { in.ListOnly = true }},
 		{file: "surfboard.conf", format: subscription.FormatSurfboard, profile: withTemplate("minimal", "acl4ssr", "", subscription.DNSDefault)},
@@ -213,21 +220,47 @@ func validate(t *testing.T, format string, body []byte) {
 					Outbound string   `json:"outbound"`
 				} `json:"rules"`
 				RuleSet []struct {
-					Tag string `json:"tag"`
+					Tag            string `json:"tag"`
+					DownloadDetour string `json:"download_detour"`
 				} `json:"rule_set"`
-				Final string `json:"final"`
+				Final             string `json:"final"`
+				DefaultHTTPClient string `json:"default_http_client"`
 			} `json:"route"`
+			HTTPClients []struct {
+				Tag    string `json:"tag"`
+				Detour string `json:"detour"`
+			} `json:"http_clients"`
 		}
 		dec := json.NewDecoder(bytes.NewReader(body))
 		if err := dec.Decode(&doc); err != nil {
 			t.Fatalf("invalid JSON: %v", err)
 		}
-		tags := map[string]bool{}
+		tags, direct := map[string]bool{}, map[string]bool{}
 		for _, o := range doc.Outbounds {
 			if tags[o.Tag] {
 				t.Fatalf("duplicate outbound tag %q", o.Tag)
 			}
 			tags[o.Tag] = true
+			direct[o.Tag] = o.Type == "direct"
+		}
+		// sing-box >= 1.14 form: explicit clients (no implicit default), no download_detour; older form: download_detour only.
+		clients := map[string]bool{}
+		for _, c := range doc.HTTPClients {
+			if c.Tag == "" || clients[c.Tag] {
+				t.Fatalf("http client tag %q empty or duplicate", c.Tag)
+			}
+			clients[c.Tag] = true
+			if c.Detour != "" && (!tags[c.Detour] || direct[c.Detour]) { // sing-box: "detour to an empty direct outbound makes no sense"
+				t.Fatalf("http client %s detours to %q", c.Tag, c.Detour)
+			}
+		}
+		if (len(clients) > 0) != (doc.Route.DefaultHTTPClient != "") || doc.Route.DefaultHTTPClient != "" && !clients[doc.Route.DefaultHTTPClient] {
+			t.Fatalf("default_http_client %q with %d http clients", doc.Route.DefaultHTTPClient, len(clients))
+		}
+		for _, s := range doc.Route.RuleSet {
+			if len(clients) > 0 && s.DownloadDetour != "" || len(clients) == 0 && !tags[s.DownloadDetour] {
+				t.Fatalf("rule set %s: download_detour %q with %d http clients", s.Tag, s.DownloadDetour, len(clients))
+			}
 		}
 		for _, o := range doc.Outbounds {
 			for _, m := range o.Outbounds {
