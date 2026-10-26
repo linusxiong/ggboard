@@ -10,7 +10,8 @@ import type { ID, ISODate, StatsRange } from '@/lib/api/types'
 /** Dashboard data refreshes every minute while the tab is visible (Query pauses intervals in background tabs). */
 export const DASHBOARD_REFRESH = 60_000
 
-export const adminNodeRankingQuery = (date: ISODate) =>
+/** Rankings of a server calendar day (`YYYY-MM-DD`); `undefined` asks for the server's today. */
+export const adminNodeRankingQuery = (date: ISODate | undefined) =>
   queryOptions({
     queryKey: ['admin', 'ranking', 'nodes', date] as const,
     queryFn: ({ signal }) => adminApi.nodeRanking(date, signal),
@@ -18,7 +19,7 @@ export const adminNodeRankingQuery = (date: ISODate) =>
     refetchInterval: DASHBOARD_REFRESH,
   })
 
-export const adminUserRankingQuery = (date: ISODate, limit: number) =>
+export const adminUserRankingQuery = (date: ISODate | undefined, limit: number) =>
   queryOptions({
     queryKey: ['admin', 'ranking', 'users', date, limit] as const,
     queryFn: ({ signal }) => adminApi.userRanking({ date, limit }, signal),

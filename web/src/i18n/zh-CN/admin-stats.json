@@ -46,6 +46,9 @@
   "nodeRanking": "节点流量排行",
   "userRanking": "用户流量排行",
   "empty": "当天暂无流量数据",
+  "dayHelp": "统计日期以服务器时区为准：{zone}。今日、趋势和排行都按服务器的日期计算，可能与你的本地日期不同。",
+  "dayHelpPending": "统计日期以服务器时区为准。今日、趋势和排行都按服务器的日期计算，可能与你的本地日期不同。",
+  "zoneWithOffset": "{name}（{offset}）",
   "columns": {
     "rank": "排名",
     "node": "节点",

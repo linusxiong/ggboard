@@ -108,10 +108,11 @@ func TestOverview(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := statsvc.Overview{
-		Today:  statsvc.TodayStats{Income: 1500, PaidOrders: 2, Registers: 2, Commission: 100},
-		Month:  statsvc.PeriodStats{Income: 3500, PaidOrders: 3, Registers: 3},
-		Totals: statsvc.Totals{Users: 4, ActiveUsers: 1, OnlineUsers: 1, PendingTickets: 1, PendingOrders: 1, PendingCommission: 1},
-		Nodes:  statsvc.NodeTotals{Total: 5, Online: 3},
+		Today:    statsvc.TodayStats{Date: "2026-10-22", Income: 1500, PaidOrders: 2, Registers: 2, Commission: 100},
+		Month:    statsvc.PeriodStats{Income: 3500, PaidOrders: 3, Registers: 3},
+		Totals:   statsvc.Totals{Users: 4, ActiveUsers: 1, OnlineUsers: 1, PendingTickets: 1, PendingOrders: 1, PendingCommission: 1},
+		Nodes:    statsvc.NodeTotals{Total: 5, Online: 3},
+		TimeZone: statsvc.ZoneOf(now),
 	}
 	if *got != want {
 		t.Fatalf("overview =\n%+v\nwant\n%+v", *got, want)

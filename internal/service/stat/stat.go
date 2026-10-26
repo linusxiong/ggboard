@@ -2,7 +2,8 @@
 // and the daily `stats` rows written by the stats_daily job (internal/service/maintenance).
 //
 // Days are calendar days in the location of the `now` passed by the caller (the process time zone in
-// production). Date columns (`stats.record_at`, `stat_nodes.record_at`, `stat_users.record_at`) hold
+// production); Overview reports that day and zone (today.date, timezone) so clients pick days by the server's
+// calendar, not the viewer's. Date columns (`stats.record_at`, `stat_nodes.record_at`, `stat_users.record_at`) hold
 // model.Day values. Everything is portable SQL (SQLite, PostgreSQL, MySQL): aggregates use COALESCE(SUM(..), 0)
 // and per-day bucketing of datetime columns happens in Go.
 package statsvc
@@ -10,6 +11,7 @@ package statsvc
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -67,18 +69,56 @@ func recordKey(t time.Time) string { return t.UTC().Format(time.DateOnly) }
 
 // Overview is GET /admin/stats/overview.
 type Overview struct {
-	Today  TodayStats  `json:"today"`
-	Month  PeriodStats `json:"month"`
-	Totals Totals      `json:"totals"`
-	Nodes  NodeTotals  `json:"nodes"`
+	Today    TodayStats  `json:"today"`
+	Month    PeriodStats `json:"month"`
+	Totals   Totals      `json:"totals"`
+	Nodes    NodeTotals  `json:"nodes"`
+	TimeZone TimeZone    `json:"timezone"` // the zone every statistics day is counted in
 }
 
 // TodayStats are today's counters (money in cents).
 type TodayStats struct {
-	Income     int64 `json:"income"`
-	PaidOrders int64 `json:"paid_orders"`
-	Registers  int64 `json:"registers"`
-	Commission int64 `json:"commission"` // commission_balance of today's paid orders
+	// Date is the statistics day these counters cover (YYYY-MM-DD in the server zone): also the last series
+	// point and the rankings' default day. The viewer's own calendar day may differ.
+	Date       string `json:"date"`
+	Income     int64  `json:"income"`
+	PaidOrders int64  `json:"paid_orders"`
+	Registers  int64  `json:"registers"`
+	Commission int64  `json:"commission"` // commission_balance of today's paid orders
+}
+
+// TimeZone names the zone statistics days are counted in (the process zone in production).
+type TimeZone struct {
+	// Name is the IANA name (TZ=Asia/Shanghai), "UTC", or "UTC±hh:mm" of Offset when the zone has none
+	// (no TZ: Go loads /etc/localtime and names it "Local").
+	Name   string `json:"name"`
+	Offset int    `json:"offset"` // seconds east of UTC at the instant it was read
+}
+
+// ZoneOf describes t's location at the instant t.
+func ZoneOf(t time.Time) TimeZone {
+	_, offset := t.Zone()
+	name := t.Location().String()
+	if strings.HasPrefix(name, "/") { // TZ=/usr/share/zoneinfo/Asia/Shanghai
+		_, rest, _ := strings.Cut(name, "zoneinfo/")
+		name = rest
+	}
+	if name == "" || name == "Local" {
+		name = offsetName(offset)
+	}
+	return TimeZone{Name: name, Offset: offset}
+}
+
+// offsetName formats a UTC offset in seconds as "UTC", "UTC+08:00" or "UTC-04:00".
+func offsetName(offset int) string {
+	if offset == 0 {
+		return "UTC"
+	}
+	sign := '+'
+	if offset < 0 {
+		sign, offset = '-', -offset
+	}
+	return fmt.Sprintf("UTC%c%02d:%02d", sign, offset/3600, offset%3600/60)
 }
 
 // PeriodStats are the counters of the current month.
@@ -146,12 +186,14 @@ func (s *Service) Overview(ctx context.Context, now time.Time) (*Overview, error
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 	monthEnd := monthStart.AddDate(0, 1, 0)
 
-	var out Overview
+	out := Overview{TimeZone: ZoneOf(now)}
 	paidToday, err := s.Paid(ctx, today, tomorrow)
 	if err != nil {
 		return nil, err
 	}
-	out.Today = TodayStats{Income: paidToday.Total, PaidOrders: paidToday.Count, Commission: paidToday.Commission}
+	out.Today = TodayStats{
+		Date: DateKey(today), Income: paidToday.Total, PaidOrders: paidToday.Count, Commission: paidToday.Commission,
+	}
 	if out.Today.Registers, err = s.Registers(ctx, today, tomorrow); err != nil {
 		return nil, err
 	}

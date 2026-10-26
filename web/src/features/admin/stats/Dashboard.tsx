@@ -1,7 +1,8 @@
 /**
  * Admin dashboard (`/admin/dashboard`): overview tiles, trend chart, traffic rankings.
  * Every query refetches each minute while the tab is visible (React Query pauses interval
- * refetches in background tabs).
+ * refetches in background tabs). Days are the server's calendar days: the overview's `today.date`
+ * drives the ranking date, not the browser clock.
  */
 import { Button } from '@heroui/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -56,7 +57,12 @@ export function AdminDashboard() {
       ) : null}
       <OverviewTiles data={overview.data} fmt={fmt} />
       <TrendCard fmt={fmt} />
-      <RankingCards fmt={fmt} />
+      <RankingCards
+        fmt={fmt}
+        serverDay={overview.data?.today.date}
+        zone={overview.data?.timezone}
+        overviewLoading={overview.isPending}
+      />
     </PageShell>
   )
 }

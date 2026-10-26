@@ -831,8 +831,16 @@ export interface SendCodeInput {
 
 // ---------------------------------------------------------------- admin stats & system
 
+/** The zone statistics days are counted in (the server's `TZ`), from `GET /admin/stats/overview`. */
+export interface StatsTimeZone {
+  /** IANA name (`Asia/Shanghai`), `UTC`, or `UTC±hh:mm` when the server zone has no name. */
+  name: string
+  /** Seconds east of UTC when the overview was computed. */
+  offset: number
+}
 export interface AdminOverview {
-  today: { income: Cents; paid_orders: number; registers: number; commission: Cents }
+  /** `date`: the server's statistics day, which may differ from the browser's calendar day. */
+  today: { date: ISODate; income: Cents; paid_orders: number; registers: number; commission: Cents }
   month: { income: Cents; paid_orders: number; registers: number }
   totals: {
     users: number
@@ -843,6 +851,7 @@ export interface AdminOverview {
     pending_commission: number
   }
   nodes: { total: number; online: number }
+  timezone: StatsTimeZone
 }
 export type StatsMetric = 'income' | 'orders' | 'registers' | 'traffic'
 export type StatsRange = '7d' | '30d' | '90d'

@@ -17,7 +17,7 @@ const admin = { ...(fixtureUser as User), is_admin: true }
 const GB = 1024 ** 3
 
 const overview: AdminOverview = {
-  today: { income: 45600, paid_orders: 18, registers: 23, commission: 2300 },
+  today: { date: '2026-10-30', income: 45600, paid_orders: 18, registers: 23, commission: 2300 },
   month: { income: 1234500, paid_orders: 412, registers: 530 },
   totals: {
     users: 57,
@@ -28,6 +28,7 @@ const overview: AdminOverview = {
     pending_commission: 8800,
   },
   nodes: { total: 10, online: 9 },
+  timezone: { name: 'Asia/Shanghai', offset: 28800 },
 }
 const series = (n: number) =>
   Array.from({ length: n }, (_, i) => ({

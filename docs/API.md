@@ -367,12 +367,17 @@ tickets, notices and knowledge (🧑‍💼).
 
 | method | path | req | res |
 | --- | --- | --- | --- |
-| GET | `/admin/stats/overview` | — | `{today:{income, paid_orders, registers, commission}, month:{income, paid_orders, registers}, totals:{users, active_users, online_users, pending_tickets, pending_orders, pending_commission}, nodes:{total, online}}` |
+| GET | `/admin/stats/overview` | — | `{today:{date, income, paid_orders, registers, commission}, month:{income, paid_orders, registers}, totals:{users, active_users, online_users, pending_tickets, pending_orders, pending_commission}, nodes:{total, online}, timezone:{name, offset}}` |
 | GET | `/admin/stats/series` | `metric*` (`income`, `orders`, `registers` or `traffic`), `range?` (`7d`, `30d` default, `90d`) | array `[{date, value}]` |
-| GET | `/admin/stats/nodes/ranking` | `date?` (YYYY-MM-DD, default today) | array `[{node_id, name, u, d, total}]` busiest first, every node with traffic that day |
+| GET | `/admin/stats/nodes/ranking` | `date?` (YYYY-MM-DD, a server calendar day, default the server's today) | array `[{node_id, name, u, d, total}]` busiest first, every node with traffic that day |
 | GET | `/admin/stats/users/ranking` | `date?`, `limit?` (1..500, default 20) | array `[{user_id, email, u, d, total}]` busiest first |
 
-Stats rules (`internal/service/stat`): days are calendar days in the server time zone. "Paid" orders are `status ∈ {1 processing,
+Stats rules (`internal/service/stat`): days are calendar days in the server time zone (the process zone, `TZ`); they are
+stored per server day and never re-bucketed for the viewer, so the browser's calendar day may differ. `today.date` is the
+server's current day (`YYYY-MM-DD`): the day `today.*` counts, the last `series` point and the rankings' default `date`, so
+clients default and cap ranking dates to it. `timezone.name` is the IANA name of the process zone (`TZ=Asia/Shanghai`, or the
+part after `zoneinfo/` when `TZ` is a path), `UTC` for UTC, else `UTC±hh:mm` of the current offset (no `TZ`: Go reads
+`/etc/localtime` and names the zone `Local`); `timezone.offset` = seconds east of UTC now (e.g. `28800`). "Paid" orders are `status ∈ {1 processing,
 3 completed, 4 discounted}` bucketed by `paid_at` (a discounted order was paid and later credited to an upgrade, so it stays
 revenue); `income` = Σ `total_amount`, `today.commission` = Σ `commission_balance` of today's paid orders. `active_users` = not
 banned, not expired and `u + d < transfer_enable`; `online_users` = distinct users online on any node (docs/NODE_PROTOCOLS.md §5.1); `pending_tickets` = open and awaiting

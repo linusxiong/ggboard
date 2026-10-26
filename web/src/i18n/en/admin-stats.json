@@ -46,6 +46,9 @@
   "nodeRanking": "Node traffic",
   "userRanking": "User traffic",
   "empty": "No traffic recorded on this day",
+  "dayHelp": "Statistics days follow the server time zone: {zone}. Today, trends and rankings use the server's date, which may differ from yours.",
+  "dayHelpPending": "Statistics days follow the server time zone. Today, trends and rankings use the server's date, which may differ from yours.",
+  "zoneWithOffset": "{name} ({offset})",
   "columns": {
     "rank": "Rank",
     "node": "Node",

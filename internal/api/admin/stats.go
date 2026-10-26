@@ -55,7 +55,8 @@ func statsSeriesHandler(a *app.App) gin.HandlerFunc {
 	}
 }
 
-// statsDay parses ?date=YYYY-MM-DD as a local calendar day (default today).
+// statsDay parses ?date=YYYY-MM-DD as a calendar day of the server zone (default the server's today, which the
+// overview reports as today.date).
 func statsDay(c *gin.Context) (time.Time, error) {
 	raw := c.Query("date")
 	if raw == "" {

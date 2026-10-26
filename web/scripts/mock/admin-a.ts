@@ -466,7 +466,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
   // ---- stats
   if (p === '/admin/stats/overview')
     return ok(res, {
-      today: { income: 45600, paid_orders: 18, registers: 23, commission: 2300 },
+      today: { date: day(now()), income: 45600, paid_orders: 18, registers: 23, commission: 2300 },
       month: { income: 1234500, paid_orders: 412, registers: 530 },
       totals: {
         users: users.length,
@@ -480,6 +480,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
         total: nodes.length,
         online: nodes.filter((n) => nodeView(n).status.state !== 'offline').length,
       },
+      timezone: { name: 'UTC', offset: 0 }, // the mock's days are UTC days (see `day`)
     })
   if (p === '/admin/stats/series')
     return ok(res, series(q.get('metric') ?? 'income', q.get('range') ?? '30d'))

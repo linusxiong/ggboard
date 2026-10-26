@@ -5,11 +5,12 @@ import { ChartNoAxesColumn } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { createDataTableColumns, DataTable } from '@/components/data-table'
 import { EmptyState } from '@/components/EmptyState'
+import { TitleWithHelp } from '@/components/HelpTip'
 import { useT } from '@/i18n'
-import type { NodeRanking, UserRanking } from '@/lib/api/types'
-import { localDate } from '../shared/datetime'
+import type { ISODate, NodeRanking, StatsTimeZone, UserRanking } from '@/lib/api/types'
 import { adminNodeRankingQuery, adminUserRankingQuery } from '../shared/queries'
 import type { Formatters } from '../shared/useFormatters'
+import { offsetName } from './zone'
 
 const nodeCol = createDataTableColumns<NodeRanking & { rank: number }>()
 const userCol = createDataTableColumns<UserRanking & { rank: number }>()
@@ -27,13 +28,37 @@ function ShareBar({ ratio }: { ratio: number }) {
   )
 }
 
-export function RankingCards({ fmt }: { fmt: Formatters }) {
+interface RankingCardsProps {
+  fmt: Formatters
+  /** The server's statistics day (overview `today.date`): the default and latest rankable day. */
+  serverDay: ISODate | undefined
+  /** The zone statistics days are counted in (overview `timezone`). */
+  zone: StatsTimeZone | undefined
+  /** The overview has not answered yet (`serverDay` may still arrive). */
+  overviewLoading: boolean
+}
+
+/**
+ * Node and user traffic of one statistics day. Days are server calendar days, which can be a day
+ * ahead of or behind the browser's, so the day comes from the overview, never from the browser clock.
+ */
+export function RankingCards({ fmt, serverDay, zone, overviewLoading }: RankingCardsProps) {
   const t = useT('admin-stats')
-  const today = localDate()
-  const [date, setDate] = useState(today)
+  // null = the server's today, following it across midnight; otherwise the past day the admin picked
+  // (kept across refreshes).
+  const [picked, setPicked] = useState<ISODate | null>(null)
+  const date = picked !== null && (serverDay === undefined || picked <= serverDay) ? picked : serverDay
   const [limit, setLimit] = useState<(typeof LIMITS)[number]>('10')
-  const nodes = useQuery(adminNodeRankingQuery(date))
-  const users = useQuery(adminUserRankingQuery(date, Number(limit)))
+  // Wait for the server's day so each request names the day the date field shows; if the overview
+  // fails, rank without a date (the server then uses its own today).
+  const enabled = date !== undefined || !overviewLoading
+  const nodes = useQuery({ ...adminNodeRankingQuery(date), enabled })
+  const users = useQuery({ ...adminUserRankingQuery(date, Number(limit)), enabled })
+  const zoneName = zone
+    ? zone.name.startsWith('UTC')
+      ? zone.name
+      : t('zoneWithOffset', { name: zone.name, offset: offsetName(zone.offset) })
+    : null
 
   const nodeRows = useMemo(() => (nodes.data ?? []).map((r, i) => ({ ...r, rank: i + 1 })), [nodes.data])
   const userRows = useMemo(() => (users.data ?? []).map((r, i) => ({ ...r, rank: i + 1 })), [users.data])
@@ -132,15 +157,23 @@ export function RankingCards({ fmt }: { fmt: Formatters }) {
   return (
     <section className="flex flex-col gap-3">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h2 className="text-title3 text-label">{t('sections.ranking')}</h2>
+        <TitleWithHelp
+          help={zoneName ? t('dayHelp', { zone: zoneName }) : t('dayHelpPending')}
+          subject={t('sections.ranking')}
+        >
+          <h2 className="text-title3 text-label">{t('sections.ranking')}</h2>
+        </TitleWithHelp>
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex flex-col gap-1.5 text-[0.8125rem] leading-[1.125rem] font-semibold text-label-secondary">
             {t('rankingDate')}
             <input
               type="date"
-              value={date}
-              max={today}
-              onChange={(e) => setDate(e.target.value || today)}
+              value={date ?? ''}
+              max={serverDay}
+              onChange={(e) => {
+                const v = e.target.value
+                setPicked(v && v !== serverDay ? v : null)
+              }}
               className="h-[var(--field-h)] rounded-input bg-fill-tertiary px-3 text-[length:var(--field-fs)] font-normal text-label transition-colors outline-none hover:bg-fill-secondary focus-visible:ring-2 focus-visible:ring-focus"
             />
           </label>
