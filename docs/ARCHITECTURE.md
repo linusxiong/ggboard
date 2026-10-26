@@ -61,7 +61,9 @@ batched DB writes.
    6. scheduler (`time.Local`) with every job (see below)
 
    Feature packages keep further per-App singletons with `a.Component(name, build)`: the notification queue
-   (`internal/notify`) is created on the first `notify.Emit` while a channel is configured.
+   (`internal/notify`) is created on the first `notify.Emit` while a channel is configured; the IP location service
+   (`internal/geoip`: the parsed 纯真 database behind an `atomic.Pointer`, lookups cached in `app.Cache` until the next
+   swap) on the first lookup, status request or start hook.
 4. `router.New(app)` (`internal/router`):
    - `httpx.NewEngine` sets the middleware chain below and `server.trusted_proxies` (an invalid list falls back to
      trusting none).
@@ -71,7 +73,10 @@ batched DB writes.
    - `static.Mount` serves the SPA as the NoRoute handler.
 
    The router lives outside `httpx` because every API package imports `httpx`.
-5. `app.Start()` starts the mail worker and the scheduler. The HTTP server timeouts are: read header 10 s, read 60 s,
+5. `app.Start()` starts the mail worker and the scheduler, then runs the start hooks (`app.RegisterStartHook(name, fn)`
+   from a feature package's `init()`, in name order, once). A hook must return at once and leave slow work to a goroutine
+   of a Stopper component: `geoip` loads `<data_dir>/geoip/qqwry.dat` in the background and, when there is none and
+   `geoip_enable` is on, downloads it 30 s after start. The HTTP server timeouts are: read header 10 s, read 60 s,
    write 120 s, idle 120 s.
 6. SIGINT/SIGTERM drains HTTP for 10 s. `app.Close` then stops the scheduler, stops the App components (newest first:
    the notification queue drains, 10 s budget), flushes traffic, drains the mail queue (10 s budget), closes the cache and
@@ -186,6 +191,7 @@ recovers panics, skips a run while the previous one is still running, and report
 | `stats_daily` | `5 0 * * *` | `service/maintenance` | upsert yesterday's `stats` row (docs/DATA_MODEL.md) |
 | `subscription_access_flush` | `@every 10s` | `subscription/guard` | write buffered subscription access rows, then run leak detection (docs/SUBSCRIPTION.md) |
 | `subscription_access_prune` | `37 4 * * *` | `subscription/guard` | delete access rows older than 30 days; keep the newest 100 per user |
+| `geoip_update` | `23 5 * * *` | `geoip` | with `geoip_enable`: check `geoip_version_url` and, for a new release, download, validate and swap in `<data_dir>/geoip/qqwry.dat` (docs/API.md "GeoIP"); skipped while a manual update runs; a failure keeps the old file |
 
 `commission_settle`:
 
@@ -301,7 +307,8 @@ Every plugin point is a Go interface plus a registry built on `plugin.NewRegistr
 | captcha | `captcha.Register` | none, turnstile, recaptcha, hcaptcha | `internal/captcha` itself |
 | mail driver | `mail.FromSettings` (`email_driver`) | smtp, log (memory in tests) | `internal/mail` |
 | notification channel | `notify.Register(name, factory)` | telegram (`notifytest` "record" in tests) | `cmd/ggboard/plugins_notify.go` → `internal/notify/telegram` (also imported by the API packages) |
-| jobs | `app.RegisterJob(name, spec, fn)` | see above | `cmd/ggboard/jobs_maintenance.go`; `service/order` and `subscription/guard` through the API packages |
+| jobs | `app.RegisterJob(name, spec, fn)` | see above | `cmd/ggboard/jobs_maintenance.go`; `service/order`, `subscription/guard` and `geoip` through the API packages |
+| start hooks | `app.RegisterStartHook(name, fn)` | `geoip` (load / first download) | `geoip` through `subscription/guard` and the admin API |
 | CLI subcommands | `cli.Register(factory)` | `import xboard` | `cmd/ggboard/import.go` |
 
 One hook is wired by assignment instead of a registry: `subscription.LeakHook` (called once per token and 24 h when the leak

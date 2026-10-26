@@ -116,6 +116,7 @@ internal/
   subscription/         订阅生成：formats/（每种客户端一个文件）、rulesets/（catalog.json + 模板引擎）、
                         engine/（生成与多套订阅配置）、guard/（age 加密、访问日志、泄露检测）、节点处理与地区识别
   importer/xboard/      Xboard 导入器
+  geoip/                IP 归属地（纯真 qqwry.dat 解析、每日更新任务）；geoiptest/ 生成测试用的合成数据库
   static/               嵌入前端产物并提供服务
   testutil/             测试用 App、路由与请求助手
 web/                    前端（见 web/README.md、docs/FRONTEND.md）
@@ -193,7 +194,7 @@ scripts/                e2e.sh（冒烟）、e2e-full.sh（API 全流程，也�
 | 规则集来源 | `internal/subscription/rulesets/catalog.json` | blackmatrix7, Loyalsoldier, MetaCubeX, ACL4SSR, SagerNet(sing-geosite/geoip), DustinWin |
 | 验证码 | `internal/captcha/captcha.go`（`captcha.Register`） | none, turnstile, recaptcha, hcaptcha |
 | 数据导入 | `internal/cli`（`cli.Register` 注册子命令） | `import xboard`（legacy 分表 / upstream 统一表） |
-| 定时任务 | `internal/app/app.go`（`app.RegisterJob`，见 `docs/ARCHITECTURE.md`） | online_cleanup, traffic_flush（`internal/app`）；order_timeout, commission_settle（`service/order`）；traffic_reset, expire_remind, traffic_remind, stats_daily（`service/maintenance`）；subscription_access_flush, subscription_access_prune（`subscription/guard`） |
+| 定时任务 | `internal/app/app.go`（`app.RegisterJob`，见 `docs/ARCHITECTURE.md`） | online_cleanup, traffic_flush（`internal/app`）；order_timeout, commission_settle（`service/order`）；traffic_reset, expire_remind, traffic_remind, stats_daily（`service/maintenance`）；subscription_access_flush, subscription_access_prune（`subscription/guard`）；geoip_update（`geoip`，另有启动钩子 `app.RegisterStartHook`：无数据库时首次下载） |
 | 邮件驱动 | `internal/mail/mailer.go`（`mail.FromSettings` 按 `email_driver` 选择，非 registry） | smtp, log |
 | 通知渠道 | `internal/notify/notify.go`（`notify.Register`；汇总导入 `cmd/ggboard/plugins_notify.go`） | telegram |
 | 订阅泄露钩子 | `internal/subscription/leak.go`（`subscription.LeakHook` 变量，在 `cmd/ggboard/wire_leak.go` 赋值，非 registry） | 日志 + 邮件通知用户（`DefaultLeakHook`）+ Telegram `subscription_leak` 告警管理员 |

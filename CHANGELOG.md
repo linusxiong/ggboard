@@ -6,6 +6,11 @@
 
 ## [Unreleased]
 
+### 新增 / Added
+
+- 订阅访问记录显示 IP 归属地（`中国 广东 深圳 电信`，后台与用户中心都有）：数据来自纯真 IP 库（metowolf/qqwry.dat，约 27 MB，仅 IPv4），存放在 `<data_dir>/geoip/`，每天 05:23 自动检查更新（`geoip_update`），下载失败或文件无效时保留旧库；设置 → 订阅 → IP 归属地可以关闭、换镜像地址，查看版本并「立即更新」（`GET /admin/geoip`、`POST /admin/geoip/update`）。
+  *IP locations in the subscription access log from the CZ88 database, updated daily, with a status card and an “Update now” button in the settings.*
+
 ## [1.0.0] - 2026-10-25
 
 首个正式版本：单个 Go 二进制，内嵌 React 前端、定时任务、邮件队列与进程内缓存；默认 SQLite，也支持 PostgreSQL 与 MySQL，不需要 Redis 或额外的 worker。

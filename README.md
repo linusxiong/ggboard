@@ -32,7 +32,7 @@
   节点处理流水线——按类型 / 地区（47 个地区，旗帜 → 名称 → 代码识别）/ 正则筛选、去重、正则重命名、旗帜 emoji、
   前后缀、排序、数量上限，并带实时预览。
 - **订阅防泄露**：mihomo 1.19.27+ 的 **age 加密订阅**（Clash Party、FlClash 可直接填私钥）、可选严格模式；订阅访问日志
-  （IP、客户端、格式）；同一 token 24 小时内 IP 数超限时邮件 + Telegram 告警，或自动轮换链接；“只换链接”与“重置订阅”分开。
+  （IP 与归属地、客户端、格式；归属地来自每日自动更新的纯真 IP 库）；同一 token 24 小时内 IP 数超限时邮件 + Telegram 告警，或自动轮换链接；“只换链接”与“重置订阅”分开。
 - **Telegram 机器人**（可插拔通知渠道）：新订单 / 支付 / 取消、新工单 / 回复、提现申请、订阅泄露推送给管理员；
   **每次管理员 / 客服登录都推送提醒**（邮箱、方式、IP、UA、时间）；用户用一次性绑定码绑定后接收自己的支付、工单回复与
   到期 / 流量提醒。
@@ -253,6 +253,13 @@ pnpm -C web lh                  # Lighthouse：桌面 + 移动端，要求四项
 make e2e                        # 冒烟 + 完整 API 端到端流程（scripts/e2e-full.sh，也可 BASE=… 为运行中的实例填充演示数据）
 make bench                      # 压测：起一个临时实例灌入 1 万用户，产出 docs/perf/（results.json、results.md、benchmark.svg）
 ```
+
+## 致谢 / Credits
+
+- IP 归属地数据：[纯真 CZ88](https://www.cz88.net/) 社区版 IP 库，由 [metowolf/qqwry.dat](https://github.com/metowolf/qqwry.dat)
+  每周同步发布为 `qqwry.dat`。面板运行时自动下载到数据目录，仓库与镜像里都不包含该数据文件。
+  *IP locations: the CZ88 (纯真) community IP database, published weekly as `qqwry.dat` by metowolf/qqwry.dat; downloaded
+  at run time into the data directory, never shipped in the repository or the images.*
 
 ## 许可证 / License
 

@@ -210,7 +210,7 @@ the region keyword table and limits in `docs/SUBSCRIPTION.md` "Node operations".
 | POST | `/user/subscription/age` | `{regenerate?, enabled?}` | `AgeKey` with the new key pair (X25519); a new key is disabled unless `enabled: true`; `regenerate` keeps the current switch unless `enabled` is given; 409 when a key exists and `regenerate` is not true |
 | PATCH | `/user/subscription/age` | `{enabled*}` | `AgeKey`; 404 without a key |
 | DELETE | `/user/subscription/age` | — | `true` (encryption off; no error without a key) |
-| GET | `/user/subscription/access-log` | — | array `[{ip, client, format, at}]`, newest 50 first; `ip` masked (`203.0.113.*`, `2001:db8:1:2:*`) |
+| GET | `/user/subscription/access-log` | — | array `[{ip, client, format, at, location}]`, newest 50 first; `ip` masked (`203.0.113.*`, `2001:db8:1:2:*`); `location` is resolved from the full address before masking ([GeoIP](#geoip)) |
 
 `AgeKey` = `{enabled, public_key ("age1…"), private_key ("AGE-SECRET-KEY-1…"; owner only, null when it cannot be decrypted after a jwt.secret rotation), created_at, formats (["clash-meta"]: formats served encrypted), optional (subscribe_age_optional), strict (subscribe_age_strict)}`.
 `POST`/`PATCH`/`DELETE` here and `rotate-token` share 30 requests/min per user. See `docs/SUBSCRIPTION.md`
@@ -396,7 +396,7 @@ nodes/users keep their ranking rows with an empty `name`/`email`.
 | POST | `/admin/users/:id/traffic-reset` | — | `AdminUser` (u = d = 0) |
 | GET | `/admin/users/:id/subscription/age` | — | `AgeKey` without the private key (`private_key` always null) |
 | POST | `/admin/users/:id/subscription/age/reset` | — | `AgeKey` without the private key: a new key pair, the enabled switch kept (the user reads the new private key in the user center); 404 when the user has no key |
-| GET | `/admin/users/:id/subscription/access-log` | — | array `[{ip, ip_bucket, token_tag, client, format, at}]`, newest 100 first, unmasked |
+| GET | `/admin/users/:id/subscription/access-log` | — | array `[{ip, ip_bucket, token_tag, client, format, at, location}]`, newest 100 first, unmasked; `location` as in [GeoIP](#geoip) |
 | POST | `/admin/users/generate` | `{email_prefix?, email_suffix*, count* (1..500), plan_id?, expired_at?, password? (8..128)}` | `{count, csv}` |
 | POST | `/admin/users/export` | same filters as the list, in the JSON body | `text/csv` attachment |
 | POST | `/admin/users/mail` | `{<filters>, subject* (≤255), content*}` | `{queued}` |
@@ -530,7 +530,7 @@ gateway's default (`epay` → `epay`, or `alipay` / `wechat` / `usdt` from its `
 
 | method | path | req | res |
 | --- | --- | --- | --- |
-| GET | `/admin/settings` | — | `{"<group>": {"<key>": value}, …, "groups": [{name, keys:[{key, group, type, default, secret?, options?, min?, max?, min_len?}]}]}`: every visible key by group (secrets included) + UI metadata in display order (`site`, `register`, `subscribe`, `order`, `invite`, `server`, `email`, `frontend`, `app`, `security`, `telegram`) |
+| GET | `/admin/settings` | — | `{"<group>": {"<key>": value}, …, "groups": [{name, keys:[{key, group, type, default, secret?, options?, min?, max?, min_len?, url?}]}]}`: every visible key by group (secrets included) + UI metadata in display order (`site`, `register`, `subscribe`, `order`, `invite`, `server`, `email`, `frontend`, `app`, `security`, `telegram`); `url: true` = a non-empty value must be an absolute `http`/`https` URL with a host and without credentials (≤ 2048 bytes, trimmed) |
 | PUT | `/admin/settings` | `{"<key>": value, ...}` (`null` resets a key to its default) | `true`; unknown keys, invalid values and hidden keys (`rulesets_custom`, use `/admin/rulesets`) → 400 per key, nothing saved |
 | POST | `/admin/settings/mail/test` | `{email*}` | `true`; sent synchronously (template `notify`) with the current mail settings; delivery error → 400 with the driver's message and `errors.email` |
 | POST | `/admin/settings/telegram/webhook` | — | `{ok, description, error_code?, url}`: Telegram's answer to `setWebhook` with `url` = `<app_url>/api/v1/guest/telegram/webhook/<telegram_webhook_secret>` (§Telegram) |
@@ -539,6 +539,52 @@ gateway's default (`epay` → `epay`, or `alipay` / `wechat` / `usdt` from its `
 | PUT | `/admin/rulesets` | `{custom: {sources?, categories?, templates?, mirrors?}}` or `{custom: null}` (reset) | `true` (merged over builtin by id and validated; 400 on `custom` or per field) |
 | GET | `/admin/system/status` | — | `{version, go_version, uptime (s), db_driver, started_at, scheduler:[{name, spec, running, last_run, last_duration?, last_error, next_run, runs, failures}], mail:{pending, sent, failed, driver}, mail_queue (= mail.pending), notify:{pending, sent, failed, drivers}, cache:{items, max_items, hits, misses, hit_ratio}, online:{nodes, users}, goroutines, memory:{alloc, sys}}` |
 | GET | `/admin/system/logs` | `level?` (`debug` default, `info`, `warn`/`warning`, `error` = minimum level), `limit?` (1..1000, default 200) | array `[{time, level, msg, attrs}]` newest first (in-memory ring buffer, last 1000 records) |
+| GET | `/admin/geoip` | — | `GeoIPStatus` ([GeoIP](#geoip)) |
+| POST | `/admin/geoip/update` | — | `GeoIPStatus` + `updated` (see [GeoIP](#geoip)); 202 while it is still downloading after 60 s, 409 `geoip_update_running` / `geoip_disabled`, 502 `geoip_update_failed` |
+
+### GeoIP
+
+IP locations of the subscription access log (`internal/geoip`). The data is the 纯真 (CZ88) community IP database in the
+`qqwry.dat` format, published weekly by [metowolf/qqwry.dat](https://github.com/metowolf/qqwry.dat) (release tags `YYYYMMDD`,
+~27 MB, IPv4 only, GBK strings). Settings: `geoip_enable`, `geoip_download_url`, `geoip_version_url` ([Settings keys](#settings-keys)).
+
+`location` (every access-log row, user and admin) is one string of space-separated parts, `""` when unknown (IPv6, an address
+outside every range, no database yet, or `geoip_enable` off). It never causes an error. The record's region parts (split on
+`–`) come first, then the network; placeholders (`CZ88.NET`, `IANA`, `纯真网络`), empty and repeated parts are dropped; a
+network written as `<carrier>/<site detail>` keeps the Chinese carrier only; a trailing parenthesised English translation after
+Chinese text is dropped; `_` becomes a space:
+
+| address | raw record (country + area) | `location` |
+| --- | --- | --- |
+| 202.96.128.86 | `中国–广东–广州` + `电信/DNS服务器` | `中国 广东 广州 电信` |
+| 61.135.169.121 | `中国–北京–北京` + `联通/北京百度网讯科技有限公司联通节点` | `中国 北京 联通` |
+| 8.8.8.8 | `美国–加利福尼亚州–圣克拉拉–山景城` + `谷歌公司DNS服务器` | `美国 加利福尼亚州 圣克拉拉 山景城 谷歌公司DNS服务器` |
+| 1.1.1.1 | `澳大利亚` + `APNIC/CloudFlare公共DNS服务器` | `澳大利亚 APNIC/CloudFlare公共DNS服务器` |
+| 192.168.1.1 | `IANA` + `局域网IP(Private-Use)` | `局域网IP` |
+| 127.0.0.1 | `IANA` + `本机地址/环回地址(Loopback)` | `本机地址` |
+| 2001:db8::1 | — | `""` |
+
+`GeoIPStatus` = `{enabled, loaded, updating, version ("YYYYMMDD", "" without a database), records (IP ranges), size (bytes),
+sha256, updated_at (when the file in use was downloaded, or its file time when it was placed by hand), checked_at (last
+successful check), last_error ("" after a successful check), last_error_at}`; times are RFC 3339 UTC or `null`. While
+`geoip_enable` is off the values come from `qqwry.json` and nothing is loaded.
+
+`POST /admin/geoip/update` runs the same update as the daily `geoip_update` job (docs/ARCHITECTURE.md "Scheduler jobs") and
+logs an audit line (admin id, result):
+
+1. `geoip_version_url` (when set) → `{"latest": "YYYYMMDD"}`; equal to the loaded version → nothing is downloaded (`updated:
+   false`). Without a version URL the file is downloaded on every check and compared by SHA-256.
+2. `geoip_download_url` is fetched with the default HTTP transport (`HTTPS_PROXY` / `NO_PROXY` apply), User-Agent
+   `ggboard/<version> (geoip)`, a 10-minute limit and a 128 MiB cap, into a temporary file next to the database.
+3. The file must parse completely (sorted index, every record and string in bounds), have at least 100 000 ranges and
+   resolve 114.114.114.114. It is then synced and renamed over `<data_dir>/geoip/qqwry.dat`, `qqwry.json`
+   (version, size, sha256, records, fetched/checked times, source) is rewritten and lookups switch to it at once (cached
+   lookups are dropped). Anything else keeps the current database and sets `last_error`.
+
+Answers: 200 `{…GeoIPStatus, updated}` when the update finished within 60 s; 202 `{…GeoIPStatus (updating: true), updated:
+false}` when it is still downloading (poll `GET /admin/geoip` until `updating` is false); 409 `geoip_update_running` while
+another update runs (job, first download or another admin) and `geoip_disabled` while `geoip_enable` is off; 502
+`geoip_update_failed` with the reason as `message`.
 
 ### Mail templates 🛡
 
@@ -657,6 +703,9 @@ admins only and masked in logs; `server_token` and `telegram_webhook_secret` are
 | subscribe | `subscribe_leak_max_ips` | int 0..1000 | `0` | distinct IPs (IPv6 per /64) per token within 24 h before a leak alert (0 = off) |
 | subscribe | `subscribe_leak_action` | string | `"notify"` | `notify` (log + mail the user, `subscription.LeakHook`) or `rotate` (also rotate the token and mail the new link) |
 | subscribe | `rulesets_custom` | json (hidden) | `{}` | only via `/admin/rulesets` |
+| subscribe | `geoip_enable` | bool | `true` | IP locations in the subscription access log ([GeoIP](#geoip)) and the daily `geoip_update` |
+| subscribe | `geoip_download_url` | string (URL) | `"https://github.com/metowolf/qqwry.dat/releases/latest/download/qqwry.dat"` | where `qqwry.dat` is downloaded; a mirror for servers that cannot reach GitHub; `""` = never download (a file placed by hand at `<data_dir>/geoip/qqwry.dat` is used) |
+| subscribe | `geoip_version_url` | string (URL) | `"https://raw.githubusercontent.com/metowolf/qqwry.dat/main/version.json"` | `{"latest": "YYYYMMDD"}` checked before downloading; `""` = download on every check and compare checksums |
 | order | `order_timeout_minutes` | int 1..10080 | `30` | pending orders are cancelled after this |
 | invite | `invite_commission` | int 0..100 | `10` | percent |
 | invite | `invite_gen_limit` | int 0.. | `5` | unused codes per user |
