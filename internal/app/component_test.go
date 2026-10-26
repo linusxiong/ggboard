@@ -61,3 +61,45 @@ func TestComponents(t *testing.T) {
 		t.Fatal("existing components stay reachable after Close")
 	}
 }
+
+func TestStartHooks(t *testing.T) {
+	var (
+		mu  sync.Mutex
+		ran = map[*app.App][]string{}
+	)
+	hook := func(name string) app.StartHook {
+		return func(a *app.App) {
+			mu.Lock()
+			defer mu.Unlock()
+			ran[a] = append(ran[a], name)
+		}
+	}
+	app.RegisterStartHook("test_hook_b", hook("b"))
+	app.RegisterStartHook("test_hook_a", hook("a"))
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Fatal("a duplicate start hook must panic")
+			}
+		}()
+		app.RegisterStartHook("test_hook_a", hook("again"))
+	}()
+
+	a, err := app.New(testConfig(t), app.WithLogger(logx.Discard(), nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = a.Close(context.Background()) }()
+	mu.Lock()
+	before := len(ran[a])
+	mu.Unlock()
+	if before != 0 {
+		t.Fatal("start hooks must not run before Start")
+	}
+	a.Start()
+	mu.Lock()
+	defer mu.Unlock()
+	if got := strings.Join(ran[a], ","); got != "a,b" {
+		t.Fatalf("start hooks ran %q, want a,b (name order, once)", got)
+	}
+}

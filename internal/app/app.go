@@ -164,10 +164,11 @@ func (a *App) aliveTTL() time.Duration {
 	return max(online.DefaultTTL, 2*a.Settings.Duration("server_push_interval", time.Second))
 }
 
-// Start launches the mail worker and the scheduler.
+// Start launches the mail worker and the scheduler, then runs the start hooks (see RegisterStartHook).
 func (a *App) Start() {
 	a.Mailer.Start()
 	a.Scheduler.Start()
+	a.runStartHooks()
 }
 
 // FlushTraffic writes buffered traffic to the database.
@@ -311,4 +312,42 @@ func (a *App) closeComponents() []Stopper {
 		}
 	}
 	return out
+}
+
+// StartHook is the body of a hook registered with RegisterStartHook.
+type StartHook func(a *App)
+
+var (
+	startHooksMu sync.Mutex
+	startHooks   = map[string]StartHook{}
+)
+
+// RegisterStartHook declares fn to run once in App.Start (i.e. in `ggboard serve`, after the scheduler started)
+// for every App built afterwards; hooks run in name order. Feature packages call it from init() for work that
+// must begin with the server, such as a first download. fn must return quickly: slow work belongs in a goroutine
+// owned by a Component that implements Stopper, so App.Close can cancel it. It panics on duplicate names.
+func RegisterStartHook(name string, fn StartHook) {
+	startHooksMu.Lock()
+	defer startHooksMu.Unlock()
+	if _, dup := startHooks[name]; dup || fn == nil {
+		panic("app: duplicate or nil start hook " + name)
+	}
+	startHooks[name] = fn
+}
+
+func (a *App) runStartHooks() {
+	startHooksMu.Lock()
+	names := make([]string, 0, len(startHooks))
+	for n := range startHooks {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	hooks := make([]StartHook, 0, len(names))
+	for _, n := range names {
+		hooks = append(hooks, startHooks[n])
+	}
+	startHooksMu.Unlock()
+	for _, fn := range hooks {
+		fn(a)
+	}
 }
