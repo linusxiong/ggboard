@@ -22,6 +22,10 @@ data/
 storage/
 logs/
 *.log
+# IP location database downloaded at run time (internal/geoip; never committed) and its temporaries
+*.dat
+*.dat.*.tmp
+**/geoip/qqwry.json
 
 # ---- Go ----
 /bin/
