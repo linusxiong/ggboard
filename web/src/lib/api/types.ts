@@ -961,8 +961,10 @@ export interface AdminOrderFilters extends ListQuery {
   commission_status?: CommissionStatus
   plan_id?: ID
   payment_id?: ID
-  date_from?: ISODate
-  date_to?: ISODate
+  /** `created_at` ≥ this instant (the web app sends local 00:00 of the first picked day). */
+  date_from?: ISODateTime
+  /** `created_at` < this instant (exclusive; local 00:00 of the day after the last picked day). */
+  date_to?: ISODateTime
 }
 export interface AdminOrderCreateInput {
   email?: string

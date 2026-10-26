@@ -757,8 +757,13 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
           if (q.get('user_id') && o.user_id !== Number(q.get('user_id'))) return false
           for (const k of ['status', 'commission_status', 'plan_id', 'payment_id'])
             if (q.get(k) !== null && o[k] !== Number(q.get(k))) return false
-          if (q.get('date_from') && String(o.created_at) < q.get('date_from')!) return false
-          if (q.get('date_to') && String(o.created_at).slice(0, 10) > q.get('date_to')!) return false
+          // RFC 3339 bounds (date_to exclusive); a bare YYYY-MM-DD is a (UTC) day, date_to inclusive.
+          const at = Date.parse(String(o.created_at))
+          const from = q.get('date_from')
+          const to = q.get('date_to')
+          if (from && at < Date.parse(from.length === 10 ? `${from}T00:00:00Z` : from)) return false
+          if (to && at >= (to.length === 10 ? Date.parse(`${to}T00:00:00Z`) + DAY : Date.parse(to)))
+            return false
           return true
         })
         rows = sortBy(rows, q.get('sort') ?? '-created_at')

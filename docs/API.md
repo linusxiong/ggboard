@@ -470,7 +470,7 @@ cannot get a parent or change its type; `protocol_settings` is validated per typ
 
 | method | path | req | res |
 | --- | --- | --- | --- |
-| GET | `/admin/orders` | `trade_no`, `user_id`, `email`, `status`, `commission_status`, `plan_id`, `payment_id`, `invite_user_id`, `type`, `date_from`, `date_to` (YYYY-MM-DD with `date_to` inclusive, or RFC 3339; on `created_at`); `sort` (`id created_at paid_at total_amount status`) | paginated `[AdminOrder]` (default newest first) |
+| GET | `/admin/orders` | `trade_no`, `user_id`, `email`, `status`, `commission_status`, `plan_id`, `payment_id`, `invite_user_id`, `type`, `date_from`, `date_to` on `created_at`: RFC 3339 instants (`date_from` inclusive, `date_to` exclusive; the web app sends 00:00 of the first picked day and of the day after the last one in the browser zone, so a picked day is the day the list shows), or YYYY-MM-DD as a calendar day of the server zone (`date_to` inclusive); `sort` (`id created_at paid_at total_amount status`) | paginated `[AdminOrder]` (default newest first) |
 | GET | `/admin/orders/:id` | — | `AdminOrderDetail` = `AdminOrder` + `commission_logs`, `surplus_orders` |
 | POST | `/admin/orders` | `{user_id* or email*, plan_id*, period*, total_amount?}` | 201 `AdminOrder` (assigned, pending; no discount/coupon/surplus/balance; 409 if the user has an unpaid order; 400 when the plan has no price for `period` and `total_amount` is omitted) |
 | POST | `/admin/orders/:id/paid` | — | `AdminOrderDetail` (pending only, else 409; `callback_no="manual"` → fulfil) |

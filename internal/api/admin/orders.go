@@ -26,7 +26,8 @@ func registerOrders(g *gin.RouterGroup, a *app.App) {
 	og.POST("/:id/cancel", adminCancelOrder(a))
 }
 
-// adminOrderQuery holds the list filters. Dates accept YYYY-MM-DD (date_to inclusive) or RFC 3339.
+// adminOrderQuery holds the list filters. Dates accept RFC 3339 instants (date_to exclusive; the web app sends
+// the admin's local day bounds) or YYYY-MM-DD, a calendar day of the server zone (date_to inclusive).
 type adminOrderQuery struct {
 	TradeNo          string  `form:"trade_no" binding:"max=32"`
 	UserID           *uint64 `form:"user_id"`

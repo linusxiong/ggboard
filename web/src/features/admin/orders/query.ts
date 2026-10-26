@@ -1,4 +1,5 @@
 import type { AdminOrderFilters } from '@/lib/api/types'
+import { localDayStartIso } from '../shared/datetime'
 import { compact, type OrderSearch } from './search'
 
 /** Splits the "email or user id" box: digits → `user_id`, anything else → `email` (substring match). */
@@ -9,7 +10,12 @@ export function splitUserQuery(q: string | undefined): Pick<AdminOrderFilters, '
   return { email: v }
 }
 
-/** `/admin/orders` URL state → API query (`GET /admin/orders`). */
+/**
+ * `/admin/orders` URL state → API query (`GET /admin/orders`). The URL keeps the picked days as
+ * `YYYY-MM-DD` (both inclusive); the API gets the browser-local day bounds as instants: `date_from` =
+ * 00:00 of the first day, `date_to` = 00:00 of the day after the last (exclusive). A date-only value
+ * would be read as a server calendar day, which differs from the `created_at` the list shows.
+ */
 export function orderSearchToQuery(s: OrderSearch): AdminOrderFilters {
   return compact({
     page: s.page,
@@ -21,8 +27,8 @@ export function orderSearchToQuery(s: OrderSearch): AdminOrderFilters {
     commission_status: s.commission_status,
     plan_id: s.plan_id,
     payment_id: s.payment_id,
-    date_from: s.date_from,
-    date_to: s.date_to,
+    date_from: s.date_from === undefined ? undefined : localDayStartIso(s.date_from),
+    date_to: s.date_to === undefined ? undefined : localDayStartIso(s.date_to, 1),
   })
 }
 
