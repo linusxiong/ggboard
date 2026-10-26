@@ -215,7 +215,8 @@
     "ageOn": "On",
     "ageOff": "Off",
     "publicKey": "Public key",
-    "tokenTag": "Token tag"
+    "tokenTag": "Token tag",
+    "location": "Location"
   },
   "units": {
     "devices": "devices",

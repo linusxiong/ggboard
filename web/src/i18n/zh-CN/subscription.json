@@ -368,6 +368,7 @@
     "rotateTitle": "轮换订阅链接？",
     "rotateDescription": "旧链接立即失效，已导入的客户端需要换成新链接；节点连接不受影响。",
     "rotateConfirm": "轮换",
-    "rotated": "订阅链接已更新，请在客户端中换成新链接。"
+    "rotated": "订阅链接已更新，请在客户端中换成新链接。",
+    "location": "归属地"
   }
 }

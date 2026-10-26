@@ -42,6 +42,8 @@ const URL_KEYS = new Set([
   'android_download_url',
   'ios_download_url',
   'telegram_discuss_link',
+  'geoip_download_url',
+  'geoip_version_url',
 ])
 const TEXTAREA_KEYS = new Set(['app_description', 'frontend_footer_html'])
 const MONO_KEYS = new Set(['server_white_list', 'captcha_site_key', 'email_host', 'ruleset_mirror'])

@@ -14,6 +14,7 @@ import { cx } from '@/lib/cn'
 import { errorMessage } from '@/lib/errors'
 import { toast } from '@/lib/toast'
 import { RULESETS_FULL_KEY } from '@/features/admin/rulesets/catalog'
+import { GeoIPDatabase } from './GeoIPDatabase'
 import { DEPENDS_ON, FALLBACK_ICON, GROUP_HELP, GROUP_ICON, type RowModel, sectionsOf } from './layout'
 import { ServerSnippets } from './ServerSnippets'
 import { SettingField, type SettingFieldContext } from './SettingField'
@@ -349,6 +350,9 @@ export function SettingsPage({
                   <div className="inset-group shadow-card [--separator-inset:20px] sm:[--separator-inset:24px]">
                     {section.rows.map(renderRow)}
                   </div>
+                  {active.name === 'subscribe' && section.id === 'geoip' ? (
+                    <GeoIPDatabase dirty={dirtyGroups.has('subscribe')} />
+                  ) : null}
                 </section>
               )
             })}

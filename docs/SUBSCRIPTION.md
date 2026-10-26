@@ -450,6 +450,8 @@ mihomo v1.19.33 source `component/age/age.go`, `adapter/provider/provider.go` (`
 - `subscription_access_prune` (daily 04:37) deletes rows older than 30 days and keeps the newest 100 per user.
 - `GET /user/subscription/access-log`: newest 50, IP masked (`203.0.113.*`, `2001:db8:1:2:*`).
   `GET /admin/users/:id/subscription/access-log`: newest 100, unmasked, with `ip_bucket` and `token_tag`.
+  Both carry `location` (`中国 广东 深圳 电信`, `""` when unknown), looked up from the full address when the list is read
+  (not stored), from the 纯真 IP database that `internal/geoip` keeps in `<data_dir>/geoip/` (docs/API.md "GeoIP").
 - **Leak detection** (`subscribe_leak_max_ips` > 0): after each flush, every (user, token tag) fetched from a bucket it
   was not seen from in the last 24 h (per process) is recounted: distinct `ip_bucket` values of that token within the
   last 24 hours. Above the limit, at most once per token and 24 h (in-memory marker; a restart can repeat one alert):

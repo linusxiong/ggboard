@@ -4,6 +4,7 @@ import (
 	"errors"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"gorm.io/gorm"
@@ -154,5 +155,43 @@ func TestGroupedAndSecrets(t *testing.T) {
 	}
 	if d, ok := Lookup("reset_traffic_method"); !ok || *d.Max != 4 {
 		t.Fatal("Lookup")
+	}
+}
+
+func TestURLSettings(t *testing.T) {
+	s, err := New(newDB(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"geoip_download_url", "geoip_version_url"} {
+		if d, _ := Lookup(k); !d.URL || d.Group != GroupSubscribe || !regexp.MustCompile(`^https://`).MatchString(s.String(k)) {
+			t.Fatalf("%s: def %+v default %q", k, d, s.String(k))
+		}
+	}
+	if !s.Bool("geoip_enable") {
+		t.Fatal("geoip_enable defaults to on")
+	}
+	for _, bad := range []string{"ftp://mirror.example.com/qqwry.dat", "mirror.example.com/qqwry.dat", "https://",
+		"https://user:pass@mirror.example.com/qqwry.dat", "https://mirror.example.com/a b", "javascript:alert(1)",
+		"file:///etc/passwd", "https://mirror.example.com/" + strings.Repeat("a", maxURLLen)} {
+		err := s.Set(map[string]any{"geoip_download_url": bad})
+		var fe FieldErrors
+		if !errors.As(err, &fe) || len(fe["geoip_download_url"]) == 0 {
+			t.Errorf("%q accepted (err %v)", bad, err)
+		}
+	}
+	// Valid values are trimmed; "" is allowed (no automatic download) and null restores the default.
+	if err := s.Set(map[string]any{"geoip_download_url": "  http://mirror.example.com:8080/qqwry.dat?x=1 ", "geoip_version_url": ""}); err != nil {
+		t.Fatal(err)
+	}
+	if s.String("geoip_download_url") != "http://mirror.example.com:8080/qqwry.dat?x=1" || s.String("geoip_version_url") != "" {
+		t.Fatalf("saved %q %q", s.String("geoip_download_url"), s.String("geoip_version_url"))
+	}
+	if err := s.Set(map[string]any{"geoip_version_url": nil}); err != nil || s.String("geoip_version_url") == "" {
+		t.Fatalf("reset: %v %q", err, s.String("geoip_version_url"))
+	}
+	// Other string settings are not URL-checked.
+	if err := s.Set(map[string]any{"app_url": "not a url"}); err != nil {
+		t.Fatal(err)
 	}
 }

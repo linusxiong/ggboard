@@ -125,6 +125,7 @@ export function AccessCard() {
                 format: t('access.format'),
                 time: t('access.time'),
                 unknownClient: t('access.unknownClient'),
+                location: t('access.location'),
               }}
             />
             {entries.length > PREVIEW_ROWS ? (

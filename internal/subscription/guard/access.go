@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/linusxiong/ggboard/internal/app"
+	"github.com/linusxiong/ggboard/internal/geoip"
 	"github.com/linusxiong/ggboard/internal/httpx"
 	"github.com/linusxiong/ggboard/internal/model"
 )
@@ -196,10 +197,13 @@ type AccessEntry struct {
 	Client   string    `json:"client"`
 	Format   string    `json:"format"`
 	At       time.Time `json:"at"`
+	// Location is the IP's place and network ("中国 广东 深圳 电信", internal/geoip); "" when unknown.
+	Location string `json:"location"`
 }
 
 // ListAccess returns the newest rows of a user (pending rows are flushed first). masked hides the last IPv4
-// octet and the last 64 bits of IPv6 addresses and leaves out ip_bucket and token_tag.
+// octet and the last 64 bits of IPv6 addresses and leaves out ip_bucket and token_tag; the location is always
+// resolved from the full address.
 func ListAccess(ctx context.Context, a *app.App, userID uint64, limit int, masked bool) ([]AccessEntry, error) {
 	if err := FlushAccess(ctx, a); err != nil {
 		a.Log.Warn("subscription access log: flush failed", "err", err)
@@ -210,8 +214,9 @@ func ListAccess(ctx context.Context, a *app.App, userID uint64, limit int, maske
 		return nil, err
 	}
 	out := make([]AccessEntry, 0, len(rows))
+	locate := geoip.Of(a)
 	for _, r := range rows {
-		e := AccessEntry{IP: r.IP, Client: r.Client, Format: r.Format, At: r.At.UTC()}
+		e := AccessEntry{IP: r.IP, Client: r.Client, Format: r.Format, At: r.At.UTC(), Location: locate.Locate(r.IP)}
 		if masked {
 			e.IP = MaskIP(r.IP)
 		} else {

@@ -24,6 +24,7 @@ type Def struct {
 	Min     *int     `json:"min,omitempty"`     // inclusive bounds for ints
 	Max     *int     `json:"max,omitempty"`
 	MinLen  *int     `json:"min_len,omitempty"` // minimum length of a non-empty string
+	URL     bool     `json:"url,omitempty"`     // a non-empty string must be an http(s) URL
 }
 
 // Group is the admin-UI metadata of a settings group.
@@ -41,6 +42,9 @@ func secret(group, key string) Def {
 	return Def{Key: key, Group: group, Type: TypeString, Default: "", Secret: true}
 }
 func withMinLen(d Def, n int) Def { d.MinLen = ip(n); return d }
+
+// withURL requires a non-empty string to be an absolute http(s) URL without credentials.
+func withURL(d Def) Def { d.URL = true; return d }
 
 // withOptions restricts every element of a strings setting to opts.
 func withOptions(d Def, opts ...string) Def { d.Options = opts; return d }
@@ -189,6 +193,13 @@ var defs = []Def{
 	b(GroupTelegram, "telegram_user_notify", true),
 	s(GroupTelegram, "telegram_discuss_link", ""),
 	withMinLen(secret(GroupTelegram, "telegram_webhook_secret"), 16),
+
+	// IP locations in the subscription access log (internal/geoip): the 纯真 qqwry.dat from metowolf/qqwry.dat,
+	// refreshed daily. An empty download URL keeps a file placed by hand; an empty version URL downloads the file
+	// on every check and compares checksums (for mirrors without version.json).
+	b(GroupSubscribe, "geoip_enable", true),
+	withURL(s(GroupSubscribe, "geoip_download_url", "https://github.com/metowolf/qqwry.dat/releases/latest/download/qqwry.dat")),
+	withURL(s(GroupSubscribe, "geoip_version_url", "https://raw.githubusercontent.com/metowolf/qqwry.dat/main/version.json")),
 }
 
 var groupOrder = []string{GroupSite, GroupRegister, GroupSubscribe, GroupOrder, GroupInvite, GroupServer, GroupEmail, GroupFrontend, GroupApp, GroupSecurity, GroupTelegram}

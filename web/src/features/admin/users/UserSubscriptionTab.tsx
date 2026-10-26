@@ -114,6 +114,7 @@ export function UserSubscriptionTab({ user }: { user: AdminUser }) {
               time: t('subscription.time'),
               unknownClient: '—',
               tokenTag: t('subscription.tokenTag'),
+              location: t('subscription.location'),
             }}
           />
         )}

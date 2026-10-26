@@ -215,7 +215,8 @@
     "ageOn": "已开启",
     "ageOff": "未开启",
     "publicKey": "公钥",
-    "tokenTag": "Token 标识"
+    "tokenTag": "Token 标识",
+    "location": "归属地"
   },
   "units": {
     "devices": "台",

@@ -410,6 +410,18 @@
     "telegram_discuss_link": {
       "label": "Community link",
       "hint": "Telegram group link shown to users (optional)."
+    },
+    "geoip_enable": {
+      "label": "Show IP locations",
+      "hint": "Show the region and network of each IP in the subscription access log. The data is the CZ88 (纯真) IP database (about 27 MB, IPv4 only), kept in the data directory and checked for updates daily."
+    },
+    "geoip_download_url": {
+      "label": "Database download URL",
+      "hint": "Where qqwry.dat is downloaded from; by default the latest release of metowolf/qqwry.dat on GitHub. Use a mirror when the server cannot reach GitHub. Empty: no automatic download, only a file you put at data_dir/geoip/qqwry.dat is used."
+    },
+    "geoip_version_url": {
+      "label": "Version file URL",
+      "hint": "A version.json whose latest field holds the newest release (such as 20261021); nothing is downloaded while it is unchanged. Empty: every check downloads the whole file and compares checksums."
     }
   },
   "enums": {
@@ -667,6 +679,10 @@
       "protection": {
         "title": "Leak protection",
         "help": "Users can turn on age encryption for their subscription; it can then only be decrypted by a client on the mihomo 1.19.27+ core holding their secret key. Leak detection counts the distinct IPs fetching one subscription within 24 hours."
+      },
+      "geoip": {
+        "title": "IP locations",
+        "help": "The data is the CZ88 (纯真) community IP database, published weekly by metowolf/qqwry.dat. IPv4 only: IPv6 addresses have no location."
       }
     },
     "invite": {
@@ -890,5 +906,21 @@
       "switchHint": "Switching template or language discards the unsaved changes of this one.",
       "confirm": "Discard changes"
     }
+  },
+  "geoip": {
+    "status": "Database status",
+    "version": "Version",
+    "records": "Ranges",
+    "size": "Size",
+    "updatedAt": "Downloaded",
+    "checkedAt": "Last checked",
+    "none": "No database yet",
+    "update": "Update now",
+    "updating": "Downloading in the background; this refreshes when done.",
+    "updated": "Updated to {version}",
+    "current": "Already up to date: {version}",
+    "lastError": "The last update failed: {error}",
+    "unsaved": "Save your changes before updating.",
+    "loadFailed": "Cannot read the database status: {error}"
   }
 }

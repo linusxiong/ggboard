@@ -75,7 +75,7 @@ ggboard admin promote --email user@example.com              # 把已有用户提
 
 ### 订阅 `subscribe`
 
-界面分为 **订阅地址**、**套餐变更**、**订阅内容与提醒**、**分流规则**、**防泄露** 五个小节：
+界面分为 **订阅地址**、**套餐变更**、**订阅内容与提醒**、**分流规则**、**防泄露**、**IP 归属地** 六个小节：
 
 | 键（界面名称） | 默认 | 说明 |
 | --- | --- | --- |
@@ -95,6 +95,12 @@ ggboard admin promote --email user@example.com              # 把已有用户提
 | `subscribe_age_strict`（严格加密） | `false` | 用户开启加密后，不支持 age 的格式返回 406，而不是退回明文 |
 | `subscribe_leak_max_ips`（泄露检测阈值） | 0 | 24 小时内同一订阅 token 被超过 N 个不同 IP（IPv6 按 /64）获取时触发；0 = 关闭 |
 | `subscribe_leak_action`（触发后） | `notify` | 阈值大于 0 时出现：`notify` 或 `rotate`（轮换 token），详见 §10 |
+| `geoip_enable`（显示 IP 归属地） | `true` | 访问记录里显示 IP 的地区与运营商（纯真 IP 库，仅 IPv4），每天 05:23 自动检查更新 |
+| `geoip_download_url`（数据库下载地址） | metowolf/qqwry.dat 最新发布 | 访问不了 GitHub 时换成镜像；留空 = 不自动下载，只用手动放到 `<data_dir>/geoip/qqwry.dat` 的文件 |
+| `geoip_version_url`（版本信息地址） | metowolf/qqwry.dat 的 `version.json` | 版本没变就不下载；留空 = 每次检查都下载整个文件并比较校验和 |
+
+**IP 归属地** 小节下方的卡片显示数据库版本、IP 段数、大小、下载与检查时间、上次失败的原因，**立即更新** 马上检查一次
+（下载超过 60 秒会转到后台，卡片自动刷新）。设置有未保存的更改时按钮不可用。部署要求见 DEPLOY.md §6。
 
 ### 订单 `order`、邀请与佣金 `invite`
 
@@ -583,7 +589,7 @@ ggboard import xboard --dsn "mysql://user:pass@127.0.0.1:3306/xboard" --with-sta
 
 - age 加密状态（已开启 / 未开启）与公钥（管理员看不到私钥）；**重置 age 密钥** 为该用户生成新密钥对，开关保持不变，
   用户需要在订阅页查看新私钥并更新客户端（`POST /api/v1/admin/users/:id/subscription/age/reset`）；
-- 近 24 小时不同 IP 数与最新 100 条访问记录（完整 IP、客户端、格式、Token 标识、时间；
+- 近 24 小时不同 IP 数与最新 100 条访问记录（完整 IP 与归属地、客户端、格式、Token 标识、时间；
   `GET /api/v1/admin/users/:id/subscription/access-log`），Token 标识相同的行来自同一个订阅链接；
 - **轮换订阅链接**：管理端没有单独的 token 轮换接口，这个按钮调用 **重置订阅密钥**，UUID 与 token 一起更换，
   用户需要重新导入订阅，登录会话也会失效。只想换链接时，请让用户在订阅页自己 **轮换订阅链接**。

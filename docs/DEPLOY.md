@@ -322,7 +322,7 @@ panel.example.com {
 | `log.format` | `GGBOARD_LOG_FORMAT` | `--log-format` | `text` | `text` / `json` |
 | `log.color` | `GGBOARD_LOG_COLOR` | `--color` | `auto` | 终端颜色与排版：`auto`（输出是终端且未设 `NO_COLOR` 时着色）/ `always`（管道、文件也着色并用终端排版，优先于 `NO_COLOR`）/ `never`（不着色，终端仍对齐排版）。不影响 JSON 日志，见第 9、10 节 |
 | `frontend.dir` | `GGBOARD_FRONTEND_DIR` | | 空 | 从该目录提供 SPA，代替内嵌产物（目录必须存在） |
-| `data_dir` | `GGBOARD_DATA_DIR` | `--data-dir` | `./data` | SQLite 库与 `jwt.secret` 所在目录，启动时以 0700 创建 |
+| `data_dir` | `GGBOARD_DATA_DIR` | `--data-dir` | `./data` | SQLite 库与 `jwt.secret` 所在目录，启动时以 0700 创建；`geoip/` 下是自动下载的纯真 IP 库（约 27 MB，见第 6 节） |
 
 > **`jwt.secret` 不只是会话密钥**：TOTP 两步验证的密钥以它派生的 AES-256-GCM 密钥加密保存
 > （`internal/service/mfa/crypto.go`）。更换或丢失它会让所有人退出登录，并让**已绑定的 TOTP 全部失效**（备用码仍可用）。
@@ -528,10 +528,27 @@ switching the config back, or by copying PostgreSQL into a new SQLite file.*
    公网可达的 `https://` 地址；反向代理要放行 `POST /api/v1/guest/telegram/webhook/<密钥>`（不要对它加认证或缓存）。
    详见 [ADMIN_GUIDE.md](ADMIN_GUIDE.md) 的 Telegram 一节。
 7. **设置 → 订阅**（可选）：`subscribe_leak_max_ips` 大于 0 时开启订阅泄露检测，见 [SECURITY.md](../SECURITY.md)。
+8. **设置 → 订阅 → IP 归属地**（默认开启）：订阅访问记录里的 IP 归属地来自纯真 IP 库（[metowolf/qqwry.dat](https://github.com/metowolf/qqwry.dat)，
+   约 27 MB，只含 IPv4），存放在 `<data_dir>/geoip/qqwry.dat`（旁边的 `qqwry.json` 记录版本与校验和）。启动不等它：没有文件时
+   服务启动 30 秒后在后台下载，之后每天 05:23 检查一次新版本（`geoip_update`），失败时保留旧文件，错误显示在该设置页。
+   - **出站访问**：需要能访问 `raw.githubusercontent.com`（版本号）、`github.com` 与 `release-assets.githubusercontent.com`
+     （下载会从 github.com 跳转过去）。走代理时给服务设 `HTTPS_PROXY`（以及 `NO_PROXY`），systemd 写进
+     `/etc/ggboard/ggboard.env`，Docker 写进 `.env`。
+   - **访问不了 GitHub**：把“数据库下载地址”与“版本信息地址”换成镜像（例如 GitHub 加速前缀 + 原地址）；镜像没有
+     `version.json` 时清空版本信息地址，每次检查改为下载整个文件并按校验和比较。也可以清空下载地址，自己把 `qqwry.dat`
+     放到 `<data_dir>/geoip/`（容器里是数据卷），重启后生效。
+   - 数据库整个读入内存（与文件一样大，约 27 MB；更新的那一刻新旧两份并存）。不需要时关闭“显示 IP 归属地”：不再下载，
+     重启后也不再加载。
+
+*IP locations in the subscription access log come from the CZ88 database (`metowolf/qqwry.dat`, ~27 MB, IPv4 only), kept in
+`<data_dir>/geoip/`. With no file the server downloads one 30 s after start (startup never waits), then `geoip_update` checks
+daily at 05:23; a failed or invalid download keeps the old file. It needs outbound HTTPS to `raw.githubusercontent.com`,
+`github.com` and `release-assets.githubusercontent.com` (`HTTPS_PROXY` is honoured), or point the two URL settings at a mirror,
+or empty the download URL and place `qqwry.dat` yourself.*
 
 ## 7. 备份 / Backups
 
-需要备份的只有数据库和 `jwt.secret`（若由环境变量提供，则备份你的 `.env` / `ggboard.env`）。
+需要备份的只有数据库和 `jwt.secret`（若由环境变量提供，则备份你的 `.env` / `ggboard.env`）。`<data_dir>/geoip/` 不用备份，缺失时会重新下载。
 
 **SQLite（systemd）**：WAL 模式下可在线热备，不要直接 `cp` 正在写的 `.db`：
 

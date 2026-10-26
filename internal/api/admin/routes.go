@@ -32,4 +32,5 @@ func Register(r gin.IRouter, a *app.App) {
 	registerRulesets(g, a)  // admin/rulesets.go  (BE-D)
 
 	registerMailTemplates(g, a) // admin/mailtemplates.go (BE-MT)
+	registerGeoIP(g, a)         // admin/geoip.go (IP locations)
 }
