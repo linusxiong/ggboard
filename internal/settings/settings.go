@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"maps"
 	"math"
+	"net/url"
 	"slices"
 	"sort"
 	"strconv"
@@ -265,6 +266,12 @@ func normalize(d Def, v any) (any, error) {
 		if d.MinLen != nil && str != "" && len(str) < *d.MinLen {
 			return nil, fmt.Errorf("must be at least %d characters", *d.MinLen)
 		}
+		if d.URL {
+			str = strings.TrimSpace(str)
+			if str != "" && !validHTTPURL(str) {
+				return nil, fmt.Errorf("must be an http(s) URL")
+			}
+		}
 		return str, nil
 	case TypeInt:
 		n, err := toInt(v)
@@ -342,6 +349,23 @@ func normalize(d Def, v any) (any, error) {
 		return out, nil
 	}
 	return nil, errType
+}
+
+// maxURLLen bounds URL settings.
+const maxURLLen = 2048
+
+// validHTTPURL reports whether s is an absolute http or https URL with a host, without credentials, spaces or
+// control characters.
+func validHTTPURL(s string) bool {
+	if len(s) > maxURLLen || strings.ContainsFunc(s, func(r rune) bool { return r <= ' ' || r == 0x7f }) {
+		return false
+	}
+	u, err := url.Parse(s)
+	if err != nil || u.Host == "" || u.User != nil || u.Opaque != "" {
+		return false
+	}
+	scheme := strings.ToLower(u.Scheme)
+	return scheme == "http" || scheme == "https"
 }
 
 func toInt(v any) (int, error) {
