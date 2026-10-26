@@ -368,6 +368,7 @@
     "rotateTitle": "Rotate your subscription link?",
     "rotateDescription": "The old link stops working immediately and imported clients need the new one; node connections are unaffected.",
     "rotateConfirm": "Rotate",
-    "rotated": "Subscription link updated. Use the new link in your clients."
+    "rotated": "Subscription link updated. Use the new link in your clients.",
+    "location": "Location"
   }
 }

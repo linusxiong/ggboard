@@ -1304,6 +1304,8 @@ export interface SettingDef {
   min?: number
   max?: number
   description?: string
+  /** A non-empty value must be an http(s) URL (validated by the server). */
+  url?: boolean
 }
 export interface SettingGroupMeta {
   name: string
@@ -1528,6 +1530,8 @@ export interface SubscriptionAccess {
   ip_bucket?: string
   /** Admin view: first 8 hex digits of SHA-256 of the token that was used. */
   token_tag?: string
+  /** Place and network of the full IP (`中国 广东 深圳 电信`, 纯真 database); `""` when unknown (IPv6, no database). */
+  location?: string
 }
 /** `POST /user/subscription/rotate-token` (the uuid is unchanged). */
 export interface SubscriptionRotate {
@@ -1627,4 +1631,32 @@ export interface MailTemplatePreview {
   unknown: string[]
   /** Required placeholders absent from the body. */
   missing: string[]
+}
+
+// ---- GeoIP (admin) — docs/API.md "GeoIP"
+/** `GET /admin/geoip`: the IP location database (纯真 qqwry.dat). */
+export interface GeoIPStatus {
+  /** `geoip_enable`. */
+  enabled: boolean
+  /** A database is in memory. */
+  loaded: boolean
+  /** An update is downloading right now. */
+  updating: boolean
+  /** Release date `YYYYMMDD`, `""` without a database. */
+  version: string
+  records: number
+  /** File size in bytes. */
+  size: number
+  sha256: string
+  /** When the file in use was downloaded. */
+  updated_at: ISODateTime | null
+  /** Last successful version check. */
+  checked_at: ISODateTime | null
+  /** Error of the last failed update, `""` after a successful one. */
+  last_error: string
+  last_error_at: ISODateTime | null
+}
+/** `POST /admin/geoip/update`: 200 when finished (`updated` = a new file was installed), 202 with `updating: true`. */
+export interface GeoIPUpdateResult extends GeoIPStatus {
+  updated: boolean
 }

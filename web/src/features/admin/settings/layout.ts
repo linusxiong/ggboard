@@ -119,6 +119,8 @@ export const GROUP_SECTIONS: Record<
         'subscribe_leak_action',
       ],
     },
+    // Followed by the database status and the 「立即更新」 button (GeoIPStatus).
+    { id: 'geoip', help: true, keys: ['geoip_enable', 'geoip_download_url', 'geoip_version_url'] },
   ],
   invite: [
     { id: 'codes', keys: ['invite_gen_limit', 'invite_never_expire'] },
@@ -213,6 +215,8 @@ export const DEPENDS_ON: Record<string, { parent: string; when: (v: Record<strin
   email_encryption: { parent: 'email_driver', when: (v) => v.email_driver === 'smtp' },
   email_username: { parent: 'email_driver', when: (v) => v.email_driver === 'smtp' },
   email_password: { parent: 'email_driver', when: (v) => v.email_driver === 'smtp' },
+  geoip_download_url: { parent: 'geoip_enable', when: (v) => v.geoip_enable === true },
+  geoip_version_url: { parent: 'geoip_enable', when: (v) => v.geoip_enable === true },
 }
 
 /** Unit adornment (`units.<id>` in admin-settings.json) per integer key. */

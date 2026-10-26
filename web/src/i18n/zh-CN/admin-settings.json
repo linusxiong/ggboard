@@ -410,6 +410,18 @@
     "telegram_discuss_link": {
       "label": "交流群链接",
       "hint": "展示给用户的 Telegram 群组链接（可选）。"
+    },
+    "geoip_enable": {
+      "label": "显示 IP 归属地",
+      "hint": "在订阅访问记录中显示每个 IP 的地区和运营商。数据是纯真 IP 库（约 27 MB，只含 IPv4），保存在数据目录，每天自动检查更新。"
+    },
+    "geoip_download_url": {
+      "label": "数据库下载地址",
+      "hint": "qqwry.dat 的下载地址，默认是 GitHub 上 metowolf/qqwry.dat 的最新发布。服务器访问不了 GitHub 时换成镜像地址；留空则不再自动下载，只使用手动放到 数据目录/geoip/qqwry.dat 的文件。"
+    },
+    "geoip_version_url": {
+      "label": "版本信息地址",
+      "hint": "返回最新版本号的 version.json（latest 字段，形如 20261021），版本没变就不下载。留空则每次检查都下载整个文件，按校验和判断是否变化。"
     }
   },
   "enums": {
@@ -667,6 +679,10 @@
       "protection": {
         "title": "防泄露",
         "help": "用户可以为订阅开启 age 加密，加密后只有持有其私钥、使用 mihomo 1.19.27+ 内核的客户端能解密。泄露检测统计 24 小时内拉取同一订阅的不同 IP 数。"
+      },
+      "geoip": {
+        "title": "IP 归属地",
+        "help": "数据来自纯真 CZ88 社区版 IP 库，由 metowolf/qqwry.dat 每周同步发布。只支持 IPv4：IPv6 地址不显示归属地。"
       }
     },
     "invite": {
@@ -890,5 +906,21 @@
       "switchHint": "切换模板或语言会丢失当前模板未保存的更改。",
       "confirm": "放弃更改"
     }
+  },
+  "geoip": {
+    "status": "数据库状态",
+    "version": "版本",
+    "records": "IP 段",
+    "size": "大小",
+    "updatedAt": "下载于",
+    "checkedAt": "上次检查",
+    "none": "还没有数据库",
+    "update": "立即更新",
+    "updating": "正在后台下载，完成后自动刷新。",
+    "updated": "已更新到 {version}",
+    "current": "已是最新版本 {version}",
+    "lastError": "上次更新失败：{error}",
+    "unsaved": "有未保存的更改，请先保存再更新。",
+    "loadFailed": "无法读取数据库状态：{error}"
   }
 }

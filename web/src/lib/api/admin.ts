@@ -390,3 +390,12 @@ export const previewMailTemplate = (name: string, draft: MailTemplateDraft, sign
 /** `POST /admin/mail-templates/:name/test` — validates like PUT, sends the draft synchronously. */
 export const testMailTemplate = (name: string, input: MailTemplateTestInput) =>
   api.post<true>(`${mailTemplatePath(name)}/test`, input)
+
+// ---- GeoIP (admin only) — docs/API.md "GeoIP"
+import type { GeoIPStatus, GeoIPUpdateResult } from './types'
+
+/** `GET /admin/geoip` */
+export const geoipStatus = (signal?: AbortSignal) =>
+  api.get<GeoIPStatus>('/admin/geoip', undefined, o(signal))
+/** `POST /admin/geoip/update` — 202 while still downloading, 409 while running or disabled, 502 when rejected. */
+export const updateGeoIP = () => api.post<GeoIPUpdateResult>('/admin/geoip/update')
