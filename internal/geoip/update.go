@@ -42,8 +42,13 @@ func (s *Service) Begin() (<-chan Outcome, error) {
 	}
 	ch := make(chan Outcome, 1)
 	if !s.background(func() {
-		defer s.busy.Store(false)
-		ch <- s.run(s.ctx)
+		// The flag is cleared before the outcome is sent: the receiver answers with Status(), which must not
+		// still say updating.
+		out := func() Outcome {
+			defer s.busy.Store(false)
+			return s.run(s.ctx)
+		}()
+		ch <- out
 	}) {
 		s.busy.Store(false)
 		return nil, ErrStopped
