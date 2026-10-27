@@ -405,7 +405,7 @@
     },
     "telegram_user_notify": {
       "label": "User notifications",
-      "hint": "Users who linked Telegram get expiry and traffic reminders there."
+      "hint": "Users who linked Telegram get expiry and traffic reminders and subscription reset notices there."
     },
     "telegram_discuss_link": {
       "label": "Community link",
@@ -803,6 +803,10 @@
         "title": "Ticket reply",
         "description": "Tells users that support replied to their ticket."
       },
+      "subscription_reset": {
+        "title": "Subscription reset",
+        "description": "Tells users that an administrator reset their subscription secret (UUID and token) and to sign in for the new link; it never contains the new link."
+      },
       "notify": {
         "title": "General notice",
         "description": "Bulk emails, subscription leak alerts and other notices."
@@ -853,6 +857,9 @@
       },
       "ticket_reply": {
         "url": "Ticket link"
+      },
+      "subscription_reset": {
+        "url": "Subscription page link"
       },
       "notify": {
         "url": "Related link"

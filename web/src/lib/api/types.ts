@@ -1592,6 +1592,7 @@ export type MailTemplateName =
   | 'remind_traffic'
   | 'order_paid'
   | 'ticket_reply'
+  | 'subscription_reset'
   | 'notify'
   | (string & {})
 /** One placeholder of a template: `{{name}}`; `required` ones must appear in the body. */

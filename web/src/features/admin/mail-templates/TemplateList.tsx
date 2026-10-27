@@ -1,5 +1,14 @@
 import type { LucideIcon } from 'lucide-react'
-import { Bell, CalendarClock, Gauge, KeyRound, Mail, MessageSquareReply, Receipt } from 'lucide-react'
+import {
+  Bell,
+  CalendarClock,
+  Gauge,
+  KeyRound,
+  Mail,
+  MessageSquareReply,
+  Receipt,
+  RotateCcwKey,
+} from 'lucide-react'
 import { useT } from '@/i18n'
 import type { AdminMailTemplateSummary } from '@/lib/api/types'
 import { cx } from '@/lib/cn'
@@ -13,6 +22,7 @@ const TEMPLATE_ICON: Record<string, { icon: LucideIcon; tint: string }> = {
   remind_traffic: { icon: Gauge, tint: 'bg-system-teal' },
   order_paid: { icon: Receipt, tint: 'bg-system-green' },
   ticket_reply: { icon: MessageSquareReply, tint: 'bg-system-indigo' },
+  subscription_reset: { icon: RotateCcwKey, tint: 'bg-system-purple' },
   notify: { icon: Bell, tint: 'bg-system-red' },
 }
 const FALLBACK_ICON = { icon: Mail, tint: 'bg-system-gray' }

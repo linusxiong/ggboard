@@ -101,6 +101,20 @@ const BUILTIN: Builtin[] = [
     },
   },
   {
+    name: 'subscription_reset',
+    variables: [v('url'), ...COMMON],
+    defaults: {
+      'zh-CN': {
+        subject: '【{{siteName}}】系统已重置您的订阅信息',
+        body: '# 订阅信息已重置\n\n系统已重置您的订阅链接和 UUID，旧的订阅链接已失效。\n\n您也已在所有设备上退出登录。\n\n请重新登录网站，在“订阅”页面复制新的订阅链接，并重新导入到您的客户端中。\n\n[前往订阅页面]({{url}})',
+      },
+      en: {
+        subject: 'Your {{siteName}} subscription was reset by the administrator',
+        body: '# Your subscription was reset\n\nThe administrator reset your subscription link and UUID, so the old link no longer works.\n\nYou have also been signed out on all devices.\n\nSign in to the website again, copy the new subscription link from the Subscription page and import it into your clients.\n\n[Open subscription page]({{url}})',
+      },
+    },
+  },
+  {
     name: 'notify',
     variables: [v('content', true), v('title'), v('url'), ...COMMON],
     defaults: {

@@ -405,7 +405,7 @@
     },
     "telegram_user_notify": {
       "label": "用户通知",
-      "hint": "已绑定 Telegram 的用户可收到到期、流量等提醒。"
+      "hint": "已绑定 Telegram 的用户可收到到期、流量提醒与订阅重置等通知。"
     },
     "telegram_discuss_link": {
       "label": "交流群链接",
@@ -803,6 +803,10 @@
         "title": "工单回复",
         "description": "客服回复工单时通知用户。"
       },
+      "subscription_reset": {
+        "title": "订阅已重置",
+        "description": "管理员重置用户的订阅密钥（UUID 与订阅 Token）后通知用户重新登录获取新链接；内容不含新链接。"
+      },
       "notify": {
         "title": "通用通知",
         "description": "群发邮件、订阅泄露提醒等其他通知。"
@@ -853,6 +857,9 @@
       },
       "ticket_reply": {
         "url": "工单链接"
+      },
+      "subscription_reset": {
+        "url": "订阅页面链接"
       },
       "notify": {
         "url": "相关链接"

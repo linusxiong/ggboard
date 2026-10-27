@@ -62,6 +62,7 @@ export const LABELLED_TEMPLATES: ReadonlySet<string> = new Set([
   'remind_traffic',
   'order_paid',
   'ticket_reply',
+  'subscription_reset',
   'notify',
 ])
 /** Templates whose `{{url}}` points somewhere specific (renewal page, order, ticket …). */
@@ -70,6 +71,7 @@ export const TEMPLATE_URL_LABELS: ReadonlySet<string> = new Set([
   'remind_traffic',
   'order_paid',
   'ticket_reply',
+  'subscription_reset',
   'notify',
 ])
 
