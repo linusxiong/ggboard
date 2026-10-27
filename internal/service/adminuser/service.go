@@ -506,15 +506,18 @@ func (s *Service) ResetTraffic(ctx context.Context, id uint64, now time.Time) (*
 	return out, nil
 }
 
-// ResetSecret issues a new uuid and subscription token (and ends the user's sessions).
+// ResetSecret issues a new uuid and subscription token (and ends the user's sessions), then tells the user by
+// mail and Telegram that the subscription was reset (notifySubscriptionReset; queued, never fails the reset).
 func (s *Service) ResetSecret(ctx context.Context, id uint64) (*model.User, error) {
 	u, err := s.load(ctx, id)
 	if err != nil {
 		return nil, err
 	}
+	before := *u
 	if err := usersvc.New(s.a).ResetSecurity(ctx, u); err != nil {
 		return nil, err
 	}
+	s.notifySubscriptionReset(&before, u)
 	return u, nil
 }
 

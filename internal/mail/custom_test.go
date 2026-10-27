@@ -41,6 +41,8 @@ func TestCustomVariablesCatalogue(t *testing.T) {
 		TplOrderPaid:     "tradeNo★ amount★ planName period url",
 		TplTicketReply:   "ticketSubject★ message url",
 		TplNotify:        "content★ title url",
+
+		TplSubscriptionReset: "url",
 	}
 	for _, name := range TemplateNames {
 		var got []string

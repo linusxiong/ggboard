@@ -234,6 +234,35 @@ func SubscriptionLeak(a *app.App, u *model.User, distinct int) Event {
 	return ev
 }
 
+// Reset describes an administrator's change of a user's subscription credentials for subscription_reset.
+type Reset struct {
+	UserID    uint64
+	Token     bool   // the subscription token changed: the old link no longer works
+	UUID      bool   // the uuid (node credential) changed
+	SignedOut bool   // password_version was bumped: every session of the user ended
+	URL       string // the user's subscription page (app_url + "/subscription"; "" without app_url)
+}
+
+// SubscriptionReset is subscription_reset (the user only: an administrator did it). Body says what was reset
+// and that the old link (or node settings) no longer works, that the user was signed out (r.SignedOut), and to
+// sign in again and import the new link; field site = r.URL when set. It never carries the new link or token.
+func SubscriptionReset(a *app.App, r Reset) Event {
+	l := Locale(a)
+	what := "body.subscription_reset_link"
+	switch {
+	case r.Token && r.UUID:
+		what = "body.subscription_reset_link_uuid"
+	case r.UUID:
+		what = "body.subscription_reset_uuid"
+	}
+	lines := []string{T(l, what)}
+	if r.SignedOut {
+		lines = append(lines, T(l, "body.subscription_reset_signed_out"))
+	}
+	lines = append(lines, T(l, "body.subscription_reset_action"))
+	return forUser(New(a, TypeSubscriptionReset, strings.Join(lines, "\n"), F("site", r.URL)), r.UserID, false)
+}
+
 // EmitSubscriptionLeak emits SubscriptionLeak; it has the shape of subscription.LeakHook
 // (func(a *app.App, u *model.User, distinct int)).
 func EmitSubscriptionLeak(a *app.App, u *model.User, distinct int) {

@@ -46,6 +46,15 @@ var dictionaries = map[string]map[string]string{
 		"ticket_reply.title":   "工单有新回复",
 		"ticket_reply.body":    "您的工单「%v」收到了新的回复：",
 
+		"subscription_reset.subject":    "【{{.AppName}}】系统已重置您的订阅信息",
+		"subscription_reset.title":      "订阅信息已重置",
+		"subscription_reset.link":       "系统已重置您的订阅链接，旧的订阅链接已失效。",
+		"subscription_reset.link_uuid":  "系统已重置您的订阅链接和 UUID，旧的订阅链接已失效。",
+		"subscription_reset.uuid":       "系统已重置您的 UUID，客户端中现有的节点配置已失效。",
+		"subscription_reset.signed_out": "您也已在所有设备上退出登录。",
+		"subscription_reset.action":     "请重新登录网站，在“订阅”页面复制新的订阅链接，并重新导入到您的客户端中。",
+		"button.subscription":           "前往订阅页面",
+
 		"notify.subject": "{{if .Subject}}{{.Subject}}{{else}}【{{.AppName}}】通知{{end}}",
 	},
 	"en": {
@@ -79,6 +88,15 @@ var dictionaries = map[string]map[string]string{
 		"ticket_reply.subject": "New reply to your {{.AppName}} ticket",
 		"ticket_reply.title":   "Your ticket has a new reply",
 		"ticket_reply.body":    "Your ticket \"%v\" received a new reply:",
+
+		"subscription_reset.subject":    "Your {{.AppName}} subscription was reset by the administrator",
+		"subscription_reset.title":      "Your subscription was reset",
+		"subscription_reset.link":       "The administrator reset your subscription link, so the old link no longer works.",
+		"subscription_reset.link_uuid":  "The administrator reset your subscription link and UUID, so the old link no longer works.",
+		"subscription_reset.uuid":       "The administrator reset your UUID, so the node settings in your clients no longer work.",
+		"subscription_reset.signed_out": "You have also been signed out on all devices.",
+		"subscription_reset.action":     "Sign in to the website again, copy the new subscription link from the Subscription page and import it into your clients.",
+		"button.subscription":           "Open subscription page",
 
 		"notify.subject": "{{if .Subject}}{{.Subject}}{{else}}{{.AppName}} notification{{end}}",
 	},

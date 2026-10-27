@@ -1,0 +1,10 @@
+{{t "subscription_reset.title"}}
+
+{{if and .TokenReset .UUIDReset}}{{t "subscription_reset.link_uuid"}}{{else if .UUIDReset}}{{t "subscription_reset.uuid"}}{{else}}{{t "subscription_reset.link"}}{{end}}
+{{if .SignedOut}}
+{{t "subscription_reset.signed_out"}}
+{{end}}
+{{t "subscription_reset.action"}}
+{{if .URL}}
+{{t "button.subscription"}}: {{.URL}}
+{{end}}

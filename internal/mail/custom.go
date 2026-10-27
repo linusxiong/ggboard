@@ -75,6 +75,10 @@ var templateVars = map[string][]templateVar{
 		{Variable: Variable{Name: "message"}, key: "Message", multiline: true},
 		{Variable: Variable{Name: "url"}, key: "URL"},
 	},
+	// The flags TokenReset / UUIDReset / SignedOut choose the built-in sentences; a custom body is static text.
+	TplSubscriptionReset: {
+		{Variable: Variable{Name: "url"}, key: "URL"},
+	},
 	TplNotify: {
 		{Variable: Variable{Name: "content", Required: true}, key: "Content", multiline: true},
 		{Variable: Variable{Name: "title"}, key: "Title"},
@@ -246,6 +250,8 @@ func SampleData(name, locale string) Data {
 				"Hello, the node is back online.\nPlease update your subscription in the client and try again."),
 			"URL": "https://panel.example.com/tickets/1024",
 		}
+	case TplSubscriptionReset:
+		return Data{"URL": "https://panel.example.com/subscription"}
 	case TplNotify:
 		return Data{
 			"Subject": pick("系统维护通知", "Scheduled maintenance"),
@@ -310,6 +316,14 @@ func DefaultCustom(name, locale string) (subject, body string) {
 			t("ticket_reply.body", "{{ticketSubject}}"),
 			"> {{message}}",
 			"[" + t("button.view_ticket") + "]({{url}})",
+		}
+	case TplSubscriptionReset: // the text of POST /admin/users/:id/reset-secret: token and uuid, sessions ended
+		parts = []string{
+			"# " + t("subscription_reset.title"),
+			t("subscription_reset.link_uuid"),
+			t("subscription_reset.signed_out"),
+			t("subscription_reset.action"),
+			"[" + t("button.subscription") + "]({{url}})",
 		}
 	case TplNotify:
 		subject = "{{title}}" // the caller's subject (alerts, bulk mail) must survive the customisation

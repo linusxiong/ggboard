@@ -87,6 +87,14 @@ var texts = map[string]map[string]string{
 		"body.remind_traffic":    "本周期已用 %d%% 流量（%s / %s）。",
 		"body.test":              "Telegram 通知已正确配置。",
 		"body.subscription_leak": "该订阅短时间内被 %d 个不同 IP 拉取，可能已被分享。",
+
+		// subscription_reset (sent to the user only): the first body line depends on what changed.
+		"title.subscription_reset":           "🔄 订阅信息已重置",
+		"body.subscription_reset_link":       "系统已重置你的订阅链接，旧链接已失效。",
+		"body.subscription_reset_link_uuid":  "系统已重置你的订阅链接和 UUID，旧链接已失效。",
+		"body.subscription_reset_uuid":       "系统已重置你的 UUID，客户端里现有的节点配置已失效。",
+		"body.subscription_reset_signed_out": "你也已在所有设备上退出登录。",
+		"body.subscription_reset_action":     "请重新登录网站，复制新的订阅链接并重新导入客户端。",
 	},
 	LocaleEN: {
 		"title.order_new":         "🧾 New order",
@@ -147,6 +155,13 @@ var texts = map[string]map[string]string{
 		"body.remind_traffic":    "You have used %d%% of this period's traffic (%s / %s).",
 		"body.test":              "Telegram notifications are set up correctly.",
 		"body.subscription_leak": "This subscription was fetched from %d different IPs in a short time; it may be shared.",
+
+		"title.subscription_reset":           "🔄 Subscription reset",
+		"body.subscription_reset_link":       "Your subscription link was reset by the administrator; the old link no longer works.",
+		"body.subscription_reset_link_uuid":  "Your subscription link and UUID were reset by the administrator; the old link no longer works.",
+		"body.subscription_reset_uuid":       "Your UUID was reset by the administrator; the node settings in your clients no longer work.",
+		"body.subscription_reset_signed_out": "You have also been signed out on all devices.",
+		"body.subscription_reset_action":     "Sign in to the website again, copy the new subscription link and import it into your clients.",
 	},
 }
 

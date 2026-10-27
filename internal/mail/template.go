@@ -19,10 +19,12 @@ const (
 	TplOrderPaid     = "order_paid"
 	TplTicketReply   = "ticket_reply"
 	TplNotify        = "notify"
+
+	TplSubscriptionReset = "subscription_reset"
 )
 
 // TemplateNames lists every built-in template.
-var TemplateNames = []string{TplVerifyCode, TplRemindExpire, TplRemindTraffic, TplOrderPaid, TplTicketReply, TplNotify}
+var TemplateNames = []string{TplVerifyCode, TplRemindExpire, TplRemindTraffic, TplOrderPaid, TplTicketReply, TplSubscriptionReset, TplNotify}
 
 //go:embed templates/*
 var templateFS embed.FS

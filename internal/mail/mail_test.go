@@ -31,6 +31,8 @@ func TestRenderAllTemplatesBothLocales(t *testing.T) {
 		TplOrderPaid:     {"TradeNo": "20261021000000abc", "PlanName": "Pro", "Period": "monthly", "Amount": "¥10.00"},
 		TplTicketReply:   {"Subject": "Help", "Message": "Hello <script>alert(1)</script>", "URL": "https://panel.example.com/tickets/1"},
 		TplNotify:        {"Subject": "Maintenance", "Content": "Line one.\n\nLine two."},
+
+		TplSubscriptionReset: {"TokenReset": true, "UUIDReset": true, "SignedOut": true, "URL": "https://panel.example.com/subscription"},
 	}
 	for _, locale := range []string{"zh-CN", "en"} {
 		for _, name := range TemplateNames {

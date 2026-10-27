@@ -23,8 +23,8 @@ import (
 // Type identifies an event.
 type Type string
 
-// Event types. The first eight can be delivered to administrators (setting telegram_events); the reminders and
-// TypeTest are only ever sent to one recipient.
+// Event types. The first eight can be delivered to administrators (setting telegram_events); the reminders,
+// TypeTest and TypeSubscriptionReset are only ever sent to one recipient.
 const (
 	TypeOrderNew         Type = "order_new"         // a user placed an order
 	TypeOrderPaid        Type = "order_paid"        // an order was paid (also sent to its user)
@@ -37,6 +37,8 @@ const (
 	TypeRemindExpire     Type = "remind_expire"     // the user's subscription expires within 24 h
 	TypeRemindTraffic    Type = "remind_traffic"    // the user used at least 80 % of the period's traffic
 	TypeTest             Type = "test"              // admin "send test message"
+
+	TypeSubscriptionReset Type = "subscription_reset" // an administrator reset the user's subscription token / uuid
 )
 
 // AdminTypes lists the event types administrators can subscribe to, in display order (the options of

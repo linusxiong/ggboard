@@ -1,0 +1,7 @@
+{{define "content"}}
+{{template "title" (t "subscription_reset.title")}}
+{{if and .TokenReset .UUIDReset}}{{template "para" (t "subscription_reset.link_uuid")}}{{else if .UUIDReset}}{{template "para" (t "subscription_reset.uuid")}}{{else}}{{template "para" (t "subscription_reset.link")}}{{end}}
+{{if .SignedOut}}{{template "para" (t "subscription_reset.signed_out")}}{{end}}
+{{template "para" (t "subscription_reset.action")}}
+{{if .URL}}{{template "button" (dict "URL" .URL "Label" (t "button.subscription"))}}{{end}}
+{{end}}
