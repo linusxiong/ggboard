@@ -318,8 +318,8 @@ a passkey (`mfasvc.AdminGate`, mounted right after `RequireStaff`); `/user/secur
   403 `forbidden` when no bot token is set; 502 `telegram_unavailable` when `getMe` fails.
 - `DELETE` clears `telegram_id` and `telegram_username` and revokes a pending code.
 
-Bound users receive their own `order_paid`, `ticket_reply` and the expiry/traffic reminders while `telegram_user_notify` is on
-(§Telegram).
+Bound users receive their own `order_paid`, `ticket_reply`, the expiry/traffic reminders and `subscription_reset` while
+`telegram_user_notify` is on (§Telegram).
 
 ```json
 {"data":{"enabled":true,"bound":true,"username":"alice_tg","bot_username":"ggbond_bot","discuss_link":"https://t.me/example_group"}}
@@ -396,7 +396,7 @@ nodes/users keep their ranking rows with an empty `name`/`email`.
 | POST | `/admin/users` | `{email*, password* (8..128), plan_id?, group_id?, transfer_enable? (GB), expired_at?, is_admin?, is_staff?, speed_limit?, device_limit?, conn_limit? (0..100000), balance?, remarks?, invite_user_id?}` | 201 `AdminUser` |
 | PATCH | `/admin/users/:id` | any editable field (see rules) | `AdminUser` |
 | DELETE | `/admin/users/:id` | — | `true` |
-| POST | `/admin/users/:id/reset-secret` | — | `AdminUser` (new uuid/token; bumps `password_version`, ending the user's sessions) |
+| POST | `/admin/users/:id/reset-secret` | — | `AdminUser` (new uuid/token; bumps `password_version`, ending the user's sessions; notifies the user, see rules) |
 | POST | `/admin/users/:id/login-token` | — | `{url}` one-time login URL |
 | POST | `/admin/users/:id/traffic-reset` | — | `AdminUser` (u = d = 0) |
 | GET | `/admin/users/:id/subscription/age` | — | `AgeKey` without the private key (`private_key` always null) |
@@ -418,7 +418,15 @@ and `token` blanked. `AdminUser` = self view + `token`, `commission_type`, `rema
   speed_limit device_limit conn_limit balance commission_balance commission_type commission_rate discount remarks remind_expire remind_traffic
   telegram_id`; `null` clears nullable fields. Setting `plan_id` without `group_id` also moves the user to the plan's group;
   `next_reset_at` is recomputed when `plan_id` or `expired_at` is present. 409: banning or demoting yourself, demoting the last admin,
-  duplicate email. Sessions are invalidated immediately (password, ban, roles).
+  duplicate email. Sessions are invalidated immediately (password, ban, roles). `uuid` and `token` are not editable (the keys are
+  ignored), so an edit never sends the reset notice below.
+- `reset-secret` tells the user once: the `subscription_reset` mail (template below, to the user's email) and the user-only
+  `subscription_reset` notify event (Telegram when bound and `telegram_user_notify` is on; never sent to administrator chats).
+  Both say that the subscription link and UUID were reset by the administrator, the old link no longer works, the user was
+  signed out, and to sign in again and import the new link. Neither contains the new link, token or UUID: they link
+  `app_url + "/subscription"` (left out without `app_url`). Both are queued; a mail that cannot be queued is logged at WARN
+  (`subscription reset: mail not queued`) and the reset still returns 200. The user's own `POST /user/subscription/reset` and
+  `rotate-token` and the leak auto-rotation (`subscribe_leak_action = rotate`, which mails the new link itself) send no such notice.
 - The three `subscription/*` routes are admin only (staff get 403).
 - `DELETE` → 409 for yourself or the last admin. Cascade: orders, tickets + messages, stat_users, invite_codes, commission_logs earned
   as inviter, rule_profiles, passkeys, user_mfa, subscription_keys, subscription_access; users and orders that reference the user as inviter get `invite_user_id = null`.
@@ -593,7 +601,7 @@ another update runs (job, first download or another admin) and `geoip_disabled` 
 
 ### Mail templates 🛡
 
-Every built-in e-mail (`verify_code`, `remind_expire`, `remind_traffic`, `order_paid`, `ticket_reply`, `notify`) can be
+Every built-in e-mail (`verify_code`, `remind_expire`, `remind_traffic`, `order_paid`, `ticket_reply`, `subscription_reset`, `notify`) can be
 replaced per locale (`zh-CN`, `en`) by an admin-written **subject** and **Markdown body**. Placeholders are written exactly like
 the knowledge base's (`{{siteName}}`): `{{name}}`, no spaces, case-sensitive. A custom body is rendered inside the standard
 layout (logo / site name header, white card, footer): only the card's content is edited. Admin only (staff: 403).
@@ -640,6 +648,7 @@ Variables (`variables` lists the template's own first, then the common ones). Co
 | `remind_traffic` | `percent` ★, `used`, `total`, `url` | `percent` is a bare number (`86`) |
 | `order_paid` | `tradeNo` ★, `amount` ★, `planName`, `period`, `url` | `amount` includes the currency symbol; `url` = the order page |
 | `ticket_reply` | `ticketSubject` ★, `message`, `url` | `message` is the staff reply (multi-line) |
+| `subscription_reset` | `url` | `url` = the user's subscription page (`app_url` + `/subscription`); sent by `reset-secret`. The built-in mail picks its sentences from what changed (link, UUID, sessions); a custom body is static text, and its default is the `reset-secret` wording (link and UUID reset, signed out). Never put the new link in it: there is no placeholder for it on purpose |
 | `notify` | `content` ★, `title`, `url` | `title` is the caller's title, else the caller's subject (= the built-in e-mail subject); `content` is multi-line. The default subject is `{{title}}`, so alerts and bulk mail keep their own subject |
 
 Every `url` falls back to `siteUrl` when the caller passes none.
@@ -754,7 +763,7 @@ admins only and masked in logs; `server_token` and `telegram_webhook_secret` are
 | telegram | `telegram_bot_token` | string (secret) | `""` | BotFather token; empty = Telegram off |
 | telegram | `telegram_admin_chat_ids` | strings | `[]` | chats receiving administrator events (numeric ids, `-100…` groups/channels or `@channel`) |
 | telegram | `telegram_events` | strings | `["order_paid","admin_login","ticket_new","withdraw","subscription_leak"]` | administrator events; each element one of `order_new`, `order_paid`, `order_cancel`, `admin_login`, `ticket_new`, `ticket_reply`, `withdraw`, `subscription_leak` (anything else → 400) |
-| telegram | `telegram_user_notify` | bool | `true` | bound users get their own `order_paid`, `ticket_reply`, expiry and traffic reminders |
+| telegram | `telegram_user_notify` | bool | `true` | bound users get their own `order_paid`, `ticket_reply`, expiry and traffic reminders and `subscription_reset` |
 | telegram | `telegram_discuss_link` | string | `""` | community link shown to users (`/user/telegram`, bot help) |
 | telegram | `telegram_webhook_secret` | string (secret, ≥ 16) | generated | last path segment of the webhook URL and Telegram `secret_token`; generated (32 chars) on first boot; `null` regenerates it |
 
@@ -803,6 +812,7 @@ retried.
 | `withdraw` | admins | user, amount, method, account (masked `abc***xyz`) |
 | `subscription_leak` | admins | user, distinct (number of client IPs); `notify.EmitSubscriptionLeak` has the shape of `subscription.LeakHook` |
 | `remind_expire`, `remind_traffic` | bound user | sent by `expire_remind` / `traffic_remind` alongside the mail |
+| `subscription_reset` | bound user | an administrator reset the user's subscription (`POST /admin/users/:id/reset-secret`, alongside the mail): body = what was reset (link, UUID), that the old link no longer works, signed out, sign in again and import the new link; site = `app_url` + `/subscription` (omitted without `app_url`). Never the new link or token. User only: not a `telegram_events` option |
 
 `POST /admin/settings/telegram/webhook`: 400 with `errors` on `telegram_bot_token` (unset), `app_url` (unset) or
 `telegram_webhook_secret` (not 16–256 characters of `A-Za-z0-9_-`); 502 `telegram_unavailable` when Telegram cannot be reached.

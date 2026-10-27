@@ -172,6 +172,8 @@ Templates and their data keys:
 - `ticket_reply{Subject, Message, URL}`: `Subject` is the ticket subject. The rendered e-mail subject is `MailSubject`,
   and it only replaces `Subject` when the caller passes none.
 - `notify{Subject, Title?, Content | ContentHTML (template.HTML, sanitized), URL}`
+- `subscription_reset{TokenReset, UUIDReset, SignedOut (bools: what changed), URL}`: sent by `adminuser.ResetSecret`
+  (`internal/service/adminuser/notify.go`, with the `subscription_reset` notify event); never pass the new link or token.
 
 Brand (`app_name`, `app_url`, `logo`) and locale (`default_locale`, zh-CN/en) come from settings.
 
@@ -318,7 +320,8 @@ Every service is cheap to build: call `New(a)` per request. Import aliases used 
     producers; `notify.Enabled(a)` before doing extra queries for an event; `notify.Reachable(a, u)` for user channels
   - builders: `OrderNew/OrderPaid/OrderCancel(a, notify.Order{…})`, `AdminLogin(a, notify.Login{…})`,
     `TicketNew/TicketReply(a, notify.Ticket{…})`, `Withdraw(a, notify.Withdrawal{…})`, `RemindExpire`, `RemindTraffic`, `Test`;
-    `SubscriptionLeak(a, u, distinct)` (+ `EmitSubscriptionLeak`, assignable to `subscription.LeakHook`); anything else:
+    `SubscriptionLeak(a, u, distinct)` (+ `EmitSubscriptionLeak`, assignable to `subscription.LeakHook`);
+    `SubscriptionReset(a, notify.Reset{UserID, Token, UUID, SignedOut, URL})` (user only); anything else:
     `notify.New(a, type, body, notify.F("key", value), …)`
   - drivers: `notify.Register(name, func(a) notify.Notifier)` (nil = not configured); `notify.Permanent(err)`,
     `notify.ErrSkipped`, `notify.Done/MarkDone` for fan-out retries; `notify.Stats(a)`

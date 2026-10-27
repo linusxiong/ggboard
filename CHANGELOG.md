@@ -10,6 +10,8 @@
 
 - 订阅访问记录显示 IP 归属地（`中国 广东 深圳 电信`，后台与用户中心都有）：数据来自纯真 IP 库（metowolf/qqwry.dat，约 27 MB，仅 IPv4），存放在 `<data_dir>/geoip/`，每天 05:23 自动检查更新（`geoip_update`），下载失败或文件无效时保留旧库；设置 → 订阅 → IP 归属地可以关闭、换镜像地址，查看版本并「立即更新」（`GET /admin/geoip`、`POST /admin/geoip/update`）。
   *IP locations in the subscription access log from the CZ88 database, updated daily, with a status card and an “Update now” button in the settings.*
+- 管理员「重置订阅密钥」（用户详情里的按钮与订阅标签的「轮换订阅链接」）后，系统会发邮件并在用户绑定了 Telegram 时推送消息，告诉用户订阅链接和 UUID 已被重置、旧链接失效、已退出登录，请重新登录网站获取新链接；通知里不含新链接。新增可在 **邮件模板** 页面自定义的 `subscription_reset` 模板与只发给用户的 Telegram 事件 `subscription_reset`；邮件排队失败只记 WARN，不影响重置。用户自己轮换 / 重置订阅和泄露检测的自动轮换不发这条通知。
+  *When an admin resets a user's subscription secret, the user gets an email (new `subscription_reset` template, editable) and a Telegram message if linked, telling them to sign in again for the new link; the notice never contains the link.*
 
 ## [1.0.0] - 2026-10-25
 

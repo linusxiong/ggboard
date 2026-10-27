@@ -145,8 +145,8 @@ ggboard admin promote --email user@example.com              # 把已有用户提
 ### 邮件模板 `/admin/mail-templates`
 
 入口：侧边栏 **系统 → 邮件模板**，或 **系统设置 → 邮件** 右上角的 **邮件模板** 按钮；只有管理员可用（客服 403）。
-六封系统邮件 —— **邮箱验证码** `verify_code`、**到期提醒** `remind_expire`、**流量提醒** `remind_traffic`、
-**支付成功** `order_paid`、**工单回复** `ticket_reply`、**通用通知** `notify`（群发邮件、订阅泄露提醒等）—— 都可以按
+七封系统邮件 —— **邮箱验证码** `verify_code`、**到期提醒** `remind_expire`、**流量提醒** `remind_traffic`、
+**支付成功** `order_paid`、**工单回复** `ticket_reply`、**订阅已重置** `subscription_reset`、**通用通知** `notify`（群发邮件、订阅泄露提醒等）—— 都可以按
 **简体中文 / English** 分别改写 **邮件标题** 和 **Markdown 正文**。正文会套进站点统一的邮件外观（Logo 或站点名、白色卡片、
 页脚），只需写卡片里的内容；没有自定义的语言继续使用内置模板，左侧列表在每个模板下标出“中文 / 英文：已自定义 / 默认”。
 
@@ -162,6 +162,7 @@ ggboard admin promote --email user@example.com              # 把已有用户提
 | 流量提醒 `remind_traffic` | `percent` ★、`used`、`total`、`url` | `percent` 是纯数字（如 `86`） |
 | 支付成功 `order_paid` | `tradeNo` ★、`amount` ★、`planName`、`period`、`url` | `amount` 带货币符号；`url` 是订单页面 |
 | 工单回复 `ticket_reply` | `ticketSubject` ★、`message`、`url` | `message` 是客服的回复（多行） |
+| 订阅已重置 `subscription_reset` | `url` | 管理员 **重置订阅密钥** 时发给用户；`url` 是用户的订阅页面（`app_url` + `/subscription`）。没有新链接的变量，请不要在邮件里写新链接 |
 | 通用通知 `notify` | `content` ★、`title`、`url` | `title` 是调用方给的标题，默认标题就是 `{{title}}`，群发邮件与泄露提醒保留各自的主题；`content` 可多行 |
 
 所有 `url` 在调用方没有提供时都回落到 `siteUrl`。
@@ -425,7 +426,7 @@ Stripe / Coinbase / BTCPay 的回调地址必须是公网 HTTPS。各网关协�
 - **用户详情** 分 **概况 / 资料 / 订阅** 三个标签：概况显示套餐、流量、订阅 Token 与短链、绑定的 Telegram Chat ID；
   资料可编辑全部字段；**订阅** 标签显示 age 加密状态与访问记录（见 §10）。每行的更多菜单：**以此用户登录**（一次性链接，
   5 分钟有效，建议在隐私窗口打开；不能用于管理员或客服账户）、**重置订阅密钥**（UUID 与订阅 token 重新生成，用户需重新导入，
-  登录会话失效）、**重置流量**、**封禁 / 解除封禁**、删除（连带订单、工单、流量记录、订阅配置与密钥）。
+  登录会话失效；系统会发邮件并在已绑定时发 Telegram 通知用户重新登录获取新链接，通知里不含新链接）、**重置流量**、**封禁 / 解除封禁**、删除（连带订单、工单、流量记录、订阅配置与密钥）。
 - **工单 / 公告 / 知识库**：客服也可使用。工单列表顶部的分段控件切换 **待回复 / 进行中 / 已关闭 / 全部**，可按用户邮箱或 ID 搜索，
   ↑/↓ 在列表中移动；回复已关闭的工单会重新打开它。公告与知识库用 Markdown 编辑器（编辑 / 预览）。知识库正文支持占位符
   `{{siteName}}`、`{{subscribeUrl}}`、`{{urlEncodeSubscribeUrl}}`、`{{safeBase64SubscribeUrl}}`；工具栏的 **付费可见** 插入的
@@ -538,7 +539,8 @@ ggboard import xboard --dsn "mysql://user:pass@127.0.0.1:3306/xboard" --with-sta
 **登录提醒**：保持 `admin_login` 开启，任何管理员或客服账户每次登录（包括通行密钥登录）都会推送一条消息；
 看到不认识的 IP 或设备时，立即修改该账户密码（会注销所有会话）并检查两步验证。普通用户登录不推送。
 
-用户侧（`telegram_user_notify` 开启时，仅限已绑定的用户）：自己的订单支付成功、工单回复、到期提醒与流量提醒。
+用户侧（`telegram_user_notify` 开启时，仅限已绑定的用户）：自己的订单支付成功、工单回复、到期提醒与流量提醒，
+以及管理员 **重置订阅密钥** 后的“🔄 订阅信息已重置”（`subscription_reset`，只发给该用户，不在上面的通知事件里）。
 到期 / 流量提醒随每天 10:00 的提醒任务一起发送，与邮件提醒共用“24 小时一次”的限制；关闭 `remind_mail_enable`
 只停邮件，已绑定 Telegram 的用户仍会收到 Telegram 提醒。
 
@@ -592,6 +594,6 @@ ggboard import xboard --dsn "mysql://user:pass@127.0.0.1:3306/xboard" --with-sta
 - 近 24 小时不同 IP 数与最新 100 条访问记录（完整 IP 与归属地、客户端、格式、Token 标识、时间；
   `GET /api/v1/admin/users/:id/subscription/access-log`），Token 标识相同的行来自同一个订阅链接；
 - **轮换订阅链接**：管理端没有单独的 token 轮换接口，这个按钮调用 **重置订阅密钥**，UUID 与 token 一起更换，
-  用户需要重新导入订阅，登录会话也会失效。只想换链接时，请让用户在订阅页自己 **轮换订阅链接**。
+  用户需要重新导入订阅，登录会话也会失效，并会收到邮件（和已绑定的 Telegram）通知。只想换链接时，请让用户在订阅页自己 **轮换订阅链接**。
 
 这些接口与标签仅管理员可用，客服看不到。

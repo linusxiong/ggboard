@@ -236,7 +236,7 @@ maintenance / subscription leak hook ──Emit──▶ 2 lanes (256+1024) ─�
 - **Events** are localized when built (`default_locale`, zh-CN or en; templates in `internal/notify/i18n.go`). `Title` and `Body`
   are plain text; `Fields` are `{key, value}` pairs whose labels come from `notify.Label`. Builders (`OrderNew`, `OrderPaid`,
   `OrderCancel`, `AdminLogin`, `TicketNew`, `TicketReply`, `Withdraw`, `SubscriptionLeak`, `RemindExpire`, `RemindTraffic`,
-  `Test`) and the generic `notify.New(a, type, body, fields...)`. `notify.EmitSubscriptionLeak` matches `subscription.LeakHook`.
+  `SubscriptionReset`, `Test`) and the generic `notify.New(a, type, body, fields...)`. `notify.EmitSubscriptionLeak` matches `subscription.LeakHook`.
 - **Delivery**: one attempt plus 3 retries per channel and side (administrators / user), waiting 1 s, 2 s, 4 s, or the
   channel's `retry_after` when longer (429, capped at 60 s). `notify.Permanent` errors (Telegram 4xx such as "chat not found")
   and `notify.ErrSkipped` (event not subscribed, no destination) end at once. A channel that fans out to several chats marks
@@ -247,7 +247,8 @@ maintenance / subscription leak hook ──Emit──▶ 2 lanes (256+1024) ─�
   it for up to 10 s; after that pending retries are abandoned and counted as failed.
 - **Telegram** (`internal/notify/telegram`): active with `telegram_bot_token`. Administrator chats (`telegram_admin_chat_ids`)
   receive the types listed in `telegram_events`; users who bound their account (`users.telegram_id`) receive their own
-  `order_paid`, `ticket_reply` and reminders while `telegram_user_notify` is on. Binding uses one-time codes in `app.KV`
+  `order_paid`, `ticket_reply`, reminders and `subscription_reset` (an administrator reset their subscription; user only, sent by
+  `adminuser.ResetSecret` with the `subscription_reset` mail) while `telegram_user_notify` is on. Binding uses one-time codes in `app.KV`
   (10 min) and the `t.me/<bot>?start=<code>` deep link; the webhook answers bot commands in its HTTP response. `getMe` is
   cached 1 h in `a.Cache`, keyed by a hash of the token. See docs/API.md §Telegram.
 
