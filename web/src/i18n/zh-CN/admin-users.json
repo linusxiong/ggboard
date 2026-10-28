@@ -184,7 +184,7 @@
     "allUsers": "未设置筛选条件：将发送给全部用户",
     "subject": "主题",
     "content": "内容",
-    "contentHint": "支持 Markdown；邮件由后台队列异步发送",
+    "contentHint": "纯文本，保留换行，不解析 Markdown；邮件由后台队列异步发送",
     "send": "加入发送队列",
     "queued": "已加入队列：{count} 封邮件"
   },

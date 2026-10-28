@@ -197,7 +197,7 @@
     },
     "integration": {
       "intro": "在后端填写以下配置。通信密钥（server_token）在",
-      "settingsLink": "系统设置 → 节点通信",
+      "settingsLink": "系统设置 → 节点通讯",
       "unsaved": "节点保存后才有节点 ID，请先保存再复制配置。",
       "child": "后端可以用子节点或父节点的 ID 对接，面板都会按父节点下发配置。",
       "unsupported": "该后端不支持此协议。",

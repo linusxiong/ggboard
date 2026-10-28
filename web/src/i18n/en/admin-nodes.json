@@ -197,7 +197,7 @@
     },
     "integration": {
       "intro": "Configure the backend with the snippet below. The shared secret (server_token) is in",
-      "settingsLink": "Settings → Node communication",
+      "settingsLink": "Settings → Node connection",
       "unsaved": "The node ID exists after saving; save first, then copy the snippet.",
       "child": "The backend may use the child's or the parent's ID; the panel answers with the parent's configuration either way.",
       "unsupported": "This backend does not support the protocol.",

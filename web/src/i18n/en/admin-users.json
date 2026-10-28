@@ -184,7 +184,7 @@
     "allUsers": "No filters set: every user receives it",
     "subject": "Subject",
     "content": "Content",
-    "contentHint": "Markdown; the mail queue sends it in the background",
+    "contentHint": "Plain text: line breaks are kept, Markdown is not rendered. The mail queue sends it in the background",
     "send": "Queue mail",
     "queued": "Queued {count} e-mails"
   },

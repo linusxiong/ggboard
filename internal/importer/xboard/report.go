@@ -336,9 +336,9 @@ func (r *Report) checklist() []string {
 	case r.ServerTokenKept:
 		item("Backends: server_token was copied, so XrayR ApiKey, V2bX and soga keys stay valid. Point ApiHost / webapi_url at %s (or move the old domain).", host)
 	case r.ServerTokenShort:
-		item("Backends: Xboard's server_token is shorter than %d characters and was not imported; ggboard kept its own generated token. Copy ggboard's server_token (Admin → Settings → Server) into every XrayR/V2bX/soga config and point ApiHost / webapi_url at %s.", serverTokenMinLen(), host)
+		item("Backends: Xboard's server_token is shorter than %d characters and was not imported; ggboard kept its own generated token. Copy ggboard's server_token (Admin → Settings → Node connection) into every XrayR/V2bX/soga config and point ApiHost / webapi_url at %s.", serverTokenMinLen(), host)
 	default:
-		item("Backends: Xboard had no server_token; copy ggboard's server_token (Admin → Settings → Server) into every XrayR/V2bX/soga config and point ApiHost / webapi_url at %s.", host)
+		item("Backends: Xboard had no server_token; copy ggboard's server_token (Admin → Settings → Node connection) into every XrayR/V2bX/soga config and point ApiHost / webapi_url at %s.", host)
 	}
 	for _, s := range r.RenumberedNodes {
 		item("Node renumbered: %s. Change NodeID in that backend's config.", s)

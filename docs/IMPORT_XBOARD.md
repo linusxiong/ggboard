@@ -670,7 +670,7 @@ the warnings. With `--skip-banned`, one `xboard import skip-banned` record with 
 
 1. **Backends.** `server_token` was copied 1:1, so XrayR `ApiKey`, V2bX and soga keys stay valid. Point `ApiHost`/
    `webapi_url` at ggboard (or move the old domain's DNS). Apply every node-renumber (`NodeID`) and `code` warning.
-   If Xboard's token was empty or shorter than 16 characters, ggboard kept its own: copy it (Admin → Settings → Server)
+   If Xboard's token was empty or shorter than 16 characters, ggboard kept its own: copy it (Admin → Settings → Node connection)
    into every backend config.
 2. **Payments.** EPay, Epusdt and AlipayF2F work as-is. Stripe and BTCPay: the old webhook URL keeps working (class-name
    alias, §4.9), but switching it to `https://<host>/api/v1/guest/payment/notify/<stripe|btcpay>/<uuid>` is cleaner
