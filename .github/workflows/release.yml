@@ -4,15 +4,16 @@ name: Release
 #   - binaries for linux/amd64, linux/arm64, darwin/amd64, darwin/arm64 and windows/amd64 with the frontend embedded:
 #     ggboard_<version>_<os>_<arch>.tar.gz (.zip for windows) and SHA256SUMS;
 #   - the multi-arch image ghcr.io/<owner>/<repo>:<version> (plus X.Y, X and latest for a stable tag) via docker.yml;
-#   - a GitHub release for the tag whose notes are the "## [<version>]" section of CHANGELOG.md. A tag with a
-#     pre-release suffix (anything after "-") becomes a pre-release and never moves `latest`.
+#   - a GitHub release for the tag whose notes are the "## [<version>]" section of CHANGELOG.md (English) followed by
+#     the same section of CHANGELOG.zh-CN.md (Chinese). A tag with a pre-release suffix (anything after "-") becomes a
+#     pre-release and never moves `latest`.
 # <version> is the tag without its "v". The binaries and the image both report the tag itself, as `make build` does on
 # a tagged checkout: `ggboard version` -> "ggboard vX.Y.Z (go1.27.x linux/amd64)".
 #
 # Re-run: Actions -> Release -> Run workflow with an existing tag. It uses the workflow file of the branch it is run
-# from (so a fix on main applies to an old tag) but builds the tag's code and reads the tag's CHANGELOG.md, then replaces
+# from (so a fix on main applies to an old tag) but builds the tag's code and reads the tag's changelogs, then replaces
 # the release's notes and assets. To fix only the notes, edit the release on GitHub instead.
-# Release order: put the section into CHANGELOG.md, merge, tag that commit, push the tag.
+# Release order: put the section into CHANGELOG.md and CHANGELOG.zh-CN.md, merge, tag that commit, push the tag.
 on:
   push:
     tags: ["v*"]
@@ -42,6 +43,7 @@ jobs:
       version: ${{ steps.tag.outputs.version }}
       prerelease: ${{ steps.tag.outputs.prerelease }}
       notes: ${{ steps.notes.outputs.notes }}
+      zh: ${{ steps.notes.outputs.zh }}
     steps:
       # Expressions are passed in through env, never interpolated into the script.
       - name: Resolve the tag
@@ -71,25 +73,41 @@ jobs:
           ref: refs/tags/${{ steps.tag.outputs.tag }} # fails here if the tag does not exist
           persist-credentials: false
 
-      # The section's lines after its "## [X.Y.Z] - date" heading, up to the next "## " heading or the link definitions
-      # at the end of the file, without leading blank lines.
-      - name: Release notes from CHANGELOG.md
+      # A section is the lines after its "## [X.Y.Z] - date" heading, up to the next "## " heading or the link
+      # definitions at the end of the file, without leading blank lines. The notes are the CHANGELOG.md section, then the
+      # CHANGELOG.zh-CN.md one under "## 简体中文". Tags from before the split (v1.0.1 and older) have no
+      # CHANGELOG.zh-CN.md; their CHANGELOG.md is bilingual and is used alone.
+      - name: Release notes from CHANGELOG.md and CHANGELOG.zh-CN.md
         id: notes
         env:
           VERSION: ${{ steps.tag.outputs.version }}
         run: |
           set -euo pipefail
-          notes="$(awk -v heading="## [$VERSION]" '
-            /^## / { if (found) exit; found = index($0, heading) == 1; next }
-            /^\[.*\]: / { if (found) exit }
-            found
-          ' CHANGELOG.md | sed '/./,$!d')"
+          section() {
+            awk -v heading="## [$VERSION]" '
+              /^## / { if (found) exit; found = index($0, heading) == 1; next }
+              /^\[.*\]: / { if (found) exit }
+              found
+            ' "$1" | sed '/./,$!d'
+          }
+          notes="$(section CHANGELOG.md)"
           if [[ -z "$notes" ]]; then
             echo "::error file=CHANGELOG.md::CHANGELOG.md has no non-empty '## [$VERSION]' section; add one (Keep a Changelog format), then tag again or re-run"
             exit 1
           fi
+          zh=false
+          if [[ -f CHANGELOG.zh-CN.md ]]; then
+            zh=true
+            notes_zh="$(section CHANGELOG.zh-CN.md)"
+            if [[ -z "$notes_zh" ]]; then
+              echo "::error file=CHANGELOG.zh-CN.md::CHANGELOG.zh-CN.md has no non-empty '## [$VERSION]' section; add the Chinese version of the CHANGELOG.md section, then tag again or re-run"
+              exit 1
+            fi
+            notes="$(printf '%s\n\n## 简体中文\n\n%s' "$notes" "$notes_zh")"
+          fi
           delim="NOTES_$(openssl rand -hex 16)"
           {
+            echo "zh=$zh"
             echo "notes<<$delim"
             printf '%s\n' "$notes"
             echo "$delim"
@@ -142,8 +160,8 @@ jobs:
           done
 
       # Each archive holds one directory, ggboard_<version>_<os>_<arch>/, with the binary, LICENSE, README.md,
-      # config.example.yaml and, for linux, the systemd unit. Files are owned by root (0) in the archive, so extracting
-      # as root never leaves the runner's uid behind.
+      # README.zh-CN.md, config.example.yaml and, for linux, the systemd unit. Files are owned by root (0) in the
+      # archive, so extracting as root never leaves the runner's uid behind.
       - name: Build and package
         env:
           TAG: ${{ needs.prepare.outputs.tag }}
@@ -164,7 +182,7 @@ jobs:
             # Same flags as deploy/Dockerfile and `make build`. The SQLite driver is pure Go, so CGO stays off everywhere.
             CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
               go build -trimpath -ldflags "-s -w -X main.version=$TAG" -o "$stage/$name/$exe" ./cmd/ggboard
-            cp LICENSE README.md "$stage/$name/"
+            cp LICENSE README.md README.zh-CN.md "$stage/$name/"
             if [[ -f config.example.yaml ]]; then
               cp config.example.yaml "$stage/$name/"
             fi
@@ -238,6 +256,7 @@ jobs:
           VERSION: ${{ needs.prepare.outputs.version }}
           PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
           NOTES: ${{ needs.prepare.outputs.notes }}
+          ZH: ${{ needs.prepare.outputs.zh }}
         run: |
           set -euo pipefail
           cd dist
@@ -250,8 +269,14 @@ jobs:
             echo
             echo "---"
             echo
-            echo "- Docker：\`docker pull ghcr.io/${GH_REPO,,}:$VERSION\`（linux/amd64、linux/arm64）"
-            echo "- 二进制 / Binaries：下载对应平台的压缩包，用 \`sha256sum --ignore-missing -c SHA256SUMS\` 校验；安装见 [docs/DEPLOY.md](https://github.com/$GH_REPO/blob/$TAG/docs/DEPLOY.md)"
+            docs="https://github.com/$GH_REPO/blob/$TAG/docs"
+            if [[ "$ZH" == true ]]; then
+              echo "- Docker: \`docker pull ghcr.io/${GH_REPO,,}:$VERSION\` (linux/amd64, linux/arm64)"
+              echo "- Binaries: download the archive for your platform and check it with \`sha256sum --ignore-missing -c SHA256SUMS\`. Installation: [docs/DEPLOY.md]($docs/DEPLOY.md) · [简体中文]($docs/DEPLOY.zh-CN.md)"
+            else
+              echo "- Docker：\`docker pull ghcr.io/${GH_REPO,,}:$VERSION\`（linux/amd64、linux/arm64）"
+              echo "- 二进制 / Binaries：下载对应平台的压缩包，用 \`sha256sum --ignore-missing -c SHA256SUMS\` 校验；安装见 [docs/DEPLOY.md]($docs/DEPLOY.md)"
+            fi
           } > "$notes"
 
           if gh release view "$TAG" >/dev/null 2>&1; then
