@@ -6,12 +6,42 @@
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-28
+
+以安全加固为主的补丁版本，另有两个小功能。配置项与数据库结构都没有变化，换镜像或二进制后重启即可。
+
+*A security-focused patch release with two small additions. No configuration or schema changes: swap the image or binary and restart.*
+
 ### 新增 / Added
 
 - 订阅访问记录显示 IP 归属地（`中国 广东 深圳 电信`，后台与用户中心都有）：数据来自纯真 IP 库（metowolf/qqwry.dat，约 27 MB，仅 IPv4），存放在 `<data_dir>/geoip/`，每天 05:23 自动检查更新（`geoip_update`），下载失败或文件无效时保留旧库；设置 → 订阅 → IP 归属地可以关闭、换镜像地址，查看版本并「立即更新」（`GET /admin/geoip`、`POST /admin/geoip/update`）。
   *IP locations in the subscription access log from the CZ88 database, updated daily, with a status card and an “Update now” button in the settings.*
 - 管理员「重置订阅密钥」（用户详情里的按钮与订阅标签的「轮换订阅链接」）后，系统会发邮件并在用户绑定了 Telegram 时推送消息，告诉用户订阅链接和 UUID 已被重置、旧链接失效、已退出登录，请重新登录网站获取新链接；通知里不含新链接。新增可在 **邮件模板** 页面自定义的 `subscription_reset` 模板与只发给用户的 Telegram 事件 `subscription_reset`；邮件排队失败只记 WARN，不影响重置。用户自己轮换 / 重置订阅和泄露检测的自动轮换不发这条通知。
   *When an admin resets a user's subscription secret, the user gets an email (new `subscription_reset` template, editable) and a Telegram message if linked, telling them to sign in again for the new link; the notice never contains the link.*
+
+### 修复 / Fixed
+
+- 流量排行的日期跟随服务器的统计日（进程时区 `TZ`），不再按浏览器所在时区取默认值和上限；`GET /admin/stats/overview` 新增 `today.date` 与 `timezone`，排行标题旁的 ⓘ 显示服务器时区。
+  *The traffic ranking date follows the server's statistics day instead of the browser's; the overview reports the server day and time zone.*
+- 订单列表的日期筛选按管理员本地时区的整天发送起止时刻，筛选结果与列表里显示的时间一致。
+  *The order date filter sends the admin's local day bounds as instants, so it matches the times shown in the list.*
+
+### 安全 / Security
+
+- 安全变更对在途请求立即生效：改密、重置订阅、封禁、管理员降权之后，已经通过鉴权的请求在写入和返回之前会重新核对账号（UUID、邮箱、安全版本与角色），过期会话一律 401；订单、工单、邀请与佣金、订阅配置、两步验证、通行密钥、age 密钥、Telegram 绑定与后台各管理接口都不会再读写同一用户 ID 下替换后的账号数据。
+  *Security changes (password change, subscription reset, ban, admin demotion) now apply to in-flight requests: writes and responses recheck the account and role, and a stale session gets 401.*
+- 订阅生成期间 token、套餐、分组、流量或封禁状态发生变化时，丢弃这次结果并返回 403，不再下发旧的节点配置。
+  *A subscription whose token or entitlement changes while it is being generated is discarded (403).*
+- 支付回调：每个成功回调都必须带正数金额并与订单应付额一致，Stripe 与 Coinbase 按当前汇率和币种核对（非 1:1 汇率时不再跳过）；验签之后、履约之前订单报价被并发修改时不履约。易支付严格校验回调地址并拒绝商户请求字段，防止未设置 `app_url` 时把下单签名当作支付成功回调。
+  *Payment callbacks must report a positive amount matching the order (Stripe and Coinbase checked in their own currency at the current rate); EPay requests and callbacks can no longer be confused when `app_url` is unset.*
+- 整数溢出：超大的套餐价格、折扣、流量（GB 换算）与已用流量之和不再绕回负数，不会被当作免费订单，也不会让流量已用尽的用户重新获得节点权限。
+  *Prices, discounts and traffic counters no longer overflow into free orders or restored traffic.*
+- 未匹配路由（404）在访问日志里记为 `/[unmatched]`，拼错的订阅或 webhook 地址里的密钥不会写进日志。
+  *Unmatched request paths are logged as `/[unmatched]`, so a mistyped secret URL never reaches the log.*
+- Xboard 导入器把从源库元数据读到的表名作为标识符引用，不再直接拼进 SQL。
+  *The Xboard importer quotes table names read from the source database.*
+- `golang.org/x/net` 升级到 v0.62.0（v0.61.0 的两个已修复漏洞，ggboard 的代码路径不受影响）。
+  *`golang.org/x/net` v0.62.0.*
 
 ## [1.0.0] - 2026-10-25
 
@@ -70,5 +100,6 @@
 - 定时任务：订单超时、佣金结算、流量重置、到期与流量提醒、每日统计；`GET /healthz` 用于存活探针。
 - `make bench`：可复现的压测（10,000 个用户、50 个节点），结果见 `docs/perf/`。
 
-[Unreleased]: https://github.com/linusxiong/ggboard/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/linusxiong/ggboard/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.1
 [1.0.0]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.0

@@ -135,7 +135,7 @@ appear and tokens and secrets are masked.
 mkdir ggboard && cd ggboard
 curl -fsSLO https://raw.githubusercontent.com/linusxiong/ggboard/main/deploy/docker-compose.prebuilt.yml
 curl -fsSL https://raw.githubusercontent.com/linusxiong/ggboard/main/.env.example -o .env
-echo 'GGBOARD_VERSION=1.0.0' >> .env       # 镜像 tag：固定到一个发布版本；main 是 main 分支的滚动构建
+echo 'GGBOARD_VERSION=1.0.1' >> .env       # 镜像 tag：固定到一个发布版本；main 是 main 分支的滚动构建
 docker compose -f docker-compose.prebuilt.yml up -d
 docker compose -f docker-compose.prebuilt.yml exec ggboard ggboard admin create --email admin@example.com
 ```

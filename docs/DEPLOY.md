@@ -47,7 +47,7 @@ curl -fsSL https://raw.githubusercontent.com/linusxiong/ggboard/main/.env.exampl
 **2. 选版本。** 把镜像 tag 写进 `.env`：
 
 ```bash
-echo 'GGBOARD_VERSION=1.0.0' >> .env
+echo 'GGBOARD_VERSION=1.0.1' >> .env
 ```
 
 | `GGBOARD_VERSION` | 含义 |
@@ -204,12 +204,12 @@ GitHub Actions layer cache, and are checked against the registry after the push.
 压缩包里是一个同名目录，内有 `ggboard`（Windows 为 `ggboard.exe`）、`LICENSE`、`README.md`、`config.example.yaml`，linux 包另有 `ggboard.service`。
 
 ```bash
-VERSION=1.0.0 ARCH=amd64                     # arm64 机器写 ARCH=arm64
+VERSION=1.0.1 ARCH=amd64                     # arm64 机器写 ARCH=arm64
 curl -fsSLO "https://github.com/linusxiong/ggboard/releases/download/v$VERSION/ggboard_${VERSION}_linux_${ARCH}.tar.gz"
 curl -fsSLO "https://github.com/linusxiong/ggboard/releases/download/v$VERSION/SHA256SUMS"
 sha256sum --ignore-missing -c SHA256SUMS     # 必须输出 "…: OK"；macOS 用 shasum -a 256 --ignore-missing -c SHA256SUMS
 tar xzf "ggboard_${VERSION}_linux_${ARCH}.tar.gz" && cd "ggboard_${VERSION}_linux_${ARCH}"
-./ggboard version                            # ggboard v1.0.0 (go1.27.x linux/amd64)
+./ggboard version                            # ggboard v1.0.1 (go1.27.x linux/amd64)
 
 sudo useradd --system --home /var/lib/ggboard --shell /usr/sbin/nologin ggboard
 sudo install -m 0755 ggboard /usr/local/bin/ggboard
