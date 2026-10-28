@@ -1,12 +1,14 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"net"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
@@ -41,6 +43,12 @@ func validToken(t string) bool {
 // Rate limits: existing tokens share a bucket per token (both routes); unknown and malformed tokens are charged
 // to a per-IP miss bucket (429 once it is empty). Valid tokens are never blocked by their IP's misses (NAT).
 func subscribe(a *app.App, lim *limits, tokenOf func(*gin.Context) string, inPath bool) gin.HandlerFunc {
+	return subscribeWithGenerator(a, lim, tokenOf, inPath, engine.Generate)
+}
+
+type generator func(context.Context, *app.App, *model.User, engine.Request) (*engine.Result, error)
+
+func subscribeWithGenerator(a *app.App, lim *limits, tokenOf func(*gin.Context) string, inPath bool, generate generator) gin.HandlerFunc {
 	users := usersvc.New(a)
 	return func(c *gin.Context) {
 		token := tokenOf(c)
@@ -72,7 +80,8 @@ func subscribe(a *app.App, lim *limits, tokenOf func(*gin.Context) string, inPat
 		}
 		q := c.Request.URL.Query()
 		ua := c.GetHeader("User-Agent")
-		res, err := engine.Generate(c.Request.Context(), a, u, engine.Request{
+		wasAvailable := u.IsAvailable(time.Now())
+		res, err := generate(c.Request.Context(), a, u, engine.Request{
 			Flag: q.Get("flag"), UserAgent: ua, Query: q, Host: requestHost(c), SelfURL: self,
 		})
 		if err != nil {
@@ -97,25 +106,54 @@ func subscribe(a *app.App, lim *limits, tokenOf func(*gin.Context) string, inPat
 			// The ciphertext differs on every request; the ETag names the plaintext and the key instead.
 			res.ETag += "-age-" + guard.KeyTag(key.PublicKey)
 		}
-		SetHeaders(c.Writer.Header(), a, u, res)
-		guard.Record(a, guard.Access{UserID: u.ID, Token: u.Token, IP: c.ClientIP(), UserAgent: ua, Format: res.Format})
-		httpx.Logger(c).Info("subscription served", "user_id", u.ID, "format", res.Format,
-			"client", truncate(ua, 80), "proxies", res.Proxies, "encrypted", encrypt)
-		if ETagMatches(c.GetHeader("If-None-Match"), res.ETag) {
-			c.Status(http.StatusNotModified)
-			return
-		}
+		unmodified := ETagMatches(c.GetHeader("If-None-Match"), res.ETag)
 		body, ct := res.Body, res.ContentType
-		if encrypt {
+		if encrypt && !unmodified {
 			if body, err = guard.Encrypt(body, key.PublicKey); err != nil {
 				httpx.Fail(c, err)
 				return
 			}
 			ct = guard.ContentTypeAge
+		}
+		fresh, err := users.FindByID(c.Request.Context(), u.ID)
+		if errors.Is(err, usersvc.ErrNotFound) || err == nil && !subscriptionSnapshotCurrent(u, fresh, token, wasAvailable, time.Now()) {
+			httpx.Fail(c, httpx.Forbidden("forbidden"))
+			return
+		}
+		if err != nil {
+			httpx.Fail(c, err)
+			return
+		}
+		SetHeaders(c.Writer.Header(), a, fresh, res)
+		if encrypt && !unmodified {
 			c.Header(guard.EncryptionHeader, "age")
+		}
+		guard.Record(a, guard.Access{UserID: fresh.ID, Token: token, IP: c.ClientIP(), UserAgent: ua, Format: res.Format})
+		httpx.Logger(c).Info("subscription served", "user_id", fresh.ID, "format", res.Format,
+			"client", truncate(ua, 80), "proxies", res.Proxies, "encrypted", encrypt)
+		if unmodified {
+			c.Status(http.StatusNotModified)
+			return
 		}
 		c.Data(http.StatusOK, ct, body)
 	}
+}
+
+func subscriptionSnapshotCurrent(original, fresh *model.User, token string, wasAvailable bool, now time.Time) bool {
+	if fresh == nil || fresh.Token != token || fresh.ID != original.ID || fresh.UUID != original.UUID ||
+		fresh.Email != original.Email || fresh.PasswordVersion != original.PasswordVersion ||
+		fresh.Banned != original.Banned || fresh.TransferEnable != original.TransferEnable ||
+		!sameID(fresh.PlanID, original.PlanID) || !sameID(fresh.GroupID, original.GroupID) ||
+		!sameTime(fresh.ExpiredAt, original.ExpiredAt) {
+		return false
+	}
+	return !wasAvailable || fresh.IsAvailable(now)
+}
+
+func sameID(a, b *uint64) bool { return a == nil && b == nil || a != nil && b != nil && *a == *b }
+
+func sameTime(a, b *time.Time) bool {
+	return a == nil && b == nil || a != nil && b != nil && a.Equal(*b)
 }
 
 // ETagMatches reports whether the If-None-Match header value names etag (quoted, bare or weak, in a list,

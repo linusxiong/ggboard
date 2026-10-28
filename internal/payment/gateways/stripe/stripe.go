@@ -121,6 +121,22 @@ func (p pricing) minorAmount(cents int64) (int64, error) {
 	return minor, nil
 }
 
+// ValidateAmount compares the callback with the same forward quote used by Pay.
+func (*Gateway) ValidateAmount(cfg map[string]string, siteCurrency string, expected int64, res *payment.NotifyResult) error {
+	pr, err := resolvePricing(cfg, siteCurrency)
+	if err != nil {
+		return err
+	}
+	minor, err := pr.minorAmount(expected)
+	if err != nil {
+		return err
+	}
+	if !strings.EqualFold(res.Currency, pr.currency) || res.Amount != minor {
+		return errors.New("stripe: payment amount or currency mismatch")
+	}
+	return nil
+}
+
 func paymentMethod(cfg map[string]string) (string, error) {
 	pm := strings.ToLower(strings.TrimSpace(cfg["payment_methods"]))
 	switch pm {
@@ -309,13 +325,8 @@ func (g *Gateway) Notify(_ context.Context, cfg map[string]string, r *http.Reque
 	if callback == "" {
 		callback = s.ID
 	}
-	res := &payment.NotifyResult{TradeNo: tradeNo, CallbackNo: callback}
-	// The amount maps back to site cents only for a 1:1 rate in a two-decimal currency.
-	cur := strings.ToLower(strings.TrimSpace(cfg["currency"]))
-	rate, rerr := gwutil.ParseRate(cfg["exchange_rate"])
-	if (cur == "" || cur == strings.ToLower(s.Currency)) && (cur == "" || (rerr == nil && rate.Equal(decimal.NewFromInt(1)))) &&
-		!zeroDecimal[strings.ToLower(s.Currency)] {
-		res.Amount = s.AmountTotal
+	if s.AmountTotal <= 0 || strings.TrimSpace(s.Currency) == "" {
+		return nil, nil, errors.New("stripe: missing or non-positive amount or currency")
 	}
-	return res, ack, nil
+	return &payment.NotifyResult{TradeNo: tradeNo, CallbackNo: callback, Amount: s.AmountTotal, Currency: s.Currency}, ack, nil
 }

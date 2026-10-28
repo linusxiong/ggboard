@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/auth"
@@ -66,6 +67,9 @@ func systemStatusHandler(a *app.App) gin.HandlerFunc {
 		var ms runtime.MemStats
 		runtime.ReadMemStats(&ms)
 		mailStats := a.Mailer.Stats()
+		if !requireLiveAdmin(c, a) {
+			return
+		}
 		httpx.OK(c, systemStatus{
 			Version:    a.Version,
 			GoVersion:  runtime.Version(),
@@ -116,7 +120,14 @@ func systemLogsHandler(a *app.App) gin.HandlerFunc {
 		if in.Limit == 0 {
 			in.Limit = 200
 		}
-		entries := a.Logs.Entries(lvl, in.Limit)
+		var entries []logx.Entry
+		if err := withLiveAdmin(c, a, func(_ *gorm.DB) error {
+			entries = a.Logs.Entries(lvl, in.Limit)
+			return nil
+		}); err != nil {
+			httpx.Fail(c, err)
+			return
+		}
 		out := make([]systemLogEntry, len(entries))
 		for i, e := range entries {
 			attrs := e.Attrs

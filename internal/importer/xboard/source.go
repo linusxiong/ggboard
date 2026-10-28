@@ -138,7 +138,13 @@ func (s *source) loadColumns(ctx context.Context) error {
 }
 
 func (s *source) probeColumns(ctx context.Context, table string) ([]string, error) {
-	rows, err := s.conn().WithContext(ctx).Raw("SELECT * FROM " + table + " WHERE 1 = 0").Rows()
+	// Names read from source metadata are identifiers, never SQL expressions.
+	quote := `"`
+	if s.dsn.Driver == DriverMySQL {
+		quote = "`"
+	}
+	name := quote + strings.ReplaceAll(table, quote, quote+quote) + quote
+	rows, err := s.conn().WithContext(ctx).Raw("SELECT * FROM " + name + " WHERE 1 = 0").Rows()
 	if err != nil {
 		return nil, err
 	}

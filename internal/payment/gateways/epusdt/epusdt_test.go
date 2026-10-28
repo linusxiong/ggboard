@@ -152,3 +152,20 @@ func TestMetadata(t *testing.T) {
 		t.Fatal("validate")
 	}
 }
+
+func TestNotifyRequiresPositiveAmount(t *testing.T) {
+	for _, amount := range []string{"", "0", "-1"} {
+		p := map[string]string{"trade_id": "fixture-transaction", "order_id": tradeNo, "status": "2"}
+		if amount != "" {
+			p["amount"] = amount
+		}
+		p["signature"] = Sign(p, token)
+		raw, err := json.Marshal(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res, _, err := notify(t, string(raw)); err == nil || res != nil {
+			t.Fatalf("paid amount %q accepted", amount)
+		}
+	}
+}

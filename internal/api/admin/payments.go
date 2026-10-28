@@ -64,7 +64,9 @@ func adminPaymentViewOf(c *gin.Context, a *app.App, p *model.Payment) adminPayme
 func adminListPayments(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var pays []model.Payment
-		if err := a.DB.WithContext(c.Request.Context()).Clauses(plansvc.OrderBySort()).Find(&pays).Error; err != nil {
+		if err := withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			return tx.Clauses(plansvc.OrderBySort()).Find(&pays).Error
+		}); err != nil {
 			httpx.Fail(c, err)
 			return
 		}
@@ -228,7 +230,7 @@ func adminCreatePayment(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		if err := a.DB.WithContext(c.Request.Context()).Create(p).Error; err != nil {
+		if err := withLiveAdmin(c, a, func(tx *gorm.DB) error { return tx.Create(p).Error }); err != nil {
 			httpx.Fail(c, err)
 			return
 		}
@@ -237,35 +239,31 @@ func adminCreatePayment(a *app.App) gin.HandlerFunc {
 	}
 }
 
-func adminLoadPayment(c *gin.Context, a *app.App) (*model.Payment, bool) {
-	id, err := httpx.ParamID(c, "id")
-	if err != nil {
-		httpx.Fail(c, err)
-		return nil, false
-	}
-	var p model.Payment
-	if err := a.DB.WithContext(c.Request.Context()).First(&p, id).Error; err != nil {
+func adminGetPayment(a *app.App) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := httpx.ParamID(c, "id")
+		if err != nil {
+			httpx.Fail(c, err)
+			return
+		}
+		var p model.Payment
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error { return tx.First(&p, id).Error })
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = httpx.NotFound("payment not found")
 		}
-		httpx.Fail(c, err)
-		return nil, false
-	}
-	return &p, true
-}
-
-func adminGetPayment(a *app.App) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if p, ok := adminLoadPayment(c, a); ok {
-			httpx.OK(c, adminPaymentViewOf(c, a, p))
+		if err != nil {
+			httpx.Fail(c, err)
+			return
 		}
+		httpx.OK(c, adminPaymentViewOf(c, a, &p))
 	}
 }
 
 func adminUpdatePayment(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		p, ok := adminLoadPayment(c, a)
-		if !ok {
+		id, err := httpx.ParamID(c, "id")
+		if err != nil {
+			httpx.Fail(c, err)
 			return
 		}
 		var in adminPaymentInput
@@ -273,12 +271,21 @@ func adminUpdatePayment(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		in.apply(p)
-		if err := adminValidatePayment(a, p, in.Icon != nil); err != nil {
-			httpx.Fail(c, err)
-			return
+		p := new(model.Payment)
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			if err := tx.First(p, id).Error; err != nil {
+				return err
+			}
+			in.apply(p)
+			if err := adminValidatePayment(a, p, in.Icon != nil); err != nil {
+				return err
+			}
+			return tx.Save(p).Error
+		})
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			err = httpx.NotFound("payment not found")
 		}
-		if err := a.DB.WithContext(c.Request.Context()).Save(p).Error; err != nil {
+		if err != nil {
 			httpx.Fail(c, err)
 			return
 		}
@@ -289,11 +296,22 @@ func adminUpdatePayment(a *app.App) gin.HandlerFunc {
 
 func adminDeletePayment(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		p, ok := adminLoadPayment(c, a)
-		if !ok {
+		id, err := httpx.ParamID(c, "id")
+		if err != nil {
+			httpx.Fail(c, err)
 			return
 		}
-		if err := a.DB.WithContext(c.Request.Context()).Delete(&model.Payment{}, p.ID).Error; err != nil {
+		p := new(model.Payment)
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			if err := tx.First(p, id).Error; err != nil {
+				return err
+			}
+			return tx.Delete(&model.Payment{}, p.ID).Error
+		})
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			err = httpx.NotFound("payment not found")
+		}
+		if err != nil {
 			httpx.Fail(c, err)
 			return
 		}

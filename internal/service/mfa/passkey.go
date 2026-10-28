@@ -141,6 +141,9 @@ type Ceremony struct {
 
 type pendingRegistration struct {
 	UserID  uint64
+	UUID    string
+	Email   string
+	Version int
 	RPID    string
 	Name    string
 	Session webauthn.SessionData
@@ -182,8 +185,8 @@ func credentialHash(id []byte) string {
 
 // handle returns the WebAuthn user handle of userID, creating it (16 random bytes, stable for the account) when
 // create is true. nil without error when it does not exist and create is false.
-func (s *Service) handle(ctx context.Context, userID uint64, create bool) ([]byte, error) {
-	row, err := s.load(ctx, s.a.DB, userID)
+func (s *Service) handle(ctx context.Context, db *gorm.DB, userID uint64, create bool) ([]byte, error) {
+	row, err := s.load(ctx, db, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -195,15 +198,15 @@ func (s *Service) handle(ctx context.Context, userID uint64, create bool) ([]byt
 		if _, err := rand.Read(b); err != nil {
 			return nil, fmt.Errorf("mfa: user handle: %w", err)
 		}
-		if err := ensureRow(ctx, s.a.DB, userID); err != nil {
+		if err := ensureRow(ctx, db, userID); err != nil {
 			return nil, err
 		}
 		h := hex.EncodeToString(b)
-		if err := s.a.DB.WithContext(ctx).Model(&model.UserMFA{}).
+		if err := db.WithContext(ctx).Model(&model.UserMFA{}).
 			Where("user_id = ? AND webauthn_handle IS NULL", userID).Update("webauthn_handle", h).Error; err != nil {
 			return nil, fmt.Errorf("mfa: store user handle: %w", err)
 		}
-		if row, err = s.load(ctx, s.a.DB, userID); err != nil { // a concurrent request may have won
+		if row, err = s.load(ctx, db, userID); err != nil { // a concurrent request may have won
 			return nil, err
 		}
 		if row == nil || row.WebAuthnHandle == nil {
@@ -263,7 +266,12 @@ func (s *Service) BeginRegistration(ctx context.Context, u *model.User, name str
 	if err != nil {
 		return Ceremony{}, err
 	}
-	h, err := s.handle(ctx, u.ID, true)
+	var h []byte
+	err = s.withUser(ctx, u, func(tx *gorm.DB) error {
+		var handleErr error
+		h, handleErr = s.handle(ctx, tx, u.ID, true)
+		return handleErr
+	})
 	if err != nil {
 		return Ceremony{}, err
 	}
@@ -284,7 +292,8 @@ func (s *Service) BeginRegistration(ctx context.Context, u *model.User, name str
 		return Ceremony{}, httpx.Internal(fmt.Errorf("mfa: begin registration: %w", err))
 	}
 	id := randomID(24)
-	s.a.KV.Set(kvRegister+id, pendingRegistration{UserID: u.ID, RPID: rp.ID, Name: cleanName(name), Session: *session}, ChallengeTTL)
+	s.a.KV.Set(kvRegister+id, pendingRegistration{UserID: u.ID, UUID: u.UUID, Email: u.Email, Version: u.PasswordVersion,
+		RPID: rp.ID, Name: cleanName(name), Session: *session}, ChallengeTTL)
 	return Ceremony{ChallengeID: id, Options: creation.Response}, nil
 }
 
@@ -295,7 +304,8 @@ func (s *Service) BeginRegistration(ctx context.Context, u *model.User, name str
 func (s *Service) FinishRegistration(ctx context.Context, u *model.User, challengeID string, credential json.RawMessage, name string) (PasskeyView, error) {
 	v, ok := s.a.KV.Take(kvRegister + challengeID)
 	p, _ := v.(pendingRegistration)
-	if !ok || challengeID == "" || p.UserID != u.ID {
+	if !ok || challengeID == "" || p.UserID != u.ID || p.UUID == "" || p.UUID != u.UUID || p.Version != u.PasswordVersion ||
+		usersvc.NormalizeEmail(p.Email) != usersvc.NormalizeEmail(u.Email) {
 		return PasskeyView{}, httpx.FieldError("challenge_id", "invalid or expired challenge")
 	}
 	w, rp, err := s.webAuthn()
@@ -309,7 +319,7 @@ func (s *Service) FinishRegistration(ctx context.Context, u *model.User, challen
 	if err != nil {
 		return PasskeyView{}, httpx.FieldError("credential", "malformed passkey response").WithCause(err)
 	}
-	h, err := s.handle(ctx, u.ID, false)
+	h, err := s.handle(ctx, s.a.DB, u.ID, false)
 	if err != nil {
 		return PasskeyView{}, err
 	}
@@ -345,7 +355,7 @@ func (s *Service) FinishRegistration(ctx context.Context, u *model.User, challen
 		BackupState:    cred.Flags.BackupState,
 		Transports:     transports,
 	}
-	if err := s.a.DB.WithContext(ctx).Create(&row).Error; err != nil {
+	if err := s.withUser(ctx, u, func(tx *gorm.DB) error { return tx.Create(&row).Error }); err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
 			return PasskeyView{}, httpx.Conflict("this passkey is already registered")
 		}
@@ -418,7 +428,7 @@ func (s *Service) loginUser(ctx context.Context, email, rpID string) (*waUser, u
 
 // assertionUser loads the handle and passkeys of userID for rpID; nil when it has no handle or no passkeys.
 func (s *Service) assertionUser(ctx context.Context, userID uint64, rpID string) (*waUser, []model.Passkey, error) {
-	h, err := s.handle(ctx, userID, false)
+	h, err := s.handle(ctx, s.a.DB, userID, false)
 	if err != nil || h == nil {
 		return nil, nil, err
 	}
@@ -453,11 +463,24 @@ func (s *Service) FinishLogin(ctx context.Context, challengeID string, credentia
 	}
 	var (
 		ownerID uint64
+		u       *model.User
 		rows    []model.Passkey
 		cred    *webauthn.Credential
 	)
+	load := func(id uint64) (*waUser, []model.Passkey, error) {
+		var loadErr error
+		u, loadErr = s.users.FindByID(ctx, id)
+		if errors.Is(loadErr, usersvc.ErrNotFound) {
+			return nil, nil, errPasskeyFailed()
+		}
+		if loadErr != nil {
+			return nil, nil, loadErr
+		}
+		// Capture the account version before loading credentials; never adopt a version changed during verification.
+		return s.assertionUser(ctx, id, rp.ID)
+	}
 	if p.UserID != 0 {
-		user, r, lerr := s.assertionUser(ctx, p.UserID, rp.ID)
+		user, r, lerr := load(p.UserID)
 		if lerr != nil {
 			return nil, lerr
 		}
@@ -473,7 +496,7 @@ func (s *Service) FinishLogin(ctx context.Context, challengeID string, credentia
 				First(&row).Error; err != nil {
 				return nil, fmt.Errorf("unknown user handle: %w", err)
 			}
-			user, r, err := s.assertionUser(ctx, row.UserID, rp.ID)
+			user, r, err := load(row.UserID)
 			if err != nil {
 				return nil, err
 			}
@@ -499,32 +522,22 @@ func (s *Service) FinishLogin(ctx context.Context, challengeID string, credentia
 			"passkey_id", row.ID, "stored", row.SignCount)
 		return nil, errPasskeyFailed()
 	}
-	if err := s.recordUse(ctx, &row, cred); err != nil {
+	if err := s.withUser(ctx, u, func(tx *gorm.DB) error { return s.recordUse(ctx, tx, &row, cred) }); err != nil {
 		return nil, err
-	}
-	u, err := s.users.FindByID(ctx, ownerID)
-	if errors.Is(err, usersvc.ErrNotFound) {
-		return nil, errPasskeyFailed()
-	}
-	if err != nil {
-		return nil, err
-	}
-	if u.Banned {
-		return nil, httpx.Forbidden("account is banned")
 	}
 	return u, nil
 }
 
 // recordUse stores the new sign counter, backup state and last use of row. The update is conditional on the
 // stored counter, so two assertions carrying the same counter cannot both succeed.
-func (s *Service) recordUse(ctx context.Context, row *model.Passkey, cred *webauthn.Credential) error {
+func (s *Service) recordUse(ctx context.Context, db *gorm.DB, row *model.Passkey, cred *webauthn.Credential) error {
 	enc, err := json.Marshal(cred)
 	if err != nil {
 		return fmt.Errorf("mfa: encode credential: %w", err)
 	}
 	now := time.Now()
-	res := s.a.DB.WithContext(ctx).Model(&model.Passkey{}).
-		Where("id = ? AND sign_count = ?", row.ID, row.SignCount).
+	res := db.WithContext(ctx).Model(&model.Passkey{}).
+		Where("id = ? AND user_id = ? AND credential_hash = ? AND sign_count = ?", row.ID, row.UserID, row.CredentialHash, row.SignCount).
 		Updates(map[string]any{
 			"sign_count":   int64(cred.Authenticator.SignCount),
 			"backup_state": cred.Flags.BackupState,
@@ -542,8 +555,12 @@ func (s *Service) recordUse(ctx context.Context, row *model.Passkey, cred *webau
 
 // ListPasskeys returns the passkeys of userID (every RP id), oldest first.
 func (s *Service) ListPasskeys(ctx context.Context, userID uint64) ([]PasskeyView, error) {
+	return s.listPasskeys(ctx, s.a.DB, userID)
+}
+
+func (s *Service) listPasskeys(ctx context.Context, db *gorm.DB, userID uint64) ([]PasskeyView, error) {
 	var rows []model.Passkey
-	if err := s.a.DB.WithContext(ctx).Where("user_id = ?", userID).Order("id").Find(&rows).Error; err != nil {
+	if err := db.WithContext(ctx).Where("user_id = ?", userID).Order("id").Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("mfa: list passkeys: %w", err)
 	}
 	out := make([]PasskeyView, len(rows))
@@ -566,16 +583,25 @@ func (s *Service) ownPasskey(ctx context.Context, userID, id uint64) (*model.Pas
 	return &row, nil
 }
 
-// RenamePasskey renames passkey id of userID.
-func (s *Service) RenamePasskey(ctx context.Context, userID, id uint64, name string) (PasskeyView, error) {
-	row, err := s.ownPasskey(ctx, userID, id)
+// RenamePasskey renames a passkey of the authenticated account snapshot.
+func (s *Service) RenamePasskey(ctx context.Context, u *model.User, id uint64, name string) (PasskeyView, error) {
+	row, err := s.ownPasskey(ctx, u.ID, id)
 	if err != nil {
 		return PasskeyView{}, err
 	}
 	if name = cleanName(name); name == "" {
 		return PasskeyView{}, httpx.FieldError("name", "is required")
 	}
-	if err := s.a.DB.WithContext(ctx).Model(&model.Passkey{}).Where("id = ?", row.ID).Update("name", name).Error; err != nil {
+	if err := s.withUser(ctx, u, func(tx *gorm.DB) error {
+		res := tx.Model(&model.Passkey{}).Where("id = ? AND user_id = ?", row.ID, u.ID).Update("name", name)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return httpx.NotFound("passkey not found")
+		}
+		return nil
+	}); err != nil {
 		return PasskeyView{}, fmt.Errorf("mfa: rename passkey: %w", err)
 	}
 	row.Name = name
@@ -591,7 +617,9 @@ func (s *Service) DeletePasskey(ctx context.Context, u *model.User, id uint64, p
 	if err != nil {
 		return err
 	}
-	if err := s.a.DB.WithContext(ctx).Where("id = ?", row.ID).Delete(&model.Passkey{}).Error; err != nil {
+	if err := s.withUser(ctx, u, func(tx *gorm.DB) error {
+		return tx.Where("id = ? AND user_id = ?", row.ID, u.ID).Delete(&model.Passkey{}).Error
+	}); err != nil {
 		return fmt.Errorf("mfa: delete passkey: %w", err)
 	}
 	s.changed(u.ID)

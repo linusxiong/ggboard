@@ -33,7 +33,7 @@ func registerSubGuard(g *gin.RouterGroup, a *app.App) {
 
 func getAgeKey(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		k, err := guard.LoadKey(c.Request.Context(), a, auth.CurrentUser(c).ID)
+		k, err := guard.LoadKeyForUser(c.Request.Context(), a, auth.CurrentUser(c))
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -53,8 +53,12 @@ func createAgeKey(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		id := auth.CurrentUser(c).ID
-		k, _, err := guard.GenerateKey(c.Request.Context(), a, id, in.Regenerate, in.Enabled)
+		u, err := freshUser(c, a)
+		if err != nil {
+			httpx.Fail(c, err)
+			return
+		}
+		k, _, err := guard.GenerateKeyForUser(c.Request.Context(), a, u, in.Regenerate, in.Enabled)
 		if errors.Is(err, guard.ErrKeyExists) {
 			httpx.Fail(c, httpx.Conflict("an age key already exists; send {\"regenerate\": true} to replace it"))
 			return
@@ -63,7 +67,7 @@ func createAgeKey(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		httpx.Logger(c).Info("subscription age key generated", "user_id", id, "regenerate", in.Regenerate, "enabled", k.Enabled)
+		httpx.Logger(c).Info("subscription age key generated", "user_id", u.ID, "regenerate", in.Regenerate, "enabled", k.Enabled)
 		httpx.OK(c, guard.View(a, k, true))
 	}
 }
@@ -78,8 +82,12 @@ func patchAgeKey(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		id := auth.CurrentUser(c).ID
-		k, err := guard.SetKeyEnabled(c.Request.Context(), a, id, *in.Enabled)
+		u, err := freshUser(c, a)
+		if err != nil {
+			httpx.Fail(c, err)
+			return
+		}
+		k, err := guard.SetKeyEnabledForUser(c.Request.Context(), a, u, *in.Enabled)
 		if errors.Is(err, guard.ErrNoKey) {
 			httpx.Fail(c, httpx.NotFound("no age key; create one first"))
 			return
@@ -88,26 +96,30 @@ func patchAgeKey(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		httpx.Logger(c).Info("subscription age encryption switched", "user_id", id, "enabled", k.Enabled)
+		httpx.Logger(c).Info("subscription age encryption switched", "user_id", u.ID, "enabled", k.Enabled)
 		httpx.OK(c, guard.View(a, k, true))
 	}
 }
 
 func deleteAgeKey(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		id := auth.CurrentUser(c).ID
-		if err := guard.DeleteKey(c.Request.Context(), a, id); err != nil {
+		u, err := freshUser(c, a)
+		if err != nil {
 			httpx.Fail(c, err)
 			return
 		}
-		httpx.Logger(c).Info("subscription age key deleted", "user_id", id)
+		if err := guard.DeleteKeyForUser(c.Request.Context(), a, u); err != nil {
+			httpx.Fail(c, err)
+			return
+		}
+		httpx.Logger(c).Info("subscription age key deleted", "user_id", u.ID)
 		httpx.OK(c, true)
 	}
 }
 
 func subscriptionAccessLog(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		out, err := guard.ListAccess(c.Request.Context(), a, auth.CurrentUser(c).ID, guard.UserLogLimit, true)
+		out, err := guard.ListAccessForUser(c.Request.Context(), a, auth.CurrentUser(c), guard.UserLogLimit)
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -131,6 +143,9 @@ func rotateSubscriptionToken(a *app.App) gin.HandlerFunc {
 		}
 		users := usersvc.New(a)
 		if err := users.RotateToken(c.Request.Context(), u); err != nil {
+			if errors.Is(err, usersvc.ErrNotFound) {
+				err = httpx.Unauthorized("session expired, please sign in again")
+			}
 			httpx.Fail(c, err)
 			return
 		}

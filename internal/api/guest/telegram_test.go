@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"github.com/linusxiong/ggboard/internal/api/guest"
 	"github.com/linusxiong/ggboard/internal/app"
@@ -159,7 +160,7 @@ func TestTelegramWebhookBindMovesChat(t *testing.T) {
 	alice := testutil.CreateUser(t, e.a, "alice@example.com")
 	bob := testutil.CreateUser(t, e.a, "bob@example.com")
 
-	code, err := telegram.IssueBindCode(ctx, e.a, alice.ID)
+	code, err := telegram.IssueBindCode(ctx, e.a, alice)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +168,7 @@ func TestTelegramWebhookBindMovesChat(t *testing.T) {
 		t.Fatalf("bind = %q", got)
 	}
 	// The same Telegram account binds bob: alice is unbound (one chat ↔ one account).
-	code, err = telegram.IssueBindCode(ctx, e.a, bob.ID)
+	code, err = telegram.IssueBindCode(ctx, e.a, bob)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +187,7 @@ func TestTelegramWebhookBindMovesChat(t *testing.T) {
 	}
 	// A code of a deleted account is refused.
 	carol := testutil.CreateUser(t, e.a, "carol@example.com")
-	code, err = telegram.IssueBindCode(ctx, e.a, carol.ID)
+	code, err = telegram.IssueBindCode(ctx, e.a, carol)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,6 +196,26 @@ func TestTelegramWebhookBindMovesChat(t *testing.T) {
 	}
 	if got := e.send(t, tgMessage(4242, "private", "/start "+code.Code)); !strings.Contains(got, "invalid or expired") {
 		t.Fatalf("deleted account = %q", got)
+	}
+
+	// A code or unbind request cannot cross an account replacement that reused the same id and email.
+	dave := testutil.CreateUser(t, e.a, "dave@example.com")
+	code, err = telegram.IssueBindCode(ctx, e.a, dave)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.a.DB.Model(&model.User{}).Where("id = ?", dave.ID).
+		Updates(map[string]any{"uuid": uuid.NewString(), "telegram_id": int64(9898)}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if got := e.send(t, tgMessage(4242, "private", "/start "+code.Code)); !strings.Contains(got, "invalid or expired") {
+		t.Fatalf("replaced account = %q", got)
+	}
+	if err := telegram.Unbind(ctx, e.a, dave); err == nil {
+		t.Fatal("stale account snapshot unbound the replacement")
+	}
+	if tg := tgLoadUser(t, e.a, dave.ID); tg.TelegramID == nil || *tg.TelegramID != 9898 {
+		t.Fatalf("replacement binding changed: %+v", tg)
 	}
 }
 

@@ -110,10 +110,10 @@ tables (lipgloss) on a terminal. `serve` prints a startup summary unless `log.fo
   - MFA adds `mfa_invalid` (401), `mfa_expired` (401) and `mfa_setup_required` (403).
   - A 429 carries `Retry-After`.
 - Body limit: 1 MiB. Node push routes raise it to 8 MiB (`httpx.LargeBody(httpx.NodeBodyLimit)`).
-- Auth: `Authorization: Bearer <JWT>` (HS256). Claims are `{sub: user id, email, ver: password_version, iat, exp, iss: "ggboard"}`.
-  - A `ver` mismatch → 401 (password change / security reset signs every session out). An `email` that differs from the
-    row now owning `sub` (case-insensitive) → 401: ids are reusable (deletion, `import xboard --force`, restore), so the
-    token is bound to the account instance; tokens without `email` are refused. A banned user → 403.
+- Auth: `Authorization: Bearer <JWT>` (HS256). Claims are `{sub: user id, email, uuid, ver: password_version, iat, exp, iss: "ggboard"}`.
+  - A `ver` mismatch → 401 (password change / security reset signs every session out). An `email` or random account `uuid`
+    that differs from the row now owning `sub` → 401: ids and emails are reusable after deletion, import or restore, so the
+    token is bound to the exact account instance. Tokens without `email` or `uuid` are refused. A banned user → 403.
   - The user row is cached for 30 s.
 - Roles: `/admin` is mounted with `RequireStaff` + the MFA admin gate. Every area except tickets, notices, knowledge and
   reading users adds `RequireAdmin`.
@@ -127,7 +127,8 @@ Middleware chain: request id (`X-Request-ID`, reused when sane) → access log �
 
 - The **access log** records the route pattern (`httpx.LogPath`: `c.FullPath()`, e.g. `/s/:token`) and never the query
   string, so tokens in paths or queries never reach the logs. The `rate limited` (429), `request failed` (5xx) and
-  `panic recovered` lines use the same pattern. Only an unmatched request (404) logs its literal path.
+  `panic recovered` lines use the same pattern. Unmatched requests log a fixed placeholder, since a malformed
+  subscription or webhook URL may still contain a secret in its path.
 - **gzip** compresses compressible responses of at least 1 KiB. It skips HEAD requests, upgrades and responses that
   already set `Content-Encoding`. A handler that caches a body can cache its encoding too (`httpx.GzipBytes`) and send it
   with `httpx.DataPrecompressed`, which sets the same headers (plus `Content-Length`) without compressing again: the node

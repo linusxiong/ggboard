@@ -28,7 +28,7 @@ func userCacheKey(id uint64) string { return "auth:user:" + strconv.FormatUint(i
 
 // InvalidateUser drops the middleware's cached copy of user id. Call it after changing a user's password,
 // ban state, roles or security credentials so the change applies to the next request.
-func InvalidateUser(a *app.App, id uint64) { a.Cache.Delete(userCacheKey(id)) }
+func InvalidateUser(a *app.App, id uint64) { a.Cache.InvalidateNamespace(userCacheKey(id)) }
 
 // CurrentUser returns the authenticated user (a request-local copy that may be up to 30s stale: reload it
 // inside a transaction before changing balances or traffic), or nil.
@@ -62,16 +62,23 @@ func BearerToken(c *gin.Context) string {
 
 // LoadUser returns user id through the 30s cache (a fresh copy per call).
 func LoadUser(a *app.App, id uint64) (*model.User, error) {
-	cached, err := cache.GetOrLoad(a.Cache, userCacheKey(id), UserCacheTTL, func() (model.User, error) {
-		var u model.User
-		err := a.DB.First(&u, id).Error
-		return u, err
-	})
-	if err != nil {
-		return nil, err
+	for {
+		key := a.Cache.Key(userCacheKey(id), "")
+		cached, err := cache.GetOrLoad(a.Cache, key, UserCacheTTL, func() (model.User, error) {
+			var u model.User
+			err := a.DB.First(&u, id).Error
+			return u, err
+		})
+		// A load already in flight must neither refill nor authenticate against an invalidated generation.
+		if key != a.Cache.Key(userCacheKey(id), "") {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		u := cached
+		return &u, nil
 	}
-	u := cached
-	return &u, nil
 }
 
 // authenticate resolves the user; on failure it writes the error and returns false.
@@ -106,15 +113,14 @@ func resolve(c *gin.Context, a *app.App) (*model.User, *Claims, error) {
 	if err != nil {
 		return nil, nil, httpx.Internal(err)
 	}
-	if !claims.boundTo(u) {
-		// The cached copy may predate the change that issued this token: a load that read the row before a
-		// password or email change committed can store it after InvalidateUser ran. Check the database before
-		// rejecting.
+	if !claims.BoundTo(u) {
+		// A token may come from a writer outside this process. Recheck before rejecting it.
+		key := a.Cache.Key(userCacheKey(id), "")
 		var fresh model.User
-		if err := a.DB.First(&fresh, id).Error; err != nil || !claims.boundTo(&fresh) {
+		if err := a.DB.First(&fresh, id).Error; err != nil || !claims.BoundTo(&fresh) {
 			return nil, nil, httpx.Unauthorized("session expired, please sign in again")
 		}
-		a.Cache.Set(userCacheKey(id), fresh, UserCacheTTL)
+		a.Cache.Set(key, fresh, UserCacheTTL)
 		u = &fresh
 	}
 	if u.Banned {
@@ -123,8 +129,8 @@ func resolve(c *gin.Context, a *app.App) (*model.User, *Claims, error) {
 	return u, claims, nil
 }
 
-// RequireUser rejects requests without a valid session (401), with a stale password_version or an email that is
-// not the account's (401), or from banned users (403); otherwise stores *model.User under CtxUser.
+// RequireUser rejects requests without a valid session (401), with a stale account binding (401), or from
+// banned users (403); otherwise stores *model.User under CtxUser.
 func RequireUser(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if _, ok := authenticate(c, a); ok {

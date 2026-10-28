@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/auth"
@@ -41,6 +42,9 @@ func geoipStatusHandler(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, httpx.NewError(http.StatusServiceUnavailable, codeGeoIPStopped, "shutting down"))
 			return
 		}
+		if !requireLiveAdmin(c, a) {
+			return
+		}
 		httpx.OK(c, s.Status())
 	}
 }
@@ -63,16 +67,24 @@ func geoipUpdateHandler(a *app.App) gin.HandlerFunc {
 			return
 		}
 		adminID := auth.CurrentUser(c).ID
-		ch, err := s.Begin()
+		var ch <-chan geoip.Outcome
+		var beginErr error
+		if err := withLiveAdmin(c, a, func(_ *gorm.DB) error {
+			ch, beginErr = s.Begin()
+			return nil
+		}); err != nil {
+			httpx.Fail(c, err)
+			return
+		}
 		switch {
-		case errors.Is(err, geoip.ErrBusy):
+		case errors.Is(beginErr, geoip.ErrBusy):
 			httpx.Fail(c, httpx.NewError(http.StatusConflict, codeGeoIPRunning, "an update is already running"))
 			return
-		case errors.Is(err, geoip.ErrDisabled):
+		case errors.Is(beginErr, geoip.ErrDisabled):
 			httpx.Fail(c, httpx.NewError(http.StatusConflict, codeGeoIPDisabled, "IP locations are turned off (geoip_enable)"))
 			return
-		case err != nil:
-			httpx.Fail(c, httpx.NewError(http.StatusServiceUnavailable, codeGeoIPStopped, err.Error()))
+		case beginErr != nil:
+			httpx.Fail(c, httpx.NewError(http.StatusServiceUnavailable, codeGeoIPStopped, beginErr.Error()))
 			return
 		}
 		log := httpx.Logger(c)

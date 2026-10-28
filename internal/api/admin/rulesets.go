@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/auth"
@@ -28,11 +29,19 @@ type rulesetsView struct {
 
 func getRulesets(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		custom := a.Settings.Get(rulesets.SettingCustom)
-		if custom == nil {
-			custom = map[string]any{}
+		var view rulesetsView
+		if err := withLiveAdmin(c, a, func(*gorm.DB) error {
+			custom := a.Settings.Get(rulesets.SettingCustom)
+			if custom == nil {
+				custom = map[string]any{}
+			}
+			view = rulesetsView{Builtin: rulesets.Builtin(), Custom: custom, Effective: rulesets.Current(a.Settings)}
+			return nil
+		}); err != nil {
+			httpx.Fail(c, err)
+			return
 		}
-		httpx.OK(c, rulesetsView{Builtin: rulesets.Builtin(), Custom: custom, Effective: rulesets.Current(a.Settings)})
+		httpx.OK(c, view)
 	}
 }
 
@@ -70,7 +79,8 @@ func putRulesets(a *app.App) gin.HandlerFunc {
 			}
 			value = m
 		}
-		if err := a.Settings.SetContext(c.Request.Context(), map[string]any{rulesets.SettingCustom: value}); err != nil {
+		if err := a.Settings.SetContextIf(c.Request.Context(), map[string]any{rulesets.SettingCustom: value},
+			func(tx *gorm.DB) error { return settingsLiveAdmin(c, tx, true) }); err != nil {
 			httpx.Fail(c, err)
 			return
 		}

@@ -3,6 +3,8 @@ package account
 import (
 	"context"
 
+	"gorm.io/gorm"
+
 	"github.com/linusxiong/ggboard/internal/model"
 	invitesvc "github.com/linusxiong/ggboard/internal/service/invite"
 )
@@ -23,7 +25,12 @@ var PaidOrderStatuses = []model.OrderStatus{model.OrderStatusProcessing, model.O
 
 // Stats returns the dashboard counters of userID.
 func (s *Service) Stats(ctx context.Context, userID uint64) (Stats, error) {
-	db := s.a.DB.WithContext(ctx)
+	return s.StatsDB(ctx, s.a.DB, userID)
+}
+
+// StatsDB reads dashboard counters in the caller's account transaction.
+func (s *Service) StatsDB(ctx context.Context, db *gorm.DB, userID uint64) (Stats, error) {
+	db = db.WithContext(ctx)
 	var st Stats
 	if err := db.Model(&model.Order{}).
 		Where("user_id = ? AND status = ?", userID, model.OrderStatusPending).Count(&st.PendingOrders).Error; err != nil {
@@ -40,6 +47,6 @@ func (s *Service) Stats(ctx context.Context, userID uint64) (Stats, error) {
 		return st, err
 	}
 	var err error
-	st.CommissionPending, err = invitesvc.New(s.a).CommissionPending(ctx, userID)
+	st.CommissionPending, err = invitesvc.New(s.a).CommissionPendingDB(ctx, db, userID)
 	return st, err
 }

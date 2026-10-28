@@ -20,7 +20,7 @@ import (
 
 func TestJWTIssueParse(t *testing.T) {
 	secret := []byte(testutil.JWTSecret)
-	u := &model.User{ID: 42, Email: "a@example.com", PasswordVersion: 3}
+	u := &model.User{ID: 42, UUID: "10000000-0000-4000-8000-000000000001", Email: "a@example.com", PasswordVersion: 3}
 	now := time.Now()
 	tok, err := auth.IssueWith(secret, time.Hour, u, now)
 	if err != nil {
@@ -30,7 +30,7 @@ func TestJWTIssueParse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if id, _ := c.UserID(); id != 42 || c.Email != "a@example.com" || c.Ver != 3 || c.Issuer != auth.Issuer {
+	if id, _ := c.UserID(); id != 42 || c.UUID != u.UUID || c.Email != "a@example.com" || c.Ver != 3 || c.Issuer != auth.Issuer {
 		t.Fatalf("claims = %+v", c)
 	}
 	if _, err := auth.ParseWith([]byte("other-secret"), tok); err == nil {
@@ -146,11 +146,12 @@ func TestCurrentUserIsACopy(t *testing.T) {
 
 func TestLoginTokens(t *testing.T) {
 	a := testutil.NewTestApp(t)
-	tok := auth.IssueLoginToken(a, 7)
+	u := testutil.CreateUser(t, a, "login-token@example.com")
+	tok := auth.IssueLoginToken(a, u)
 	if len(tok) != 48 {
 		t.Fatalf("token = %q", tok)
 	}
-	if id, ok := auth.ConsumeLoginToken(a, tok); !ok || id != 7 {
+	if claims, ok := auth.ConsumeLoginToken(a, tok); !ok || !claims.BoundTo(u) {
 		t.Fatal("consume")
 	}
 	if _, ok := auth.ConsumeLoginToken(a, tok); ok {
@@ -159,7 +160,7 @@ func TestLoginTokens(t *testing.T) {
 	if _, ok := auth.ConsumeLoginToken(a, ""); ok {
 		t.Fatal("empty token")
 	}
-	if d, ok := a.KV.TTL("auth:login_token:" + auth.IssueLoginToken(a, 8)); !ok || d > auth.LoginTokenTTL {
+	if d, ok := a.KV.TTL("auth:login_token:" + auth.IssueLoginToken(a, u)); !ok || d > auth.LoginTokenTTL {
 		t.Fatalf("ttl = %v", d)
 	}
 }

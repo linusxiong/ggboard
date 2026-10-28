@@ -34,7 +34,12 @@ type serverGroupInput struct {
 func registerGroups(g *gin.RouterGroup, a *app.App) {
 	gr := g.Group("/groups", auth.RequireAdmin(a))
 	gr.GET("", func(c *gin.Context) {
-		views, err := serverGroupViews(a.DB.WithContext(c.Request.Context()), 0)
+		var views []serverGroupView
+		err := withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			var err error
+			views, err = serverGroupViews(tx, 0)
+			return err
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -53,7 +58,7 @@ func registerGroups(g *gin.RouterGroup, a *app.App) {
 			return
 		}
 		grp := model.ServerGroup{Name: name}
-		if err := a.DB.WithContext(c.Request.Context()).Create(&grp).Error; err != nil {
+		if err := withLiveAdmin(c, a, func(tx *gorm.DB) error { return tx.Create(&grp).Error }); err != nil {
 			httpx.Fail(c, err)
 			return
 		}
@@ -75,18 +80,20 @@ func registerGroups(g *gin.RouterGroup, a *app.App) {
 			httpx.Fail(c, err)
 			return
 		}
-		db := a.DB.WithContext(c.Request.Context())
 		var grp model.ServerGroup
-		if err := db.Where("id = ?", id).First(&grp).Error; err != nil {
-			httpx.Fail(c, err)
-			return
-		}
-		grp.Name = name
-		if err := db.Save(&grp).Error; err != nil {
-			httpx.Fail(c, err)
-			return
-		}
-		views, err := serverGroupViews(db, id)
+		var views []serverGroupView
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			if err := tx.Where("id = ?", id).First(&grp).Error; err != nil {
+				return err
+			}
+			grp.Name = name
+			if err := tx.Save(&grp).Error; err != nil {
+				return err
+			}
+			var err error
+			views, err = serverGroupViews(tx, id)
+			return err
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -99,18 +106,18 @@ func registerGroups(g *gin.RouterGroup, a *app.App) {
 			httpx.Fail(c, err)
 			return
 		}
-		db := a.DB.WithContext(c.Request.Context())
-		views, err := serverGroupViews(db, id)
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			views, err := serverGroupViews(tx, id)
+			if err != nil {
+				return err
+			}
+			v := views[0]
+			if v.UserCount+v.PlanCount+v.NodeCount > 0 {
+				return httpx.Conflict(fmt.Sprintf("group is still used by %d users, %d plans and %d nodes", v.UserCount, v.PlanCount, v.NodeCount))
+			}
+			return tx.Delete(&model.ServerGroup{}, id).Error
+		})
 		if err != nil {
-			httpx.Fail(c, err)
-			return
-		}
-		v := views[0]
-		if v.UserCount+v.PlanCount+v.NodeCount > 0 {
-			httpx.Fail(c, httpx.Conflict(fmt.Sprintf("group is still used by %d users, %d plans and %d nodes", v.UserCount, v.PlanCount, v.NodeCount)))
-			return
-		}
-		if err := db.Delete(&model.ServerGroup{}, id).Error; err != nil {
 			httpx.Fail(c, err)
 			return
 		}

@@ -44,12 +44,12 @@ func ruleProfileSummary(r *model.RuleProfile, isDefault bool) RuleProfileSummary
 // ruleProfileSummaries lists the user's profiles (the default row is created for users without one).
 func ruleProfileSummaries(c *gin.Context, a *app.App) ([]RuleProfileSummary, error) {
 	u := auth.CurrentUser(c)
-	if err := engine.EnsureDefault(c.Request.Context(), a, u.ID); err != nil {
-		return nil, err
+	if err := engine.EnsureDefault(c.Request.Context(), a, u.ID, u); err != nil {
+		return nil, profileErr(err)
 	}
-	rows, err := engine.LoadProfiles(c.Request.Context(), a, u.ID)
+	rows, err := engine.LoadProfilesBound(c.Request.Context(), a, u)
 	if err != nil {
-		return nil, err
+		return nil, profileErr(err)
 	}
 	def := engine.DefaultOf(rows)
 	out := make([]RuleProfileSummary, 0, len(rows))
@@ -137,7 +137,7 @@ func createRuleProfile(a *app.App) gin.HandlerFunc {
 			return
 		}
 		u := auth.CurrentUser(c)
-		row, err := engine.CreateProfile(c.Request.Context(), a, u.ID, in.Name, in.Slug, in.CopyFrom)
+		row, err := engine.CreateProfile(c.Request.Context(), a, u.ID, in.Name, in.Slug, in.CopyFrom, u)
 		if err != nil {
 			if in.CopyFrom != "" && errors.Is(err, engine.ErrProfileNotFound) {
 				httpx.Fail(c, httpx.FieldError("copy_from", "unknown profile"))
@@ -170,7 +170,7 @@ func patchRuleProfile(a *app.App) gin.HandlerFunc {
 			return
 		}
 		u := auth.CurrentUser(c)
-		row, err := engine.UpdateProfileMeta(c.Request.Context(), a, u.ID, c.Param("slug"), in.Name, in.Slug)
+		row, err := engine.UpdateProfileMeta(c.Request.Context(), a, u.ID, c.Param("slug"), in.Name, in.Slug, u)
 		if err != nil {
 			httpx.Fail(c, profileErr(err))
 			return
@@ -190,7 +190,7 @@ func deleteRuleProfile(a *app.App) gin.HandlerFunc {
 			return
 		}
 		u := auth.CurrentUser(c)
-		if err := engine.DeleteProfile(c.Request.Context(), a, u.ID, c.Param("slug")); err != nil {
+		if err := engine.DeleteProfile(c.Request.Context(), a, u.ID, c.Param("slug"), u); err != nil {
 			httpx.Fail(c, profileErr(err))
 			return
 		}
@@ -205,7 +205,7 @@ func defaultRuleProfile(a *app.App) gin.HandlerFunc {
 			return
 		}
 		u := auth.CurrentUser(c)
-		row, err := engine.SetDefaultProfile(c.Request.Context(), a, u.ID, c.Param("slug"))
+		row, err := engine.SetDefaultProfile(c.Request.Context(), a, u.ID, c.Param("slug"), u)
 		if err != nil {
 			httpx.Fail(c, profileErr(err))
 			return
@@ -229,10 +229,10 @@ type SubscriptionProfile struct {
 
 // subscriptionProfiles lists the user's profiles with their links (read-only: a user without rows gets the
 // virtual default profile).
-func subscriptionProfiles(c *gin.Context, a *app.App, userID uint64, subscribeURL string) ([]SubscriptionProfile, error) {
-	rows, err := engine.LoadProfiles(c.Request.Context(), a, userID)
+func subscriptionProfiles(c *gin.Context, a *app.App, u *model.User, subscribeURL string) ([]SubscriptionProfile, error) {
+	rows, err := engine.LoadProfilesBound(c.Request.Context(), a, u)
 	if err != nil {
-		return nil, err
+		return nil, profileErr(err)
 	}
 	if len(rows) == 0 {
 		return []SubscriptionProfile{{Slug: model.RuleProfileDefaultSlug, Name: model.RuleProfileDefaultName,

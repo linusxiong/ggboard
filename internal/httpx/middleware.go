@@ -62,13 +62,12 @@ func Recovery() gin.HandlerFunc {
 	})
 }
 
-// LogPath is the path to write to logs: the route pattern (e.g. /s/:token) so secrets carried in path params
-// never reach the log, or the literal path for unmatched requests (404s have no pattern and no params).
+// LogPath is the route pattern (e.g. /s/:token); unmatched paths are redacted because they may contain secrets.
 func LogPath(c *gin.Context) string {
 	if p := c.FullPath(); p != "" {
 		return p
 	}
-	return c.Request.URL.Path
+	return "/[unmatched]"
 }
 
 // AccessLog logs one line per request (path only: query strings may carry tokens).

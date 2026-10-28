@@ -107,14 +107,19 @@ Global middleware: request id → access log → security headers → CORS (only
   **Reload the user inside your transaction before changing balance, traffic or plan.** After changing password, ban,
   roles or uuid, call `auth.InvalidateUser(a, id)`. Also available: `auth.CurrentClaims(c)` and `auth.BearerToken(c)`.
 - Tokens: `auth.Issue(a, u) (string, error)` and `auth.Parse(a, tok) (*auth.Claims, error)`. `IssueWith` / `ParseWith`
-  take an explicit secret. The HS256 claims are `{sub, email, ver, iat, exp, iss: "ggboard"}`.
+  take an explicit secret. The HS256 claims are `{sub, uuid, email, ver, iat, exp, iss: "ggboard"}`; pre-upgrade tokens without
+  `uuid` are rejected (users must sign in again). `claims.BoundTo(u)` checks id, UUID, normalized email and version.
+  Reloading an authenticated user must verify this binding; credential writes keep the check and write in one transaction.
+  User cache invalidation advances a per-user namespace,
+  and a load whose namespace changed retries instead of returning or restoring revoked state.
 - Passwords:
   - `auth.HashPassword(pw)` produces argon2id.
   - `auth.VerifyPassword(hash, pw)` accepts argon2id, bcrypt `$2y$/$2a$/$2b$` and Xboard `xb$<algo>$<salt>$<hex>`; `!…` never verifies.
   - `auth.NeedsRehash(hash)` reports hashes to upgrade.
   - `auth.SetParams` / `auth.CurrentParams` (tests use cheap parameters).
-- One-time login ("login as"): `auth.IssueLoginToken(a, userID) string` (5 min, single use) and
-  `auth.ConsumeLoginToken(a, tok) (uint64, bool)`.
+- One-time login ("login as"): `auth.IssueLoginToken(a, u) string` (5 min, single use, snapshots id/UUID/email/version) and
+  `auth.ConsumeLoginToken(a, tok) (*auth.Claims, bool)`; consumption claims the token atomically, and the caller must verify
+  `claims.BoundTo` against the current user before issuing a JWT.
 
 ## 4. `internal/app` (dependency container)
 
@@ -267,7 +272,8 @@ Every service is cheap to build: call `New(a)` per request. Import aliases used 
   - email codes: `SendCode`, `ConsumeCode`
   - captcha: `VerifyCaptcha`
   - login and lockout: `Login`, `VerifyLogin`, `LoginWithToken`
-  - `Register` (whitelist, invites, trial plan, per-IP limit), `ResetPassword`, `ChangePassword`
+  - `Register` (whitelist, invites, trial plan, per-IP limit), `ResetPassword`,
+    `ChangePassword(ctx, u, oldPassword, newPassword)` (u is the authenticated snapshot, never a newly adopted account version)
   - dashboard `Stats`; views `ToUserView` / `ToAdminUserView`
   - `account.Fail(c, err)` adds `Retry-After` for `*RetryError`
 - **`service/mfa`** (`mfasvc`):

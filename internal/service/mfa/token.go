@@ -5,6 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/linusxiong/ggboard/internal/httpx"
 	"github.com/linusxiong/ggboard/internal/model"
 	"github.com/linusxiong/ggboard/internal/service/account"
@@ -23,9 +25,11 @@ type LoginChallenge struct {
 	HasPasskey  bool     `json:"has_passkey"`
 }
 
-// pendingLogin is the KV state of an MFA token: bound to the user and its password_version.
+// pendingLogin binds an MFA token to the account instance and security version that proved the password.
 type pendingLogin struct {
 	UserID   uint64
+	UUID     string
+	Email    string
 	Version  int
 	Attempts int
 	Expires  time.Time
@@ -43,7 +47,8 @@ func (s *Service) Challenge(ctx context.Context, u *model.User) (*LoginChallenge
 		return nil, err
 	}
 	tok := randomID(32)
-	s.a.KV.Set(kvToken+tok, pendingLogin{UserID: u.ID, Version: u.PasswordVersion, Expires: time.Now().Add(TokenTTL)}, TokenTTL)
+	s.a.KV.Set(kvToken+tok, pendingLogin{UserID: u.ID, UUID: u.UUID, Email: u.Email, Version: u.PasswordVersion,
+		Expires: time.Now().Add(TokenTTL)}, TokenTTL)
 	return &LoginChallenge{MFARequired: true, MFAToken: tok, Methods: []string{MethodTOTP}, HasPasskey: n > 0}, nil
 }
 
@@ -66,7 +71,7 @@ func (s *Service) CompleteLogin(ctx context.Context, token, code string) (*model
 		s.putBack(key, p)
 		return nil, err
 	}
-	if u.PasswordVersion != p.Version {
+	if p.UUID == "" || u.UUID != p.UUID || u.PasswordVersion != p.Version || usersvc.NormalizeEmail(u.Email) != usersvc.NormalizeEmail(p.Email) {
 		return nil, errExpired()
 	}
 	if u.Banned {
@@ -84,7 +89,11 @@ func (s *Service) CompleteLogin(ctx context.Context, token, code string) (*model
 	if err != nil {
 		return nil, err
 	}
-	ok, err = s.verifyCode(ctx, row, code)
+	err = s.withUser(ctx, u, func(tx *gorm.DB) error {
+		var verifyErr error
+		ok, verifyErr = s.verifyCode(ctx, tx, row, code)
+		return verifyErr
+	})
 	if err != nil {
 		release()
 		s.putBack(key, p)

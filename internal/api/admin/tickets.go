@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/auth"
@@ -51,13 +52,18 @@ func ticketList(a *app.App) gin.HandlerFunc {
 			f.ReplyStatus = &rs
 		}
 		svc := ticketsvc.New(a)
-		ctx := c.Request.Context()
-		rows, total, err := httpx.Paginate[model.Ticket](c, svc.Query(ctx, f), ticketSort, "updated_at DESC, id DESC")
-		if err != nil {
-			httpx.Fail(c, err)
-			return
-		}
-		emails, err := svc.Owners(ctx, rows)
+		var rows []model.Ticket
+		var total int64
+		var emails map[uint64]string
+		err := withLiveStaffTx(c, a, func(tx *gorm.DB, _ bool) error {
+			var readErr error
+			rows, total, readErr = httpx.Paginate[model.Ticket](c, svc.QueryWithDB(tx, f), ticketSort, "updated_at DESC, id DESC")
+			if readErr != nil {
+				return readErr
+			}
+			emails, readErr = svc.OwnersWithDB(tx, rows)
+			return readErr
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -79,12 +85,23 @@ func ticketShow(a *app.App) gin.HandlerFunc {
 			return
 		}
 		svc := ticketsvc.New(a)
-		t, err := svc.Get(c.Request.Context(), id, 0)
+		var t *model.Ticket
+		var email string
+		err = withLiveStaffTx(c, a, func(tx *gorm.DB, _ bool) error {
+			var readErr error
+			t, readErr = svc.GetWithDB(tx, id, 0)
+			if readErr != nil {
+				return readErr
+			}
+			emails, readErr := svc.OwnersWithDB(tx, []model.Ticket{*t})
+			email = emails[t.UserID]
+			return readErr
+		})
 		if err != nil {
 			httpx.Fail(c, ticketError(err))
 			return
 		}
-		ticketRespond(c, svc, t)
+		httpx.OK(c, ticketsvc.ForStaff(t, email))
 	}
 }
 
@@ -112,13 +129,16 @@ func ticketReply(a *app.App) gin.HandlerFunc {
 		}
 		svc := ticketsvc.New(a)
 		staff := auth.CurrentUser(c)
-		t, err := svc.ReplyAsStaff(c.Request.Context(), id, staff.ID, message)
+		t, email, err := svc.ReplyAsStaffIf(c.Request.Context(), id, staff.ID, message, func(tx *gorm.DB) error {
+			_, err := liveStaffRole(c, tx, true)
+			return err
+		})
 		if err != nil {
 			httpx.Fail(c, ticketError(err))
 			return
 		}
 		httpx.Logger(c).Info("admin: ticket replied", "ticket_id", id, "staff_id", staff.ID)
-		ticketRespond(c, svc, t)
+		httpx.OK(c, ticketsvc.ForStaff(t, email))
 	}
 }
 
@@ -130,22 +150,16 @@ func ticketClose(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		if err := ticketsvc.New(a).Close(c.Request.Context(), id, 0); err != nil {
+		if err := ticketsvc.New(a).CloseAsStaffIf(c.Request.Context(), id, func(tx *gorm.DB) error {
+			_, err := liveStaffRole(c, tx, true)
+			return err
+		}); err != nil {
 			httpx.Fail(c, ticketError(err))
 			return
 		}
 		httpx.Logger(c).Info("admin: ticket closed", "ticket_id", id, "staff_id", auth.CurrentUser(c).ID)
 		httpx.OK(c, true)
 	}
-}
-
-func ticketRespond(c *gin.Context, svc *ticketsvc.Service, t *model.Ticket) {
-	emails, err := svc.Owners(c.Request.Context(), []model.Ticket{*t})
-	if err != nil {
-		httpx.Fail(c, err)
-		return
-	}
-	httpx.OK(c, ticketsvc.ForStaff(t, emails[t.UserID]))
 }
 
 func ticketError(err error) error {

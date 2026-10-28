@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
 	"gorm.io/gorm"
 
+	"github.com/linusxiong/ggboard/internal/auth"
 	"github.com/linusxiong/ggboard/internal/httpx"
 	"github.com/linusxiong/ggboard/internal/model"
 )
@@ -85,30 +87,47 @@ func consumeCoupon(tx *gorm.DB, c *model.Coupon, field string) error {
 // restoreCoupon gives back the use taken by a cancelled order (limited coupons only).
 func restoreCoupon(tx *gorm.DB, couponID uint64) error {
 	return tx.Model(&model.Coupon{}).Where("id = ? AND limit_use IS NOT NULL", couponID).
-		UpdateColumn("limit_use", gorm.Expr("limit_use + ?", 1)).Error
+		UpdateColumn("limit_use", gorm.Expr("CASE WHEN limit_use < ? THEN limit_use + 1 ELSE limit_use END", math.MaxInt64)).Error
 }
 
 // CheckCoupon validates code for userID buying planID/period (POST /user/coupons/check).
 func (s *Service) CheckCoupon(ctx context.Context, userID uint64, code string, planID uint64, period string) (*model.Coupon, error) {
-	db := s.a.DB.WithContext(ctx)
-	var p model.Plan
-	if err := db.First(&p, planID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, httpx.FieldError("plan_id", "plan not found")
+	return s.checkCoupon(ctx, userID, code, planID, period, nil)
+}
+
+func (s *Service) CheckCouponForUser(ctx context.Context, userID uint64, code string, planID uint64, period string, actor *auth.Claims) (*model.Coupon, error) {
+	if actor == nil {
+		return nil, httpx.Unauthorized("session expired, please sign in again")
+	}
+	return s.checkCoupon(ctx, userID, code, planID, period, actor)
+}
+
+func (s *Service) checkCoupon(ctx context.Context, userID uint64, code string, planID uint64, period string, actor *auth.Claims) (*model.Coupon, error) {
+	var coupon *model.Coupon
+	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if actor != nil {
+			if _, err := LockActor(tx, userID, actor); err != nil {
+				return err
+			}
 		}
-		return nil, err
-	}
-	if _, ok := p.Price(period); !ok {
-		return nil, httpx.FieldError("period", "this period is not available for the plan")
-	}
-	c, err := findCoupon(db, code, "code")
-	if err != nil {
-		return nil, err
-	}
-	if err := validateCoupon(db, c, userID, planID, period, "code", s.now()); err != nil {
-		return nil, err
-	}
-	return c, nil
+		var p model.Plan
+		if err := tx.First(&p, planID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return httpx.FieldError("plan_id", "plan not found")
+			}
+			return err
+		}
+		if _, ok := p.Price(period); !ok {
+			return httpx.FieldError("period", "this period is not available for the plan")
+		}
+		var err error
+		coupon, err = findCoupon(tx, code, "code")
+		if err != nil {
+			return err
+		}
+		return validateCoupon(tx, coupon, userID, planID, period, "code", s.now())
+	})
+	return coupon, err
 }
 
 // CouponUsage returns the number of non-cancelled orders per coupon id (admin used_count).

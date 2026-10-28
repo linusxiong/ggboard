@@ -165,6 +165,27 @@ func TestNotify(t *testing.T) {
 	}
 }
 
+func TestNotifyRequiresPositiveAmount(t *testing.T) {
+	_, ali := keys(t)
+	cfg := cfgFor(t)
+	for _, amount := range []string{"", "0", "-1"} {
+		p := notifyParams()
+		if amount == "" {
+			delete(p, "total_amount")
+		} else {
+			p["total_amount"] = amount
+		}
+		var err error
+		p["sign"], err = SignRSA2(ali, VerifyContent(p))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res, _, err := postNotify(t, p, cfg); err == nil || res != nil {
+			t.Fatalf("paid amount %q accepted", amount)
+		}
+	}
+}
+
 func TestKeyParsing(t *testing.T) {
 	app, _ := keys(t)
 	pkcs8, _ := x509.MarshalPKCS8PrivateKey(app)

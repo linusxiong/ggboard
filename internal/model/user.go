@@ -1,6 +1,9 @@
 package model
 
-import "time"
+import (
+	"math"
+	"time"
+)
 
 // User is a panel account. JSON tags describe the admin view; user-facing handlers should build their own DTOs.
 type User struct {
@@ -46,13 +49,19 @@ type User struct {
 	EmailVerifiedAt *time.Time `gorm:"column:email_verified_at" json:"email_verified_at"`
 }
 
-// Used returns u + d.
-func (u *User) Used() int64 { return u.U + u.D }
+// Used returns total usage, saturating on overflow. Negative stored counters fail closed.
+func (u *User) Used() int64 {
+	if u.U < 0 || u.D < 0 || u.U > math.MaxInt64-u.D {
+		return math.MaxInt64
+	}
+	return u.U + u.D
+}
 
 // Remaining returns transfer_enable - (u + d), never negative.
 func (u *User) Remaining() int64 {
-	if r := u.TransferEnable - u.Used(); r > 0 {
-		return r
+	used := u.Used()
+	if u.TransferEnable > used {
+		return u.TransferEnable - used
 	}
 	return 0
 }

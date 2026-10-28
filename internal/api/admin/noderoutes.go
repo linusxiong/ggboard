@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/auth"
@@ -43,7 +44,7 @@ func registerRoutes(g *gin.RouterGroup, a *app.App) {
 
 	gr.GET("", func(c *gin.Context) {
 		var routes []model.NodeRoute
-		if err := a.DB.WithContext(c.Request.Context()).Order("id").Find(&routes).Error; err != nil {
+		if err := withLiveAdmin(c, a, func(tx *gorm.DB) error { return tx.Order("id").Find(&routes).Error }); err != nil {
 			httpx.Fail(c, err)
 			return
 		}
@@ -63,7 +64,7 @@ func registerRoutes(g *gin.RouterGroup, a *app.App) {
 			httpx.Fail(c, err)
 			return
 		}
-		if err := a.DB.WithContext(c.Request.Context()).Create(&r).Error; err != nil {
+		if err := withLiveAdmin(c, a, func(tx *gorm.DB) error { return tx.Create(&r).Error }); err != nil {
 			httpx.Fail(c, err)
 			return
 		}
@@ -82,19 +83,19 @@ func registerRoutes(g *gin.RouterGroup, a *app.App) {
 			httpx.Fail(c, err)
 			return
 		}
-		db := a.DB.WithContext(c.Request.Context())
 		var r model.NodeRoute
-		if err := db.Where("id = ?", id).First(&r).Error; err != nil {
-			httpx.Fail(c, err)
-			return
-		}
-		in.apply(&r)
-		nodesvc.NormalizeRoute(&r)
-		if err := nodesvc.ValidateRoute(&r); err != nil {
-			httpx.Fail(c, err)
-			return
-		}
-		if err := db.Save(&r).Error; err != nil {
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			if err := tx.Where("id = ?", id).First(&r).Error; err != nil {
+				return err
+			}
+			in.apply(&r)
+			nodesvc.NormalizeRoute(&r)
+			if err := nodesvc.ValidateRoute(&r); err != nil {
+				return err
+			}
+			return tx.Save(&r).Error
+		})
+		if err != nil {
 			httpx.Fail(c, err)
 			return
 		}
@@ -108,28 +109,27 @@ func registerRoutes(g *gin.RouterGroup, a *app.App) {
 			httpx.Fail(c, err)
 			return
 		}
-		db := a.DB.WithContext(c.Request.Context())
-		var r model.NodeRoute
-		if err := db.Where("id = ?", id).First(&r).Error; err != nil {
-			httpx.Fail(c, err)
-			return
-		}
-		var nodes []model.Node
-		if err := db.Select("id", "route_ids").Find(&nodes).Error; err != nil {
-			httpx.Fail(c, err)
-			return
-		}
-		used := 0
-		for _, n := range nodes {
-			if model.SliceContains(n.RouteIDs, id) {
-				used++
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			var r model.NodeRoute
+			if err := tx.Where("id = ?", id).First(&r).Error; err != nil {
+				return err
 			}
-		}
-		if used > 0 {
-			httpx.Fail(c, httpx.Conflict(fmt.Sprintf("route is still used by %d nodes", used)))
-			return
-		}
-		if err := db.Delete(&model.NodeRoute{}, id).Error; err != nil {
+			var nodes []model.Node
+			if err := tx.Select("id", "route_ids").Find(&nodes).Error; err != nil {
+				return err
+			}
+			used := 0
+			for _, n := range nodes {
+				if model.SliceContains(n.RouteIDs, id) {
+					used++
+				}
+			}
+			if used > 0 {
+				return httpx.Conflict(fmt.Sprintf("route is still used by %d nodes", used))
+			}
+			return tx.Delete(&model.NodeRoute{}, id).Error
+		})
+		if err != nil {
 			httpx.Fail(c, err)
 			return
 		}

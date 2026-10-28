@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/auth"
@@ -52,7 +53,9 @@ func knowledgeList(a *app.App) gin.HandlerFunc {
 		}
 		f := contentsvc.KnowledgeFilter{Language: in.Language, Category: strings.TrimSpace(in.Category), Keyword: in.Keyword}
 		var rows []knowledgeItem
-		if err := contentsvc.New(a).KnowledgeQuery(c.Request.Context(), f).Order(contentsvc.KnowledgeOrder).Find(&rows).Error; err != nil {
+		if err := withLiveStaffTx(c, a, func(tx *gorm.DB, _ bool) error {
+			return contentsvc.New(a).KnowledgeQueryWithDB(tx, f).Order(contentsvc.KnowledgeOrder).Find(&rows).Error
+		}); err != nil {
 			httpx.Fail(c, err)
 			return
 		}
@@ -130,10 +133,6 @@ func knowledgeCreate(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		if body, _ := m["body"].(string); !auth.CurrentUser(c).IsAdmin && contentsvc.HasSubscribePlaceholder(body) {
-			httpx.Fail(c, knowledgePlaceholderForbidden(c))
-			return
-		}
 		var k model.Knowledge
 		k.Language, _ = m["language"].(string)
 		k.Category, _ = m["category"].(string)
@@ -141,7 +140,12 @@ func knowledgeCreate(a *app.App) gin.HandlerFunc {
 		k.Body, _ = m["body"].(string)
 		k.Show, _ = m["show"].(bool)
 		k.Sort, _ = m["sort"].(int)
-		if err := a.DB.WithContext(c.Request.Context()).Create(&k).Error; err != nil {
+		if err := withLiveStaffTx(c, a, func(tx *gorm.DB, admin bool) error {
+			if !admin && contentsvc.HasSubscribePlaceholder(k.Body) {
+				return knowledgePlaceholderForbidden(c)
+			}
+			return tx.Create(&k).Error
+		}); err != nil {
 			httpx.Fail(c, err)
 			return
 		}
@@ -159,7 +163,9 @@ func knowledgeShow(a *app.App) gin.HandlerFunc {
 			return
 		}
 		var k model.Knowledge
-		if err := a.DB.WithContext(c.Request.Context()).Where("id = ?", id).First(&k).Error; err != nil {
+		if err := withLiveStaffTx(c, a, func(tx *gorm.DB, _ bool) error {
+			return tx.Where("id = ?", id).First(&k).Error
+		}); err != nil {
 			httpx.Fail(c, err)
 			return
 		}
@@ -187,25 +193,30 @@ func knowledgeUpdate(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		if body, ok := m["body"].(string); ok && !auth.CurrentUser(c).IsAdmin && contentsvc.HasSubscribePlaceholder(body) {
-			var cur model.Knowledge
-			if err := a.DB.WithContext(c.Request.Context()).Select("id", "body").Where("id = ?", id).First(&cur).Error; err != nil {
-				httpx.Fail(c, err) // 404 when missing
-				return
+		var k model.Knowledge
+		err = withLiveStaffTx(c, a, func(tx *gorm.DB, admin bool) error {
+			if err := tx.Where("id = ?", id).First(&k).Error; err != nil {
+				return err
 			}
-			if cur.Body != body {
-				httpx.Fail(c, knowledgePlaceholderForbidden(c, "knowledge_id", id))
-				return
+			if body, ok := m["body"].(string); ok && !admin && contentsvc.HasSubscribePlaceholder(body) {
+				if k.Body != body {
+					return knowledgePlaceholderForbidden(c, "knowledge_id", id)
+				}
+				delete(m, "body")
 			}
-			delete(m, "body") // unchanged: never written by staff, even if an administrator changes it meanwhile
-		}
-		k, err := contentUpdate[model.Knowledge](c, a, id, m)
+			if len(m) > 0 {
+				if err := tx.Model(&model.Knowledge{}).Where("id = ?", id).Updates(m).Error; err != nil {
+					return err
+				}
+			}
+			return tx.Where("id = ?", id).First(&k).Error
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
 		}
 		httpx.Logger(c).Info("admin: knowledge updated", "knowledge_id", id, "staff_id", auth.CurrentUser(c).ID)
-		httpx.OK(c, k)
+		httpx.OK(c, &k)
 	}
 }
 
@@ -226,7 +237,10 @@ func knowledgeSort(a *app.App) gin.HandlerFunc {
 		if !ok {
 			return
 		}
-		if err := contentsvc.New(a).SortKnowledge(c.Request.Context(), ids); err != nil {
+		if err := contentsvc.New(a).SortKnowledgeIf(c.Request.Context(), ids, func(tx *gorm.DB) error {
+			_, err := liveStaffRole(c, tx, true)
+			return err
+		}); err != nil {
 			httpx.Fail(c, contentSortError(err))
 			return
 		}

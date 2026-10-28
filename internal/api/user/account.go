@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/auth"
@@ -26,13 +27,48 @@ func registerAccount(g *gin.RouterGroup, a *app.App) {
 	g.POST("/logout", logout())
 }
 
-// freshUser reloads the authenticated user from the database (auth.CurrentUser may be 30 s stale).
+// freshUser reloads the authenticated user and keeps it bound to the JWT snapshot.
 func freshUser(c *gin.Context, a *app.App) (*model.User, error) {
-	u, err := usersvc.New(a).FindByID(c.Request.Context(), auth.CurrentUser(c).ID)
+	current, claims := auth.CurrentUser(c), auth.CurrentClaims(c)
+	if current == nil || claims == nil {
+		return nil, httpx.Unauthorized("invalid or expired token")
+	}
+	u, err := usersvc.New(a).FindByID(c.Request.Context(), current.ID)
 	if errors.Is(err, usersvc.ErrNotFound) {
 		return nil, httpx.Unauthorized("invalid or expired token")
 	}
+	if err == nil && !claims.BoundTo(u) {
+		return nil, httpx.Unauthorized("session expired, please sign in again")
+	}
+	if err == nil && u.Banned {
+		return nil, httpx.Forbidden("account is banned")
+	}
 	return u, err
+}
+
+func lockCurrentUser(tx *gorm.DB, c *gin.Context) error {
+	u, claims := auth.CurrentUser(c), auth.CurrentClaims(c)
+	if u == nil || claims == nil {
+		return httpx.Unauthorized("invalid or expired token")
+	}
+	if err := tx.Model(&model.User{}).Where("id = ?", u.ID).
+		UpdateColumn("password_version", gorm.Expr("password_version")).Error; err != nil {
+		return err
+	}
+	var current model.User
+	if err := tx.First(&current, u.ID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return httpx.Unauthorized("session expired, please sign in again")
+		}
+		return err
+	}
+	if !claims.BoundTo(&current) {
+		return httpx.Unauthorized("session expired, please sign in again")
+	}
+	if current.Banned {
+		return httpx.Forbidden("account is banned")
+	}
+	return nil
 }
 
 func writeView(c *gin.Context, a *app.App, u *model.User) {
@@ -66,7 +102,8 @@ func updateMe(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		id := auth.CurrentUser(c).ID
+		session := auth.CurrentUser(c)
+		id := session.ID
 		changes := map[string]any{}
 		if in.RemindExpire != nil {
 			changes["remind_expire"] = *in.RemindExpire
@@ -75,7 +112,9 @@ func updateMe(a *app.App) gin.HandlerFunc {
 			changes["remind_traffic"] = *in.RemindTraffic
 		}
 		if len(changes) > 0 {
-			if err := a.DB.WithContext(c.Request.Context()).Model(&model.User{}).Where("id = ?", id).
+			if err := a.DB.WithContext(c.Request.Context()).Model(&model.User{}).
+				Where("id = ? AND uuid = ? AND email = ? AND password_version = ? AND banned = ?",
+					id, session.UUID, session.Email, session.PasswordVersion, false).
 				Updates(changes).Error; err != nil {
 				httpx.Fail(c, err)
 				return
@@ -102,22 +141,34 @@ func changePassword(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		id := auth.CurrentUser(c).ID
-		if _, err := account.New(a).ChangePassword(c.Request.Context(), id, in.OldPassword, in.NewPassword); err != nil {
+		u, err := freshUser(c, a)
+		if err != nil {
+			httpx.Fail(c, err)
+			return
+		}
+		if _, err := account.New(a).ChangePassword(c.Request.Context(), u, in.OldPassword, in.NewPassword); err != nil {
 			if e := httpx.AsError(err); e.Status < 500 {
-				httpx.Logger(c).Warn("password change rejected", "user_id", id, "reason", e.Message)
+				httpx.Logger(c).Warn("password change rejected", "user_id", u.ID, "reason", e.Message)
 			}
 			account.Fail(c, err)
 			return
 		}
-		httpx.Logger(c).Info("password changed", "user_id", id)
+		httpx.Logger(c).Info("password changed", "user_id", u.ID)
 		httpx.OK(c, true)
 	}
 }
 
 func getStats(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		st, err := account.New(a).Stats(c.Request.Context(), auth.CurrentUser(c).ID)
+		var st account.Stats
+		err := a.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+			if err := lockCurrentUser(tx, c); err != nil {
+				return err
+			}
+			var err error
+			st, err = account.New(a).StatsDB(c.Request.Context(), tx, auth.CurrentUser(c).ID)
+			return err
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -160,7 +211,7 @@ func getSubscription(a *app.App) gin.HandlerFunc {
 		users := usersvc.New(a)
 		view := account.ToUserView(u, plan) // UTC timestamps
 		subURL := users.SubscribeURL(u)
-		profiles, err := subscriptionProfiles(c, a, u.ID, subURL)
+		profiles, err := subscriptionProfiles(c, a, u, subURL)
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -201,16 +252,13 @@ func resetSubscription(a *app.App) gin.HandlerFunc {
 		}
 		users := usersvc.New(a)
 		if err := users.ResetSecurity(ctx, u); err != nil {
+			if errors.Is(err, usersvc.ErrNotFound) {
+				err = httpx.Unauthorized("session expired, please sign in again")
+			}
 			httpx.Fail(c, err)
 			return
 		}
-		auth.InvalidateUser(a, u.ID)
-		users.InvalidateNodeUsers()
-		// Reload so the session token carries the stored password_version even if it moved concurrently.
-		if u, err = freshUser(c, a); err != nil {
-			httpx.Fail(c, err)
-			return
-		}
+		// Sign exactly the version this request stored; a later security change must make this token stale.
 		tok, err := auth.Issue(a, u)
 		if err != nil {
 			httpx.Fail(c, err)
@@ -241,27 +289,29 @@ func trafficLogs(a *app.App) gin.HandlerFunc {
 		D        int64
 	}
 	return func(c *gin.Context) {
-		db := a.DB.WithContext(c.Request.Context())
 		id := auth.CurrentUser(c).ID
 		_, size, offset := httpx.ParsePage(c)
 		var total int64
-		if err := db.Model(&model.StatUser{}).Where("user_id = ?", id).Count(&total).Error; err != nil {
-			httpx.Fail(c, err)
-			return
-		}
 		out := []TrafficLog{}
-		if total > int64(offset) {
+		err := a.DB.WithContext(c.Request.Context()).Transaction(func(db *gorm.DB) error {
+			if err := lockCurrentUser(db, c); err != nil {
+				return err
+			}
+			if err := db.Model(&model.StatUser{}).Where("user_id = ?", id).Count(&total).Error; err != nil {
+				return err
+			}
+			if total <= int64(offset) {
+				return nil
+			}
 			var rows []row
-			err := db.Table("stat_users").
+			if err := db.Table("stat_users").
 				Select("stat_users.record_at, stat_users.node_id, nodes.name AS node_name, stat_users.rate, stat_users.u, stat_users.d").
 				Joins("LEFT JOIN nodes ON nodes.id = stat_users.node_id").
 				Where("stat_users.user_id = ?", id).
 				Order("stat_users.record_at DESC, stat_users.id DESC").
 				Limit(size).Offset(offset).
-				Scan(&rows).Error
-			if err != nil {
-				httpx.Fail(c, err)
-				return
+				Scan(&rows).Error; err != nil {
+				return err
 			}
 			for _, r := range rows {
 				out = append(out, TrafficLog{
@@ -269,6 +319,11 @@ func trafficLogs(a *app.App) gin.HandlerFunc {
 					Rate: r.Rate, U: r.U, D: r.D,
 				})
 			}
+			return nil
+		})
+		if err != nil {
+			httpx.Fail(c, err)
+			return
 		}
 		httpx.List(c, out, total)
 	}

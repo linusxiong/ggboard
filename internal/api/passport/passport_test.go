@@ -357,7 +357,7 @@ func TestSendCodeIPLimit(t *testing.T) {
 func TestLoginToken(t *testing.T) {
 	a, r := setup(t, nil)
 	u := testutil.CreateUser(t, a, "target@example.com")
-	tok := auth.IssueLoginToken(a, u.ID)
+	tok := auth.IssueLoginToken(a, u)
 	res := testutil.Decode[passport.AuthResult](t, testutil.Do(t, r, http.MethodPost, base+"/login/token", map[string]any{"token": tok}, ""))
 	if res.User.ID != u.ID || res.Token == "" {
 		t.Fatalf("login/token = %+v", res)
@@ -368,7 +368,7 @@ func TestLoginToken(t *testing.T) {
 	if err := a.DB.Model(&model.User{}).Where("id = ?", u.ID).Update("banned", true).Error; err != nil {
 		t.Fatal(err)
 	}
-	expectError(t, r, "/login/token", map[string]any{"token": auth.IssueLoginToken(a, u.ID)}, 403, "")
+	expectError(t, r, "/login/token", map[string]any{"token": auth.IssueLoginToken(a, u)}, 403, "")
 }
 
 type fakeCaptcha struct{}

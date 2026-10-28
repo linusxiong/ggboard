@@ -211,8 +211,8 @@ func write(ctx context.Context, db *gorm.DB, batch map[key]*entry, day time.Time
 			}
 			u := users[id]
 			if err := tx.Model(&model.User{}).Where("id = ?", id).UpdateColumns(map[string]any{
-				"u": gorm.Expr("u + ?", u.u),
-				"d": gorm.Expr("d + ?", u.d),
+				"u": gorm.Expr("CASE WHEN u < 0 OR u > ? THEN ? ELSE u + ? END", math.MaxInt64-u.u, math.MaxInt64, u.u),
+				"d": gorm.Expr("CASE WHEN d < 0 OR d > ? THEN ? ELSE d + ? END", math.MaxInt64-u.d, math.MaxInt64, u.d),
 			}).Error; err != nil {
 				return fmt.Errorf("traffic: update user %d: %w", id, err)
 			}
@@ -259,8 +259,9 @@ func Excluded(db *gorm.DB, col string) clause.Expr {
 	return gorm.Expr("excluded." + col)
 }
 
-// AddExcluded returns "table.col + <excluded col>" for accumulating upserts on any supported dialect.
+// AddExcluded returns a saturating sum for accumulating upserts on any supported dialect.
 func AddExcluded(db *gorm.DB, table, col string) clause.Expr {
 	ex := Excluded(db, col)
-	return gorm.Expr(table+"."+col+" + "+ex.SQL, ex.Vars...)
+	old := table + "." + col
+	return gorm.Expr("CASE WHEN "+old+" < 0 OR "+old+" > ? - "+ex.SQL+" THEN ? ELSE "+old+" + "+ex.SQL+" END", math.MaxInt64, math.MaxInt64)
 }

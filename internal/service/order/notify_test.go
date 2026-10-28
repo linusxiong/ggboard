@@ -81,14 +81,14 @@ func TestNotifyCallerChecks(t *testing.T) {
 		t.Fatal("payment mismatch must alert the admin")
 	}
 	// Unknown order: acknowledged + alert.
-	if resp := f.notify(pay, fakeName, "s3cret", body("20990101000000000000", "x", 0)); resp.Status != 200 || adminMails() != 3 {
+	if resp := f.notify(pay, fakeName, "s3cret", body("20990101000000000000", "x", 1000)); resp.Status != 200 || adminMails() != 3 {
 		t.Fatalf("unknown order = %+v", resp)
 	}
 	// Cancelled by the timeout before the payment arrived: callback stored, not fulfilled, alert.
 	if _, err := f.svc.Cancel(ctx, o.ID); err != nil {
 		t.Fatal(err)
 	}
-	if resp := f.notify(pay, "fake_ordersvc", "s3cret", body(o.TradeNo, "late-1", 0)); resp.Status != 200 {
+	if resp := f.notify(pay, "fake_ordersvc", "s3cret", body(o.TradeNo, "late-1", 1000)); resp.Status != 200 {
 		t.Fatalf("cancelled = %+v", resp)
 	}
 	got := f.order(o.TradeNo)

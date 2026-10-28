@@ -243,33 +243,33 @@ func TestTOTPLifecycle(t *testing.T) {
 	}
 
 	// Replay: the step used to enable (now-30s) and older steps are rejected; current and +1 are accepted once.
-	ok, err := s.verifyCode(ctx, &row, mfatest.TOTP(t, setup.Secret, now.Add(-30*time.Second)))
+	ok, err := s.verifyCode(ctx, a.DB, &row, mfatest.TOTP(t, setup.Secret, now.Add(-30*time.Second)))
 	if err != nil || ok {
 		t.Fatalf("replayed step accepted: %v %v", ok, err)
 	}
-	if ok, _ := s.verifyCode(ctx, &row, mfatest.TOTP(t, setup.Secret, *now)); !ok {
+	if ok, _ := s.verifyCode(ctx, a.DB, &row, mfatest.TOTP(t, setup.Secret, *now)); !ok {
 		t.Fatal("current step rejected")
 	}
-	if ok, _ := s.verifyCode(ctx, &row, mfatest.TOTP(t, setup.Secret, *now)); ok {
+	if ok, _ := s.verifyCode(ctx, a.DB, &row, mfatest.TOTP(t, setup.Secret, *now)); ok {
 		t.Fatal("same code accepted twice")
 	}
-	if ok, _ := s.verifyCode(ctx, &row, mfatest.TOTP(t, setup.Secret, now.Add(30*time.Second))); !ok {
+	if ok, _ := s.verifyCode(ctx, a.DB, &row, mfatest.TOTP(t, setup.Secret, now.Add(30*time.Second))); !ok {
 		t.Fatal("step +1 rejected")
 	}
 	*now = now.Add(10 * time.Minute)
-	if ok, _ := s.verifyCode(ctx, &row, mfatest.TOTP(t, setup.Secret, now.Add(-60*time.Second))); ok {
+	if ok, _ := s.verifyCode(ctx, a.DB, &row, mfatest.TOTP(t, setup.Secret, now.Add(-60*time.Second))); ok {
 		t.Fatal("step -2 accepted")
 	}
-	if ok, _ := s.verifyCode(ctx, &row, mfatest.TOTP(t, setup.Secret, now.Add(60*time.Second))); ok {
+	if ok, _ := s.verifyCode(ctx, a.DB, &row, mfatest.TOTP(t, setup.Secret, now.Add(60*time.Second))); ok {
 		t.Fatal("step +2 accepted")
 	}
 
 	// Backup codes are single use and accepted in any case / without the dash.
 	bc := strings.ToUpper(strings.ReplaceAll(codes[0], "-", ""))
-	if ok, err := s.verifyCode(ctx, &row, bc); err != nil || !ok {
+	if ok, err := s.verifyCode(ctx, a.DB, &row, bc); err != nil || !ok {
 		t.Fatalf("backup code: %v %v", ok, err)
 	}
-	if ok, _ := s.verifyCode(ctx, &row, codes[0]); ok {
+	if ok, _ := s.verifyCode(ctx, a.DB, &row, codes[0]); ok {
 		t.Fatal("backup code reused")
 	}
 	ov, err := s.Overview(ctx, u.ID)
@@ -286,7 +286,7 @@ func TestTOTPLifecycle(t *testing.T) {
 	if err := a.DB.First(&row, "user_id = ?", u.ID).Error; err != nil {
 		t.Fatal(err)
 	}
-	if ok, _ := s.verifyCode(ctx, &row, codes[1]); ok {
+	if ok, _ := s.verifyCode(ctx, a.DB, &row, codes[1]); ok {
 		t.Fatal("old backup code survived regeneration")
 	}
 

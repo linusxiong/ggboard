@@ -6,7 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/linusxiong/ggboard/internal/app"
-	"github.com/linusxiong/ggboard/internal/auth"
 	"github.com/linusxiong/ggboard/internal/httpx"
 	nodesvc "github.com/linusxiong/ggboard/internal/service/node"
 )
@@ -29,7 +28,11 @@ type userNodeView struct {
 func registerNodes(g *gin.RouterGroup, a *app.App) {
 	svc := nodesvc.New(a)
 	g.GET("/nodes", func(c *gin.Context) {
-		u := auth.CurrentUser(c)
+		u, err := freshUser(c, a)
+		if err != nil {
+			httpx.Fail(c, err)
+			return
+		}
 		out := []userNodeView{}
 		// Like Xboard, a user whose subscription is unusable (banned, expired, out of traffic) sees no nodes.
 		if !u.IsAvailable(time.Now()) {

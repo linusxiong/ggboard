@@ -3,11 +3,13 @@ package ordersvc
 import (
 	"context"
 	"errors"
+	"math"
 	"time"
 
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 
+	"github.com/linusxiong/ggboard/internal/auth"
 	"github.com/linusxiong/ggboard/internal/httpx"
 	"github.com/linusxiong/ggboard/internal/model"
 	"github.com/linusxiong/ggboard/internal/payment"
@@ -23,6 +25,7 @@ const payTimeout = 30 * time.Second
 type CheckoutInput struct {
 	PaymentID *uint64
 	ClientIP  string
+	Actor     *auth.Claims
 	// BaseURL (scheme://host of the request) is used when settings.app_url is empty.
 	BaseURL string
 }
@@ -33,8 +36,14 @@ func HandlingAmount(p *model.Payment, total int64) int64 {
 		return 0
 	}
 	fee := decimal.NewFromInt(total).Mul(decimal.NewFromFloat(p.HandlingFeePercent)).Div(decimal.NewFromInt(100)).
-		Add(decimal.NewFromInt(p.HandlingFeeFixed)).Round(0).IntPart()
-	return max(fee, 0)
+		Add(decimal.NewFromInt(p.HandlingFeeFixed)).Round(0)
+	if fee.LessThanOrEqual(decimal.Zero) {
+		return 0
+	}
+	if fee.GreaterThan(decimal.NewFromInt(math.MaxInt64)) {
+		return math.MaxInt64
+	}
+	return fee.IntPart()
 }
 
 func badPayment() error {
@@ -62,12 +71,15 @@ func (s *Service) Checkout(ctx context.Context, userID uint64, tradeNo string, i
 	case model.OrderStatusCancelled:
 		return nil, httpx.Conflict("the order is cancelled")
 	}
-	if o.TotalAmount <= 0 {
+	if o.TotalAmount < 0 {
+		return nil, httpx.Conflict("the order amount is invalid")
+	}
+	if o.TotalAmount == 0 {
 		cb := CallbackFree
 		if o.BalanceAmount > 0 {
 			cb = CallbackBalance
 		}
-		if _, _, err := s.Paid(ctx, o.TradeNo, cb); err != nil {
+		if _, _, err := s.paidWithActor(ctx, o.TradeNo, cb, nil, userID, in.Actor, nil); err != nil {
 			if errors.Is(err, ErrOrderCancelled) {
 				return nil, httpx.Conflict("the order is cancelled")
 			}
@@ -96,22 +108,31 @@ func (s *Service) Checkout(ctx context.Context, userID uint64, tradeNo string, i
 		return nil, badPayment()
 	}
 	handling := HandlingAmount(&p, o.TotalAmount)
-	res := db.Model(&model.Order{}).Where("id = ? AND status = ?", o.ID, model.OrderStatusPending).
-		Updates(map[string]any{"payment_id": p.ID, "handling_amount": handling})
-	if res.Error != nil {
-		return nil, res.Error
+	charge, ok := chargeAmount(o.TotalAmount, handling)
+	if !ok {
+		return nil, httpx.Conflict("the order amount is invalid")
 	}
-	if res.RowsAffected == 0 {
-		return nil, httpx.Conflict("the order is no longer pending")
-	}
-	var (
-		plan model.Plan
-		user model.User
-	)
-	if err := db.Select("id", "name").Limit(1).Find(&plan, o.PlanID).Error; err != nil {
+	var user model.User
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&model.Order{}).Where("id = ? AND user_id = ? AND status = ?", o.ID, userID, model.OrderStatusPending).
+			Updates(map[string]any{"payment_id": p.ID, "handling_amount": handling})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return httpx.Conflict("the order is no longer pending")
+		}
+		u, err := LockActor(tx, userID, in.Actor)
+		if err != nil {
+			return err
+		}
+		user = *u
+		return nil
+	}); err != nil {
 		return nil, err
 	}
-	if err := db.Select("id", "email").Limit(1).Find(&user, o.UserID).Error; err != nil {
+	var plan model.Plan
+	if err := db.Select("id", "name").Limit(1).Find(&plan, o.PlanID).Error; err != nil {
 		return nil, err
 	}
 	subject := s.a.Settings.String("app_name")
@@ -120,7 +141,7 @@ func (s *Service) Checkout(ctx context.Context, userID uint64, tradeNo string, i
 	}
 	req := payment.PayRequest{
 		TradeNo:     o.TradeNo,
-		TotalAmount: o.TotalAmount + handling,
+		TotalAmount: charge,
 		Currency:    s.a.Settings.String("currency"),
 		Subject:     subject,
 		ExpiresAt:   o.CreatedAt.Add(time.Duration(s.a.Settings.Int("order_timeout_minutes")) * time.Minute),

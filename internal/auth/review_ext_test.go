@@ -32,7 +32,7 @@ func TestReviewStaleUserCacheDoesNotRejectNewToken(t *testing.T) {
 	}
 	newTok := testutil.Login(t, a, &cur)
 	oldTok := testutil.Login(t, a, &stale)
-	a.Cache.Set("auth:user:"+strconv.FormatUint(u.ID, 10), stale, auth.UserCacheTTL) // the racing stale load
+	a.Cache.Set(a.Cache.Key("auth:user:"+strconv.FormatUint(u.ID, 10), ""), stale, auth.UserCacheTTL)
 	testutil.ExpectStatus(t, testutil.Do(t, r, http.MethodGet, "/me", nil, newTok), http.StatusOK)
 	testutil.ExpectStatus(t, testutil.Do(t, r, http.MethodGet, "/me", nil, oldTok), http.StatusUnauthorized)
 }

@@ -16,13 +16,14 @@ import (
 // Issuer is the JWT "iss" claim.
 const Issuer = "ggboard"
 
-// Claims are the session token claims: sub = user id, email, ver = password_version, iat, exp.
+// Claims are the session token claims: sub = user id, uuid, email, ver = password_version, iat, exp.
 //
 // sub is a reusable primary key (import xboard --force, a restored backup or an id-reusing MySQL hand it to
-// another account), so a token is bound to the account instance by sub + email + ver: the middleware rejects it
-// when the row that now owns sub has a different email or password_version. Tokens without an email are refused.
+// another account), so a token is bound to the account instance by sub + uuid + email + ver. The UUID also
+// prevents a recreated account with the same id, email and initial password_version from reviving old tokens.
 type Claims struct {
 	Email string `json:"email"`
+	UUID  string `json:"uuid"`
 	Ver   int    `json:"ver"`
 	jwt.RegisteredClaims
 }
@@ -39,9 +40,11 @@ func (c *Claims) UserID() (uint64, error) {
 // normEmail is the comparison form of an email (usersvc.NormalizeEmail; auth cannot import it).
 func normEmail(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
 
-// boundTo reports whether the token was issued to u as it is now: same email and password_version.
-func (c *Claims) boundTo(u *model.User) bool {
-	return u.PasswordVersion == c.Ver && normEmail(c.Email) != "" && normEmail(c.Email) == normEmail(u.Email)
+// BoundTo reports whether the token was issued to u as it is now: same id, UUID, email and password_version.
+func (c *Claims) BoundTo(u *model.User) bool {
+	id, err := c.UserID()
+	return err == nil && id == u.ID && c.UUID != "" && c.UUID == u.UUID && u.PasswordVersion == c.Ver &&
+		normEmail(c.Email) != "" && normEmail(c.Email) == normEmail(u.Email)
 }
 
 // Issue signs a session token for u valid for cfg.JWT.TTL.
@@ -57,8 +60,12 @@ func IssueWith(secret []byte, ttl time.Duration, u *model.User, now time.Time) (
 	if normEmail(u.Email) == "" {
 		return "", errors.New("auth: user has no email")
 	}
+	if u.UUID == "" {
+		return "", errors.New("auth: user has no uuid")
+	}
 	claims := Claims{
 		Email: u.Email,
+		UUID:  u.UUID,
 		Ver:   u.PasswordVersion,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    Issuer,
@@ -74,7 +81,7 @@ func IssueWith(secret []byte, ttl time.Duration, u *model.User, now time.Time) (
 	return s, nil
 }
 
-// Parse verifies an HS256 token (signature, iss, exp, iat with 30s leeway, a numeric sub and a non-empty email)
+// Parse verifies an HS256 token (signature, iss, exp, iat with 30s leeway, a numeric sub and non-empty email/uuid)
 // and returns its claims.
 func Parse(a *app.App, token string) (*Claims, error) {
 	return ParseWith([]byte(a.Cfg.JWT.Secret), token)
@@ -98,6 +105,9 @@ func ParseWith(secret []byte, token string) (*Claims, error) {
 	}
 	if normEmail(claims.Email) == "" {
 		return nil, errors.New("auth: token has no email claim")
+	}
+	if claims.UUID == "" {
+		return nil, errors.New("auth: token has no uuid claim")
 	}
 	return claims, nil
 }

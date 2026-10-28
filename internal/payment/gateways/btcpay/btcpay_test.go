@@ -233,6 +233,8 @@ func TestNotifyRequiresBoundInvoice(t *testing.T) {
 		{name: "manually marked settled", edit: func(inv map[string]any) { inv["additionalStatus"] = "Marked" }, paid: true, amount: 1234},
 		{name: "amount mismatch", edit: func(inv map[string]any) { inv["amount"] = "0.01" }},
 		{name: "zero amount top-up", edit: func(inv map[string]any) { inv["amount"] = "0" }},
+		{name: "missing amount", edit: func(inv map[string]any) { delete(inv, "amount") }},
+		{name: "negative amount", edit: func(inv map[string]any) { inv["amount"] = "-1" }},
 		{name: "currency mismatch", edit: func(inv map[string]any) { inv["currency"] = "JPY" }},
 		{name: "orderId mismatch", edit: setMeta("orderId", "20261021ffffffffffffffffffffffff")},
 		{name: "not settled", edit: func(inv map[string]any) { inv["status"] = "Processing" }},

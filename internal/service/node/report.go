@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/linusxiong/ggboard/internal/app/online"
 	"github.com/linusxiong/ggboard/internal/model"
 )
@@ -489,6 +491,11 @@ type OnlineUser struct {
 // OnlineUsers returns the users online on node id (pass EffectiveID for children) with their emails and live
 // IPs, by user id. It is the list behind StatusView.Online.
 func (s *Service) OnlineUsers(ctx context.Context, id uint64) ([]OnlineUser, error) {
+	return s.OnlineUsersWithDB(ctx, s.a.DB, id)
+}
+
+// OnlineUsersWithDB keeps the email snapshot in a caller's authorization transaction.
+func (s *Service) OnlineUsersWithDB(ctx context.Context, db *gorm.DB, id uint64) ([]OnlineUser, error) {
 	alive := s.a.Online.NodeOnline(id, s.Window())
 	out := make([]OnlineUser, 0, len(alive))
 	if len(alive) == 0 {
@@ -508,7 +515,7 @@ func (s *Service) OnlineUsers(ctx context.Context, id uint64) ([]OnlineUser, err
 			Email string
 		}
 		part := ids[i:min(i+chunk, len(ids))]
-		if err := s.a.DB.WithContext(ctx).Model(&model.User{}).Select("id", "email").Where("id IN ?", part).Scan(&rows).Error; err != nil {
+		if err := db.WithContext(ctx).Model(&model.User{}).Select("id", "email").Where("id IN ?", part).Scan(&rows).Error; err != nil {
 			return nil, err
 		}
 		for _, r := range rows {

@@ -67,8 +67,12 @@ func (s *Service) RecordLogin(ctx context.Context, u *model.User, ip string) {
 // expired tokens are 401, and so are tokens of users promoted to admin/staff since the token was issued (they
 // cannot be impersonated); banned users 403. last_login_* is not touched (the session is the admin's).
 func (s *Service) LoginWithToken(ctx context.Context, token string) (*model.User, error) {
-	id, ok := auth.ConsumeLoginToken(s.a, token)
+	claims, ok := auth.ConsumeLoginToken(s.a, token)
 	if !ok {
+		return nil, httpx.Unauthorized("invalid or expired login token")
+	}
+	id, err := claims.UserID()
+	if err != nil {
 		return nil, httpx.Unauthorized("invalid or expired login token")
 	}
 	u, err := s.users.FindByID(ctx, id)
@@ -78,7 +82,7 @@ func (s *Service) LoginWithToken(ctx context.Context, token string) (*model.User
 	if err != nil {
 		return nil, err
 	}
-	if u.IsAdmin || u.IsStaff {
+	if !claims.BoundTo(u) || u.IsAdmin || u.IsStaff {
 		return nil, httpx.Unauthorized("invalid or expired login token")
 	}
 	if u.Banned {
@@ -128,26 +132,22 @@ func (s *Service) ResetPassword(ctx context.Context, email, code, password strin
 	return u, false, nil
 }
 
-// ChangePassword verifies oldPassword (counting failures towards the password lockout) and stores
-// newPassword, bumping password_version.
-func (s *Service) ChangePassword(ctx context.Context, userID uint64, oldPassword, newPassword string) (*model.User, error) {
-	u, err := s.users.FindByID(ctx, userID)
-	if errors.Is(err, usersvc.ErrNotFound) {
-		return nil, httpx.Unauthorized("invalid or expired token")
-	}
-	if err != nil {
-		return nil, err
-	}
+// ChangePassword verifies oldPassword and stores newPassword against the authenticated snapshot u,
+// bumping password_version. Wrong passwords count towards the password lockout.
+func (s *Service) ChangePassword(ctx context.Context, u *model.User, oldPassword, newPassword string) (*model.User, error) {
 	if _, err := s.ReservePasswordAttempt(u.Email); err != nil {
 		return nil, err
 	}
 	if !auth.VerifyPassword(u.PasswordHash, oldPassword) {
 		return nil, httpx.FieldError("old_password", "is incorrect") // the reserved attempt counts
 	}
-	s.ClearPasswordFailures(u.Email)
 	if err := s.users.SetPassword(ctx, u, newPassword); err != nil {
+		if errors.Is(err, usersvc.ErrNotFound) {
+			return nil, httpx.Unauthorized("session expired, please sign in again")
+		}
 		return nil, err
 	}
+	s.ClearPasswordFailures(u.Email)
 	auth.InvalidateUser(s.a, u.ID)
 	return u, nil
 }

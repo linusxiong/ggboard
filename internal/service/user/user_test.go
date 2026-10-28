@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/linusxiong/ggboard/internal/auth"
@@ -238,6 +239,57 @@ func TestSetPasswordAndResetSecurity(t *testing.T) {
 	}
 	if err := svc.ResetSecurity(ctx, ghost); !errors.Is(err, usersvc.ErrNotFound) {
 		t.Fatal("missing user")
+	}
+}
+
+func TestSecurityWritesRejectStaleUserSnapshot(t *testing.T) {
+	a := testutil.NewTestApp(t)
+	svc := usersvc.New(a)
+	u := testutil.CreateUser(t, a, "stale-security@example.com")
+	stale := *u
+	oldUUID, oldToken := u.UUID, u.Token
+
+	if err := svc.SetPassword(ctx, u, "new-password-1"); err != nil {
+		t.Fatal(err)
+	}
+	for name, write := range map[string]func() error{
+		"set password":   func() error { return svc.SetPassword(ctx, &stale, "attacker-password") },
+		"reset security": func() error { return svc.ResetSecurity(ctx, &stale) },
+		"rotate token":   func() error { return svc.RotateToken(ctx, &stale) },
+	} {
+		if err := write(); !errors.Is(err, usersvc.ErrNotFound) {
+			t.Fatalf("%s with stale snapshot = %v, want ErrNotFound", name, err)
+		}
+	}
+
+	var stored model.User
+	if err := a.DB.First(&stored, u.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.PasswordVersion != 1 || stored.UUID != oldUUID || stored.Token != oldToken ||
+		!auth.VerifyPassword(stored.PasswordHash, "new-password-1") {
+		t.Fatalf("stale security write changed account: %+v", stored)
+	}
+
+	sameVersion := stored
+	replacementUUID := uuid.NewString()
+	if err := a.DB.Model(&model.User{}).Where("id = ?", u.ID).Update("uuid", replacementUUID).Error; err != nil {
+		t.Fatal(err)
+	}
+	for name, write := range map[string]func() error{
+		"set password":   func() error { return svc.SetPassword(ctx, &sameVersion, "attacker-password") },
+		"reset security": func() error { return svc.ResetSecurity(ctx, &sameVersion) },
+		"rotate token":   func() error { return svc.RotateToken(ctx, &sameVersion) },
+	} {
+		if err := write(); !errors.Is(err, usersvc.ErrNotFound) {
+			t.Fatalf("%s after account replacement = %v, want ErrNotFound", name, err)
+		}
+	}
+	if err := a.DB.First(&stored, u.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.UUID != replacementUUID || stored.Token != oldToken || !auth.VerifyPassword(stored.PasswordHash, "new-password-1") {
+		t.Fatalf("replaced account changed by stale snapshot: %+v", stored)
 	}
 }
 

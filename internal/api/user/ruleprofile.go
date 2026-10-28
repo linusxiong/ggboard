@@ -60,19 +60,15 @@ type ruleProfileView struct {
 func profileView(c *gin.Context, a *app.App, cat *subscription.Catalog, slug string) (ruleProfileView, error) {
 	ctx := c.Request.Context()
 	u := auth.CurrentUser(c)
-	if err := engine.EnsureDefault(ctx, a, u.ID); err != nil {
-		return ruleProfileView{}, err
+	if err := engine.EnsureDefault(ctx, a, u.ID, u); err != nil {
+		return ruleProfileView{}, profileErr(err)
 	}
-	row, stored, err := engine.StoredProfileSlug(ctx, a, cat, u.ID, slug)
+	row, stored, rows, err := engine.StoredProfileSlugBound(ctx, a, cat, u, slug)
 	if err != nil {
 		return ruleProfileView{}, profileErr(err)
 	}
 	if row == nil {
 		return ruleProfileView{}, httpx.NotFound("rule profile not found")
-	}
-	rows, err := engine.LoadProfiles(ctx, a, u.ID)
-	if err != nil {
-		return ruleProfileView{}, err
 	}
 	def := engine.DefaultOf(rows)
 	v := ruleProfileView{Editable: a.Settings.Bool("allow_user_rule_profile"), Customized: stored != nil,
@@ -82,7 +78,11 @@ func profileView(c *gin.Context, a *app.App, cat *subscription.Catalog, slug str
 	} else {
 		v.RuleProfile = rulesets.DefaultProfile(cat, rulesets.DefaultsFrom(a.Settings))
 	}
-	v.Effective, err = engine.EffectiveProfile(ctx, a, cat, u, rulesets.Overrides{Template: row.Slug})
+	if !v.Editable {
+		v.Effective = rulesets.DefaultProfile(cat, rulesets.DefaultsFrom(a.Settings))
+	} else {
+		v.Effective, err = rulesets.ResolveProfile(cat, stored, rulesets.DefaultsFrom(a.Settings), rulesets.Overrides{})
+	}
 	return v, err
 }
 
@@ -99,6 +99,8 @@ func profileErr(err error) error {
 		return e
 	case errors.Is(err, engine.ErrDefaultProfile):
 		return httpx.Conflict("the default profile cannot be deleted")
+	case errors.Is(err, engine.ErrProfileSessionExpired):
+		return httpx.Unauthorized("session expired, please sign in again")
 	}
 	return err
 }
@@ -147,7 +149,7 @@ func putRuleProfile(a *app.App, fixedSlug string) gin.HandlerFunc {
 		var present map[string]json.RawMessage
 		if json.Unmarshal(raw, &present) == nil && present["nodes"] == nil {
 			// Clients that do not know node operations (older SPA builds) must not wipe them.
-			_, stored, err := engine.StoredProfileSlug(c.Request.Context(), a, cat, u.ID, slug)
+			_, stored, _, err := engine.StoredProfileSlugBound(c.Request.Context(), a, cat, u, slug)
 			if err != nil {
 				httpx.Fail(c, profileErr(err))
 				return
@@ -165,7 +167,7 @@ func putRuleProfile(a *app.App, fixedSlug string) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		if err := engine.SaveProfileSlug(c.Request.Context(), a, u.ID, slug, data); err != nil {
+		if err := engine.SaveProfileSlug(c.Request.Context(), a, u.ID, slug, data, u); err != nil {
 			httpx.Fail(c, profileErr(err))
 			return
 		}
@@ -194,7 +196,11 @@ func previewSubscription(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, httpx.FieldError("client", "unknown client"))
 			return
 		}
-		u := auth.CurrentUser(c)
+		u, err := freshUser(c, a)
+		if err != nil {
+			httpx.Fail(c, err)
+			return
+		}
 		res, err := engine.Generate(c.Request.Context(), a, u, engine.Request{
 			Format: format, UserAgent: c.GetHeader("User-Agent"), Query: q, Host: hostOnly(c.Request.Host),
 		})

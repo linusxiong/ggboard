@@ -34,12 +34,28 @@ func subguardUser(c *gin.Context, a *app.App) (*model.User, error) {
 // subguardAgeHandler: GET /admin/users/:id/subscription/age → the key without the private key.
 func subguardAgeHandler(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		u, err := subguardUser(c, a)
+		id, err := httpx.ParamID(c, "id")
 		if err != nil {
 			httpx.Fail(c, err)
 			return
 		}
-		k, err := guard.LoadKey(c.Request.Context(), a, u.ID)
+		var k *model.SubscriptionKey
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			if err := tx.Select("id").First(&model.User{}, id).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return httpx.NotFound("user not found")
+				}
+				return err
+			}
+			var rows []model.SubscriptionKey
+			if err := tx.Where("user_id = ?", id).Limit(1).Find(&rows).Error; err != nil {
+				return err
+			}
+			if len(rows) > 0 {
+				k = &rows[0]
+			}
+			return nil
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -66,7 +82,9 @@ func subguardAgeResetHandler(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, httpx.NotFound("the user has no age key"))
 			return
 		}
-		k, _, err := guard.GenerateKey(c.Request.Context(), a, u.ID, true, nil)
+		k, _, err := guard.GenerateKeyIf(c.Request.Context(), a, u.ID, true, nil, func(tx *gorm.DB) error {
+			return settingsLiveAdmin(c, tx, true)
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -84,7 +102,9 @@ func subguardAccessLogHandler(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		out, err := guard.ListAccess(c.Request.Context(), a, u.ID, guard.AdminLogLimit, false)
+		out, err := guard.ListAccessIf(c.Request.Context(), a, u.ID, guard.AdminLogLimit, false, func(tx *gorm.DB) error {
+			return settingsLiveAdmin(c, tx, true)
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return

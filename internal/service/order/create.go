@@ -7,6 +7,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/linusxiong/ggboard/internal/auth"
 	"github.com/linusxiong/ggboard/internal/httpx"
 	"github.com/linusxiong/ggboard/internal/model"
 	"github.com/linusxiong/ggboard/internal/notify"
@@ -18,6 +19,7 @@ type CreateInput struct {
 	PlanID     uint64
 	Period     string
 	CouponCode string
+	Actor      *auth.Claims
 }
 
 func loadPlan(tx *gorm.DB, id uint64) (*model.Plan, error) {
@@ -27,6 +29,9 @@ func loadPlan(tx *gorm.DB, id uint64) (*model.Plan, error) {
 			return nil, httpx.NotFound("plan not found")
 		}
 		return nil, err
+	}
+	if p.TransferEnable < 0 || p.TransferEnable > model.MaxPlanTransferGB {
+		return nil, httpx.FieldError("plan_id", "plan traffic is invalid; contact support")
 	}
 	return &p, nil
 }
@@ -41,7 +46,7 @@ func (s *Service) Create(ctx context.Context, userID uint64, in CreateInput) (*m
 		email, planName string
 	)
 	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		u, err := lockUser(tx, userID)
+		u, err := LockActor(tx, userID, in.Actor)
 		if err != nil {
 			return err
 		}
@@ -145,7 +150,7 @@ func (s *Service) Create(ctx context.Context, userID uint64, in CreateInput) (*m
 		if order.BalanceAmount > 0 {
 			cb = CallbackBalance
 		}
-		paid, _, err := s.Paid(ctx, order.TradeNo, cb)
+		paid, _, err := s.paidWithActor(ctx, order.TradeNo, cb, nil, userID, in.Actor, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -161,6 +166,7 @@ type AssignInput struct {
 	PlanID      uint64
 	Period      string
 	TotalAmount *int64 // nil = the plan's price for Period
+	Admin       *auth.Claims
 }
 
 // Assign creates a pending order for a user without discounts, coupons, surplus or balance (Xboard admin
@@ -169,6 +175,11 @@ func (s *Service) Assign(ctx context.Context, in AssignInput) (*model.Order, err
 	now := s.now()
 	var order *model.Order
 	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if in.Admin != nil {
+			if err := lockAdminActor(tx, in.Admin); err != nil {
+				return err
+			}
+		}
 		id := in.UserID
 		if id == 0 {
 			var u model.User

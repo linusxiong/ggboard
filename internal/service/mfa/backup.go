@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 
+	"gorm.io/gorm"
+
 	"github.com/linusxiong/ggboard/internal/model"
 )
 
@@ -56,7 +58,7 @@ func hashBackup(normalized string) string {
 
 // consumeBackup removes the hash of code from row when present. The update is conditional on the stored list
 // (compare-and-swap, retried after a concurrent change) so a code can never be used twice.
-func (s *Service) consumeBackup(ctx context.Context, row *model.UserMFA, normalized string) (bool, error) {
+func (s *Service) consumeBackup(ctx context.Context, db *gorm.DB, row *model.UserMFA, normalized string) (bool, error) {
 	h := hashBackup(normalized)
 	for range 3 {
 		idx := slices.IndexFunc(row.BackupCodes, func(x string) bool {
@@ -70,8 +72,8 @@ func (s *Service) consumeBackup(ctx context.Context, row *model.UserMFA, normali
 			return false, err
 		}
 		rest := slices.Delete(slices.Clone(row.BackupCodes), idx, idx+1)
-		res := s.a.DB.WithContext(ctx).Model(&model.UserMFA{}).
-			Where("user_id = ? AND backup_codes = ?", row.UserID, old).
+		res := db.WithContext(ctx).Model(&model.UserMFA{}).
+			Where("user_id = ? AND backup_codes = ? AND totp_enabled = ? AND totp_secret = ?", row.UserID, old, true, row.TOTPSecret).
 			Update("backup_codes", rest)
 		if res.Error != nil {
 			return false, fmt.Errorf("mfa: consume backup code: %w", res.Error)
@@ -80,9 +82,12 @@ func (s *Service) consumeBackup(ctx context.Context, row *model.UserMFA, normali
 			row.BackupCodes = rest
 			return true, nil
 		}
-		fresh, err := s.load(ctx, s.a.DB, row.UserID)
+		fresh, err := s.load(ctx, db, row.UserID)
 		if err != nil || fresh == nil {
 			return false, err
+		}
+		if !fresh.TOTPEnabled || fresh.TOTPSecret != row.TOTPSecret {
+			return false, nil
 		}
 		*row = *fresh
 	}

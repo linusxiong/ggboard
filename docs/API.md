@@ -13,13 +13,15 @@ Base path `/api/v1` (exceptions: `/healthz`, `/.well-known/*`, the short subscri
 - Errors: `{"code": "...", "message": "...", "errors": {"<json field path>": ["..."]}}` (`errors` only for field errors).
 - Authentication: `Authorization: Bearer <JWT>` (from `/passport/*`, lifetime `jwt.ttl`). A JWT stops working when
   `password_version` changes (password change or reset, subscription reset, admin password change or `reset-secret`) or the
-  account's email no longer matches the token's `email` claim (admin email edit, or the id now belongs to another account
-  after a deletion, `import xboard --force` or a restore); bans and role changes apply immediately because the user is reloaded (30 s cache, dropped on every admin change).
+  account's email or UUID no longer matches the token's `email` / `uuid` claims (admin email edit, or the id now belongs to
+  another account after a deletion, `import xboard --force` or a restore); bans and role changes apply immediately because the
+  user is reloaded (30 s cache, dropped on every admin change). Tokens without `uuid` are rejected: upgrading from versions
+  without this account-instance binding signs out all existing sessions and invalidates pending login/enrolment tokens.
 
 | status | `code` | when |
 | --- | --- | --- |
 | 400 | `validation_failed` | binding/validation failure, domain rule violation (details in `errors`) |
-| 401 | `unauthorized` | missing/invalid/expired JWT, stale `password_version` or `email`, wrong credentials |
+| 401 | `unauthorized` | missing/invalid/expired JWT, stale `password_version`, `email` or `uuid`, wrong credentials |
 | 401 | `mfa_invalid`, `mfa_expired` | second login step (§Passport) |
 | 402 | `payment_failed` | the payment gateway failed during checkout |
 | 403 | `forbidden` | banned account, admin/staff only, feature switched off, invalid subscription or node token |
@@ -132,7 +134,8 @@ Second factor (TOTP) — `internal/service/mfa`:
 - `/login` with TOTP enabled checks the password (lockout, captcha, ban as usual) and returns
   `{"data":{"mfa_required":true,"mfa_token":"<64 hex>","methods":["totp"],"has_passkey":false}}`. `last_login_*` is recorded only
   after the second step. `methods` is always `["totp"]`; backup codes are accepted by the same endpoint.
-- `mfa_token`: opaque, valid 5 min, single use, bound to the user id and `password_version` (a password change revokes it).
+- `mfa_token`: opaque, valid 5 min, single use, bound to the user id, UUID, normalized email and `password_version`
+  (password and email changes revoke it).
 - `/login/mfa`: TOTP accepts the current step ±1 (30 s steps) and never the same or an older step twice; a backup code is consumed.
   Wrong code → 401 `mfa_invalid`; the 5th wrong code for a token revokes it → 429 (`Retry-After`); unknown, used or expired token
   (or TOTP disabled meanwhile) → 401 `mfa_expired`; banned → 403. Independently, 20 wrong second-factor codes per user per hour
@@ -171,14 +174,14 @@ Every route requires a valid JWT (401) of a user who is not banned (403).
 | method | path | req | res |
 | --- | --- | --- | --- |
 | GET | `/user/me` | — | `User` |
-| PATCH | `/user/me` | `{remind_expire?, remind_traffic?}` | `User` |
+| PATCH | `/user/me` | `{remind_expire?, remind_traffic?}` | `User` (write is bound to the JWT account snapshot; 401 if it changed) |
 | POST | `/user/password` | `{old_password*, new_password* (8..128)}` | `true`; bumps `password_version`, so every session (the caller's too) must sign in again; wrong `old_password` → 400 on `old_password` (counts towards the password lockout, 429) |
-| GET | `/user/stats` | — | `{pending_orders, open_tickets, notices_count, invite_count, commission_pending}` (`commission_pending` as in `/user/invite` `stat`) |
-| GET | `/user/subscription` | — | `{subscribe_url, token, plan, transfer_enable, u, d, expired_at, next_reset_at, reset_day, device_limit, conn_limit, speed_limit, profiles}` (`plan` is `{id,name}` or null; `subscribe_url` = a random entry of `subscribe_url`, else `app_url`, + `/api/v1/client/subscribe?token=`; `profiles` = `[{slug, name, is_default, subscribe_url}]`, the default profile's link is `subscribe_url`, the others append `&profile=<slug>`; a user without stored profiles gets the virtual `default` / `默认`) |
+| GET | `/user/stats` | — | `{pending_orders, open_tickets, notices_count, invite_count, commission_pending}` (`commission_pending` as in `/user/invite` `stat`); 401 if the authenticated account snapshot changed before the read |
+| GET | `/user/subscription` | — | `{subscribe_url, token, plan, transfer_enable, u, d, expired_at, next_reset_at, reset_day, device_limit, conn_limit, speed_limit, profiles}` (`plan` is `{id,name}` or null; `subscribe_url` = a random entry of `subscribe_url`, else `app_url`, + `/api/v1/client/subscribe?token=`; `profiles` = `[{slug, name, is_default, subscribe_url}]`, the default profile's link is `subscribe_url`, the others append `&profile=<slug>`; a user without stored profiles gets the virtual `default` / `默认`; 401 if the account snapshot changes before profile read) |
 | POST | `/user/subscription/reset` | — | `{subscribe_url, token, auth_token}` (new uuid + token; the reset bumps `password_version`, so `auth_token` is the caller's new session JWT) |
 | POST | `/user/subscription/rotate-token` | — | `{subscribe_url, token}` (new subscription token only: uuid, node credentials and sessions are kept; the old link stops working at once) |
 | GET | `/user/subscription/preview` | `client?` (format or client name, default `clash-meta`) + every query parameter of client subscribe | `text/plain` body of the generated config (base64 formats v2ray/shadowrocket/ssr shown decoded), headers `X-Subscription-Format`, `Cache-Control: no-store`; unknown client → 400 on `client` |
-| GET | `/user/traffic-logs` | `page`, `page_size` | paginated `[{record_at:"YYYY-MM-DD", node_id, node_name, rate, u, d}]` newest first (u/d already × rate); `node_name` is null for unknown/deleted nodes |
+| GET | `/user/traffic-logs` | `page`, `page_size` | paginated `[{record_at:"YYYY-MM-DD", node_id, node_name, rate, u, d}]` newest first (u/d already × rate); `node_name` is null for unknown/deleted nodes; 401 if the authenticated account snapshot changed before the read |
 | GET | `/user/nodes` | — | array `[{id, name, type, tags, rate, host?, port?, is_online, sort}]`: `show=true` nodes of the user's group by `sort`, `id`; `host`/`port` (string) only when `show_info_to_user`; `is_online` = state online or idle; `[]` when the user is expired, out of traffic or has no group, like Xboard |
 | POST | `/user/logout` | — | `true` (client discards the JWT; server no-op) |
 
@@ -198,7 +201,9 @@ Every route requires a valid JWT (401) of a user who is not banned (403).
 | GET | `/user/rulesets/catalog` | — | same body as the guest catalog |
 
 Every profile write (`PUT`, `POST`, `PATCH`, `DELETE`, `…/default`) answers 403 while `allow_user_rule_profile=false`; writes and
-the preview share one limiter (60 requests/min per user, burst 30).
+the preview share one limiter (60 requests/min per user, burst 30). A write whose JWT account snapshot no longer matches
+the locked user row (security reset, ban, email change or account replacement after middleware validation) answers 401.
+Profile GETs also bind the row read to that snapshot and answer 401 after an account security change.
 `NodeOps` (the `nodes` object of a `RuleProfile`): `{include:[re2], exclude:[re2], types:[type], regions:[code], rename:[{match, replace}], prefix, suffix, emoji: "keep"/"add"/"strip", sort: "default"/"name"/"region", dedupe, limit}`; semantics,
 the region keyword table and limits in `docs/SUBSCRIPTION.md` "Node operations".
 
@@ -210,9 +215,10 @@ the region keyword table and limits in `docs/SUBSCRIPTION.md` "Node operations".
 | POST | `/user/subscription/age` | `{regenerate?, enabled?}` | `AgeKey` with the new key pair (X25519); a new key is disabled unless `enabled: true`; `regenerate` keeps the current switch unless `enabled` is given; 409 when a key exists and `regenerate` is not true |
 | PATCH | `/user/subscription/age` | `{enabled*}` | `AgeKey`; 404 without a key |
 | DELETE | `/user/subscription/age` | — | `true` (encryption off; no error without a key) |
-| GET | `/user/subscription/access-log` | — | array `[{ip, client, format, at, location}]`, newest 50 first; `ip` masked (`203.0.113.*`, `2001:db8:1:2:*`); `location` is resolved from the full address before masking ([GeoIP](#geoip)) |
+| GET | `/user/subscription/access-log` | — | array `[{ip, client, format, at, location}]`, newest 50 first; `ip` masked (`203.0.113.*`, `2001:db8:1:2:*`); `location` is resolved from the full address before masking ([GeoIP](#geoip)); read against the authenticated account snapshot, 401 if it changed during the request |
 
 `AgeKey` = `{enabled, public_key ("age1…"), private_key ("AGE-SECRET-KEY-1…"; owner only, null when it cannot be decrypted after a jwt.secret rotation), created_at, formats (["clash-meta"]: formats served encrypted), optional (subscribe_age_optional), strict (subscribe_age_strict)}`.
+Owner reads and updates return the key belonging to the authenticated account snapshot. If the account's UUID, email or `password_version` changes while a request is running, the request cannot read a replacement account's identity; a completed update returns only the key it updated, never a later key loaded by user id.
 `POST`/`PATCH`/`DELETE` here and `rotate-token` share 30 requests/min per user. See `docs/SUBSCRIPTION.md`
 "Encrypted subscriptions (age)" and "Access log and leak detection".
 
@@ -222,24 +228,25 @@ the region keyword table and limits in `docs/SUBSCRIPTION.md` "Node operations".
 | --- | --- | --- | --- |
 | GET | `/user/plans` | — | `[PublicPlan]` unpaginated: `show=true` plans plus the user's current plan even when hidden, by `sort`, `id`, with `sold_out`/`is_current` |
 | GET | `/user/plans/:id` | — | `PublicPlan` (404 for hidden plans the user does not hold) |
+Both plan reads bind the response to the authenticated account UUID, email and password version in one transaction. A changed, banned or replaced account cannot reveal a hidden plan it no longer holds or receive stale `is_current`/`sold_out` flags.
 | GET | `/user/payment-methods` | — | unpaginated `[{id, name, icon, gateway, handling_fee_fixed, handling_fee_percent}]` (enabled payments, by `sort`; `icon` exactly as stored, see [payment icons](#payment-icons)) |
-| POST | `/user/coupons/check` | `{code*, plan_id*, period*}` | `{id, code, name, type, value, limit_plan_ids, limit_periods, ended_at}` or 400 on `code`, `plan_id` or `period` |
-| GET | `/user/orders` | `page`, `page_size`, `status?` (0..4), `sort` (`id created_at`) | paginated `[Order]` (default newest first) |
-| POST | `/user/orders` | `{plan_id*, period*, coupon_code?}` | 201 `{trade_no, status}` (status 3 when nothing was left to pay: free or covered by balance). 409 when an unpaid order exists (`errors.trade_no` = its trade_no), the plan is sold out (`errors.plan_id`) or the balance changed meanwhile; 404 unknown or hidden plan; 403 upgrade while `plan_change_enable=false`; 400 on `period`, `plan_id` (not for sale, renew disabled, expired legacy plan, reset without an active subscription) or `coupon_code` |
-| GET | `/user/orders/:trade_no` | — | `Order` (404 for other users' orders) |
-| POST | `/user/orders/:trade_no/checkout` | `{payment_id?}` (omit when nothing is left to pay) | `{type, data}`: `type` is `url` (redirect to `data`), `qrcode` (render `data`), `html` (render the auto-submitting form) or `paid` (`data` = trade_no; already paid, or fulfilled now because the total is 0). 400 on `payment_id` (missing, unknown or disabled); 402 `payment_failed` when the gateway fails; 409 cancelled or no longer pending; 409 when the order is past `created_at + order_timeout_minutes` |
-| GET | `/user/orders/:trade_no/status` | — | `{status}` (poll while paying) |
-| POST | `/user/orders/:trade_no/cancel` | — | `true` (409 unless pending; balance and coupon use restored) |
+| POST | `/user/coupons/check` | `{code*, plan_id*, period*}` | `{id, code, name, type, value, limit_plan_ids, limit_periods, ended_at}` or 400 on `code`, `plan_id` or `period`; 401 if the authenticated account snapshot changed before checking per-user coupon eligibility |
+| GET | `/user/orders` | `page`, `page_size`, `status?` (0..4), `sort` (`id created_at`) | paginated `[Order]` (default newest first); 401 if the authenticated account snapshot changed before the read |
+| POST | `/user/orders` | `{plan_id*, period*, coupon_code?}` | 201 `{trade_no, status}` (status 3 when nothing was left to pay: free or covered by balance). 401 if the authenticated account snapshot changed before the transaction; 409 when an unpaid order exists (`errors.trade_no` = its trade_no), the plan is sold out (`errors.plan_id`) or the balance changed meanwhile; 404 unknown or hidden plan; 403 upgrade while `plan_change_enable=false`; 400 on `period`, `plan_id` (invalid traffic GB, not for sale, renew disabled, expired legacy plan, reset without an active subscription) or `coupon_code` |
+| GET | `/user/orders/:trade_no` | — | `Order` (404 for other users' orders; 401 if the authenticated account snapshot changed before the read) |
+| POST | `/user/orders/:trade_no/checkout` | `{payment_id?}` (omit when nothing is left to pay) | `{type, data}`: `type` is `url` (redirect to `data`), `qrcode` (render `data`), `html` (render the auto-submitting form) or `paid` (`data` = trade_no; already paid, or fulfilled now because the total is 0). 401 if the authenticated account snapshot changed before checkout; 400 on `payment_id` (missing, unknown or disabled); 402 `payment_failed` when the gateway fails; 409 cancelled or no longer pending; 409 when the order is past `created_at + order_timeout_minutes` |
+| GET | `/user/orders/:trade_no/status` | — | `{status}` (poll while paying; 401 if the authenticated account snapshot changed before the read) |
+| POST | `/user/orders/:trade_no/cancel` | — | `true` (401 if the authenticated account snapshot changed before cancellation; 409 unless pending; balance and coupon use restored) |
 
 ### Invite & commission
 
 | method | path | req | res |
 | --- | --- | --- | --- |
-| GET | `/user/invite` | — | `{codes:[{code, pv, created_at}], stat:{register_count, commission_pending, commission_paid, commission_rate, invite_gen_limit}}` |
-| POST | `/user/invite/codes` | — | 201 `{code}` (32 alphanumeric chars; 400 when the user already holds `invite_gen_limit` unused codes) |
-| GET | `/user/invite/commissions` | `page`, `page_size` | paginated `[{trade_no, order_amount, get_amount, created_at}]` |
-| POST | `/user/commission/transfer` | `{amount*}` (cents, > 0) | `User` (commission → balance, atomic; 400 on `amount` when it exceeds `commission_balance`) |
-| POST | `/user/commission/withdraw` | `{method*, account*}` | 201 `{ticket_id}` (creates a ticket; see rules) |
+| GET | `/user/invite` | — | `{codes:[{code, pv, created_at}], stat:{register_count, commission_pending, commission_paid, commission_rate, invite_gen_limit}}`; 401 if the authenticated account snapshot changed before the read |
+| POST | `/user/invite/codes` | — | 201 `{code}` (32 alphanumeric chars; 400 when the user already holds `invite_gen_limit` unused codes; 401 if the JWT account snapshot changed before insertion) |
+| GET | `/user/invite/commissions` | `page`, `page_size` | paginated `[{trade_no, order_amount, get_amount, created_at}]`; 401 if the authenticated account snapshot changed before the read |
+| POST | `/user/commission/transfer` | `{amount*}` (cents, > 0) | `User` (commission → balance, atomic and bound to the JWT account snapshot; 400 on `amount` when it exceeds `commission_balance`, 401 if the account security version changed) |
+| POST | `/user/commission/withdraw` | `{method*, account*}` | 201 `{ticket_id}` (creates a ticket; 401 if the JWT account snapshot changed before insertion; see rules) |
 
 Invite rules (Xboard): `codes` lists the user's unused codes (`status=false`, newest first; consumed codes can no longer be
 used, whatever `invite_never_expire` says now). `register_count` = users with `invite_user_id = me`; `commission_paid` =
@@ -261,6 +268,8 @@ ticket). It opens a level-2 ticket (subject/message in `default_locale`: method,
 | GET | `/user/tickets/:id` | — | `Ticket` with messages (404 for other users' tickets) |
 | POST | `/user/tickets/:id/reply` | `{message*}` | `Ticket` (400 when closed; → `reply_status=0`) |
 | POST | `/user/tickets/:id/close` | — | `true` (idempotent) |
+
+Every `/user/tickets*` read and write is bound to the JWT's account UUID, email and `password_version` while its ticket rows are accessed; a replaced, banned or changed account returns 401 rather than disclosing or changing another account's tickets.
 | GET | `/user/notices` | `page`, `page_size` | paginated `[{id, title, content, img_url, tags, created_at}]` (show=true, `sort` ASC then newest first) |
 | GET | `/user/knowledge` | `language?` (default `default_locale`), `keyword?` | `{"<category>":[{id, title, updated_at}]}` (show=true, `sort` ASC, `id` ASC) |
 | GET | `/user/knowledge/:id` | — | `{id, title, body, category, language, updated_at}` (404 when hidden); `body` with `{{siteName}}`, `{{subscribeUrl}}`, `{{urlEncodeSubscribeUrl}}`, `{{safeBase64SubscribeUrl}}` replaced |
@@ -270,12 +279,13 @@ from Xboard). `keyword` is a case-insensitive substring of title or body (`%`/`_
 (`plan_id` null or not `IsAvailable`: banned, expired or traffic used up) get every `<!--access start-->…<!--access end-->`
 block replaced by `<div class="knowledge-no-access">…</div>` (text in the article's language); placeholders are replaced
 after that, `{{urlEncodeSubscribeUrl}}` = query escaping, `{{safeBase64SubscribeUrl}}` = URL-safe base64 without padding.
+Knowledge index and article reads use the same account snapshot for the plan entitlement, article query and subscription URL substitution. A changed, banned or replaced account cannot search gated text or receive an article containing the replacement account's subscription token.
 
 ### Security (2FA / passkeys)
 
 | method | path | req | res |
 | --- | --- | --- | --- |
-| GET | `/user/security` | — | `{totp_enabled, totp_enabled_at, backup_codes_remaining, passkeys:[Passkey]}` (`totp_enabled_at` null when off) |
+| GET | `/user/security` | — | `{totp_enabled, totp_enabled_at, backup_codes_remaining, passkeys:[Passkey]}` (`totp_enabled_at` null when off); read against the authenticated account snapshot, 401 if it changed during the request |
 | POST | `/user/security/totp/setup` | — | `{secret, otpauth_url}` (pending secret kept 10 min; issuer = `mfa_issuer` or `app_name`, account = email; 409 when already enabled) |
 | POST | `/user/security/totp/enable` | `{code*}` | `{backup_codes:[10 × "xxxxx-xxxxx"]}` (shown once; wrong code → 400 on `code`, the pending secret is discarded after 5; no pending setup → 400 on `code`; 409 when already enabled) |
 | POST | `/user/security/totp/disable` | `{password*, code*}` | `true` (`code` = TOTP or backup code; deletes secret and backup codes; wrong password → 400 on `password` (counts towards the password lockout), wrong code → 400 on `code`; 409 when not enabled) |
@@ -289,7 +299,11 @@ Rules: enabling/disabling TOTP and adding/removing passkeys keep every session v
 are 10 lower-case Crockford base32 characters shown as `xxxxx-xxxxx` (input is case-insensitive, the dash optional) and are stored as
 SHA-256 hashes; the TOTP secret is stored AES-256-GCM encrypted with a key derived (HKDF-SHA256) from `jwt.secret`, so rotating the JWT
 secret invalidates enrolled authenticators. Every `/user/security/*` route: 60 requests/min per user.
-Passkey registration: resident key required (`residentKey:"required"`, `requireResidentKey:true`), user verification preferred,
+Pending TOTP setup and passkey registration are bound to the initiating account's UUID, email and `password_version`; a password or
+email change requires a new setup/registration. Credential writes, including passkey rename, verify that binding while holding the user row lock, so an
+already running request cannot add, remove or replace authenticators after its session is revoked. Passkey login captures the
+account version before loading its credentials and checks it again when recording use; it cannot issue a session for a newer version.
+Passkey registration: creating the persistent WebAuthn user handle at `begin` also checks the authenticated account snapshot in its write transaction. Resident key required (`residentKey:"required"`, `requireResidentKey:true`), user verification preferred,
 attestation `none`, `credProps` requested, existing passkeys in `excludeCredentials`, user handle = 16 random bytes per user (stable
 across registrations), timeout 120 s, challenge valid 2 min and single use. `name` defaults to "Synced passkey"/"Device passkey"
 (platform authenticator, backup eligible or not), "Phone passkey" (hybrid), "Security key" (usb/nfc/ble) or "Passkey".
@@ -314,6 +328,8 @@ a passkey (`mfasvc.AdminGate`, mounted right after `RequireStaff`); `/user/secur
   omitted while the bot is off or Telegram is unreachable (after a failed `getMe` the page does not wait again for 1 min).
   `discuss_link` = `telegram_discuss_link` (`""` when unset).
 - `bind-code`: `code` = 24 alphanumeric characters, single use, valid 10 min; issuing a new code revokes the previous one.
+  It is bound to the account id, UUID, normalized email and `password_version`, so a password/security reset, email change or
+  account replacement invalidates an outstanding code instead of binding the new account instance.
   `deep_link` = `https://t.me/<bot_username>?start=<code>`; opening it and tapping **Start** sends `/start <code>`.
   403 `forbidden` when no bot token is set; 502 `telegram_unavailable` when `getMe` fails.
 - `DELETE` clears `telegram_id` and `telegram_username` and revokes a pending code.
@@ -362,6 +378,19 @@ Bound users receive their own `order_paid`, `ticket_reply`, the expiry/traffic r
 
 The group requires staff (`RequireStaff`, then the MFA gate); every area below is admin only except users (read),
 tickets, notices and knowledge (🧑‍💼).
+Credential-bearing admin reads (`GET /admin/payments`, `GET /admin/payments/:id`, `GET /admin/nodes`,
+`GET /admin/nodes/:id`) and the user CSV export recheck the JWT account binding, live admin role and ban state while
+holding the admin user row lock through the data snapshot. A changed account binding gets 401; a revoked role or ban gets 403.
+Payment creation, update and deletion make the same check in their write transaction before changing gateway credentials.
+Node creation, update, deletion, copy and sort do so before changing node configuration.
+Plan and payment sorting likewise recheck admin status within their sort transaction.
+Mail template save and reset recheck admin status inside their write transaction.
+System logs, node online users and audit records, subscription age-key and access-log views, and stored mail-template
+bodies recheck the live admin account before returning data. Subscription age-key reset rechecks the same account
+inside the key write transaction; role revocation leaves the old key intact. Staff content and ticket operations
+likewise recheck the live staff role before returning private rows or committing writes.
+Starting a GeoIP update holds the admin account lock through the immediate start decision; a download already started
+while authorized can finish after a later role change.
 
 ### Stats
 
@@ -407,10 +436,13 @@ nodes/users keep their ranking rows with an empty `name`/`email`.
 | POST | `/admin/users/mail` | `{<filters>, subject* (≤255), content*}` | `{queued}` |
 
 Users rules (`internal/service/adminuser`): only `GET /admin/users` and `GET /admin/users/:id` are open to staff, and staff get `uuid`
-and `token` blanked. `AdminUser` = self view + `token`, `commission_type`, `remarks`, `invite_user_id`, `invite_user_email`,
+and `token` blanked. The live role is rechecked under the caller's user row lock after the view is built: a demoted admin
+gets the staff-redacted view, and an account no longer staff/admin gets 403. `AdminUser` = self view + `token`, `commission_type`, `remarks`, `invite_user_id`, `invite_user_email`,
 `last_login_ip`, `telegram_id`, `updated_at` (never the password). Filters: `email`/`remarks` are case-insensitive substrings; `plan_id`, `group_id`,
 `invite_user_id` = `0` select null; `expired` partitions users into `active` (expires in the future), `expired` (expired) and `never`
 (no expiry). `sort` accepts `id email expired_at created_at u d transfer_enable balance last_login_at` (default `-id`).
+Every admin-only user creation, edit, deletion, credential/traffic reset and login-token issuance rechecks the actor's account binding and live admin role under a user-row lock in the transaction that performs the action. A request already past middleware loses authority when the actor is demoted, banned, deleted or changes security version; it cannot finish a mutation or issue a login token. Bulk generation obeys the same rule before inserting any users.
+Bulk mail selects recipients and starts queueing while holding that authorization transaction, so a demotion before dispatch prevents the mail action.
 
 - `POST /admin/users` → 201. `plan_id` fills `group_id`, `transfer_enable`, `speed_limit`, `device_limit`, `conn_limit` when omitted;
   `next_reset_at` follows the plan; duplicate email → 409; unknown plan/group/inviter → 400 field error.
@@ -433,6 +465,8 @@ and `token` blanked. `AdminUser` = self view + `token`, `commission_type`, `rema
 - `login-token` → `{url: app_url + "/login?token=<one-time, 5 min>"}`; the SPA posts the token to `/passport/login/token`.
   Administrators and staff cannot be impersonated: 409 for such a target (the token skips the second factor), and a token
   whose user was promoted after it was issued is refused with 401.
+  The token is bound to the account id, UUID, normalized email and `password_version` at issuance; password/security resets and email
+  changes revoke unconsumed tokens (401) instead of allowing them to create a session for the updated account.
 - `generate`: `plan_id` sets plan, group, traffic, `speed_limit`, `device_limit`, `conn_limit` and `next_reset_at` like `POST`. Emails are `<prefix><8 random [a-z0-9]>@<suffix>` (exactly `<prefix>@<suffix>` when `count` is 1 and a prefix is
   given). The whole batch shares `password`, or one random 12-character password when omitted (one argon2id hash per batch);
   `csv` = `email,password` rows. Taken single email → 409.
@@ -443,12 +477,14 @@ and `token` blanked. `AdminUser` = self view + `token`, `commission_type`, `rema
 
 ### Plans / groups / nodes / routes
 
+Plan, group and route reads and writes recheck the current administrator account and role inside the database transaction; an in-flight session that has been replaced or demoted is rejected before data is returned or changed.
+
 | method | path | req | res |
 | --- | --- | --- | --- |
 | GET | `/admin/plans` | — | unpaginated `[Plan + user_count]` by `sort`, `id` |
-| POST | `/admin/plans` | Plan fields (`group_id*`, `name*`; defaults `show=false`, `sell=true`, `renew=true`; `prices` keys must be periods, values ≥ 0) | 201 `Plan + user_count` |
+| POST | `/admin/plans` | Plan fields (`group_id*`, `name*`; defaults `show=false`, `sell=true`, `renew=true`; `prices` keys must be periods, values ≥ 0; `transfer_enable` is GB in 0..8,589,934,591) | 201 `Plan + user_count` |
 | GET | `/admin/plans/:id` | — | `Plan + user_count` |
-| PATCH | `/admin/plans/:id` | any Plan field (`null` clears `speed_limit`, `device_limit`, `conn_limit`, `capacity_limit`, `reset_traffic_method`) + `force_update` (push group, traffic, `speed_limit`, `device_limit` and `conn_limit` to every holder) | `Plan + user_count` |
+| PATCH | `/admin/plans/:id` | any Plan field (`transfer_enable` is GB in 0..8,589,934,591; `null` clears `speed_limit`, `device_limit`, `conn_limit`, `capacity_limit`, `reset_traffic_method`) + `force_update` (push group, traffic, `speed_limit`, `device_limit` and `conn_limit` to every holder) | `Plan + user_count` |
 | DELETE | `/admin/plans/:id` | — | `true` (409 while any user holds the plan or it has pending/processing orders) |
 | POST | `/admin/plans/sort` | `{ids:[...]}` (1..1000) | `true` (`sort` = 0-based position) |
 | GET | `/admin/groups` | — | unpaginated `[{id, name, user_count, plan_count, node_count, created_at, updated_at}]` |
@@ -476,14 +512,20 @@ cannot get a parent or change its type; `protocol_settings` is validated per typ
 
 ### Orders / coupons / payments
 
+Coupon reads and writes use the same live administrator check; a demoted or replaced in-flight session cannot create or alter discounts.
+
 | method | path | req | res |
 | --- | --- | --- | --- |
 | GET | `/admin/orders` | `trade_no`, `user_id`, `email`, `status`, `commission_status`, `plan_id`, `payment_id`, `invite_user_id`, `type`, `date_from`, `date_to` on `created_at`: RFC 3339 instants (`date_from` inclusive, `date_to` exclusive; the web app sends 00:00 of the first picked day and of the day after the last one in the browser zone, so a picked day is the day the list shows), or YYYY-MM-DD as a calendar day of the server zone (`date_to` inclusive); `sort` (`id created_at paid_at total_amount status`) | paginated `[AdminOrder]` (default newest first) |
 | GET | `/admin/orders/:id` | — | `AdminOrderDetail` = `AdminOrder` + `commission_logs`, `surplus_orders` |
-| POST | `/admin/orders` | `{user_id* or email*, plan_id*, period*, total_amount?}` | 201 `AdminOrder` (assigned, pending; no discount/coupon/surplus/balance; 409 if the user has an unpaid order; 400 when the plan has no price for `period` and `total_amount` is omitted) |
+| POST | `/admin/orders` | `{user_id* or email*, plan_id*, period*, total_amount?}` | 201 `AdminOrder` (assigned, pending; no discount/coupon/surplus/balance; 409 if the user has an unpaid order; 400 `plan_id` if its traffic GB overflows bytes; 400 when the plan has no price for `period` and `total_amount` is omitted) |
 | POST | `/admin/orders/:id/paid` | — | `AdminOrderDetail` (pending only, else 409; `callback_no="manual"` → fulfil) |
 | POST | `/admin/orders/:id/cancel` | — | `AdminOrderDetail` (pending only, else 409; balance and coupon use restored) |
 | PATCH | `/admin/orders/:id` | `{commission_status*}` (0, 1 or 3) | `AdminOrderDetail` (2 is set by `commission_settle` → 400; an already paid-out commission → 409) |
+
+Admin order assignment, manual payment, cancellation and commission edits recheck the request's account binding and live
+admin role inside the order write transaction. Demotion or ban before commit rolls the change back (403); a changed
+UUID, email or password version returns 401.
 | GET | `/admin/coupons` | `code?` (exact), `name?` (substring); `sort` (`id created_at started_at ended_at value`) | paginated `[Coupon + used_count]` (`used_count` = non-cancelled orders) |
 | POST | `/admin/coupons` | `{name*, code?, type* (1 amount in cents, 2 percent ≤ 100), value* (> 0), count? (1..500; > 1 = batch of generated 8-char codes), limit_use? (remaining uses), limit_use_with_user?, limit_plan_ids?, limit_periods?, started_at*, ended_at* (after started_at), show? (default true)}` | 201 `[Coupon + used_count]` (409 duplicate code) |
 | GET | `/admin/coupons/:id` | — | `Coupon + used_count` |
@@ -496,6 +538,8 @@ cannot get a parent or change its type; `protocol_settings` is validated per typ
 | PATCH | `/admin/payments/:id` | any create field (`config` replaced as a whole) | `Payment + gateway_label + notify_url` (`icon` is validated only when the request sets it, so imported legacy values never block other edits) |
 | DELETE | `/admin/payments/:id` | — | `true` |
 | POST | `/admin/payments/sort` | `{ids}` | `true` (0-based position) |
+
+The four administrator order write endpoints return 401 if the authenticated account snapshot or administrator role changed before the write transaction commits.
 
 `notify_url` = `<notify_domain or app_url or the request origin>/api/v1/guest/payment/notify/<gateway>/<uuid>` — register it with
 the provider.
@@ -548,6 +592,14 @@ gateway's default (`epay` → `epay`, or `alipay` / `wechat` / `usdt` from its `
 | POST | `/admin/settings/mail/test` | `{email*}` | `true`; sent synchronously (template `notify`) with the current mail settings; delivery error → 400 with the driver's message and `errors.email` |
 | POST | `/admin/settings/telegram/webhook` | — | `{ok, description, error_code?, url}`: Telegram's answer to `setWebhook` with `url` = `<app_url>/api/v1/guest/telegram/webhook/<telegram_webhook_secret>` (§Telegram) |
 | POST | `/admin/settings/telegram/test` | — | `{sent, failed, results:[{chat_id, ok, error?}]}`: one test message per `telegram_admin_chat_ids` entry, sent synchronously (§Telegram) |
+
+`GET /admin/settings` holds the admin user row lock while rechecking the live account binding and role and copying secrets.
+`PUT /admin/settings`
+rechecks the same binding and role while holding the admin user row in the settings write transaction; a revoked role or
+banned account gets 403, and a changed account UUID, email or password version gets 401, with no settings saved.
+Test email, mail-template test email, bulk mail and Telegram test/webhook actions recheck live admin status immediately
+before dispatching to their external service or queue.
+Ruleset catalog GET/PUT also recheck the current administrator account; PUT does so inside the settings write transaction.
 | GET | `/admin/rulesets` | — | `{builtin: catalog, custom: {...}, effective: merged catalog}` |
 | PUT | `/admin/rulesets` | `{custom: {sources?, categories?, templates?, mirrors?}}` or `{custom: null}` (reset) | `true` (merged over builtin by id and validated; 400 on `custom` or per field) |
 | GET | `/admin/system/status` | — | `{version, go_version, uptime (s), db_driver, started_at, scheduler:[{name, spec, running, last_run, last_duration?, last_error, next_run, runs, failures}], mail:{pending, sent, failed, driver}, mail_queue (= mail.pending), notify:{pending, sent, failed, drivers}, cache:{items, max_items, hits, misses, hit_ratio}, online:{nodes, users}, goroutines, memory:{alloc, sys}}` |

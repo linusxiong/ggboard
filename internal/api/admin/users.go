@@ -3,9 +3,11 @@ package admin
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/auth"
@@ -43,26 +45,6 @@ func registerUsers(g *gin.RouterGroup, a *app.App) {
 	w.GET("/:id/subscription/access-log", subguardAccessLogHandler(a))
 }
 
-// usersRedact blanks credentials in views returned to staff.
-func usersRedact(c *gin.Context, vs ...*adminuser.View) {
-	if u := auth.CurrentUser(c); u != nil && u.IsAdmin {
-		return
-	}
-	for _, v := range vs {
-		v.Redact()
-	}
-}
-
-// usersRespond renders u as an admin view with status.
-func usersRespond(c *gin.Context, a *app.App, status int, u *model.User) {
-	v, err := adminuser.New(a).View(c.Request.Context(), u)
-	if err != nil {
-		httpx.Fail(c, err)
-		return
-	}
-	c.JSON(status, gin.H{"data": v})
-}
-
 func usersListHandler(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var f adminuser.Filters
@@ -81,8 +63,17 @@ func usersListHandler(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		for i := range views {
-			usersRedact(c, &views[i])
+		err = withLiveStaff(c, a, func(admin bool) error {
+			if !admin {
+				for i := range views {
+					views[i].Redact()
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			httpx.Fail(c, err)
+			return
 		}
 		httpx.List(c, views, total)
 	}
@@ -100,7 +91,15 @@ func usersDetailHandler(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		usersRedact(c, &d.View)
+		if err := withLiveStaff(c, a, func(admin bool) error {
+			if !admin {
+				d.View.Redact()
+			}
+			return nil
+		}); err != nil {
+			httpx.Fail(c, err)
+			return
+		}
 		httpx.OK(c, d)
 	}
 }
@@ -112,13 +111,24 @@ func usersCreateHandler(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		u, err := adminuser.New(a).Create(c.Request.Context(), in, time.Now())
+		var u *model.User
+		var view adminuser.View
+		err := withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			var err error
+			u, err = adminuser.New(a).CreateWithDB(tx, in, time.Now())
+			if err != nil {
+				return err
+			}
+			view, err = adminuser.New(a).ViewWithDB(tx, u)
+			return err
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
 		}
+		adminuser.New(a).InvalidateNodeUsers()
 		httpx.Logger(c).Info("admin created user", "admin_id", auth.CurrentUser(c).ID, "user_id", u.ID)
-		usersRespond(c, a, http.StatusCreated, u)
+		c.JSON(http.StatusCreated, gin.H{"data": view})
 	}
 }
 
@@ -135,13 +145,24 @@ func usersUpdateHandler(a *app.App) gin.HandlerFunc {
 			return
 		}
 		actor := auth.CurrentUser(c)
-		u, err := adminuser.New(a).Update(c.Request.Context(), actor, id, in, time.Now())
+		var u *model.User
+		var view adminuser.View
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			var err error
+			u, err = adminuser.New(a).UpdateWithDB(tx, actor, id, in, time.Now())
+			if err != nil {
+				return err
+			}
+			view, err = adminuser.New(a).ViewWithDB(tx, u)
+			return err
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
 		}
+		adminuser.New(a).InvalidateUser(id)
 		httpx.Logger(c).Info("admin updated user", "admin_id", actor.ID, "user_id", id, "password_changed", in.Password != nil)
-		usersRespond(c, a, http.StatusOK, u)
+		c.JSON(http.StatusOK, gin.H{"data": view})
 	}
 }
 
@@ -153,10 +174,13 @@ func usersDeleteHandler(a *app.App) gin.HandlerFunc {
 			return
 		}
 		actor := auth.CurrentUser(c)
-		if err := adminuser.New(a).Delete(c.Request.Context(), actor, id); err != nil {
+		if err := withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			return adminuser.New(a).DeleteWithDB(tx, actor, id)
+		}); err != nil {
 			httpx.Fail(c, err)
 			return
 		}
+		adminuser.New(a).InvalidateUser(id)
 		httpx.Logger(c).Info("admin deleted user", "admin_id", actor.ID, "user_id", id)
 		httpx.OK(c, true)
 	}
@@ -169,13 +193,24 @@ func usersResetSecretHandler(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		u, err := adminuser.New(a).ResetSecret(c.Request.Context(), id)
+		var before, u *model.User
+		var view adminuser.View
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			var err error
+			before, u, err = adminuser.New(a).ResetSecretWithDB(tx, id)
+			if err != nil {
+				return err
+			}
+			view, err = adminuser.New(a).ViewWithDB(tx, u)
+			return err
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
 		}
+		adminuser.New(a).FinishResetSecret(before, u)
 		httpx.Logger(c).Info("admin reset user secret", "admin_id", auth.CurrentUser(c).ID, "user_id", id)
-		usersRespond(c, a, http.StatusOK, u)
+		c.JSON(http.StatusOK, gin.H{"data": view})
 	}
 }
 
@@ -186,7 +221,12 @@ func usersLoginTokenHandler(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		url, err := adminuser.New(a).LoginURL(c.Request.Context(), id)
+		var url string
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			var err error
+			url, err = adminuser.New(a).LoginURLWithDB(tx, id)
+			return err
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -203,12 +243,23 @@ func usersTrafficResetHandler(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		u, err := adminuser.New(a).ResetTraffic(c.Request.Context(), id, time.Now())
+		var u *model.User
+		var view adminuser.View
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			var err error
+			u, err = adminuser.New(a).ResetTrafficWithDB(tx, id, time.Now())
+			if err != nil {
+				return err
+			}
+			view, err = adminuser.New(a).ViewWithDB(tx, u)
+			return err
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
 		}
-		usersRespond(c, a, http.StatusOK, u)
+		adminuser.New(a).InvalidateUser(id)
+		c.JSON(http.StatusOK, gin.H{"data": view})
 	}
 }
 
@@ -219,11 +270,17 @@ func usersGenerateHandler(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		out, err := adminuser.New(a).Generate(c.Request.Context(), in, time.Now())
+		var out *adminuser.GenerateResult
+		err := withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			var err error
+			out, err = adminuser.New(a).GenerateWithDB(tx, in, time.Now())
+			return err
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
 		}
+		adminuser.New(a).InvalidateNodeUsers()
 		httpx.OK(c, out)
 	}
 }
@@ -236,18 +293,32 @@ func usersExportHandler(a *app.App) gin.HandlerFunc {
 			return
 		}
 		now := time.Now()
-		c.Header("Content-Type", "text/csv; charset=utf-8")
-		c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="users-%s.csv"`, now.Format("20060102-150405")))
-		c.Header("Cache-Control", "no-store")
-		c.Status(http.StatusOK)
-		if err := adminuser.New(a).Export(c.Request.Context(), c.Writer, f, now); err != nil {
-			if !c.Writer.Written() { // nothing sent yet: answer with a JSON error instead of a CSV
-				c.Writer.Header().Del("Content-Disposition")
-				c.Writer.Header().Del("Content-Type")
-			}
-			httpx.Fail(c, err) // after the first byte this only logs and aborts
+		file, err := os.CreateTemp("", "ggboard-users-*.csv")
+		if err != nil {
+			httpx.Fail(c, err)
 			return
 		}
+		defer os.Remove(file.Name())
+		defer file.Close()
+		if err := withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			return adminuser.New(a).ExportWithDB(tx, file, f, now)
+		}); err != nil {
+			httpx.Fail(c, err)
+			return
+		}
+		info, err := file.Stat()
+		if err != nil {
+			httpx.Fail(c, err)
+			return
+		}
+		if _, err := file.Seek(0, 0); err != nil {
+			httpx.Fail(c, err)
+			return
+		}
+		c.DataFromReader(http.StatusOK, info.Size(), "text/csv; charset=utf-8", file, map[string]string{
+			"Content-Disposition": fmt.Sprintf(`attachment; filename="users-%s.csv"`, now.Format("20060102-150405")),
+			"Cache-Control":       "no-store",
+		})
 		httpx.Logger(c).Info("admin exported users", "admin_id", auth.CurrentUser(c).ID)
 	}
 }
@@ -259,7 +330,15 @@ func usersMailHandler(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		n, err := adminuser.New(a).Mail(c.Request.Context(), in, time.Now())
+		var n int
+		err := withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			emails, err := adminuser.New(a).MailRecipientsWithDB(tx, in, time.Now())
+			if err != nil {
+				return err
+			}
+			n, err = adminuser.New(a).MailToRecipients(c.Request.Context(), emails, in)
+			return err
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return

@@ -22,6 +22,15 @@ import (
 // It is idempotent: an order that is no longer pending is returned unchanged with alreadyPaid=true, except
 // a cancelled order, which yields ErrOrderCancelled.
 func (s *Service) Paid(ctx context.Context, tradeNo, callbackNo string) (order *model.Order, alreadyPaid bool, err error) {
+	return s.paid(ctx, tradeNo, callbackNo, nil)
+}
+
+// verified binds the callback checks to the same update that claims fulfilment.
+func (s *Service) paid(ctx context.Context, tradeNo, callbackNo string, verified *model.Order) (order *model.Order, alreadyPaid bool, err error) {
+	return s.paidWithActor(ctx, tradeNo, callbackNo, verified, 0, nil, nil)
+}
+
+func (s *Service) paidWithActor(ctx context.Context, tradeNo, callbackNo string, verified *model.Order, userID uint64, actor, admin *auth.Claims) (order *model.Order, alreadyPaid bool, err error) {
 	now := s.now()
 	var (
 		o     model.Order
@@ -30,8 +39,15 @@ func (s *Service) Paid(ctx context.Context, tradeNo, callbackNo string) (order *
 		fresh bool
 	)
 	err = s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := tx.Model(&model.Order{}).Where("trade_no = ? AND status = ?", tradeNo, model.OrderStatusPending).
-			Updates(map[string]any{"status": model.OrderStatusCompleted, "paid_at": now, "callback_no": callbackNo})
+		q := tx.Model(&model.Order{}).Where("trade_no = ? AND status = ?", tradeNo, model.OrderStatusPending)
+		if actor != nil {
+			q = q.Where("user_id = ?", userID)
+		}
+		if verified != nil {
+			q = q.Where("payment_id = ? AND total_amount = ? AND handling_amount = ?",
+				verified.PaymentID, verified.TotalAmount, verified.HandlingAmount)
+		}
+		res := q.Updates(map[string]any{"status": model.OrderStatusCompleted, "paid_at": now, "callback_no": callbackNo})
 		if res.Error != nil {
 			return res.Error
 		}
@@ -42,10 +58,23 @@ func (s *Service) Paid(ctx context.Context, tradeNo, callbackNo string) (order *
 			return err
 		}
 		if res.RowsAffected == 0 {
+			if o.Status == model.OrderStatusPending {
+				return errors.New("ordersvc: payment changed during verification")
+			}
 			if o.Status == model.OrderStatusCancelled {
 				return ErrOrderCancelled
 			}
 			return nil
+		}
+		if actor != nil {
+			if _, err := LockActor(tx, userID, actor); err != nil {
+				return err
+			}
+		}
+		if admin != nil {
+			if err := lockAdminActor(tx, admin); err != nil {
+				return err
+			}
 		}
 		fresh = true
 		return s.fulfil(ctx, tx, &o, &plan, &user, now)
@@ -111,7 +140,9 @@ func (s *Service) fulfil(ctx context.Context, tx *gorm.DB, o *model.Order, plan 
 	next := usersvc.New(s.a).ComputeNextResetAt(u, plan, now)
 	upd["next_reset_at"] = next
 	if o.RefundAmount > 0 {
-		upd["balance"] = gorm.Expr("balance + ?", o.RefundAmount)
+		if err := creditUser(tx, u.ID, "balance", o.RefundAmount); err != nil {
+			return err
+		}
 	}
 	if err := tx.Model(&model.User{}).Where("id = ?", u.ID).Updates(upd).Error; err != nil {
 		return err
@@ -144,10 +175,12 @@ func (s *Service) afterFulfil(o *model.Order, plan *model.Plan, u *model.User) {
 	usersvc.New(s.a).InvalidateNodeUsers()
 	s.a.Log.Info("order paid", "trade_no", o.TradeNo, "user_id", o.UserID, "plan_id", o.PlanID, "type", o.Type,
 		"period", o.Period, "total", o.TotalAmount, "callback_no", o.CallbackNo, "commission", o.CommissionBalance)
+	// shortcut: notification amounts saturate at int64's limit; use decimal output if charges ever exceed it.
+	paidSum := saturatingAmount(saturatingAmount(o.TotalAmount, o.HandlingAmount), o.BalanceAmount)
 	if notify.Enabled(s.a) {
 		notify.Emit(s.a, notify.OrderPaid(s.a, notify.Order{
 			UserID: o.UserID, Email: u.Email, Plan: plan.Name, Period: o.Period,
-			Amount: o.TotalAmount + o.HandlingAmount + o.BalanceAmount, TradeNo: o.TradeNo,
+			Amount: paidSum, TradeNo: o.TradeNo,
 			Gateway: s.paymentName(o.PaymentID), CallbackNo: o.CallbackNo,
 		}))
 	}
@@ -155,7 +188,7 @@ func (s *Service) afterFulfil(o *model.Order, plan *model.Plan, u *model.User) {
 		return
 	}
 	locale := s.a.Settings.String("default_locale")
-	amount := s.a.Settings.String("currency_symbol") + payment.FormatAmount(o.TotalAmount+o.HandlingAmount+o.BalanceAmount)
+	amount := s.a.Settings.String("currency_symbol") + payment.FormatAmount(paidSum)
 	data := mail.Data{
 		"TradeNo":  o.TradeNo,
 		"PlanName": plan.Name,

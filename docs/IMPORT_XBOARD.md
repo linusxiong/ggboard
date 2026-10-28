@@ -63,6 +63,7 @@ With `--driver mysql|postgres|sqlite`, `--dsn` may be a raw driver DSN without a
 - **Tables**: mysql `information_schema.tables WHERE table_schema=DATABASE()`; pg `… WHERE table_schema=current_schema()`;
   sqlite `sqlite_master WHERE type='table'`.
 - **Columns**: `information_schema.columns`, or `PRAGMA table_info(t)` on sqlite.
+- Source table names are quoted and escaped as single identifiers for their database dialect; metadata is never executed as SQL syntax.
 
 | probe | meaning |
 | --- | --- |

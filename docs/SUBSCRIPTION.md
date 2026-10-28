@@ -103,6 +103,13 @@ group or with a built-in policy (`DIRECT`, `REJECT`, `direct`, …) get a suffix
   link's path to `/s/[redacted]`. The INFO line `subscription served` has user id, format, client (User-Agent, 80 chars)
   proxy count and whether the body was encrypted. Invalid overrides (`source`, `cats`, `final`, `mirror`) → 400
   `validation_failed` with field errors (`profile` never fails: an unknown value selects the default profile).
+  After generation and before writing headers, an in-flight request reloads the account. If its token, account
+  identity, plan, group, traffic allowance, expiry or ban state changed, or a previously available account exhausted
+  its traffic, the stale response is discarded with the usual forbidden JSON 403 (no subscription headers,
+  subscription body, 304 or access-log entry).
+  A fresh request using a still-current token follows the normal unavailable-user info-node behavior. Clearing
+  `plan_id` alone does not revoke a separately assigned group and traffic allowance; to revoke node access, the
+  administrator must clear `group_id` or the traffic allowance.
 - `GET /api/v1/user/subscription/preview?client=<format or client name>&…` (default `clash-meta`): same engine and query
   parameters for the logged-in user; `text/plain` body (v2ray, shadowrocket and ssr are shown base64-decoded), headers
   `X-Subscription-Format` and `Cache-Control: no-store`. `client` goes through `DetectFormat`, so an unknown name previews
@@ -218,8 +225,11 @@ and a subscription without `?profile=` use. Rules:
 - Subscription links: `GET /user/subscription` returns `profiles: [{slug, name, is_default, subscribe_url}]`, where the
   default profile's link is the plain subscription URL and every other link appends `&profile=<slug>`. With
   `allow_user_rule_profile=false` every profile write is refused (403) and subscriptions ignore stored profiles.
-- Writes run in a transaction that holds the user's row lock, so concurrent creates never exceed the limit and exactly
-  one profile stays the default. Profiles are cached per user for a minute (`rule_profile` namespace + a per-user
+- Authenticated writes (including creation of the default row by a GET) lock the user's row and recheck the session's
+  account UUID, email, password version and ban state. A security change after JWT validation makes the write return 401.
+  Profile GET responses read their rows under the same account-bound lock, so replacement of a reusable user ID cannot
+  expose the next account's profiles.
+  Concurrent creates never exceed the limit and exactly one profile stays the default. Profiles are cached per user for a minute (`rule_profile` namespace + a per-user
   generation bumped on every write).
 
 ## Node operations

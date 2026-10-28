@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -53,6 +54,25 @@ func Sign(params map[string]string, key string) string {
 	return gwutil.MD5Hex(gwutil.SignString(params, "sign", "sign_type") + key)
 }
 
+func validCallbackURL(raw string) bool {
+	if strings.ContainsAny(raw, "&?#") {
+		return false
+	}
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.Hostname() == "" {
+		return false
+	}
+	if net.ParseIP(u.Hostname()) != nil {
+		return true
+	}
+	for _, c := range u.Hostname() {
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '.') {
+			return false
+		}
+	}
+	return true
+}
+
 // Pay implements payment.Gateway: it returns the signed submit.php URL.
 func (*Gateway) Pay(_ context.Context, cfg map[string]string, req payment.PayRequest) (*payment.PayResult, error) {
 	if err := gwutil.Required(cfg, Name, "url", "pid", "key"); err != nil {
@@ -60,6 +80,10 @@ func (*Gateway) Pay(_ context.Context, cfg map[string]string, req payment.PayReq
 	}
 	if err := gwutil.RequireAmount(Name, req.TotalAmount); err != nil {
 		return nil, err
+	}
+	// A request-derived Host must never inject fields into the raw k=v signature.
+	if !validCallbackURL(req.NotifyURL) || !validCallbackURL(req.ReturnURL) {
+		return nil, errors.New("epay: invalid callback URL")
 	}
 	base, err := gwutil.BaseURL(cfg["url"], Name, true)
 	if err != nil {
@@ -98,6 +122,16 @@ func (*Gateway) Notify(_ context.Context, cfg map[string]string, r *http.Request
 	if err != nil {
 		return nil, nil, fmt.Errorf("epay: parse callback: %w", err)
 	}
+	for key := range params {
+		if key == "notify_url" || key == "return_url" || key == "" {
+			return nil, nil, errors.New("epay: merchant request is not a payment notification")
+		}
+		for _, c := range key {
+			if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_') {
+				return nil, nil, errors.New("epay: invalid callback parameter name")
+			}
+		}
+	}
 	if params["sign"] == "" {
 		return nil, nil, errors.New("epay: missing sign")
 	}
@@ -111,8 +145,8 @@ func (*Gateway) Notify(_ context.Context, cfg map[string]string, r *http.Request
 	if params["trade_status"] != "TRADE_SUCCESS" {
 		return nil, ok, nil
 	}
-	if params["out_trade_no"] == "" {
-		return nil, nil, errors.New("epay: missing out_trade_no")
+	if params["out_trade_no"] == "" || params["trade_no"] == "" {
+		return nil, nil, errors.New("epay: missing out_trade_no or trade_no")
 	}
 	amount, err := gwutil.ParsePaidCents(params["money"])
 	if err != nil {

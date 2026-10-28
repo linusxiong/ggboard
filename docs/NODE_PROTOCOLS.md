@@ -374,7 +374,7 @@ How clients read routes:
   - `group_id IN groups(P) ∪ groups(children of P)` (§5.3)
   - `banned = false`
   - `expired_at IS NULL OR expired_at > now`
-  - `u + d < transfer_enable`
+  - `u` and `d` are nonnegative and their sum is less than `transfer_enable` (computed without signed-integer overflow)
 
   This matches Xboard `getAvailableUsers`, plus the child-group union. A node with no groups gets `{"users":[]}`.
 - `speed_limit`: `users.speed_limit` in **Mbps**; `null` becomes `0` (unlimited).

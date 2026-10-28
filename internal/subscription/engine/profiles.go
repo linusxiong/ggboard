@@ -25,10 +25,11 @@ import (
 
 // Profile store errors (the API maps them to 404 / 409 / 400).
 var (
-	ErrProfileNotFound = errors.New("engine: rule profile not found")
-	ErrProfileLimit    = fmt.Errorf("engine: at most %d rule profiles", model.MaxRuleProfiles)
-	ErrSlugTaken       = errors.New("engine: slug already used by another profile")
-	ErrDefaultProfile  = errors.New("engine: the default profile cannot be deleted")
+	ErrProfileNotFound       = errors.New("engine: rule profile not found")
+	ErrProfileLimit          = fmt.Errorf("engine: at most %d rule profiles", model.MaxRuleProfiles)
+	ErrSlugTaken             = errors.New("engine: slug already used by another profile")
+	ErrDefaultProfile        = errors.New("engine: the default profile cannot be deleted")
+	ErrProfileSessionExpired = errors.New("engine: profile session expired")
 )
 
 // MaxProfileName bounds profile names (runes).
@@ -165,6 +166,25 @@ func StoredProfileSlug(ctx context.Context, a *app.App, c *subscription.Catalog,
 	return row, decodeStored(a, c, userID, rawData(row)), nil
 }
 
+// StoredProfileSlugBound reads a profile and its default from one account-bound snapshot.
+func StoredProfileSlugBound(ctx context.Context, a *app.App, c *subscription.Catalog, u *model.User, slug string) (*model.RuleProfile, *subscription.RuleProfile, []model.RuleProfile, error) {
+	rows, err := LoadProfilesBound(ctx, a, u)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	row := DefaultOf(rows)
+	if slug != "" {
+		row = FindSlug(rows, slug)
+	}
+	if row == nil {
+		if len(rows) == 0 && (slug == "" || slug == model.RuleProfileDefaultSlug) {
+			return nil, nil, rows, nil
+		}
+		return nil, nil, nil, ErrProfileNotFound
+	}
+	return row, decodeStored(a, c, u.ID, rawData(row)), rows, nil
+}
+
 // EffectiveProfile returns the profile a request uses. ov.Template carries ?profile=: a slug of one of the
 // user's profiles selects that profile; otherwise a catalog template id overrides the default profile's
 // rules (the original meaning of ?profile=); anything else selects the default profile. With
@@ -195,13 +215,46 @@ func invalidateProfiles(a *app.App, userID uint64) {
 	a.Cache.InvalidateNamespace(profileNamespace(userID))
 }
 
-// withProfiles runs fn in a transaction holding the user's row lock (serializes profile writes of one user)
-// with the user's current profiles, then drops the cache.
-func withProfiles(ctx context.Context, a *app.App, userID uint64, fn func(tx *gorm.DB, rows []model.RuleProfile) error) error {
+// lockProfileUser serializes profile operations and optionally checks the authenticated account instance.
+func lockProfileUser(tx *gorm.DB, userID uint64, bound ...*model.User) error {
+	// A no-op write takes the row lock on every driver (MySQL reports 0 affected rows for it, so the
+	// count is not checked).
+	if err := tx.Model(&model.User{}).Where("id = ?", userID).UpdateColumn("token", gorm.Expr("token")).Error; err != nil {
+		return err
+	}
+	if len(bound) > 0 && bound[0] != nil {
+		var current model.User
+		if err := tx.Select("id", "uuid", "email", "password_version", "banned").First(&current, userID).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		u := bound[0]
+		if current.ID != u.ID || current.UUID != u.UUID || current.Email != u.Email ||
+			current.PasswordVersion != u.PasswordVersion || current.Banned {
+			return ErrProfileSessionExpired
+		}
+	}
+	return nil
+}
+
+// LoadProfilesBound reads profiles while holding the row of the authenticated account instance.
+func LoadProfilesBound(ctx context.Context, a *app.App, u *model.User) ([]model.RuleProfile, error) {
+	var rows []model.RuleProfile
 	err := a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// A no-op write takes the row lock on every driver (MySQL reports 0 affected rows for it, so the
-		// count is not checked).
-		if err := tx.Model(&model.User{}).Where("id = ?", userID).UpdateColumn("token", gorm.Expr("token")).Error; err != nil {
+		if err := lockProfileUser(tx, u.ID, u); err != nil {
+			return err
+		}
+		return tx.Where("user_id = ?", u.ID).Order("id").Find(&rows).Error
+	})
+	if rows == nil {
+		rows = []model.RuleProfile{}
+	}
+	return rows, err
+}
+
+// withProfiles runs fn with the user's current profiles, then drops the cache.
+func withProfiles(ctx context.Context, a *app.App, userID uint64, fn func(tx *gorm.DB, rows []model.RuleProfile) error, bound ...*model.User) error {
+	err := a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockProfileUser(tx, userID, bound...); err != nil {
 			return err
 		}
 		var rows []model.RuleProfile
@@ -229,7 +282,7 @@ func ensureDefaultTx(tx *gorm.DB, userID uint64, rows []model.RuleProfile) ([]mo
 }
 
 // EnsureDefault creates the default profile row of a user who has none (idempotent).
-func EnsureDefault(ctx context.Context, a *app.App, userID uint64) error {
+func EnsureDefault(ctx context.Context, a *app.App, userID uint64, bound ...*model.User) error {
 	rows, err := LoadProfiles(ctx, a, userID)
 	if err != nil || len(rows) > 0 {
 		return err
@@ -237,17 +290,17 @@ func EnsureDefault(ctx context.Context, a *app.App, userID uint64) error {
 	return withProfiles(ctx, a, userID, func(tx *gorm.DB, rows []model.RuleProfile) error {
 		_, err := ensureDefaultTx(tx, userID, rows)
 		return err
-	})
+	}, bound...)
 }
 
 // SaveProfile stores a validated profile document as the user's default profile (created when missing).
-func SaveProfile(ctx context.Context, a *app.App, userID uint64, raw []byte) error {
-	return SaveProfileSlug(ctx, a, userID, "", raw)
+func SaveProfile(ctx context.Context, a *app.App, userID uint64, raw []byte, bound ...*model.User) error {
+	return SaveProfileSlug(ctx, a, userID, "", raw, bound...)
 }
 
 // SaveProfileSlug stores a validated profile document in the profile with slug ("" = the default profile; for
 // a user without profiles "" and "default" create the default row). ErrProfileNotFound for unknown slugs.
-func SaveProfileSlug(ctx context.Context, a *app.App, userID uint64, slug string, raw []byte) error {
+func SaveProfileSlug(ctx context.Context, a *app.App, userID uint64, slug string, raw []byte, bound ...*model.User) error {
 	return withProfiles(ctx, a, userID, func(tx *gorm.DB, rows []model.RuleProfile) error {
 		if len(rows) == 0 && (slug == "" || slug == model.RuleProfileDefaultSlug) {
 			var err error
@@ -264,7 +317,7 @@ func SaveProfileSlug(ctx context.Context, a *app.App, userID uint64, slug string
 		}
 		return tx.Model(&model.RuleProfile{}).Where("id = ?", row.ID).
 			Updates(map[string]any{"data": model.RawJSON(raw), "updated_at": time.Now()}).Error
-	})
+	}, bound...)
 }
 
 // slugFrom derives a slug from a profile name: ASCII letters and digits, other runs become "-"; "" when
@@ -306,7 +359,7 @@ func freeSlug(rows []model.RuleProfile, base string) string {
 // CreateProfile adds a named profile. slug "" derives one from the name; copyFrom (a slug, "" = none) copies
 // that profile's document, otherwise the new profile follows the defaults. A user without profiles gets the
 // default row first, so the new profile never silently becomes the default.
-func CreateProfile(ctx context.Context, a *app.App, userID uint64, name, slug, copyFrom string) (*model.RuleProfile, error) {
+func CreateProfile(ctx context.Context, a *app.App, userID uint64, name, slug, copyFrom string, bound ...*model.User) (*model.RuleProfile, error) {
 	var out model.RuleProfile
 	err := withProfiles(ctx, a, userID, func(tx *gorm.DB, rows []model.RuleProfile) error {
 		rows, err := ensureDefaultTx(tx, userID, rows)
@@ -334,7 +387,7 @@ func CreateProfile(ctx context.Context, a *app.App, userID uint64, name, slug, c
 		now := time.Now()
 		out = model.RuleProfile{UserID: userID, Slug: slug, Name: strings.TrimSpace(name), Data: data, CreatedAt: now, UpdatedAt: now}
 		return tx.Create(&out).Error
-	})
+	}, bound...)
 	if err != nil {
 		return nil, err
 	}
@@ -342,7 +395,7 @@ func CreateProfile(ctx context.Context, a *app.App, userID uint64, name, slug, c
 }
 
 // UpdateProfileMeta renames a profile and/or changes its slug (nil = unchanged); it returns the updated row.
-func UpdateProfileMeta(ctx context.Context, a *app.App, userID uint64, slug string, name, newSlug *string) (*model.RuleProfile, error) {
+func UpdateProfileMeta(ctx context.Context, a *app.App, userID uint64, slug string, name, newSlug *string, bound ...*model.User) (*model.RuleProfile, error) {
 	var out model.RuleProfile
 	err := withProfiles(ctx, a, userID, func(tx *gorm.DB, rows []model.RuleProfile) error {
 		rows, err := ensureDefaultTx(tx, userID, rows)
@@ -367,7 +420,7 @@ func UpdateProfileMeta(ctx context.Context, a *app.App, userID uint64, slug stri
 			return err
 		}
 		return tx.First(&out, row.ID).Error
-	})
+	}, bound...)
 	if err != nil {
 		return nil, err
 	}
@@ -375,7 +428,7 @@ func UpdateProfileMeta(ctx context.Context, a *app.App, userID uint64, slug stri
 }
 
 // DeleteProfile removes a profile; the default profile cannot be deleted (ErrDefaultProfile).
-func DeleteProfile(ctx context.Context, a *app.App, userID uint64, slug string) error {
+func DeleteProfile(ctx context.Context, a *app.App, userID uint64, slug string, bound ...*model.User) error {
 	return withProfiles(ctx, a, userID, func(tx *gorm.DB, rows []model.RuleProfile) error {
 		row := FindSlug(rows, slug)
 		if row == nil {
@@ -388,11 +441,11 @@ func DeleteProfile(ctx context.Context, a *app.App, userID uint64, slug string) 
 			return ErrDefaultProfile
 		}
 		return tx.Delete(&model.RuleProfile{}, row.ID).Error
-	})
+	}, bound...)
 }
 
 // SetDefaultProfile makes the profile with slug the default and returns it.
-func SetDefaultProfile(ctx context.Context, a *app.App, userID uint64, slug string) (*model.RuleProfile, error) {
+func SetDefaultProfile(ctx context.Context, a *app.App, userID uint64, slug string, bound ...*model.User) (*model.RuleProfile, error) {
 	var out model.RuleProfile
 	err := withProfiles(ctx, a, userID, func(tx *gorm.DB, rows []model.RuleProfile) error {
 		rows, err := ensureDefaultTx(tx, userID, rows)
@@ -411,7 +464,7 @@ func SetDefaultProfile(ctx context.Context, a *app.App, userID uint64, slug stri
 			return err
 		}
 		return tx.First(&out, row.ID).Error
-	})
+	}, bound...)
 	if err != nil {
 		return nil, err
 	}

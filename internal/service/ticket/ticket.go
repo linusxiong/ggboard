@@ -21,9 +21,10 @@ import (
 
 // Errors.
 var (
-	ErrNotFound   = errors.New("ticket: not found")
-	ErrOpenExists = errors.New("ticket: the user already has an open ticket")
-	ErrClosed     = errors.New("ticket: ticket is closed")
+	ErrNotFound       = errors.New("ticket: not found")
+	ErrOpenExists     = errors.New("ticket: the user already has an open ticket")
+	ErrClosed         = errors.New("ticket: ticket is closed")
+	ErrSessionExpired = errors.New("ticket: session expired")
 )
 
 // NotifyThrottle is the minimum delay between two reply e-mails for the same ticket. A reply by the owner resets
@@ -42,11 +43,33 @@ type Service struct{ a *app.App }
 // New returns a Service bound to a.
 func New(a *app.App) *Service { return &Service{a: a} }
 
+// LockOwner serializes a ticket operation with account changes and checks the authenticated snapshot.
+func LockOwner(tx *gorm.DB, session *model.User) (*model.User, error) {
+	if session == nil || session.UUID == "" {
+		return nil, ErrSessionExpired
+	}
+	if err := tx.Model(&model.User{}).Where("id = ?", session.ID).
+		UpdateColumn("password_version", gorm.Expr("password_version")).Error; err != nil {
+		return nil, err
+	}
+	var owner model.User
+	if err := tx.Select("id", "uuid", "email", "password_version", "banned").Where("id = ?", session.ID).First(&owner).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrSessionExpired
+		}
+		return nil, err
+	}
+	if owner.UUID != session.UUID || owner.Email != session.Email || owner.PasswordVersion != session.PasswordVersion || owner.Banned {
+		return nil, ErrSessionExpired
+	}
+	return &owner, nil
+}
+
 // Create opens a ticket with its first message for userID. It returns ErrOpenExists when the user still has an
 // open ticket (Xboard rule: one open ticket per user). The new ticket awaits a staff reply; administrators are
 // notified (ticket_new).
 func (s *Service) Create(ctx context.Context, userID uint64, subject string, level model.TicketLevel, message string) (*model.Ticket, error) {
-	t, email, err := s.create(ctx, userID, subject, level, message)
+	t, email, err := s.create(ctx, userID, nil, subject, level, message)
 	if err != nil {
 		return nil, err
 	}
@@ -56,14 +79,38 @@ func (s *Service) Create(ctx context.Context, userID uint64, subject string, lev
 	return t, nil
 }
 
+// CreateForOwner opens a ticket only for the account instance that passed authentication.
+func (s *Service) CreateForOwner(ctx context.Context, session *model.User, subject string, level model.TicketLevel, message string) (*model.Ticket, error) {
+	if session == nil || session.UUID == "" {
+		return nil, ErrSessionExpired
+	}
+	t, email, err := s.create(ctx, session.ID, session, subject, level, message)
+	if err != nil {
+		return nil, err
+	}
+	notify.Emit(s.a, notify.TicketNew(s.a, notify.Ticket{
+		ID: t.ID, UserID: session.ID, Email: email, Subject: subject, Level: int(level), Message: message,
+	}))
+	return t, nil
+}
+
 // CreateSystem is Create for tickets the panel opens on the user's behalf (withdrawal requests): the caller
 // sends its own notification, so no ticket_new is emitted.
 func (s *Service) CreateSystem(ctx context.Context, userID uint64, subject string, level model.TicketLevel, message string) (*model.Ticket, error) {
-	t, _, err := s.create(ctx, userID, subject, level, message)
+	t, _, err := s.create(ctx, userID, nil, subject, level, message)
 	return t, err
 }
 
-func (s *Service) create(ctx context.Context, userID uint64, subject string, level model.TicketLevel, message string) (*model.Ticket, string, error) {
+// CreateSystemBound creates a system ticket only while the authenticated account snapshot remains current.
+func (s *Service) CreateSystemBound(ctx context.Context, session *model.User, subject string, level model.TicketLevel, message string) (*model.Ticket, error) {
+	if session == nil || session.UUID == "" {
+		return nil, ErrSessionExpired
+	}
+	t, _, err := s.create(ctx, session.ID, session, subject, level, message)
+	return t, err
+}
+
+func (s *Service) create(ctx context.Context, userID uint64, session *model.User, subject string, level model.TicketLevel, message string) (*model.Ticket, string, error) {
 	t := &model.Ticket{
 		UserID:          userID,
 		Subject:         subject,
@@ -74,9 +121,14 @@ func (s *Service) create(ctx context.Context, userID uint64, subject string, lev
 	}
 	var owner model.User
 	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Serialize ticket creation per user: FOR UPDATE on PostgreSQL/MySQL; SQLite transactions are IMMEDIATE.
-		if err := tx.Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).
-			Select("id", "email").Where("id = ?", userID).First(&owner).Error; err != nil {
+		if session != nil {
+			current, err := LockOwner(tx, session)
+			if err != nil {
+				return err
+			}
+			owner = *current
+		} else if err := tx.Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).
+			Select("id", "uuid", "email", "password_version", "banned").Where("id = ?", userID).First(&owner).Error; err != nil {
 			return err
 		}
 		var open int64
@@ -110,6 +162,25 @@ func (s *Service) Get(ctx context.Context, id, ownerID uint64) (*model.Ticket, e
 	return s.get(s.a.DB.WithContext(ctx), id, ownerID)
 }
 
+// GetWithDB reads a ticket in the caller's authorization transaction.
+func (s *Service) GetWithDB(db *gorm.DB, id, ownerID uint64) (*model.Ticket, error) {
+	return s.get(db, id, ownerID)
+}
+
+// GetForOwner reads a ticket and its messages while the authenticated account still owns them.
+func (s *Service) GetForOwner(ctx context.Context, id uint64, session *model.User) (*model.Ticket, error) {
+	var t *model.Ticket
+	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if _, err := LockOwner(tx, session); err != nil {
+			return err
+		}
+		var err error
+		t, err = s.get(tx, id, session.ID)
+		return err
+	})
+	return t, wrap(err)
+}
+
 func (s *Service) get(db *gorm.DB, id, ownerID uint64) (*model.Ticket, error) {
 	q := db.Preload("Messages", func(db *gorm.DB) *gorm.DB { return db.Order("id ASC") }).Where("id = ?", id)
 	if ownerID != 0 {
@@ -125,7 +196,25 @@ func (s *Service) get(db *gorm.DB, id, ownerID uint64) (*model.Ticket, error) {
 // ReplyAsOwner appends a message by the ticket owner. The ticket then awaits a staff reply. Closed tickets
 // cannot be replied to (ErrClosed); tickets of other users are ErrNotFound.
 func (s *Service) ReplyAsOwner(ctx context.Context, id, userID uint64, message string) (*model.Ticket, error) {
+	return s.replyAsOwner(ctx, id, userID, nil, message)
+}
+
+// ReplyForOwner appends a reply only while the authenticated account snapshot remains current.
+func (s *Service) ReplyForOwner(ctx context.Context, id uint64, session *model.User, message string) (*model.Ticket, error) {
+	if session == nil || session.UUID == "" {
+		return nil, ErrSessionExpired
+	}
+	return s.replyAsOwner(ctx, id, session.ID, session, message)
+}
+
+func (s *Service) replyAsOwner(ctx context.Context, id, userID uint64, session *model.User, message string) (*model.Ticket, error) {
+	var out *model.Ticket
 	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if session != nil {
+			if _, err := LockOwner(tx, session); err != nil {
+				return err
+			}
+		}
 		t, err := s.lock(tx, id)
 		if err != nil {
 			return err
@@ -136,16 +225,26 @@ func (s *Service) ReplyAsOwner(ctx context.Context, id, userID uint64, message s
 		if t.Status == model.TicketStatusClosed {
 			return ErrClosed
 		}
-		return addMessage(tx, t, userID, message, map[string]any{
+		if err := addMessage(tx, t, userID, message, map[string]any{
 			"reply_status":       model.TicketAwaitingStaff,
 			"last_reply_user_id": userID,
-		})
+		}); err != nil {
+			return err
+		}
+		if session != nil {
+			out, err = s.get(tx, id, userID)
+			return err
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, wrap(err)
 	}
 	s.a.KV.Delete(notifyKey(id))
-	return s.Get(ctx, id, 0)
+	if session != nil {
+		return out, nil
+	}
+	return s.Get(ctx, id, userID)
 }
 
 // ReplyAsStaff appends a staff message: the ticket is (re)opened and marked replied, and the owner is e-mailed
@@ -180,6 +279,49 @@ func (s *Service) ReplyAsStaff(ctx context.Context, id, staffID uint64, message 
 	return s.Get(ctx, id, 0)
 }
 
+// ReplyAsStaffIf checks the live staff role in the reply transaction and captures the response there.
+func (s *Service) ReplyAsStaffIf(ctx context.Context, id, staffID uint64, message string, authorize func(*gorm.DB) error) (*model.Ticket, string, error) {
+	var t *model.Ticket
+	var email string
+	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := authorize(tx); err != nil {
+			return err
+		}
+		var err error
+		if t, err = s.lock(tx, id); err != nil {
+			return err
+		}
+		reply := model.TicketReplied
+		if staffID == t.UserID {
+			reply = model.TicketAwaitingStaff
+		}
+		if err := addMessage(tx, t, staffID, message, map[string]any{
+			"status": model.TicketStatusOpen, "reply_status": reply, "last_reply_user_id": staffID,
+		}); err != nil {
+			return err
+		}
+		if t, err = s.get(tx, id, 0); err != nil {
+			return err
+		}
+		var owner model.User
+		if err := tx.Select("email").First(&owner, t.UserID).Error; err != nil {
+			return err
+		}
+		email = owner.Email
+		return nil
+	})
+	if err != nil {
+		return nil, "", wrap(err)
+	}
+	if staffID != t.UserID {
+		s.notify(ctx, t, message)
+		notify.Emit(s.a, notify.TicketReply(s.a, notify.Ticket{
+			ID: t.ID, UserID: t.UserID, Subject: t.Subject, Level: int(t.Level), Message: message,
+		}))
+	}
+	return t, email, nil
+}
+
 // Close closes a ticket (idempotent). ownerID, when non-zero, restricts it to that user's tickets.
 func (s *Service) Close(ctx context.Context, id, ownerID uint64) error {
 	q := s.a.DB.WithContext(ctx).Model(&model.Ticket{}).Where("id = ?", id)
@@ -195,6 +337,43 @@ func (s *Service) Close(ctx context.Context, id, ownerID uint64) error {
 	}
 	return q.Where(map[string]any{"status": model.TicketStatusOpen}).
 		Update("status", model.TicketStatusClosed).Error
+}
+
+// CloseAsStaffIf checks the live staff role in the close transaction.
+func (s *Service) CloseAsStaffIf(ctx context.Context, id uint64, authorize func(*gorm.DB) error) error {
+	return s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := authorize(tx); err != nil {
+			return err
+		}
+		t, err := s.lock(tx, id)
+		if err != nil {
+			return wrap(err)
+		}
+		if t.Status == model.TicketStatusClosed {
+			return nil
+		}
+		return tx.Model(t).Update("status", model.TicketStatusClosed).Error
+	})
+}
+
+// CloseForOwner closes a ticket only while the authenticated account snapshot remains current.
+func (s *Service) CloseForOwner(ctx context.Context, id uint64, session *model.User) error {
+	return s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if _, err := LockOwner(tx, session); err != nil {
+			return err
+		}
+		t, err := s.lock(tx, id)
+		if err != nil {
+			return wrap(err)
+		}
+		if t.UserID != session.ID {
+			return ErrNotFound
+		}
+		if t.Status == model.TicketStatusClosed {
+			return nil
+		}
+		return tx.Model(t).Update("status", model.TicketStatusClosed).Error
+	})
 }
 
 // CountOpen returns the number of open tickets of userID.
@@ -215,12 +394,17 @@ type Filter struct {
 
 // Query returns the tickets matching f (no order, no limit) for httpx.Paginate.
 func (s *Service) Query(ctx context.Context, f Filter) *gorm.DB {
-	q := s.a.DB.WithContext(ctx).Model(&model.Ticket{})
+	return s.QueryWithDB(s.a.DB.WithContext(ctx), f)
+}
+
+// QueryWithDB builds a staff query in the caller's authorization transaction.
+func (s *Service) QueryWithDB(db *gorm.DB, f Filter) *gorm.DB {
+	q := db.Model(&model.Ticket{})
 	if f.UserID != nil {
 		q = q.Where("user_id = ?", *f.UserID)
 	}
 	if email := strings.ToLower(strings.TrimSpace(f.Email)); email != "" {
-		q = q.Where("user_id IN (?)", s.a.DB.WithContext(ctx).Model(&model.User{}).Select("id").Where("email = ?", email))
+		q = q.Where("user_id IN (?)", db.Model(&model.User{}).Select("id").Where("email = ?", email))
 	}
 	if f.Status != nil {
 		q = q.Where(map[string]any{"status": *f.Status})
@@ -233,6 +417,11 @@ func (s *Service) Query(ctx context.Context, f Filter) *gorm.DB {
 
 // Owners returns id → e-mail for the owners of tickets (one query).
 func (s *Service) Owners(ctx context.Context, tickets []model.Ticket) (map[uint64]string, error) {
+	return s.OwnersWithDB(s.a.DB.WithContext(ctx), tickets)
+}
+
+// OwnersWithDB reads owner emails in the caller's authorization transaction.
+func (s *Service) OwnersWithDB(db *gorm.DB, tickets []model.Ticket) (map[uint64]string, error) {
 	out := make(map[uint64]string, len(tickets))
 	if len(tickets) == 0 {
 		return out, nil
@@ -249,7 +438,7 @@ func (s *Service) Owners(ctx context.Context, tickets []model.Ticket) (map[uint6
 		ID    uint64
 		Email string
 	}
-	if err := s.a.DB.WithContext(ctx).Model(&model.User{}).Select("id", "email").Where("id IN ?", ids).Find(&rows).Error; err != nil {
+	if err := db.Model(&model.User{}).Select("id", "email").Where("id IN ?", ids).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	for _, r := range rows {

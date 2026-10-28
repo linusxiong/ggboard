@@ -17,7 +17,7 @@ func TestWithdrawNotification(t *testing.T) {
 	if err := a.DB.Model(&model.User{}).Where("id = ?", u.ID).Update("commission_balance", 12345).Error; err != nil {
 		t.Fatal(err)
 	}
-	if _, err := invitesvc.New(a).Withdraw(t.Context(), u.ID, "USDT", "TQx1234567890abcdef9aZ"); err != nil {
+	if _, err := invitesvc.New(a).Withdraw(t.Context(), u, "USDT", "TQx1234567890abcdef9aZ"); err != nil {
 		t.Fatal(err)
 	}
 	fs := notifytest.Fields(rec.Last(t, notify.TypeWithdraw))
@@ -27,7 +27,7 @@ func TestWithdrawNotification(t *testing.T) {
 	rec.None(t, notify.TypeTicketNew) // one notification per request, not two
 
 	// A refused request notifies nothing.
-	if _, err := invitesvc.New(a).Withdraw(t.Context(), u.ID, "PayPal", "x"); err == nil {
+	if _, err := invitesvc.New(a).Withdraw(t.Context(), u, "PayPal", "x"); err == nil {
 		t.Fatal("unknown method accepted")
 	}
 	if n := len(rec.Events(t, notify.TypeWithdraw)); n != 1 {

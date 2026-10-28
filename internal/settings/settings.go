@@ -178,7 +178,12 @@ func (s *Service) Set(values map[string]any) error {
 
 // SetContext is Set with a context.
 func (s *Service) SetContext(ctx context.Context, values map[string]any) error {
-	if len(values) == 0 {
+	return s.SetContextIf(ctx, values, nil)
+}
+
+// SetContextIf saves values only when authorize succeeds inside the write transaction.
+func (s *Service) SetContextIf(ctx context.Context, values map[string]any, authorize func(*gorm.DB) error) error {
+	if len(values) == 0 && authorize == nil {
 		return nil
 	}
 	for _, key := range generated {
@@ -226,6 +231,11 @@ func (s *Service) SetContext(ctx context.Context, values map[string]any) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if authorize != nil {
+			if err := authorize(tx); err != nil {
+				return err
+			}
+		}
 		now := time.Now()
 		for _, w := range writes {
 			if w.reset {

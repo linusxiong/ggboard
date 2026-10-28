@@ -7,6 +7,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/linusxiong/ggboard/internal/auth"
 	"github.com/linusxiong/ggboard/internal/httpx"
 	"github.com/linusxiong/ggboard/internal/model"
 	"github.com/linusxiong/ggboard/internal/notify"
@@ -26,10 +27,33 @@ func (s *Service) Cancel(ctx context.Context, orderID uint64) (*model.Order, err
 	return s.CancelBy(ctx, orderID, CancelByUser)
 }
 
+func (s *Service) CancelForUser(ctx context.Context, orderID uint64, actor *auth.Claims) (*model.Order, error) {
+	return s.cancelBy(ctx, orderID, CancelByUser, actor)
+}
+
+func (s *Service) CancelForAdmin(ctx context.Context, orderID uint64, admin *auth.Claims) (*model.Order, error) {
+	if admin == nil {
+		return nil, httpx.Unauthorized("session expired, please sign in again")
+	}
+	return s.cancelBy(ctx, orderID, CancelByAdmin, admin)
+}
+
 // CancelBy is Cancel on behalf of by (CancelByUser, CancelByAdmin or CancelByTimeout).
 func (s *Service) CancelBy(ctx context.Context, orderID uint64, by string) (*model.Order, error) {
+	return s.cancelBy(ctx, orderID, by, nil)
+}
+
+func (s *Service) cancelBy(ctx context.Context, orderID uint64, by string, actor *auth.Claims) (*model.Order, error) {
 	var o model.Order
 	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if actor != nil && by == CancelByUser {
+			if err := tx.Select("id", "user_id").First(&o, orderID).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return httpx.NotFound("order not found")
+				}
+				return err
+			}
+		}
 		res := tx.Model(&model.Order{}).Where("id = ? AND status = ?", orderID, model.OrderStatusPending).
 			Update("status", model.OrderStatusCancelled)
 		if res.Error != nil {
@@ -44,9 +68,17 @@ func (s *Service) CancelBy(ctx context.Context, orderID uint64, by string) (*mod
 		if res.RowsAffected == 0 {
 			return httpx.Conflict("only pending orders can be cancelled")
 		}
+		if actor != nil {
+			if by == CancelByAdmin {
+				if err := lockAdminActor(tx, actor); err != nil {
+					return err
+				}
+			} else if _, err := LockActor(tx, o.UserID, actor); err != nil {
+				return err
+			}
+		}
 		if o.BalanceAmount > 0 {
-			if err := tx.Model(&model.User{}).Where("id = ?", o.UserID).
-				UpdateColumn("balance", gorm.Expr("balance + ?", o.BalanceAmount)).Error; err != nil {
+			if err := creditUser(tx, o.UserID, "balance", o.BalanceAmount); err != nil {
 				return err
 			}
 		}

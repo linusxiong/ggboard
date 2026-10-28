@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/auth"
@@ -17,7 +18,13 @@ import (
 // registerSettings mounts /admin/settings* (admin only).
 // Owner: BE-E1 admin ops. Implement in this file; do not add routes elsewhere.
 func registerSettings(g *gin.RouterGroup, a *app.App) {
-	s := g.Group("/settings", auth.RequireAdmin(a))
+	s := g.Group("/settings", auth.RequireAdmin(a), func(c *gin.Context) {
+		if err := settingsLiveAdmin(c, a.DB.WithContext(c.Request.Context()), false); err != nil {
+			httpx.Fail(c, err)
+			return
+		}
+		c.Next()
+	})
 	s.GET("", settingsGetHandler(a))
 	s.PUT("", settingsPutHandler(a))
 	s.POST("/mail/test", settingsMailTestHandler(a))
@@ -29,8 +36,15 @@ func registerSettings(g *gin.RouterGroup, a *app.App) {
 func settingsGetHandler(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		out := make(gin.H, 16)
-		for g, kv := range a.Settings.AllGrouped() {
-			out[g] = kv
+		err := withLiveAdmin(c, a, func(_ *gorm.DB) error {
+			for g, kv := range a.Settings.AllGrouped() {
+				out[g] = kv
+			}
+			return nil
+		})
+		if err != nil {
+			httpx.Fail(c, err)
+			return
 		}
 		out["groups"] = settings.Groups()
 		httpx.OK(c, out)
@@ -61,7 +75,9 @@ func settingsPutHandler(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, e)
 			return
 		}
-		if err := a.Settings.SetContext(c.Request.Context(), in); err != nil {
+		if err := a.Settings.SetContextIf(c.Request.Context(), in, func(tx *gorm.DB) error {
+			return settingsLiveAdmin(c, tx, true)
+		}); err != nil {
 			httpx.Fail(c, err)
 			return
 		}
@@ -98,6 +114,9 @@ func settingsMailTestHandler(a *app.App) gin.HandlerFunc {
 		msg, err := a.Mailer.Render(in.Email, mail.TplNotify, data)
 		if err != nil {
 			httpx.Fail(c, err)
+			return
+		}
+		if !requireLiveAdmin(c, a) {
 			return
 		}
 		if err := a.Mailer.SendNow(c.Request.Context(), msg); err != nil {

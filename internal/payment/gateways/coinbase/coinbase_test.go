@@ -100,9 +100,9 @@ func TestNotify(t *testing.T) {
 	if res.TradeNo != tradeNo || res.CallbackNo != "6750a1b2c3d4e5f6a7b8c9d0" || res.Amount != 1234 {
 		t.Fatalf("res = %+v", res)
 	}
-	// A non-1 rate does not report the amount.
+	// A non-1 rate still reports the provider USDC amount.
 	res, _, _ = notify(t, map[string]string{"webhook_secret": secret, "exchange_rate": "0.14"}, body, sign(t, body, vectorTime))
-	if res == nil || res.Amount != 0 {
+	if res == nil || res.Amount != 1234 || res.Currency != "USDC" {
 		t.Fatalf("fx res = %+v", res)
 	}
 	for name, b := range map[string]string{

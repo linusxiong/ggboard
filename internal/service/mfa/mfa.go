@@ -72,6 +72,32 @@ type Service struct {
 // New returns a Service bound to a.
 func New(a *app.App) *Service { return &Service{a: a, users: usersvc.New(a)} }
 
+// withUser keeps credential writes in the same transaction as the account binding check.
+func (s *Service) withUser(ctx context.Context, u *model.User, write func(*gorm.DB) error) error {
+	return s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// A no-op update takes the user write lock on SQLite, PostgreSQL and MySQL alike.
+		if err := tx.Model(&model.User{}).Where("id = ?", u.ID).
+			UpdateColumn("password_version", gorm.Expr("password_version")).Error; err != nil {
+			return err
+		}
+		var fresh model.User
+		if err := tx.First(&fresh, u.ID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return httpx.Unauthorized("session expired, please sign in again")
+			}
+			return err
+		}
+		if u.UUID == "" || fresh.UUID != u.UUID || fresh.PasswordVersion != u.PasswordVersion ||
+			usersvc.NormalizeEmail(fresh.Email) != usersvc.NormalizeEmail(u.Email) {
+			return httpx.Unauthorized("session expired, please sign in again")
+		}
+		if fresh.Banned {
+			return httpx.Forbidden("account is banned")
+		}
+		return write(tx)
+	})
+}
+
 func errExpired() *httpx.Error {
 	return httpx.NewError(http.StatusUnauthorized, CodeExpired, "verification expired, please sign in again")
 }
@@ -144,21 +170,28 @@ func (s *Service) PasskeyCount(ctx context.Context, userID uint64) (int64, error
 // and dropped whenever the user's second factors change.
 func (s *Service) Configured(ctx context.Context, userID uint64) (bool, error) {
 	lctx := context.WithoutCancel(ctx) // singleflight: the load is shared by concurrent callers, so it must not fail because the first caller went away
-	return cache.GetOrLoad(s.a.Cache, idKey(cacheStatusKeyNS, userID), statusTTL, func() (bool, error) {
-		on, err := s.TOTPEnabled(lctx, userID)
-		if err != nil || on {
-			return on, err
+	ns := idKey(cacheStatusKeyNS, userID)
+	for {
+		key := s.a.Cache.Key(ns, "")
+		configured, err := cache.GetOrLoad(s.a.Cache, key, statusTTL, func() (bool, error) {
+			on, err := s.TOTPEnabled(lctx, userID)
+			if err != nil || on {
+				return on, err
+			}
+			n, err := s.PasskeyCount(lctx, userID)
+			return n > 0, err
+		})
+		if key == s.a.Cache.Key(ns, "") {
+			return configured, err
 		}
-		n, err := s.PasskeyCount(lctx, userID)
-		return n > 0, err
-	})
+	}
 }
 
 // changed drops cached state after the second factors of userID changed. Sessions stay valid
 // (password_version is not bumped); the auth middleware simply reloads the user.
 func (s *Service) changed(userID uint64) {
 	auth.InvalidateUser(s.a, userID)
-	s.a.Cache.Delete(idKey(cacheStatusKeyNS, userID))
+	s.a.Cache.InvalidateNamespace(idKey(cacheStatusKeyNS, userID))
 }
 
 // reserveFailure reserves one second-factor attempt of userID (account.ReserveAttempt: the attempt counts as a

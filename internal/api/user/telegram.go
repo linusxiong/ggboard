@@ -52,7 +52,12 @@ func telegramStatus(a *app.App) gin.HandlerFunc {
 // telegramBindCode is POST /user/telegram/bind-code → {code, bot_username, deep_link} (code valid 10 min).
 func telegramBindCode(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		code, err := telegram.IssueBindCode(c.Request.Context(), a, auth.CurrentUser(c).ID)
+		u, err := freshUser(c, a)
+		if err != nil {
+			httpx.Fail(c, err)
+			return
+		}
+		code, err := telegram.IssueBindCode(c.Request.Context(), a, u)
 		if err != nil {
 			telegramFail(c, err)
 			return
@@ -64,7 +69,12 @@ func telegramBindCode(a *app.App) gin.HandlerFunc {
 // telegramUnbind is DELETE /user/telegram → true (idempotent).
 func telegramUnbind(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if err := telegram.Unbind(c.Request.Context(), a, auth.CurrentUser(c).ID); err != nil {
+		u, err := freshUser(c, a)
+		if err != nil {
+			httpx.Fail(c, err)
+			return
+		}
+		if err := telegram.Unbind(c.Request.Context(), a, u); err != nil {
 			httpx.Fail(c, err)
 			return
 		}

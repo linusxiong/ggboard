@@ -8,11 +8,10 @@ import (
 	"testing"
 )
 
-// Review 2026-10-22: Amount 0 means "not reported" to ordersvc and skips the amount check, so a signed
-// "money=0.00" success must not be returned as a payment.
+// Successful callbacks must never turn a missing or non-positive amount into a payment.
 func TestReviewZeroAmountIsNotAPayment(t *testing.T) {
 	gw := &Gateway{}
-	for _, money := range []string{"0", "0.00", "-1"} {
+	for _, money := range []string{"", "0", "0.00", "-1"} {
 		p := map[string]string{"pid": "1001", "out_trade_no": tradeNo, "trade_no": "x", "money": money, "trade_status": "TRADE_SUCCESS"}
 		q := url.Values{}
 		for k, v := range p {

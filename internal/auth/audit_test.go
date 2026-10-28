@@ -77,7 +77,7 @@ func TestAuditEmailChangeEndsOldSessions(t *testing.T) {
 	renamed := *u
 	renamed.Email = "new@example.com"
 	newTok := testutil.Login(t, a, &renamed)
-	a.Cache.Set("auth:user:"+strconv.FormatUint(u.ID, 10), stale, auth.UserCacheTTL) // a racing stale load
+	a.Cache.Set(a.Cache.Key("auth:user:"+strconv.FormatUint(u.ID, 10), ""), stale, auth.UserCacheTTL)
 	testutil.ExpectStatus(t, testutil.Do(t, r, http.MethodGet, "/user", nil, newTok), http.StatusOK)
 	testutil.ExpectStatus(t, testutil.Do(t, r, http.MethodGet, "/user", nil, oldTok), http.StatusUnauthorized)
 }
@@ -101,5 +101,43 @@ func TestAuditTokenRequiresEmailClaim(t *testing.T) {
 	testutil.ExpectStatus(t, testutil.Do(t, r, http.MethodGet, "/user", nil, noEmail), http.StatusUnauthorized)
 	if _, err := auth.IssueWith([]byte(testutil.JWTSecret), time.Hour, &model.User{ID: u.ID, Email: "  "}, now); err == nil {
 		t.Fatal("issuing a token without an email must fail")
+	}
+}
+
+func TestTokenCannotAuthenticateRecreatedAccountWithSameIDAndEmail(t *testing.T) {
+	a := testutil.NewTestApp(t)
+	r := auditRouter(t, a)
+	old := testutil.CreateUser(t, a, "recreated@example.com")
+	oldToken := testutil.Login(t, a, old)
+	if err := a.DB.Delete(&model.User{}, old.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	recreated := *old
+	recreated.UUID = "10000000-0000-4000-8000-000000000002"
+	if err := a.DB.Create(&recreated).Error; err != nil {
+		t.Fatal(err)
+	}
+	auth.InvalidateUser(a, old.ID)
+	testutil.ExpectStatus(t, testutil.Do(t, r, http.MethodGet, "/user", nil, oldToken), http.StatusUnauthorized)
+	testutil.ExpectStatus(t, testutil.Do(t, r, http.MethodGet, "/user", nil, testutil.Login(t, a, &recreated)), http.StatusOK)
+}
+
+func TestTokenRequiresAccountUUID(t *testing.T) {
+	a := testutil.NewTestApp(t)
+	u := testutil.CreateUser(t, a, "legacy-session@example.com")
+	now := time.Now()
+	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub": strconv.FormatUint(u.ID, 10), "email": u.Email, "ver": u.PasswordVersion,
+		"iss": auth.Issuer, "iat": now.Unix(), "exp": now.Add(time.Hour).Unix(),
+	}).SignedString([]byte(testutil.JWTSecret))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := auth.Parse(a, token); err == nil {
+		t.Fatal("legacy token without an account UUID was accepted")
+	}
+	u.UUID = ""
+	if _, err := auth.Issue(a, u); err == nil {
+		t.Fatal("issued a session without an account UUID")
 	}
 }

@@ -148,10 +148,13 @@ func adminBindPlan(c *gin.Context) (*adminPlanInput, error) {
 	return &in, nil
 }
 
-func adminValidatePlan(c *gin.Context, a *app.App, p *model.Plan) error {
+func adminValidatePlan(c *gin.Context, db *gorm.DB, p *model.Plan) error {
 	e := commerceFieldErrs{}
 	if p.Name == "" {
 		e.add("name", "is required")
+	}
+	if p.TransferEnable < 0 || p.TransferEnable > model.MaxPlanTransferGB {
+		e.add("transfer_enable", "must be between 0 and 8589934591 GB")
 	}
 	if errs := plansvc.ValidatePrices(p.Prices); len(errs) > 0 {
 		for k, v := range errs {
@@ -162,7 +165,7 @@ func adminValidatePlan(c *gin.Context, a *app.App, p *model.Plan) error {
 	}
 	if p.GroupID != 0 {
 		var n int64
-		if err := a.DB.WithContext(c.Request.Context()).Model(&model.ServerGroup{}).Where("id = ?", p.GroupID).Count(&n).Error; err != nil {
+		if err := db.WithContext(c.Request.Context()).Model(&model.ServerGroup{}).Where("id = ?", p.GroupID).Count(&n).Error; err != nil {
 			return err
 		}
 		if n == 0 {
@@ -172,8 +175,8 @@ func adminValidatePlan(c *gin.Context, a *app.App, p *model.Plan) error {
 	return e.err()
 }
 
-func adminPlanView(c *gin.Context, a *app.App, p *model.Plan) (*plansvc.AdminView, error) {
-	n, err := plansvc.ActiveUserCount(c.Request.Context(), a.DB, p.ID, 0, time.Now())
+func adminPlanView(c *gin.Context, db *gorm.DB, p *model.Plan) (*plansvc.AdminView, error) {
+	n, err := plansvc.ActiveUserCount(c.Request.Context(), db, p.ID, 0, time.Now())
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +185,12 @@ func adminPlanView(c *gin.Context, a *app.App, p *model.Plan) (*plansvc.AdminVie
 
 func adminListPlans(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		plans, err := plansvc.ListForAdmin(c.Request.Context(), a.DB, time.Now())
+		var plans []plansvc.AdminView
+		err := withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			var err error
+			plans, err = plansvc.ListForAdmin(c.Request.Context(), tx, time.Now())
+			return err
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -191,30 +199,33 @@ func adminListPlans(a *app.App) gin.HandlerFunc {
 	}
 }
 
-func adminLoadPlan(c *gin.Context, a *app.App) (*model.Plan, bool) {
-	id, err := httpx.ParamID(c, "id")
-	if err != nil {
-		httpx.Fail(c, err)
-		return nil, false
-	}
+func adminLoadPlan(db *gorm.DB, id uint64) (*model.Plan, error) {
 	var p model.Plan
-	if err := a.DB.WithContext(c.Request.Context()).First(&p, id).Error; err != nil {
+	if err := db.First(&p, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = httpx.NotFound("plan not found")
 		}
-		httpx.Fail(c, err)
-		return nil, false
+		return nil, err
 	}
-	return &p, true
+	return &p, nil
 }
 
 func adminGetPlan(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		p, ok := adminLoadPlan(c, a)
-		if !ok {
+		id, err := httpx.ParamID(c, "id")
+		if err != nil {
+			httpx.Fail(c, err)
 			return
 		}
-		v, err := adminPlanView(c, a, p)
+		var v *plansvc.AdminView
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			p, err := adminLoadPlan(tx, id)
+			if err != nil {
+				return err
+			}
+			v, err = adminPlanView(c, tx, p)
+			return err
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -236,11 +247,13 @@ func adminCreatePlan(a *app.App) gin.HandlerFunc {
 		}
 		p := &model.Plan{Sell: true, Renew: true, Prices: model.JSONObject[int64]{}, Tags: model.JSONSlice[string]{}}
 		in.apply(p)
-		if err := adminValidatePlan(c, a, p); err != nil {
-			httpx.Fail(c, err)
-			return
-		}
-		if err := a.DB.WithContext(c.Request.Context()).Create(p).Error; err != nil {
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			if err := adminValidatePlan(c, tx, p); err != nil {
+				return err
+			}
+			return tx.Create(p).Error
+		})
+		if err != nil {
 			httpx.Fail(c, err)
 			return
 		}
@@ -251,8 +264,9 @@ func adminCreatePlan(a *app.App) gin.HandlerFunc {
 
 func adminUpdatePlan(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		p, ok := adminLoadPlan(c, a)
-		if !ok {
+		id, err := httpx.ParamID(c, "id")
+		if err != nil {
+			httpx.Fail(c, err)
 			return
 		}
 		in, err := adminBindPlan(c)
@@ -260,22 +274,29 @@ func adminUpdatePlan(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		in.apply(p)
-		if err := adminValidatePlan(c, a, p); err != nil {
-			httpx.Fail(c, err)
-			return
-		}
-		err = a.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		var v *plansvc.AdminView
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			p, err := adminLoadPlan(tx, id)
+			if err != nil {
+				return err
+			}
+			in.apply(p)
+			if err := adminValidatePlan(c, tx, p); err != nil {
+				return err
+			}
 			if err := tx.Save(p).Error; err != nil {
 				return err
 			}
-			if !in.ForceUpdate {
-				return nil
+			if in.ForceUpdate {
+				if err := tx.Model(&model.User{}).Where("plan_id = ?", p.ID).Updates(map[string]any{
+					"group_id": p.GroupID, "transfer_enable": p.TransferBytes(), "speed_limit": p.SpeedLimit, "device_limit": p.DeviceLimit,
+					"conn_limit": p.ConnLimit,
+				}).Error; err != nil {
+					return err
+				}
 			}
-			return tx.Model(&model.User{}).Where("plan_id = ?", p.ID).Updates(map[string]any{
-				"group_id": p.GroupID, "transfer_enable": p.TransferBytes(), "speed_limit": p.SpeedLimit, "device_limit": p.DeviceLimit,
-				"conn_limit": p.ConnLimit,
-			}).Error
+			v, err = adminPlanView(c, tx, p)
+			return err
 		})
 		if err != nil {
 			httpx.Fail(c, err)
@@ -284,47 +305,44 @@ func adminUpdatePlan(a *app.App) gin.HandlerFunc {
 		if in.ForceUpdate {
 			usersvc.New(a).InvalidateNodeUsers()
 		}
-		httpx.Logger(c).Info("plan updated", "plan_id", p.ID, "force_update", in.ForceUpdate, "admin_id", auth.CurrentUser(c).ID)
-		v, err := adminPlanView(c, a, p)
-		if err != nil {
-			httpx.Fail(c, err)
-			return
-		}
+		httpx.Logger(c).Info("plan updated", "plan_id", id, "force_update", in.ForceUpdate, "admin_id", auth.CurrentUser(c).ID)
 		httpx.OK(c, v)
 	}
 }
 
 func adminDeletePlan(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		p, ok := adminLoadPlan(c, a)
-		if !ok {
-			return
-		}
-		ctx := c.Request.Context()
-		holders, err := plansvc.HolderCount(ctx, a.DB, p.ID)
+		id, err := httpx.ParamID(c, "id")
 		if err != nil {
 			httpx.Fail(c, err)
 			return
 		}
-		if holders > 0 {
-			httpx.Fail(c, httpx.Conflict("users still hold this plan").WithField("user_count", "must be 0"))
-			return
-		}
-		var pending int64
-		if err := a.DB.WithContext(ctx).Model(&model.Order{}).Where("plan_id = ? AND status IN ?", p.ID,
-			[]model.OrderStatus{model.OrderStatusPending, model.OrderStatusProcessing}).Count(&pending).Error; err != nil {
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			if _, err := adminLoadPlan(tx, id); err != nil {
+				return err
+			}
+			holders, err := plansvc.HolderCount(c.Request.Context(), tx, id)
+			if err != nil {
+				return err
+			}
+			if holders > 0 {
+				return httpx.Conflict("users still hold this plan").WithField("user_count", "must be 0")
+			}
+			var pending int64
+			if err := tx.Model(&model.Order{}).Where("plan_id = ? AND status IN ?", id,
+				[]model.OrderStatus{model.OrderStatusPending, model.OrderStatusProcessing}).Count(&pending).Error; err != nil {
+				return err
+			}
+			if pending > 0 {
+				return httpx.Conflict("the plan has unpaid orders")
+			}
+			return tx.Delete(&model.Plan{}, id).Error
+		})
+		if err != nil {
 			httpx.Fail(c, err)
 			return
 		}
-		if pending > 0 {
-			httpx.Fail(c, httpx.Conflict("the plan has unpaid orders"))
-			return
-		}
-		if err := a.DB.WithContext(ctx).Delete(&model.Plan{}, p.ID).Error; err != nil {
-			httpx.Fail(c, err)
-			return
-		}
-		httpx.Logger(c).Info("plan deleted", "plan_id", p.ID, "admin_id", auth.CurrentUser(c).ID)
+		httpx.Logger(c).Info("plan deleted", "plan_id", id, "admin_id", auth.CurrentUser(c).ID)
 		httpx.OK(c, true)
 	}
 }
@@ -354,7 +372,7 @@ func commerceSort[T any](c *gin.Context, a *app.App) {
 		httpx.Fail(c, err)
 		return
 	}
-	err := a.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+	err := withLiveAdmin(c, a, func(tx *gorm.DB) error {
 		for i, id := range in.IDs {
 			if err := tx.Model(new(T)).Where("id = ?", id).UpdateColumn("sort", i).Error; err != nil {
 				return err

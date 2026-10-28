@@ -84,6 +84,10 @@ func (s *Service) HandleNotify(ctx context.Context, gatewayParam, uuid string, r
 		log.Info("payment notify acknowledged (not a payment)")
 		return resp
 	}
+	if res.Amount <= 0 {
+		log.Warn("payment notify without a positive amount")
+		return payment.FailResponse()
+	}
 	log = log.With("trade_no", res.TradeNo, "callback_no", res.CallbackNo, "reported_amount", res.Amount)
 	var o model.Order
 	if err := s.a.DB.WithContext(ctx).Where("trade_no = ?", res.TradeNo).First(&o).Error; err != nil {
@@ -113,14 +117,25 @@ func (s *Service) HandleNotify(ctx context.Context, gatewayParam, uuid string, r
 				o.TradeNo, p.Name, p.ID, res.CallbackNo))
 		return resp
 	}
-	if expected := o.TotalAmount + o.HandlingAmount; res.Amount != 0 && res.Amount != expected {
-		log.Error("verified payment amount mismatch; order not fulfilled", "expected", expected)
+	expected, validCharge := chargeAmount(o.TotalAmount, o.HandlingAmount)
+	var amountErr error
+	if !validCharge {
+		amountErr = errors.New("invalid stored payment charge")
+	} else if validator, ok := gw.(interface {
+		ValidateAmount(map[string]string, string, int64, *payment.NotifyResult) error
+	}); ok {
+		amountErr = validator.ValidateAmount(map[string]string(p.Config), s.a.Settings.String("currency"), expected, res)
+	} else if res.Amount != expected {
+		amountErr = errors.New("payment amount mismatch")
+	}
+	if amountErr != nil {
+		log.Error("verified payment amount mismatch; order not fulfilled", "expected", expected, "err", amountErr, "reported_currency", res.Currency)
 		s.alertAdmin("Payment amount mismatch",
-			fmt.Sprintf("Order %s expected %s but payment method %q reported %s (gateway transaction %s). It was NOT fulfilled; verify the payment and confirm the order manually.",
-				o.TradeNo, payment.FormatAmount(expected), p.Name, payment.FormatAmount(res.Amount), res.CallbackNo))
+			fmt.Sprintf("Order %s expected a charge for %s %s but payment method %q reported %s (gateway transaction %s). It was NOT fulfilled; verify the payment and confirm the order manually.",
+				o.TradeNo, payment.FormatAmount(expected), s.a.Settings.String("currency"), p.Name, notifyAmount(res), res.CallbackNo))
 		return resp
 	}
-	if _, already, err := s.Paid(ctx, o.TradeNo, res.CallbackNo); err != nil {
+	if _, already, err := s.paid(ctx, o.TradeNo, res.CallbackNo, &o); err != nil {
 		if errors.Is(err, ErrOrderCancelled) {
 			return s.paidAfterCancel(ctx, log, &p, &o, res, resp)
 		}
@@ -151,12 +166,15 @@ func (s *Service) paidAfterCancel(ctx context.Context, log *slog.Logger, p *mode
 		return resp
 	}
 	log.Error("verified payment for a cancelled order; not fulfilled")
-	amount := res.Amount
-	if amount == 0 {
-		amount = o.TotalAmount + o.HandlingAmount
-	}
 	s.alertAdmin("Payment received for a cancelled order",
 		fmt.Sprintf("Order %s was cancelled but payment method %q (#%d) confirmed a payment of %s (gateway transaction %s). Fulfil it with a new assigned order or refund the customer.",
-			o.TradeNo, p.Name, p.ID, payment.FormatAmount(amount), res.CallbackNo))
+			o.TradeNo, p.Name, p.ID, notifyAmount(res), res.CallbackNo))
 	return resp
+}
+
+func notifyAmount(res *payment.NotifyResult) string {
+	if res.Currency != "" {
+		return fmt.Sprintf("%d minor units of %s", res.Amount, res.Currency)
+	}
+	return payment.FormatAmount(res.Amount)
 }

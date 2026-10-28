@@ -111,6 +111,12 @@ func (s *Service) invalidate(id uint64) {
 	usersvc.New(s.a).InvalidateNodeUsers()
 }
 
+// InvalidateUser clears user and node caches after a caller-managed transaction commits.
+func (s *Service) InvalidateUser(id uint64) { s.invalidate(id) }
+
+// InvalidateNodeUsers clears node caches after a caller-managed creation commits.
+func (s *Service) InvalidateNodeUsers() { usersvc.New(s.a).InvalidateNodeUsers() }
+
 // ---------------------------------------------------------------- create
 
 // CreateInput is POST /admin/users. transfer_enable is in GB. A plan fills group_id, transfer_enable,
@@ -134,7 +140,20 @@ type CreateInput struct {
 
 // Create registers a user on behalf of an administrator.
 func (s *Service) Create(ctx context.Context, in CreateInput, now time.Time) (*model.User, error) {
-	db := s.a.DB.WithContext(ctx)
+	var out *model.User
+	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		out, err = s.CreateWithDB(tx, in, now)
+		return err
+	})
+	if err == nil {
+		usersvc.New(s.a).InvalidateNodeUsers()
+	}
+	return out, err
+}
+
+// CreateWithDB creates the account within the caller's authorization transaction.
+func (s *Service) CreateWithDB(db *gorm.DB, in CreateInput, now time.Time) (*model.User, error) {
 	opts := usersvc.CreateOptions{
 		ExpiredAt: in.ExpiredAt, SpeedLimit: in.SpeedLimit, DeviceLimit: in.DeviceLimit, ConnLimit: in.ConnLimit, Balance: in.Balance,
 		IsAdmin: in.IsAdmin, IsStaff: in.IsStaff, Remarks: in.Remarks,
@@ -180,7 +199,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput, now time.Time) (*m
 		opts.InviteUserID = id
 	}
 	svc := usersvc.New(s.a)
-	u, err := svc.Create(ctx, in.Email, in.Password, opts)
+	u, err := svc.CreateWithDB(db, in.Email, in.Password, opts)
 	if errors.Is(err, usersvc.ErrEmailTaken) {
 		return nil, httpx.Conflict("email already registered").WithField("email", "is already registered")
 	}
@@ -188,9 +207,10 @@ func (s *Service) Create(ctx context.Context, in CreateInput, now time.Time) (*m
 		return nil, err
 	}
 	// The administrator chose the address: a later password reset is not an ownership change.
-	if err := svc.MarkEmailVerified(ctx, u); err != nil {
+	if err := db.Model(&model.User{}).Where("id = ?", u.ID).Update("email_verified_at", now).Error; err != nil {
 		return nil, err
 	}
+	u.EmailVerifiedAt = &now
 	if next := svc.ComputeNextResetAt(u, plan, now); next != nil {
 		if err := db.Model(&model.User{}).Where("id = ?", u.ID).Update("next_reset_at", next).Error; err != nil {
 			return nil, fmt.Errorf("adminuser: set next_reset_at: %w", err)
@@ -261,41 +281,57 @@ func (in *UpdateInput) Validate() error {
 // Update applies in to user id on behalf of actor. Administrators cannot ban themselves or drop their own
 // admin role, and the last administrator cannot be demoted.
 func (s *Service) Update(ctx context.Context, actor *model.User, id uint64, in UpdateInput, now time.Time) (*model.User, error) {
+	var out *model.User
+	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		out, err = s.UpdateWithDB(tx, actor, id, in, now)
+		return err
+	})
+	if err == nil {
+		s.invalidate(id)
+	}
+	return out, err
+}
+
+// UpdateWithDB applies all account changes, including password rotation, in the caller's transaction.
+func (s *Service) UpdateWithDB(tx *gorm.DB, actor *model.User, id uint64, in UpdateInput, now time.Time) (*model.User, error) {
 	if err := in.Validate(); err != nil {
 		return nil, err
 	}
-	var out *model.User
-	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		u, err := loadUser(tx, id)
+	var passwordHash string
+	if in.Password != nil {
+		var err error
+		passwordHash, err = auth.HashPassword(*in.Password)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		set, err := s.changes(tx, actor, u, &in, now)
-		if err != nil {
-			return err
-		}
-		if len(set) > 0 {
-			err := tx.Model(&model.User{}).Where("id = ?", id).Updates(set).Error
-			if errors.Is(err, gorm.ErrDuplicatedKey) {
-				return httpx.Conflict("email already registered").WithField("email", "is already registered")
-			}
-			if err != nil {
-				return err
-			}
-		}
-		out, err = loadUser(tx, id)
-		return err
-	})
+	}
+	// Serialize updates to the target and avoid applying fields to a replacement account.
+	if err := tx.Model(&model.User{}).Where("id = ?", id).UpdateColumn("token", gorm.Expr("token")).Error; err != nil {
+		return nil, err
+	}
+	u, err := loadUser(tx, id)
+	if err != nil {
+		return nil, err
+	}
+	set, err := s.changes(tx, actor, u, &in, now)
 	if err != nil {
 		return nil, err
 	}
 	if in.Password != nil {
-		if err := usersvc.New(s.a).SetPassword(ctx, out, *in.Password); err != nil {
+		set["password_hash"] = passwordHash
+		set["password_version"] = gorm.Expr("password_version + 1")
+	}
+	if len(set) > 0 {
+		err := tx.Model(&model.User{}).Where("id = ?", id).Updates(set).Error
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return nil, httpx.Conflict("email already registered").WithField("email", "is already registered")
+		}
+		if err != nil {
 			return nil, err
 		}
 	}
-	s.invalidate(id)
-	return out, nil
+	return loadUser(tx, id)
 }
 
 // changes builds the column updates of in for u.
@@ -423,57 +459,64 @@ func (s *Service) changes(tx *gorm.DB, actor, u *model.User, in *UpdateInput, no
 // commission logs earned as inviter, rule profile, passkeys and the user_mfa row). Users and orders that reference the user as inviter get
 // invite_user_id = null. Actors cannot delete themselves, and the last administrator cannot be deleted.
 func (s *Service) Delete(ctx context.Context, actor *model.User, id uint64) error {
+	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return s.DeleteWithDB(tx, actor, id)
+	})
+	if err == nil {
+		s.invalidate(id)
+	}
+	return err
+}
+
+// DeleteWithDB removes a user in the caller's authorization transaction.
+func (s *Service) DeleteWithDB(tx *gorm.DB, actor *model.User, id uint64) error {
 	if actor != nil && actor.ID == id {
 		return httpx.Conflict("you cannot delete your own account")
 	}
-	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		u, err := loadUser(tx, id)
-		if err != nil {
-			return err
-		}
-		if u.IsAdmin {
-			if n, err := otherAdmins(tx, id); err != nil {
-				return err
-			} else if n == 0 {
-				return httpx.Conflict("the last administrator cannot be deleted")
-			}
-		}
-		steps := []func() error{
-			func() error {
-				return tx.Where("ticket_id IN (?)", tx.Model(&model.Ticket{}).Select("id").Where("user_id = ?", id)).
-					Delete(&model.TicketMessage{}).Error
-			},
-			func() error { return tx.Where("user_id = ?", id).Delete(&model.Ticket{}).Error },
-			func() error { return tx.Where("user_id = ?", id).Delete(&model.Order{}).Error },
-			func() error {
-				return tx.Model(&model.Order{}).Where("invite_user_id = ?", id).Update("invite_user_id", nil).Error
-			},
-			func() error { return tx.Where("user_id = ?", id).Delete(&model.StatUser{}).Error },
-			func() error { return tx.Where("user_id = ?", id).Delete(&model.InviteCode{}).Error },
-			func() error { return tx.Where("invite_user_id = ?", id).Delete(&model.CommissionLog{}).Error },
-			func() error { return tx.Where("user_id = ?", id).Delete(&model.RuleProfile{}).Error },
-			// Second factors: an orphaned passkey would sign in as whoever gets this id next (passkey login
-			// resolves the owner through these rows), and an orphaned TOTP secret would be forced on them.
-			func() error { return tx.Where("user_id = ?", id).Delete(&model.Passkey{}).Error },
-			func() error { return tx.Where("user_id = ?", id).Delete(&model.UserMFA{}).Error },
-			func() error { return tx.Where("user_id = ?", id).Delete(&model.SubscriptionKey{}).Error },
-			func() error { return tx.Where("user_id = ?", id).Delete(&model.SubscriptionAccess{}).Error },
-			func() error {
-				return tx.Model(&model.User{}).Where("invite_user_id = ?", id).Update("invite_user_id", nil).Error
-			},
-			func() error { return tx.Delete(&model.User{}, id).Error },
-		}
-		for _, step := range steps {
-			if err := step(); err != nil {
-				return fmt.Errorf("adminuser: delete user %d: %w", id, err)
-			}
-		}
-		return nil
-	})
+	if err := tx.Model(&model.User{}).Where("id = ?", id).UpdateColumn("token", gorm.Expr("token")).Error; err != nil {
+		return err
+	}
+	u, err := loadUser(tx, id)
 	if err != nil {
 		return err
 	}
-	s.invalidate(id)
+	if u.IsAdmin {
+		if n, err := otherAdmins(tx, id); err != nil {
+			return err
+		} else if n == 0 {
+			return httpx.Conflict("the last administrator cannot be deleted")
+		}
+	}
+	steps := []func() error{
+		func() error {
+			return tx.Where("ticket_id IN (?)", tx.Model(&model.Ticket{}).Select("id").Where("user_id = ?", id)).
+				Delete(&model.TicketMessage{}).Error
+		},
+		func() error { return tx.Where("user_id = ?", id).Delete(&model.Ticket{}).Error },
+		func() error { return tx.Where("user_id = ?", id).Delete(&model.Order{}).Error },
+		func() error {
+			return tx.Model(&model.Order{}).Where("invite_user_id = ?", id).Update("invite_user_id", nil).Error
+		},
+		func() error { return tx.Where("user_id = ?", id).Delete(&model.StatUser{}).Error },
+		func() error { return tx.Where("user_id = ?", id).Delete(&model.InviteCode{}).Error },
+		func() error { return tx.Where("invite_user_id = ?", id).Delete(&model.CommissionLog{}).Error },
+		func() error { return tx.Where("user_id = ?", id).Delete(&model.RuleProfile{}).Error },
+		// Second factors: an orphaned passkey would sign in as whoever gets this id next (passkey login
+		// resolves the owner through these rows), and an orphaned TOTP secret would be forced on them.
+		func() error { return tx.Where("user_id = ?", id).Delete(&model.Passkey{}).Error },
+		func() error { return tx.Where("user_id = ?", id).Delete(&model.UserMFA{}).Error },
+		func() error { return tx.Where("user_id = ?", id).Delete(&model.SubscriptionKey{}).Error },
+		func() error { return tx.Where("user_id = ?", id).Delete(&model.SubscriptionAccess{}).Error },
+		func() error {
+			return tx.Model(&model.User{}).Where("invite_user_id = ?", id).Update("invite_user_id", nil).Error
+		},
+		func() error { return tx.Delete(&model.User{}, id).Error },
+	}
+	for _, step := range steps {
+		if err := step(); err != nil {
+			return fmt.Errorf("adminuser: delete user %d: %w", id, err)
+		}
+	}
 	return nil
 }
 
@@ -483,20 +526,8 @@ func (s *Service) Delete(ctx context.Context, actor *model.User, id uint64) erro
 func (s *Service) ResetTraffic(ctx context.Context, id uint64, now time.Time) (*model.User, error) {
 	var out *model.User
 	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		u, err := loadUser(tx, id)
-		if err != nil {
-			return err
-		}
-		plan, err := optionalPlan(tx, u.PlanID)
-		if err != nil {
-			return err
-		}
-		next := usersvc.New(s.a).ComputeNextResetAt(u, plan, now)
-		if err := tx.Model(&model.User{}).Where("id = ?", id).
-			Updates(map[string]any{"u": 0, "d": 0, "next_reset_at": next}).Error; err != nil {
-			return err
-		}
-		out, err = loadUser(tx, id)
+		var err error
+		out, err = s.ResetTrafficWithDB(tx, id, now)
 		return err
 	})
 	if err != nil {
@@ -506,33 +537,79 @@ func (s *Service) ResetTraffic(ctx context.Context, id uint64, now time.Time) (*
 	return out, nil
 }
 
-// ResetSecret issues a new uuid and subscription token (and ends the user's sessions), then tells the user by
-// mail and Telegram that the subscription was reset (notifySubscriptionReset; queued, never fails the reset).
-func (s *Service) ResetSecret(ctx context.Context, id uint64) (*model.User, error) {
-	u, err := s.load(ctx, id)
+// ResetTrafficWithDB resets the target within the caller's authorization transaction.
+func (s *Service) ResetTrafficWithDB(tx *gorm.DB, id uint64, now time.Time) (*model.User, error) {
+	if err := tx.Model(&model.User{}).Where("id = ?", id).UpdateColumn("token", gorm.Expr("token")).Error; err != nil {
+		return nil, err
+	}
+	u, err := loadUser(tx, id)
 	if err != nil {
 		return nil, err
 	}
-	before := *u
-	if err := usersvc.New(s.a).ResetSecurity(ctx, u); err != nil {
+	plan, err := optionalPlan(tx, u.PlanID)
+	if err != nil {
 		return nil, err
 	}
-	s.notifySubscriptionReset(&before, u)
-	return u, nil
+	next := usersvc.New(s.a).ComputeNextResetAt(u, plan, now)
+	if err := tx.Model(&model.User{}).Where("id = ?", id).
+		Updates(map[string]any{"u": 0, "d": 0, "next_reset_at": next}).Error; err != nil {
+		return nil, err
+	}
+	return loadUser(tx, id)
+}
+
+// ResetSecret issues a new uuid and subscription token (and ends the user's sessions), then tells the user by
+// mail and Telegram that the subscription was reset (notifySubscriptionReset; queued, never fails the reset).
+func (s *Service) ResetSecret(ctx context.Context, id uint64) (*model.User, error) {
+	var before, after *model.User
+	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		before, after, err = s.ResetSecretWithDB(tx, id)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.FinishResetSecret(before, after)
+	return after, nil
+}
+
+// ResetSecretWithDB rotates target credentials in the caller's transaction.
+func (s *Service) ResetSecretWithDB(tx *gorm.DB, id uint64) (*model.User, *model.User, error) {
+	u, err := loadUser(tx, id)
+	if err != nil {
+		return nil, nil, err
+	}
+	before := *u
+	if err := usersvc.New(s.a).ResetSecurityWithDB(tx, u); err != nil {
+		return nil, nil, err
+	}
+	return &before, u, nil
+}
+
+// FinishResetSecret invalidates caches and queues notifications after commit.
+func (s *Service) FinishResetSecret(before, after *model.User) {
+	s.invalidate(after.ID)
+	s.notifySubscriptionReset(before, after)
 }
 
 // LoginURL returns app_url + "/login?token=<one-time token>" for user id (the SPA exchanges the token at
 // POST /passport/login/token within auth.LoginTokenTTL). Administrators and staff cannot be impersonated (409):
 // the token skips their second factor and would let one admin act as, or plant a passkey on, another.
 func (s *Service) LoginURL(ctx context.Context, id uint64) (string, error) {
-	u, err := s.load(ctx, id)
+	return s.LoginURLWithDB(s.a.DB.WithContext(ctx), id)
+}
+
+// LoginURLWithDB reads the target while the caller's authorization transaction is open.
+func (s *Service) LoginURLWithDB(db *gorm.DB, id uint64) (string, error) {
+	u, err := loadUser(db, id)
 	if err != nil {
 		return "", err
 	}
 	if u.IsAdmin || u.IsStaff {
 		return "", httpx.Conflict("administrators and staff cannot be impersonated")
 	}
-	tok := auth.IssueLoginToken(s.a, id)
+	tok := auth.IssueLoginToken(s.a, u)
 	return strings.TrimRight(s.a.Settings.String("app_url"), "/") + "/login?token=" + tok, nil
 }
 

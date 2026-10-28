@@ -28,6 +28,9 @@ func statsOverviewHandler(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
+		if !requireLiveAdmin(c, a) {
+			return
+		}
 		httpx.OK(c, out)
 	}
 }
@@ -49,6 +52,9 @@ func statsSeriesHandler(a *app.App) gin.HandlerFunc {
 		out, err := statsvc.New(a).Series(c.Request.Context(), in.Metric, statsvc.Ranges[in.Range], time.Now())
 		if err != nil {
 			httpx.Fail(c, err)
+			return
+		}
+		if !requireLiveAdmin(c, a) {
 			return
 		}
 		httpx.OK(c, out)
@@ -81,6 +87,9 @@ func statsNodeRankingHandler(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
+		if !requireLiveAdmin(c, a) {
+			return
+		}
 		httpx.OK(c, out)
 	}
 }
@@ -106,6 +115,9 @@ func statsUserRankingHandler(a *app.App) gin.HandlerFunc {
 		out, err := statsvc.New(a).UserRanking(c.Request.Context(), day, in.Limit)
 		if err != nil {
 			httpx.Fail(c, err)
+			return
+		}
+		if !requireLiveAdmin(c, a) {
 			return
 		}
 		httpx.OK(c, out)

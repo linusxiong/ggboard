@@ -138,8 +138,7 @@ func (s *Service) settleOne(ctx context.Context, id uint64) (bool, []uint64, err
 				return err
 			}
 			if share := percentOf(o.CommissionBalance, pct); share > 0 {
-				if err := tx.Model(&model.User{}).Where("id = ?", inv.ID).
-					UpdateColumn(column, gorm.Expr(column+" + ?", share)).Error; err != nil {
+				if err := creditUser(tx, inv.ID, column, share); err != nil {
 					return err
 				}
 				if err := tx.Create(&model.CommissionLog{

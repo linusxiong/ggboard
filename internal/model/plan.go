@@ -1,9 +1,15 @@
 package model
 
-import "time"
+import (
+	"math"
+	"time"
+)
 
 // BytesPerGB converts plans.transfer_enable (GB) to bytes.
 const BytesPerGB int64 = 1 << 30
+
+// MaxPlanTransferGB is the largest plan traffic value that fits in users.transfer_enable bytes.
+const MaxPlanTransferGB int64 = math.MaxInt64 / BytesPerGB
 
 // MaxConnLimit is the largest plans.conn_limit / users.conn_limit the admin API accepts (binding tags spell it out
 // as max=100000 / lte=100000).
@@ -38,7 +44,12 @@ func (p *Plan) Price(period string) (int64, bool) {
 }
 
 // TransferBytes returns the plan traffic in bytes.
-func (p *Plan) TransferBytes() int64 { return p.TransferEnable * BytesPerGB }
+func (p *Plan) TransferBytes() int64 {
+	if p.TransferEnable < 0 || p.TransferEnable > MaxPlanTransferGB {
+		return 0
+	}
+	return p.TransferEnable * BytesPerGB
+}
 
 // ServerGroup is a set of nodes granted by plans.
 type ServerGroup struct {

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strconv"
 	"time"
@@ -33,6 +34,7 @@ var (
 	ErrWithdrawMethod         = errors.New("invite: unsupported withdrawal method")
 	ErrWithdrawLimit          = errors.New("invite: commission balance is below the withdrawal minimum")
 	ErrUserNotFound           = errors.New("invite: user not found")
+	ErrSessionExpired         = errors.New("invite: session expired")
 )
 
 // Service is cheap to construct: invite.New(a) per request is fine.
@@ -65,8 +67,26 @@ type Overview struct {
 
 // Overview returns the user's usable (not consumed) codes, newest first, and the referral statistics.
 func (s *Service) Overview(ctx context.Context, userID uint64) (*Overview, error) {
+	return s.overview(ctx, s.a.DB, userID)
+}
+
+// OverviewForUser reads invite codes and financial totals under the authenticated account lock.
+func (s *Service) OverviewForUser(ctx context.Context, session *model.User) (*Overview, error) {
+	var out *Overview
+	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := LockUser(tx, session); err != nil {
+			return err
+		}
+		var err error
+		out, err = s.overview(ctx, tx, session.ID)
+		return err
+	})
+	return out, err
+}
+
+func (s *Service) overview(ctx context.Context, db *gorm.DB, userID uint64) (*Overview, error) {
 	var rows []model.InviteCode
-	if err := s.a.DB.WithContext(ctx).Where(map[string]any{"user_id": userID, "status": false}).
+	if err := db.WithContext(ctx).Where(map[string]any{"user_id": userID, "status": false}).
 		Order("id DESC").Find(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -74,7 +94,7 @@ func (s *Service) Overview(ctx context.Context, userID uint64) (*Overview, error
 	for _, c := range rows {
 		codes = append(codes, Code{Code: c.Code, PV: c.PV, CreatedAt: c.CreatedAt})
 	}
-	st, err := s.Stat(ctx, userID)
+	st, err := s.stat(ctx, db, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +103,11 @@ func (s *Service) Overview(ctx context.Context, userID uint64) (*Overview, error
 
 // Stat computes the referral statistics of userID (read fresh: the commission rate may have just changed).
 func (s *Service) Stat(ctx context.Context, userID uint64) (Stat, error) {
-	db := s.a.DB.WithContext(ctx)
+	return s.stat(ctx, s.a.DB, userID)
+}
+
+func (s *Service) stat(ctx context.Context, db *gorm.DB, userID uint64) (Stat, error) {
+	db = db.WithContext(ctx)
 	st := Stat{
 		CommissionRate: s.a.Settings.Int("invite_commission"),
 		InviteGenLimit: s.a.Settings.Int("invite_gen_limit"),
@@ -107,7 +131,7 @@ func (s *Service) Stat(ctx context.Context, userID uint64) (Stat, error) {
 		return Stat{}, err
 	}
 	st.CommissionPaid = paid.Total
-	pending, err := s.CommissionPending(ctx, u.ID)
+	pending, err := s.commissionPending(ctx, db, u.ID)
 	if err != nil {
 		return Stat{}, err
 	}
@@ -119,8 +143,17 @@ func (s *Service) Stat(ctx context.Context, userID uint64) (Stat, error) {
 // pending or processing. With commission_distribution_enable only the first-level share
 // (commission_distribution_l1 %) belongs to the direct inviter, as in Xboard.
 func (s *Service) CommissionPending(ctx context.Context, userID uint64) (int64, error) {
+	return s.commissionPending(ctx, s.a.DB, userID)
+}
+
+// CommissionPendingDB runs the sum inside the caller's account transaction.
+func (s *Service) CommissionPendingDB(ctx context.Context, db *gorm.DB, userID uint64) (int64, error) {
+	return s.commissionPending(ctx, db, userID)
+}
+
+func (s *Service) commissionPending(ctx context.Context, db *gorm.DB, userID uint64) (int64, error) {
 	var sum struct{ Total int64 }
-	err := s.a.DB.WithContext(ctx).Model(&model.Order{}).Select("COALESCE(SUM(commission_balance), 0) AS total").
+	err := db.WithContext(ctx).Model(&model.Order{}).Select("COALESCE(SUM(commission_balance), 0) AS total").
 		Where("invite_user_id = ?", userID).
 		Where("status IN ?", []model.OrderStatus{model.OrderStatusProcessing, model.OrderStatusCompleted, model.OrderStatusDiscounted}).
 		Where("commission_status IN ?", []model.CommissionStatus{model.CommissionStatusPending, model.CommissionStatusProcessing}).
@@ -136,11 +169,15 @@ func (s *Service) CommissionPending(ctx context.Context, userID uint64) (int64, 
 
 // GenerateCode creates a random invite code for userID. It returns ErrCodeLimit when the user already holds
 // invite_gen_limit unused codes.
-func (s *Service) GenerateCode(ctx context.Context, userID uint64) (string, error) {
+func (s *Service) GenerateCode(ctx context.Context, session *model.User) (string, error) {
+	if session == nil || session.UUID == "" {
+		return "", ErrSessionExpired
+	}
+	userID := session.ID
 	limit := int64(s.a.Settings.Int("invite_gen_limit"))
 	var code string
 	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := lockUser(tx, userID); err != nil {
+		if err := LockUser(tx, session); err != nil {
 			return err
 		}
 		var unused int64
@@ -181,20 +218,29 @@ type Commission struct {
 // CommissionQuery returns the commissions earned by userID (get_amount > 0) for httpx.Paginate; order newest
 // first ("created_at DESC, id DESC").
 func (s *Service) CommissionQuery(ctx context.Context, userID uint64) *gorm.DB {
-	return s.a.DB.WithContext(ctx).Model(&model.CommissionLog{}).
+	return s.CommissionQueryDB(ctx, s.a.DB, userID)
+}
+
+// CommissionQueryDB lets callers paginate inside an authenticated account transaction.
+func (s *Service) CommissionQueryDB(ctx context.Context, db *gorm.DB, userID uint64) *gorm.DB {
+	return db.WithContext(ctx).Model(&model.CommissionLog{}).
 		Select("trade_no", "order_amount", "get_amount", "created_at").
 		Where("invite_user_id = ? AND get_amount > ?", userID, 0)
 }
 
 // Transfer moves amount cents from commission_balance to balance atomically and returns the reloaded user.
-func (s *Service) Transfer(ctx context.Context, userID uint64, amount int64) (*model.User, error) {
+func (s *Service) Transfer(ctx context.Context, session *model.User, amount int64) (*model.User, error) {
 	if amount <= 0 {
 		return nil, ErrInsufficientCommission
+	}
+	if session == nil || session.UUID == "" {
+		return nil, ErrSessionExpired
 	}
 	var u model.User
 	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		res := tx.Model(&model.User{}).
-			Where("id = ? AND commission_balance >= ?", userID, amount).
+			Where("id = ? AND uuid = ? AND email = ? AND password_version = ? AND banned = ?", session.ID, session.UUID, session.Email, session.PasswordVersion, false).
+			Where("commission_balance >= ? AND balance <= ?", amount, math.MaxInt64-amount).
 			Updates(map[string]any{
 				"commission_balance": gorm.Expr("commission_balance - ?", amount),
 				"balance":            gorm.Expr("balance + ?", amount),
@@ -203,22 +249,36 @@ func (s *Service) Transfer(ctx context.Context, userID uint64, amount int64) (*m
 			return res.Error
 		}
 		if res.RowsAffected == 0 {
+			var current model.User
+			if err := tx.Select("id", "uuid", "email", "password_version", "banned").Where("id = ?", session.ID).First(&current).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return ErrSessionExpired
+				}
+				return err
+			}
+			if current.UUID != session.UUID || current.Email != session.Email || current.PasswordVersion != session.PasswordVersion || current.Banned {
+				return ErrSessionExpired
+			}
 			return ErrInsufficientCommission
 		}
-		return tx.Where("id = ?", userID).First(&u).Error
+		return tx.Where("id = ?", session.ID).First(&u).Error
 	})
 	if err != nil {
 		return nil, err
 	}
-	auth.InvalidateUser(s.a, userID)
-	s.a.Log.Info("invite: commission transferred to balance", "user_id", userID, "amount", amount)
+	auth.InvalidateUser(s.a, session.ID)
+	s.a.Log.Info("invite: commission transferred to balance", "user_id", session.ID, "amount", amount)
 	return &u, nil
 }
 
 // Withdraw files a withdrawal request: a high-level ticket stating method, account and the current commission
 // balance. Nothing is deducted (staff settle it manually, as in Xboard). Errors: ErrWithdrawClosed,
 // ErrWithdrawMethod, ErrWithdrawLimit, ticket.ErrOpenExists.
-func (s *Service) Withdraw(ctx context.Context, userID uint64, method, account string) (*model.Ticket, error) {
+func (s *Service) Withdraw(ctx context.Context, session *model.User, method, account string) (*model.Ticket, error) {
+	if session == nil || session.UUID == "" {
+		return nil, ErrSessionExpired
+	}
+	userID := session.ID
 	st := s.a.Settings
 	if st.Bool("withdraw_close_enable") {
 		return nil, ErrWithdrawClosed
@@ -239,8 +299,11 @@ func (s *Service) Withdraw(ctx context.Context, userID uint64, method, account s
 	tr := withdrawText(st.String("default_locale"))
 	amount := payment.FormatAmount(u.CommissionBalance) + " " + st.String("currency")
 	message := fmt.Sprintf("%s%s\n%s%s\n%s%s", tr.method, method, tr.account, account, tr.amount, amount)
-	t, err := ticketsvc.New(s.a).CreateSystem(ctx, u.ID, tr.subject, model.TicketLevelHigh, message)
+	t, err := ticketsvc.New(s.a).CreateSystemBound(ctx, session, tr.subject, model.TicketLevelHigh, message)
 	if err != nil {
+		if errors.Is(err, ticketsvc.ErrSessionExpired) {
+			return nil, ErrSessionExpired
+		}
 		return nil, err
 	}
 	s.a.Log.Info("invite: withdrawal requested", "user_id", u.ID, "ticket_id", t.ID, "amount", u.CommissionBalance)
@@ -276,11 +339,24 @@ func withdrawText(locale string) withdrawStrings {
 
 // lockUser takes a row lock on the user (PostgreSQL/MySQL; SQLite transactions are IMMEDIATE) so per-user
 // check-then-insert sequences cannot interleave.
-func lockUser(tx *gorm.DB, userID uint64) error {
+func LockUser(tx *gorm.DB, session *model.User) error {
+	if session == nil || session.UUID == "" {
+		return ErrSessionExpired
+	}
+	if err := tx.Model(&model.User{}).Where("id = ?", session.ID).
+		UpdateColumn("password_version", gorm.Expr("password_version")).Error; err != nil {
+		return err
+	}
 	var u model.User
-	err := tx.Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).Select("id").Where("id = ?", userID).First(&u).Error
+	err := tx.Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).Select("id", "uuid", "email", "password_version", "banned").Where("id = ?", session.ID).First(&u).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return ErrUserNotFound
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	if u.UUID != session.UUID || u.Email != session.Email || u.PasswordVersion != session.PasswordVersion || u.Banned {
+		return ErrSessionExpired
+	}
+	return nil
 }

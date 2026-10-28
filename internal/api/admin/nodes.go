@@ -156,9 +156,9 @@ func registerNodes(g *gin.RouterGroup, a *app.App) {
 
 	gr.GET("", func(c *gin.Context) {
 		var nodes []*model.Node
-		err := a.DB.WithContext(c.Request.Context()).
-			Order(clause.OrderByColumn{Column: clause.Column{Name: "sort"}}).Order("id").
-			Find(&nodes).Error
+		err := withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			return tx.Order(clause.OrderByColumn{Column: clause.Column{Name: "sort"}}).Order("id").Find(&nodes).Error
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -187,18 +187,20 @@ func registerNodes(g *gin.RouterGroup, a *app.App) {
 			httpx.Fail(c, err)
 			return
 		}
-		db := a.DB.WithContext(ctx)
-		if err := db.Omit(clause.Associations).Create(n).Error; err != nil {
+		var v adminNodeView
+		if err := withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			if err := tx.Omit(clause.Associations).Create(n).Error; err != nil {
+				return err
+			}
+			var err error
+			v, err = loadAdminNodeView(tx, svc, n.ID)
+			return err
+		}); err != nil {
 			httpx.Fail(c, err)
 			return
 		}
 		svc.Invalidate()
 		subscription.InvalidateNodes(a)
-		v, err := loadAdminNodeView(db, svc, n.ID)
-		if err != nil {
-			httpx.Fail(c, err)
-			return
-		}
 		httpx.Created(c, v)
 	})
 
@@ -210,7 +212,7 @@ func registerNodes(g *gin.RouterGroup, a *app.App) {
 			httpx.Fail(c, err)
 			return
 		}
-		err := a.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		err := withLiveAdmin(c, a, func(tx *gorm.DB) error {
 			for i, id := range in.IDs {
 				if err := tx.Model(&model.Node{}).Where("id = ?", id).Update("sort", i).Error; err != nil {
 					return err
@@ -233,7 +235,12 @@ func registerNodes(g *gin.RouterGroup, a *app.App) {
 			httpx.Fail(c, err)
 			return
 		}
-		v, err := loadAdminNodeView(a.DB.WithContext(c.Request.Context()), svc, id)
+		var v adminNodeView
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			var loadErr error
+			v, loadErr = loadAdminNodeView(tx, svc, id)
+			return loadErr
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -253,48 +260,53 @@ func registerNodes(g *gin.RouterGroup, a *app.App) {
 			return
 		}
 		ctx := c.Request.Context()
-		db := a.DB.WithContext(ctx)
 		n := new(model.Node)
-		if err := db.Where("id = ?", id).First(n).Error; err != nil {
-			httpx.Fail(c, err)
-			return
-		}
-		in.apply(n)
-		if err := svc.CheckNode(ctx, n); err != nil {
-			httpx.Fail(c, err)
-			return
-		}
-		if err := db.Omit(clause.Associations).Save(n).Error; err != nil {
+		var v adminNodeView
+		if err := withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			if err := tx.Where("id = ?", id).First(n).Error; err != nil {
+				return err
+			}
+			in.apply(n)
+			if err := svc.CheckNode(ctx, n); err != nil {
+				return err
+			}
+			if err := tx.Omit(clause.Associations).Save(n).Error; err != nil {
+				return err
+			}
+			var err error
+			v, err = loadAdminNodeView(tx, svc, id)
+			return err
+		}); err != nil {
 			httpx.Fail(c, err)
 			return
 		}
 		svc.Invalidate()
 		subscription.InvalidateNodes(a)
-		v, err := loadAdminNodeView(db, svc, id)
-		if err != nil {
-			httpx.Fail(c, err)
-			return
-		}
 		httpx.OK(c, v)
 	})
 
 	gr.DELETE("/:id", func(c *gin.Context) {
-		n, ok := adminNodeLoad(c, a)
-		if !ok {
-			return
-		}
-		id, db := n.ID, a.DB.WithContext(c.Request.Context())
-		var children int64
-		if err := db.Model(&model.Node{}).Where("parent_id = ?", id).Count(&children).Error; err != nil {
+		id, err := httpx.ParamID(c, "id")
+		if err != nil {
 			httpx.Fail(c, err)
 			return
 		}
-		if children > 0 {
-			httpx.Fail(c, httpx.Conflict(fmt.Sprintf("node has %d child nodes; delete or reassign them first", children)))
-			return
-		}
-		// stat_nodes / stat_users rows are kept for history.
-		if err := db.Delete(&model.Node{}, id).Error; err != nil {
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			var n model.Node
+			if err := tx.First(&n, id).Error; err != nil {
+				return err
+			}
+			var children int64
+			if err := tx.Model(&model.Node{}).Where("parent_id = ?", id).Count(&children).Error; err != nil {
+				return err
+			}
+			if children > 0 {
+				return httpx.Conflict(fmt.Sprintf("node has %d child nodes; delete or reassign them first", children))
+			}
+			// stat_nodes / stat_users rows are kept for history.
+			return tx.Delete(&model.Node{}, id).Error
+		})
+		if err != nil {
 			httpx.Fail(c, err)
 			return
 		}
@@ -305,35 +317,38 @@ func registerNodes(g *gin.RouterGroup, a *app.App) {
 	})
 
 	gr.POST("/:id/copy", func(c *gin.Context) {
-		src, ok := adminNodeLoad(c, a)
-		if !ok {
+		id, err := httpx.ParamID(c, "id")
+		if err != nil {
+			httpx.Fail(c, err)
 			return
 		}
-		db := a.DB.WithContext(c.Request.Context())
-		cp := *src
-		cp.ID, cp.Parent, cp.Show = 0, nil, false
-		cp.CreatedAt, cp.UpdatedAt = time.Time{}, time.Time{}
-		cp.Name = copyName(src.Name)
-		nodesvc.NormalizeNode(&cp)
-		if err := db.Omit(clause.Associations).Create(&cp).Error; err != nil {
+		var v adminNodeView
+		if err := withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			var src model.Node
+			if err := tx.First(&src, id).Error; err != nil {
+				return err
+			}
+			cp := src
+			cp.ID, cp.Parent, cp.Show = 0, nil, false
+			cp.CreatedAt, cp.UpdatedAt = time.Time{}, time.Time{}
+			cp.Name = copyName(src.Name)
+			nodesvc.NormalizeNode(&cp)
+			if err := tx.Omit(clause.Associations).Create(&cp).Error; err != nil {
+				return err
+			}
+			var err error
+			v, err = loadAdminNodeView(tx, svc, cp.ID)
+			return err
+		}); err != nil {
 			httpx.Fail(c, err)
 			return
 		}
 		svc.Invalidate()
 		subscription.InvalidateNodes(a)
-		v, err := loadAdminNodeView(db, svc, cp.ID)
-		if err != nil {
-			httpx.Fail(c, err)
-			return
-		}
 		httpx.Created(c, v)
 	})
 
 	gr.GET("/:id/stats", func(c *gin.Context) {
-		n, ok := adminNodeLoad(c, a)
-		if !ok {
-			return
-		}
 		days := 0
 		switch c.DefaultQuery("range", "7d") {
 		case "7d":
@@ -347,7 +362,9 @@ func registerNodes(g *gin.RouterGroup, a *app.App) {
 		today := model.Today()
 		from := today.AddDate(0, 0, -(days - 1))
 		var rows []model.StatNode
-		err := a.DB.WithContext(c.Request.Context()).Where("node_id = ? AND record_at >= ?", nodesvc.EffectiveID(n), from).Find(&rows).Error
+		err := adminNodeSnapshot(c, a, func(tx *gorm.DB, n *model.Node) error {
+			return tx.Where("node_id = ? AND record_at >= ?", nodesvc.EffectiveID(n), from).Find(&rows).Error
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -369,11 +386,12 @@ func registerNodes(g *gin.RouterGroup, a *app.App) {
 	})
 
 	gr.GET("/:id/online", func(c *gin.Context) {
-		n, ok := adminNodeLoad(c, a)
-		if !ok {
-			return
-		}
-		users, err := svc.OnlineUsers(c.Request.Context(), nodesvc.EffectiveID(n))
+		var users []nodesvc.OnlineUser
+		err := adminNodeSnapshot(c, a, func(tx *gorm.DB, n *model.Node) error {
+			var loadErr error
+			users, loadErr = svc.OnlineUsersWithDB(c.Request.Context(), tx, nodesvc.EffectiveID(n))
+			return loadErr
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -382,27 +400,31 @@ func registerNodes(g *gin.RouterGroup, a *app.App) {
 	})
 
 	gr.GET("/:id/audit", func(c *gin.Context) {
-		n, ok := adminNodeLoad(c, a)
-		if !ok {
+		var hits []nodesvc.AuditHit
+		if err := adminNodeSnapshot(c, a, func(_ *gorm.DB, n *model.Node) error {
+			hits = svc.AuditHits(nodesvc.EffectiveID(n))
+			return nil
+		}); err != nil {
+			httpx.Fail(c, err)
 			return
 		}
-		httpx.OK(c, svc.AuditHits(nodesvc.EffectiveID(n)))
+		httpx.OK(c, hits)
 	})
 }
 
-// adminNodeLoad loads the node of the :id parameter or fails the request.
-func adminNodeLoad(c *gin.Context, a *app.App) (*model.Node, bool) {
+// adminNodeSnapshot keeps the node and its sensitive data under one live-admin lock.
+func adminNodeSnapshot(c *gin.Context, a *app.App, run func(*gorm.DB, *model.Node) error) error {
 	id, err := httpx.ParamID(c, "id")
 	if err != nil {
-		httpx.Fail(c, err)
-		return nil, false
+		return err
 	}
-	n := new(model.Node)
-	if err := a.DB.WithContext(c.Request.Context()).Where("id = ?", id).First(n).Error; err != nil {
-		httpx.Fail(c, err)
-		return nil, false
-	}
-	return n, true
+	return withLiveAdmin(c, a, func(tx *gorm.DB) error {
+		n := new(model.Node)
+		if err := tx.Where("id = ?", id).First(n).Error; err != nil {
+			return err
+		}
+		return run(tx, n)
+	})
 }
 
 // copyName appends " (copy)", trimming the original so the result fits 191 characters.

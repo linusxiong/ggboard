@@ -75,10 +75,10 @@ func TestNotify(t *testing.T) {
 	if err != nil || res == nil || res.CallbackNo != "pi_456" {
 		t.Fatalf("async = %+v %v", res, err)
 	}
-	// No payment intent: session id fallback; FX rate → amount not reported.
+	// No payment intent: session id fallback; FX still reports the provider minor amount.
 	fx := map[string]string{"webhook_secret": secret, "currency": "usd", "exchange_rate": "0.14"}
 	res, _, err = gw.Notify(context.Background(), fx, signed(t, event("checkout.session.completed", "paid", uuid, "usd", `null`)))
-	if err != nil || res == nil || res.CallbackNo != "cs_test_1" || res.Amount != 0 {
+	if err != nil || res == nil || res.CallbackNo != "cs_test_1" || res.Amount != 1234 || res.Currency != "usd" {
 		t.Fatalf("fx = %+v %v", res, err)
 	}
 	// Acks without a result.

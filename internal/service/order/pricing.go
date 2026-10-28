@@ -42,7 +42,7 @@ func CouponDiscount(c *model.Coupon, price int64) int64 {
 	case model.CouponTypeAmount:
 		d = c.Value
 	case model.CouponTypePercent:
-		d = percentOf(price, c.Value)
+		d = percentOf(price, min(c.Value, 100))
 	}
 	return min(max(d, 0), price)
 }
@@ -53,7 +53,7 @@ func ComputeQuote(in QuoteInput) Quote {
 	q := Quote{Price: max(in.Price, 0)}
 	discount := CouponDiscount(in.Coupon, q.Price)
 	if in.UserDiscount != nil {
-		discount += percentOf(q.Price, int64(*in.UserDiscount))
+		discount += min(percentOf(q.Price, int64(*in.UserDiscount)), q.Price-discount)
 	}
 	q.Discount = min(discount, q.Price)
 	total := q.Price - q.Discount
@@ -173,20 +173,23 @@ func ComputeSurplus(u *model.User, completed []model.Order, now time.Time) (int6
 		if last == nil || u.TransferEnable <= 0 {
 			return 0, nil
 		}
-		paid := last.TotalAmount + last.BalanceAmount
+		paid := saturatingAmount(last.TotalAmount, last.BalanceAmount)
 		if paid <= 0 {
 			return 0, nil
 		}
 		gb := float64(u.TransferEnable) / float64(model.BytesPerGB)
-		unused := gb - float64(u.U+u.D)/float64(model.BytesPerGB)
-		credit := int64(math.Max(0, float64(paid)/gb*unused))
+		unused := gb - float64(u.Used())/float64(model.BytesPerGB)
+		credit := math.Max(0, float64(paid)/gb*unused)
 		var ids []uint64
 		for _, o := range completed {
 			if o.Period != model.PeriodResetTraffic {
 				ids = append(ids, o.ID)
 			}
 		}
-		return credit, ids
+		if credit >= float64(math.MaxInt64) {
+			return math.MaxInt64, ids
+		}
+		return int64(credit), ids
 	}
 	var periodic []model.Order
 	for _, o := range completed {
@@ -214,7 +217,9 @@ func ComputeSurplus(u *model.User, completed []model.Order, now time.Time) (int6
 	)
 	for i := range periodic {
 		o := &periodic[i]
-		sum += o.TotalAmount + o.BalanceAmount + o.SurplusAmount - o.RefundAmount
+		surplus := max(o.SurplusAmount, 0)
+		netSurplus := surplus - min(max(o.RefundAmount, 0), surplus)
+		sum = saturatingAmount(sum, saturatingAmount(saturatingAmount(o.TotalAmount, o.BalanceAmount), netSurplus))
 		months += orderMonths(o)
 		if first.IsZero() || orderPaidAt(o).Before(first) {
 			first = orderPaidAt(o)
@@ -230,5 +235,9 @@ func ComputeSurplus(u *model.User, completed []model.Order, now time.Time) (int6
 	if span <= 0 || remain <= 0 || sum <= 0 {
 		return 0, ids
 	}
-	return int64(float64(sum) * float64(remain) / float64(span)), ids
+	credit := float64(sum) * float64(remain) / float64(span)
+	if credit >= float64(math.MaxInt64) {
+		return math.MaxInt64, ids
+	}
+	return int64(credit), ids
 }

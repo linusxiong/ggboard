@@ -37,7 +37,12 @@ const NoticeOrder = "sort ASC, id DESC"
 
 // NoticeQuery returns notices for httpx.Paginate / Find; onlyVisible keeps show=true rows.
 func (s *Service) NoticeQuery(ctx context.Context, onlyVisible bool) *gorm.DB {
-	q := s.a.DB.WithContext(ctx).Model(&model.Notice{})
+	return s.NoticeQueryWithDB(s.a.DB.WithContext(ctx), onlyVisible)
+}
+
+// NoticeQueryWithDB uses a caller's authorization transaction for the snapshot.
+func (s *Service) NoticeQueryWithDB(db *gorm.DB, onlyVisible bool) *gorm.DB {
+	q := db.Model(&model.Notice{})
 	if onlyVisible {
 		q = q.Where(map[string]any{"show": true})
 	}
@@ -46,7 +51,12 @@ func (s *Service) NoticeQuery(ctx context.Context, onlyVisible bool) *gorm.DB {
 
 // SortNotices assigns sort = position (1-based) to the given notice ids.
 func (s *Service) SortNotices(ctx context.Context, ids []uint64) error {
-	return s.sort(ctx, &model.Notice{}, ids)
+	return s.sort(ctx, &model.Notice{}, ids, nil)
+}
+
+// SortNoticesIf authorizes in the same transaction as the ordering writes.
+func (s *Service) SortNoticesIf(ctx context.Context, ids []uint64, authorize func(*gorm.DB) error) error {
+	return s.sort(ctx, &model.Notice{}, ids, authorize)
 }
 
 // ---------------------------------------------------------------- knowledge
@@ -71,7 +81,12 @@ type KnowledgeFilter struct {
 
 // KnowledgeQuery returns the knowledge rows matching f (no order).
 func (s *Service) KnowledgeQuery(ctx context.Context, f KnowledgeFilter) *gorm.DB {
-	q := s.a.DB.WithContext(ctx).Model(&model.Knowledge{})
+	return s.KnowledgeQueryWithDB(s.a.DB.WithContext(ctx), f)
+}
+
+// KnowledgeQueryWithDB uses a caller's authorization transaction for the snapshot.
+func (s *Service) KnowledgeQueryWithDB(db *gorm.DB, f KnowledgeFilter) *gorm.DB {
+	q := db.Model(&model.Knowledge{})
 	if f.OnlyVisible {
 		q = q.Where(map[string]any{"show": true})
 	}
@@ -97,6 +112,11 @@ func (s *Service) KnowledgeQuery(ctx context.Context, f KnowledgeFilter) *gorm.D
 // keyword is matched against the body with its plan-gated blocks removed, otherwise searching for a guessed
 // string would reveal what the gated blocks contain.
 func (s *Service) KnowledgeIndex(ctx context.Context, language, keyword string, hasPlan bool) (map[string][]KnowledgeSummary, error) {
+	return s.KnowledgeIndexWithDB(s.a.DB.WithContext(ctx), language, keyword, hasPlan)
+}
+
+// KnowledgeIndexWithDB reads the index through the caller's account-bound transaction.
+func (s *Service) KnowledgeIndexWithDB(db *gorm.DB, language, keyword string, hasPlan bool) (map[string][]KnowledgeSummary, error) {
 	if strings.TrimSpace(language) == "" {
 		language = s.a.Settings.String("default_locale")
 	}
@@ -111,7 +131,7 @@ func (s *Service) KnowledgeIndex(ctx context.Context, language, keyword string, 
 	if recheck {
 		cols = append(cols, "body")
 	}
-	err := s.KnowledgeQuery(ctx, KnowledgeFilter{Language: language, Keyword: keyword, OnlyVisible: true}).
+	err := s.KnowledgeQueryWithDB(db, KnowledgeFilter{Language: language, Keyword: keyword, OnlyVisible: true}).
 		Select(cols).Order(KnowledgeOrder).Find(&rows).Error
 	if err != nil {
 		return nil, err
@@ -139,8 +159,13 @@ type Article struct {
 
 // Article loads a visible article and renders it for u at now (see RenderBody).
 func (s *Service) Article(ctx context.Context, id uint64, u *model.User, now time.Time) (*Article, error) {
+	return s.ArticleWithDB(s.a.DB.WithContext(ctx), id, u, now)
+}
+
+// ArticleWithDB loads and renders the article through the caller's account-bound transaction.
+func (s *Service) ArticleWithDB(db *gorm.DB, id uint64, u *model.User, now time.Time) (*Article, error) {
 	var k model.Knowledge
-	err := s.a.DB.WithContext(ctx).Where(map[string]any{"id": id, "show": true}).First(&k).Error
+	err := db.Where(map[string]any{"id": id, "show": true}).First(&k).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrNotFound
 	}
@@ -154,7 +179,12 @@ func (s *Service) Article(ctx context.Context, id uint64, u *model.User, now tim
 
 // SortKnowledge assigns sort = position (1-based) to the given article ids.
 func (s *Service) SortKnowledge(ctx context.Context, ids []uint64) error {
-	return s.sort(ctx, &model.Knowledge{}, ids)
+	return s.sort(ctx, &model.Knowledge{}, ids, nil)
+}
+
+// SortKnowledgeIf authorizes in the same transaction as the ordering writes.
+func (s *Service) SortKnowledgeIf(ctx context.Context, ids []uint64, authorize func(*gorm.DB) error) error {
+	return s.sort(ctx, &model.Knowledge{}, ids, authorize)
 }
 
 // Access markers of plan-gated blocks (Xboard syntax).
@@ -216,8 +246,13 @@ func noAccessText(language string) string {
 // ---------------------------------------------------------------- helpers
 
 // sort writes sort = index+1 for each id of table (model) in one transaction without touching updated_at.
-func (s *Service) sort(ctx context.Context, m any, ids []uint64) error {
+func (s *Service) sort(ctx context.Context, m any, ids []uint64, authorize func(*gorm.DB) error) error {
 	return s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if authorize != nil {
+			if err := authorize(tx); err != nil {
+				return err
+			}
+		}
 		var n int64
 		if err := tx.Model(m).Where("id IN ?", ids).Count(&n).Error; err != nil {
 			return err

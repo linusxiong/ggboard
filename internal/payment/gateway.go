@@ -62,7 +62,8 @@ type PayResult struct {
 type NotifyResult struct {
 	TradeNo    string // our order no
 	CallbackNo string // gateway transaction id
-	Amount     int64  // cents if the gateway reports it, else 0
+	Amount     int64  // required and > 0; site cents, or provider minor units with ValidateAmount
+	Currency   string // provider currency with ValidateAmount
 }
 
 // NotifyResponse is the HTTP response the gateway expects after a callback.

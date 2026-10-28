@@ -131,7 +131,7 @@ func seed(t *testing.T, a *app.App) {
 	_, err = orders.Create(bg, alice.ID, ordersvc.CreateInput{PlanID: plans[0].ID, Period: model.PeriodYearly})
 	must(err) // stays pending (NULL paid_at, payment_id, coupon_id)
 	must(d.Create(&model.CommissionLog{InviteUserID: admin.ID, UserID: alice.ID, TradeNo: paid.TradeNo, OrderAmount: 1000, GetAmount: 150}).Error)
-	_, err = invitesvc.New(a).GenerateCode(bg, admin.ID)
+	_, err = invitesvc.New(a).GenerateCode(bg, admin)
 	must(err)
 
 	tickets := ticketsvc.New(a)

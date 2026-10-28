@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -14,6 +15,7 @@ import (
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/auth"
 	"github.com/linusxiong/ggboard/internal/cache"
+	"github.com/linusxiong/ggboard/internal/httpx"
 	"github.com/linusxiong/ggboard/internal/model"
 	"github.com/linusxiong/ggboard/internal/settings"
 )
@@ -83,17 +85,40 @@ type BindCode struct {
 	DeepLink    string `json:"deep_link"`
 }
 
-// IssueBindCode creates a one-time code (BindCodeTTL) that binds userID when sent to the bot as /start <code>.
+type accountBinding struct {
+	UserID  uint64
+	UUID    string
+	Email   string
+	Version int
+}
+
+func bindAccount(u *model.User) accountBinding {
+	if u == nil {
+		return accountBinding{}
+	}
+	return accountBinding{UserID: u.ID, UUID: u.UUID, Email: strings.ToLower(strings.TrimSpace(u.Email)), Version: u.PasswordVersion}
+}
+
+func (b accountBinding) matches(u *model.User) bool {
+	return u != nil && b.UserID != 0 && b.UUID != "" && b.UserID == u.ID && b.UUID == u.UUID && b.Version == u.PasswordVersion &&
+		b.Email != "" && b.Email == strings.ToLower(strings.TrimSpace(u.Email))
+}
+
+// IssueBindCode creates a one-time code (BindCodeTTL) that binds u when sent to the bot as /start <code>.
 // A user holds one live code: issuing a new one revokes the previous.
-func IssueBindCode(ctx context.Context, a *app.App, userID uint64) (*BindCode, error) {
+func IssueBindCode(ctx context.Context, a *app.App, u *model.User) (*BindCode, error) {
+	binding := bindAccount(u)
+	if !binding.matches(u) {
+		return nil, errors.New("telegram: invalid account binding")
+	}
 	bot, err := BotUsername(ctx, a)
 	if err != nil {
 		return nil, err
 	}
 	code := settings.RandomToken(BindCodeLength)
-	a.KV.Set(kvBindCode(code), userID, BindCodeTTL)
+	a.KV.Set(kvBindCode(code), binding, BindCodeTTL)
 	var prev string
-	a.KV.Update(kvUserCode(userID), BindCodeTTL, false, func(old any, ok bool) any {
+	a.KV.Update(kvUserCode(u.ID), BindCodeTTL, false, func(old any, ok bool) any {
 		if ok {
 			prev, _ = old.(string)
 		}
@@ -135,20 +160,41 @@ func UserStatus(ctx context.Context, a *app.App, u *model.User) Status {
 	return st
 }
 
-// Unbind clears userID's binding and revokes its pending bind code.
-func Unbind(ctx context.Context, a *app.App, userID uint64) error {
-	if code, ok := a.KV.Take(kvUserCode(userID)); ok {
+// Unbind clears u's binding and revokes its pending bind code after verifying the account snapshot.
+func Unbind(ctx context.Context, a *app.App, u *model.User) error {
+	binding := bindAccount(u)
+	if !binding.matches(u) {
+		return httpx.Unauthorized("session expired, please sign in again")
+	}
+	err := a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Lock the id first so replacement cannot race the binding check and write.
+		if err := tx.Model(&model.User{}).Where("id = ?", u.ID).
+			UpdateColumn("password_version", gorm.Expr("password_version")).Error; err != nil {
+			return err
+		}
+		var fresh model.User
+		if err := tx.First(&fresh, u.ID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return httpx.Unauthorized("session expired, please sign in again")
+			}
+			return err
+		}
+		if !binding.matches(&fresh) {
+			return httpx.Unauthorized("session expired, please sign in again")
+		}
+		return tx.Model(&model.User{}).Where("id = ?", u.ID).
+			Updates(map[string]any{"telegram_id": nil, "telegram_username": nil}).Error
+	})
+	if err != nil {
+		return err
+	}
+	if code, ok := a.KV.Take(kvUserCode(u.ID)); ok {
 		if s, _ := code.(string); s != "" {
 			a.KV.Delete(kvBindCode(s))
 		}
 	}
-	err := a.DB.WithContext(ctx).Model(&model.User{}).Where("id = ?", userID).
-		Updates(map[string]any{"telegram_id": nil, "telegram_username": nil}).Error
-	if err != nil {
-		return err
-	}
-	auth.InvalidateUser(a, userID)
-	a.Log.Info("telegram: account unbound", "user_id", userID)
+	auth.InvalidateUser(a, u.ID)
+	a.Log.Info("telegram: account unbound", "user_id", u.ID)
 	return nil
 }
 
@@ -160,7 +206,11 @@ func bind(ctx context.Context, a *app.App, code string, chat int64, username str
 	if !ok {
 		return nil, nil
 	}
-	userID, _ := v.(uint64)
+	binding, ok := v.(accountBinding)
+	if !ok || binding.UserID == 0 {
+		return nil, nil
+	}
+	userID := binding.UserID
 	a.KV.Delete(kvUserCode(userID))
 	var name *string
 	if username != "" {
@@ -171,6 +221,16 @@ func bind(ctx context.Context, a *app.App, code string, chat int64, username str
 		others []uint64
 	)
 	err := a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.User{}).Where("id = ?", userID).
+			UpdateColumn("password_version", gorm.Expr("password_version")).Error; err != nil {
+			return err
+		}
+		if err := tx.First(&u, userID).Error; err != nil {
+			return err
+		}
+		if !binding.matches(&u) || u.Banned {
+			return gorm.ErrRecordNotFound
+		}
 		if err := tx.Model(&model.User{}).Where("telegram_id = ? AND id <> ?", chat, userID).Pluck("id", &others).Error; err != nil {
 			return err
 		}
@@ -188,7 +248,7 @@ func bind(ctx context.Context, a *app.App, code string, chat int64, username str
 		if res.RowsAffected == 0 {
 			return gorm.ErrRecordNotFound
 		}
-		return tx.Select("id", "email").Where("id = ?", userID).First(&u).Error
+		return nil
 	})
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil // the account was deleted meanwhile

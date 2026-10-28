@@ -378,8 +378,8 @@ func TestAdminUsersSecretLoginTraffic(t *testing.T) {
 	if !strings.HasPrefix(out.URL, prefix) {
 		t.Fatalf("url = %q", out.URL)
 	}
-	if id, ok := auth.ConsumeLoginToken(e.a, strings.TrimPrefix(out.URL, prefix)); !ok || id != u.ID {
-		t.Fatalf("token resolves to %d, %v", id, ok)
+	if claims, ok := auth.ConsumeLoginToken(e.a, strings.TrimPrefix(out.URL, prefix)); !ok || !claims.BoundTo(&cur) {
+		t.Fatalf("token does not match its user snapshot: %v", ok)
 	}
 	e.expect(t, http.MethodPost, usersPath(99999, "/login-token"), nil, e.adminTok, http.StatusNotFound)
 

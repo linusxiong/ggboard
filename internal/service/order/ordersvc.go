@@ -11,6 +11,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"strings"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"gorm.io/gorm/clause"
 
 	"github.com/linusxiong/ggboard/internal/app"
+	"github.com/linusxiong/ggboard/internal/auth"
 	"github.com/linusxiong/ggboard/internal/httpx"
 	"github.com/linusxiong/ggboard/internal/mail"
 	"github.com/linusxiong/ggboard/internal/model"
@@ -103,6 +105,36 @@ func lockUser(tx *gorm.DB, id uint64) (*model.User, error) {
 	return &u, nil
 }
 
+// LockActor locks and rechecks the authenticated account before order reads or writes.
+func LockActor(tx *gorm.DB, id uint64, claims *auth.Claims) (*model.User, error) {
+	u, err := lockUser(tx, id)
+	if err != nil {
+		return nil, err
+	}
+	if claims != nil && (!claims.BoundTo(u) || u.Banned) {
+		return nil, httpx.Unauthorized("session expired, please sign in again")
+	}
+	return u, nil
+}
+
+func lockAdminActor(tx *gorm.DB, claims *auth.Claims) error {
+	if claims == nil {
+		return httpx.Unauthorized("session expired, please sign in again")
+	}
+	id, err := claims.UserID()
+	if err != nil {
+		return httpx.Unauthorized("session expired, please sign in again")
+	}
+	u, err := LockActor(tx, id, claims)
+	if err != nil {
+		return err
+	}
+	if !u.IsAdmin {
+		return httpx.Unauthorized("administrator session expired, please sign in again")
+	}
+	return nil
+}
+
 // pendingOrder returns the user's open order, if any.
 func pendingOrder(tx *gorm.DB, userID uint64) (*model.Order, error) {
 	var o model.Order
@@ -148,7 +180,38 @@ func percentOf(amount, pct int64) int64 {
 	if amount <= 0 || pct <= 0 {
 		return 0
 	}
-	return (amount*pct + 50) / 100
+	pct = min(pct, 100)
+	return amount/100*pct + (amount%100*pct+50)/100
+}
+
+func chargeAmount(total, handling int64) (int64, bool) {
+	if total <= 0 || handling < 0 || handling > math.MaxInt64-total {
+		return 0, false
+	}
+	return total + handling, true
+}
+
+func saturatingAmount(a, b int64) int64 {
+	a, b = max(a, 0), max(b, 0)
+	if b > math.MaxInt64-a {
+		return math.MaxInt64
+	}
+	return a + b
+}
+
+func creditUser(tx *gorm.DB, id uint64, column string, amount int64) error {
+	if amount <= 0 {
+		return nil
+	}
+	res := tx.Model(&model.User{}).Where("id = ? AND "+column+" >= 0 AND "+column+" <= ?", id, math.MaxInt64-amount).
+		UpdateColumn(column, gorm.Expr(column+" + ?", amount))
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return fmt.Errorf("ordersvc: %s credit would overflow for user %d", column, id)
+	}
+	return nil
 }
 
 // SiteURL returns settings.app_url without a trailing slash, or fallback (scheme://host of the request).

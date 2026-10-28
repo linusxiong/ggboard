@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/geoip"
 	"github.com/linusxiong/ggboard/internal/httpx"
@@ -205,12 +207,49 @@ type AccessEntry struct {
 // octet and the last 64 bits of IPv6 addresses and leaves out ip_bucket and token_tag; the location is always
 // resolved from the full address.
 func ListAccess(ctx context.Context, a *app.App, userID uint64, limit int, masked bool) ([]AccessEntry, error) {
+	return listAccess(ctx, a, userID, nil, limit, masked, nil)
+}
+
+// ListAccessIf authorizes and snapshots the log under the same account lock.
+func ListAccessIf(ctx context.Context, a *app.App, userID uint64, limit int, masked bool, authorize func(*gorm.DB) error) ([]AccessEntry, error) {
+	return listAccess(ctx, a, userID, nil, limit, masked, authorize)
+}
+
+// ListAccessForUser keeps an owner's access-log read bound to the authenticated account snapshot.
+func ListAccessForUser(ctx context.Context, a *app.App, u *model.User, limit int) ([]AccessEntry, error) {
+	if u == nil {
+		return nil, httpx.Unauthorized("session expired, please sign in again")
+	}
+	return listAccess(ctx, a, u.ID, u, limit, true, nil)
+}
+
+func listAccess(ctx context.Context, a *app.App, userID uint64, u *model.User, limit int, masked bool, authorize func(*gorm.DB) error) ([]AccessEntry, error) {
 	if err := FlushAccess(ctx, a); err != nil {
 		a.Log.Warn("subscription access log: flush failed", "err", err)
 	}
 	var rows []model.SubscriptionAccess
-	if err := a.DB.WithContext(ctx).Where("user_id = ?", userID).Order("at DESC, id DESC").Limit(limit).
-		Find(&rows).Error; err != nil {
+	read := func(tx *gorm.DB) error {
+		return tx.WithContext(ctx).Where("user_id = ?", userID).Order("at DESC, id DESC").Limit(limit).Find(&rows).Error
+	}
+	var err error
+	if u == nil && authorize == nil {
+		err = read(a.DB)
+	} else {
+		err = a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			if authorize != nil {
+				if err := authorize(tx); err != nil {
+					return err
+				}
+			}
+			if u != nil {
+				if err := lockUser(tx, u); err != nil {
+					return err
+				}
+			}
+			return read(tx)
+		})
+	}
+	if err != nil {
 		return nil, err
 	}
 	out := make([]AccessEntry, 0, len(rows))

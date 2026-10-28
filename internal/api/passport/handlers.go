@@ -160,7 +160,7 @@ func forgot(a *app.App) gin.HandlerFunc {
 		}
 		if reclaimed {
 			// The account changed hands: a bind code the previous holder requested must not bind their chat now.
-			if err := telegram.Unbind(ctx, a, u.ID); err != nil {
+			if err := telegram.Unbind(ctx, a, u); err != nil {
 				httpx.Logger(c).Warn("revoke telegram bind code after reclaim failed", "user_id", u.ID, "err", err)
 			}
 		}

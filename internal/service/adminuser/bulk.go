@@ -75,6 +75,20 @@ func randomString(n int, alphabet string) string {
 // password when omitted (hashed once: argon2id per user would take seconds for a batch). A plan grants its
 // group, traffic and limits; next_reset_at follows the plan and expired_at.
 func (s *Service) Generate(ctx context.Context, in GenerateInput, now time.Time) (*GenerateResult, error) {
+	var out *GenerateResult
+	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		out, err = s.GenerateWithDB(tx, in, now)
+		return err
+	})
+	if err == nil {
+		usersvc.New(s.a).InvalidateNodeUsers()
+	}
+	return out, err
+}
+
+// GenerateWithDB creates the batch within the caller's authorization transaction.
+func (s *Service) GenerateWithDB(db *gorm.DB, in GenerateInput, now time.Time) (*GenerateResult, error) {
 	prefix := strings.ToLower(strings.TrimSpace(in.EmailPrefix))
 	suffix := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(in.EmailSuffix), "@"))
 	if err := httpx.Validate(&struct {
@@ -89,7 +103,6 @@ func (s *Service) Generate(ctx context.Context, in GenerateInput, now time.Time)
 			return nil, err
 		}
 	}
-	db := s.a.DB.WithContext(ctx)
 	var plan *model.Plan
 	if id := nonZero(in.PlanID); id != nil {
 		p, err := loadPlan(db, *id, "plan_id")
@@ -134,15 +147,13 @@ func (s *Service) Generate(ctx context.Context, in GenerateInput, now time.Time)
 		u.Email, u.UUID, u.Token = e, uuid.NewString(), usersvc.NewToken()
 		users[i] = u
 	}
-	err = db.Transaction(func(tx *gorm.DB) error { return tx.CreateInBatches(&users, 100).Error })
+	err = db.CreateInBatches(&users, 100).Error
 	if errors.Is(err, gorm.ErrDuplicatedKey) {
 		return nil, httpx.Conflict("an email in the batch is already registered").WithField("email_prefix", "is already registered")
 	}
 	if err != nil {
 		return nil, fmt.Errorf("adminuser: generate: %w", err)
 	}
-	svc.InvalidateNodeUsers()
-
 	var buf bytes.Buffer
 	w := csv.NewWriter(&buf)
 	_ = w.Write([]string{"email", "password"})
@@ -217,7 +228,11 @@ var ExportHeader = []string{"email", "plan", "expired_at", "transfer_enable", "u
 // Export writes every user matching f as CSV (ExportHeader; times RFC3339, traffic in bytes, balance in cents)
 // to w, reading the table in batches.
 func (s *Service) Export(ctx context.Context, w io.Writer, f Filters, now time.Time) error {
-	db := s.a.DB.WithContext(ctx)
+	return s.ExportWithDB(s.a.DB.WithContext(ctx), w, f, now)
+}
+
+// ExportWithDB exports through db, so callers can hold an authorization lock while taking the CSV snapshot.
+func (s *Service) ExportWithDB(db *gorm.DB, w io.Writer, f Filters, now time.Time) error {
 	var plans []model.Plan
 	if err := db.Select("id", "name").Find(&plans).Error; err != nil {
 		return fmt.Errorf("adminuser: export plans: %w", err)
@@ -274,11 +289,25 @@ type MailInput struct {
 // Mail queues the notify template to every user matching in.Filters and returns how many were queued.
 // What does not fit into the mail queue right away is handed to a background sender that waits for room.
 func (s *Service) Mail(ctx context.Context, in MailInput, now time.Time) (int, error) {
-	var emails []string
-	if err := in.Apply(s.a.DB.WithContext(ctx).Model(&model.User{}), now).Order("users.id").
-		Pluck("users.email", &emails).Error; err != nil {
-		return 0, fmt.Errorf("adminuser: mail recipients: %w", err)
+	emails, err := s.MailRecipientsWithDB(s.a.DB.WithContext(ctx), in, now)
+	if err != nil {
+		return 0, err
 	}
+	return s.MailToRecipients(ctx, emails, in)
+}
+
+// MailRecipientsWithDB snapshots recipients inside the caller's authorization transaction.
+func (s *Service) MailRecipientsWithDB(db *gorm.DB, in MailInput, now time.Time) ([]string, error) {
+	var emails []string
+	if err := in.Apply(db.Model(&model.User{}), now).Order("users.id").
+		Pluck("users.email", &emails).Error; err != nil {
+		return nil, fmt.Errorf("adminuser: mail recipients: %w", err)
+	}
+	return emails, nil
+}
+
+// MailToRecipients queues mail for recipients authorized by a committed snapshot.
+func (s *Service) MailToRecipients(ctx context.Context, emails []string, in MailInput) (int, error) {
 	if len(emails) == 0 {
 		return 0, nil
 	}

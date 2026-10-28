@@ -6,10 +6,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/auth"
 	"github.com/linusxiong/ggboard/internal/httpx"
+	"github.com/linusxiong/ggboard/internal/model"
 )
 
 // Overview is the response of GET /user/security.
@@ -22,7 +24,22 @@ type Overview struct {
 
 // Overview returns the second-factor state of userID.
 func (s *Service) Overview(ctx context.Context, userID uint64) (Overview, error) {
-	row, err := s.load(ctx, s.a.DB, userID)
+	return s.overview(ctx, s.a.DB, userID)
+}
+
+// OverviewForUser keeps the account binding checked while reading its second-factor details.
+func (s *Service) OverviewForUser(ctx context.Context, u *model.User) (Overview, error) {
+	var out Overview
+	err := s.withUser(ctx, u, func(tx *gorm.DB) error {
+		var err error
+		out, err = s.overview(ctx, tx, u.ID)
+		return err
+	})
+	return out, err
+}
+
+func (s *Service) overview(ctx context.Context, db *gorm.DB, userID uint64) (Overview, error) {
+	row, err := s.load(ctx, db, userID)
 	if err != nil {
 		return Overview{}, err
 	}
@@ -35,7 +52,7 @@ func (s *Service) Overview(ctx context.Context, userID uint64) (Overview, error)
 			out.TOTPEnabledAt = &t
 		}
 	}
-	if out.Passkeys, err = s.ListPasskeys(ctx, userID); err != nil {
+	if out.Passkeys, err = s.listPasskeys(ctx, db, userID); err != nil {
 		return Overview{}, err
 	}
 	return out, nil

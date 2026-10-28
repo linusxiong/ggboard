@@ -122,6 +122,15 @@ type CreateOptions struct {
 // Create registers a user with a hashed password, fresh uuid/token and remind defaults from settings.
 // It returns ErrEmailTaken for duplicates.
 func (s *Service) Create(ctx context.Context, email, password string, opts CreateOptions) (*model.User, error) {
+	u, err := s.CreateWithDB(s.a.DB.WithContext(ctx), email, password, opts)
+	if err == nil {
+		s.InvalidateNodeUsers()
+	}
+	return u, err
+}
+
+// CreateWithDB inserts a user in the caller's transaction without invalidating caches before commit.
+func (s *Service) CreateWithDB(db *gorm.DB, email, password string, opts CreateOptions) (*model.User, error) {
 	email = NormalizeEmail(email)
 	if email == "" {
 		return nil, errors.New("user: email is required")
@@ -153,14 +162,13 @@ func (s *Service) Create(ctx context.Context, email, password string, opts Creat
 		RemindExpire:   s.a.Settings.Bool("default_remind_expire"),
 		RemindTraffic:  s.a.Settings.Bool("default_remind_traffic"),
 	}
-	err := s.a.DB.WithContext(ctx).Create(u).Error
+	err := db.Create(u).Error
 	if errors.Is(err, gorm.ErrDuplicatedKey) {
 		return nil, ErrEmailTaken
 	}
 	if err != nil {
 		return nil, fmt.Errorf("user: create: %w", err)
 	}
-	s.InvalidateNodeUsers()
 	return u, nil
 }
 
@@ -170,10 +178,13 @@ func (s *Service) SetPassword(ctx context.Context, u *model.User, password strin
 	if err != nil {
 		return err
 	}
-	res := s.a.DB.WithContext(ctx).Model(&model.User{}).Where("id = ?", u.ID).Updates(map[string]any{
-		"password_hash":    hash,
-		"password_version": gorm.Expr("password_version + 1"),
-	})
+	res := s.a.DB.WithContext(ctx).Model(&model.User{}).
+		Where("id = ? AND email = ? AND uuid = ? AND password_hash = ? AND password_version = ? AND banned = ?",
+			u.ID, u.Email, u.UUID, u.PasswordHash, u.PasswordVersion, u.Banned).
+		Updates(map[string]any{
+			"password_hash":    hash,
+			"password_version": gorm.Expr("password_version + 1"),
+		})
 	if res.Error != nil {
 		return fmt.Errorf("user: set password: %w", res.Error)
 	}
@@ -235,12 +246,25 @@ func (s *Service) RecordLogin(ctx context.Context, u *model.User, ip string) err
 
 // ResetSecurity issues a new uuid and subscription token and bumps password_version.
 func (s *Service) ResetSecurity(ctx context.Context, u *model.User) error {
+	if err := s.ResetSecurityWithDB(s.a.DB.WithContext(ctx), u); err != nil {
+		return err
+	}
+	auth.InvalidateUser(s.a, u.ID)
+	s.InvalidateNodeUsers()
+	return nil
+}
+
+// ResetSecurityWithDB rotates credentials in the caller's transaction without invalidating caches before commit.
+func (s *Service) ResetSecurityWithDB(db *gorm.DB, u *model.User) error {
 	newUUID, newToken := uuid.NewString(), NewToken()
-	res := s.a.DB.WithContext(ctx).Model(&model.User{}).Where("id = ?", u.ID).Updates(map[string]any{
-		"uuid":             newUUID,
-		"token":            newToken,
-		"password_version": gorm.Expr("password_version + 1"),
-	})
+	res := db.Model(&model.User{}).
+		Where("id = ? AND email = ? AND uuid = ? AND password_version = ? AND banned = ?",
+			u.ID, u.Email, u.UUID, u.PasswordVersion, u.Banned).
+		Updates(map[string]any{
+			"uuid":             newUUID,
+			"token":            newToken,
+			"password_version": gorm.Expr("password_version + 1"),
+		})
 	if res.Error != nil {
 		return fmt.Errorf("user: reset security: %w", res.Error)
 	}
@@ -249,8 +273,6 @@ func (s *Service) ResetSecurity(ctx context.Context, u *model.User) error {
 	}
 	u.UUID, u.Token = newUUID, newToken
 	u.PasswordVersion++
-	auth.InvalidateUser(s.a, u.ID)
-	s.InvalidateNodeUsers()
 	return nil
 }
 
@@ -258,7 +280,10 @@ func (s *Service) ResetSecurity(ctx context.Context, u *model.User) error {
 // (sessions) are kept, so clients just need the new link. The old token stops working at once.
 func (s *Service) RotateToken(ctx context.Context, u *model.User) error {
 	newToken := NewToken()
-	res := s.a.DB.WithContext(ctx).Model(&model.User{}).Where("id = ?", u.ID).Update("token", newToken)
+	res := s.a.DB.WithContext(ctx).Model(&model.User{}).
+		Where("id = ? AND email = ? AND uuid = ? AND password_version = ? AND banned = ?",
+			u.ID, u.Email, u.UUID, u.PasswordVersion, u.Banned).
+		Update("token", newToken)
 	if res.Error != nil {
 		return fmt.Errorf("user: rotate token: %w", res.Error)
 	}
@@ -351,7 +376,7 @@ func (s *Service) AvailableUsersForGroups(ctx context.Context, groupIDs []uint64
 			Where("group_id IN ?", ids).
 			Where("banned = ?", false).
 			Where("expired_at IS NULL OR expired_at > ?", time.Now()).
-			Where("u + d < transfer_enable").
+			Where("u >= 0 AND d >= 0 AND u < transfer_enable AND d < transfer_enable - u").
 			Order("id").
 			Find(&rows).Error
 		if err != nil {
@@ -394,13 +419,15 @@ func (s *Service) MarkEmailVerified(ctx context.Context, u *model.User) error {
 	return nil
 }
 
-// mfaConfiguredCacheKey is the cache entry of internal/service/mfa Configured ("mfa:configured:<id>", see
-// cacheStatusKeyNS there; that package imports this one, so the key is spelled out here).
+// mfaConfiguredCacheKey is the cache namespace of internal/service/mfa Configured ("mfa:configured:<id>", see
+// cacheStatusKeyNS there; that package imports this one, so the namespace is spelled out here).
 func mfaConfiguredCacheKey(id uint64) string { return "mfa:configured:" + strconv.FormatUint(id, 10) }
 
-// SubscriptionKeyCacheNamespace is the cache namespace of the hosted age key (internal/subscription/guard LoadKey).
-// That package imports this one and uses this constant, so the two cannot drift.
-const SubscriptionKeyCacheNamespace = "subscription_key"
+// SubscriptionKeyCacheNamespace is the per-user cache namespace of the hosted age key
+// (internal/subscription/guard LoadKey). That package imports this one so the two cannot drift.
+func SubscriptionKeyCacheNamespace(id uint64) string {
+	return "subscription_key:" + strconv.FormatUint(id, 10)
+}
 
 // Reclaimed describes what ReclaimAccount removed.
 type Reclaimed struct {
@@ -430,15 +457,18 @@ func (s *Service) ReclaimAccount(ctx context.Context, u *model.User, password st
 	now, newUUID, newToken := time.Now(), uuid.NewString(), NewToken()
 	out := Reclaimed{Telegram: u.TelegramID != nil}
 	err = s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := tx.Model(&model.User{}).Where("id = ? AND email_verified_at IS NULL", u.ID).Updates(map[string]any{
-			"password_hash":     hash,
-			"password_version":  gorm.Expr("password_version + 1"),
-			"uuid":              newUUID,
-			"token":             newToken,
-			"telegram_id":       nil,
-			"telegram_username": nil,
-			"email_verified_at": now,
-		})
+		res := tx.Model(&model.User{}).
+			Where("id = ? AND email = ? AND uuid = ? AND password_hash = ? AND password_version = ? AND email_verified_at IS NULL",
+				u.ID, u.Email, u.UUID, u.PasswordHash, u.PasswordVersion).
+			Updates(map[string]any{
+				"password_hash":     hash,
+				"password_version":  gorm.Expr("password_version + 1"),
+				"uuid":              newUUID,
+				"token":             newToken,
+				"telegram_id":       nil,
+				"telegram_username": nil,
+				"email_verified_at": now,
+			})
 		if res.Error != nil {
 			return res.Error
 		}
@@ -470,8 +500,8 @@ func (s *Service) ReclaimAccount(ctx context.Context, u *model.User, password st
 	u.PasswordVersion++
 	u.TelegramID, u.TelegramUsername, u.EmailVerifiedAt = nil, nil, &now
 	auth.InvalidateUser(s.a, u.ID)
-	s.a.Cache.Delete(mfaConfiguredCacheKey(u.ID))
-	s.a.Cache.Delete(s.a.Cache.Key(SubscriptionKeyCacheNamespace, strconv.FormatUint(u.ID, 10)))
+	s.a.Cache.InvalidateNamespace(mfaConfiguredCacheKey(u.ID))
+	s.a.Cache.InvalidateNamespace(SubscriptionKeyCacheNamespace(u.ID))
 	s.InvalidateNodeUsers()
 	return &out, nil
 }

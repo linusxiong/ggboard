@@ -199,6 +199,7 @@ func adminAssignOrder(a *app.App) gin.HandlerFunc {
 		}
 		o, err := ordersvc.New(a).Assign(c.Request.Context(), ordersvc.AssignInput{
 			UserID: in.UserID, Email: in.Email, PlanID: in.PlanID, Period: in.Period, TotalAmount: in.TotalAmount,
+			Admin: auth.CurrentClaims(c),
 		})
 		if err != nil {
 			httpx.Fail(c, err)
@@ -221,7 +222,7 @@ func adminMarkOrderPaid(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		o, err := ordersvc.New(a).MarkPaid(c.Request.Context(), id)
+		o, err := ordersvc.New(a).MarkPaidAs(c.Request.Context(), id, auth.CurrentClaims(c))
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -238,7 +239,7 @@ func adminCancelOrder(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		o, err := ordersvc.New(a).CancelBy(c.Request.Context(), id, ordersvc.CancelByAdmin)
+		o, err := ordersvc.New(a).CancelForAdmin(c.Request.Context(), id, auth.CurrentClaims(c))
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -263,7 +264,7 @@ func adminUpdateOrder(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		o, err := ordersvc.New(a).SetCommissionStatus(c.Request.Context(), id, model.CommissionStatus(*in.CommissionStatus))
+		o, err := ordersvc.New(a).SetCommissionStatusAs(c.Request.Context(), id, model.CommissionStatus(*in.CommissionStatus), auth.CurrentClaims(c))
 		if err != nil {
 			httpx.Fail(c, err)
 			return

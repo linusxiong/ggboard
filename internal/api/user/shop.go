@@ -41,7 +41,15 @@ func registerShop(g *gin.RouterGroup, a *app.App) {
 
 func shopListPlans(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		plans, err := plansvc.ListForUser(c.Request.Context(), a.DB, auth.CurrentUser(c), time.Now())
+		var plans []plansvc.PublicView
+		err := a.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+			u, err := readingUser(tx, c)
+			if err != nil {
+				return err
+			}
+			plans, err = plansvc.ListForUser(c.Request.Context(), tx, u, time.Now())
+			return err
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -57,7 +65,15 @@ func shopGetPlan(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		p, err := plansvc.GetForUser(c.Request.Context(), a.DB, auth.CurrentUser(c), id, time.Now())
+		var p *plansvc.PublicView
+		err = a.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+			u, err := readingUser(tx, c)
+			if err != nil {
+				return err
+			}
+			p, err = plansvc.GetForUser(c.Request.Context(), tx, u, id, time.Now())
+			return err
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -115,7 +131,7 @@ func shopCheckCoupon(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		cp, err := ordersvc.New(a).CheckCoupon(c.Request.Context(), auth.CurrentUser(c).ID, in.Code, in.PlanID, in.Period)
+		cp, err := ordersvc.New(a).CheckCouponForUser(c.Request.Context(), auth.CurrentUser(c).ID, in.Code, in.PlanID, in.Period, auth.CurrentClaims(c))
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -142,16 +158,24 @@ func shopListOrders(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		db := a.DB.WithContext(c.Request.Context()).Model(&model.Order{}).Where("user_id = ?", auth.CurrentUser(c).ID)
-		if q.Status != nil {
-			db = db.Where("status = ?", *q.Status)
-		}
-		orders, total, err := httpx.Paginate[model.Order](c, db, map[string]string{"created_at": "created_at", "id": "id"}, "id DESC")
-		if err != nil {
-			httpx.Fail(c, err)
-			return
-		}
-		views, err := ordersvc.Views(c.Request.Context(), a.DB, orders)
+		var views []ordersvc.View
+		var total int64
+		err := a.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+			if _, err := ordersvc.LockActor(tx, auth.CurrentUser(c).ID, auth.CurrentClaims(c)); err != nil {
+				return err
+			}
+			db := tx.Model(&model.Order{}).Where("user_id = ?", auth.CurrentUser(c).ID)
+			if q.Status != nil {
+				db = db.Where("status = ?", *q.Status)
+			}
+			orders, n, err := httpx.Paginate[model.Order](c, db, map[string]string{"created_at": "created_at", "id": "id"}, "id DESC")
+			if err != nil {
+				return err
+			}
+			total = n
+			views, err = ordersvc.Views(c.Request.Context(), tx, orders)
+			return err
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -177,7 +201,7 @@ func shopCreateOrder(a *app.App) gin.HandlerFunc {
 			return
 		}
 		o, err := ordersvc.New(a).Create(c.Request.Context(), auth.CurrentUser(c).ID,
-			ordersvc.CreateInput{PlanID: in.PlanID, Period: in.Period, CouponCode: in.CouponCode})
+			ordersvc.CreateInput{PlanID: in.PlanID, Period: in.Period, CouponCode: in.CouponCode, Actor: auth.CurrentClaims(c)})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -189,7 +213,12 @@ func shopCreateOrder(a *app.App) gin.HandlerFunc {
 // shopOrder loads the current user's order by :trade_no (404 otherwise).
 func shopOrder(c *gin.Context, a *app.App) (*model.Order, bool) {
 	var o model.Order
-	err := a.DB.WithContext(c.Request.Context()).Where("trade_no = ? AND user_id = ?", c.Param("trade_no"), auth.CurrentUser(c).ID).First(&o).Error
+	err := a.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if _, err := ordersvc.LockActor(tx, auth.CurrentUser(c).ID, auth.CurrentClaims(c)); err != nil {
+			return err
+		}
+		return tx.Where("trade_no = ? AND user_id = ?", c.Param("trade_no"), auth.CurrentUser(c).ID).First(&o).Error
+	})
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = httpx.NotFound("order not found")
@@ -202,12 +231,23 @@ func shopOrder(c *gin.Context, a *app.App) (*model.Order, bool) {
 
 func shopGetOrder(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		o, ok := shopOrder(c, a)
-		if !ok {
-			return
-		}
-		views, err := ordersvc.Views(c.Request.Context(), a.DB, []model.Order{*o})
+		var views []ordersvc.View
+		err := a.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+			if _, err := ordersvc.LockActor(tx, auth.CurrentUser(c).ID, auth.CurrentClaims(c)); err != nil {
+				return err
+			}
+			var o model.Order
+			if err := tx.Where("trade_no = ? AND user_id = ?", c.Param("trade_no"), auth.CurrentUser(c).ID).First(&o).Error; err != nil {
+				return err
+			}
+			var err error
+			views, err = ordersvc.Views(c.Request.Context(), tx, []model.Order{o})
+			return err
+		})
 		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				err = httpx.NotFound("order not found")
+			}
 			httpx.Fail(c, err)
 			return
 		}
@@ -230,7 +270,7 @@ func shopCheckout(a *app.App) gin.HandlerFunc {
 			return
 		}
 		res, err := ordersvc.New(a).Checkout(c.Request.Context(), auth.CurrentUser(c).ID, c.Param("trade_no"), ordersvc.CheckoutInput{
-			PaymentID: in.PaymentID, ClientIP: c.ClientIP(), BaseURL: shopRequestBase(c),
+			PaymentID: in.PaymentID, ClientIP: c.ClientIP(), BaseURL: shopRequestBase(c), Actor: auth.CurrentClaims(c),
 		})
 		if err != nil {
 			httpx.Fail(c, err)
@@ -256,7 +296,7 @@ func shopCancelOrder(a *app.App) gin.HandlerFunc {
 		if !ok {
 			return
 		}
-		if _, err := ordersvc.New(a).Cancel(c.Request.Context(), o.ID); err != nil {
+		if _, err := ordersvc.New(a).CancelForUser(c.Request.Context(), o.ID, auth.CurrentClaims(c)); err != nil {
 			httpx.Fail(c, err)
 			return
 		}

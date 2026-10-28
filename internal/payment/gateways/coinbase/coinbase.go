@@ -91,6 +91,33 @@ func checkRate(cfg map[string]string, siteCurrency string) error {
 	return nil
 }
 
+func quotedAmount(cfg map[string]string, siteCurrency string, cents int64) (int64, error) {
+	if err := checkRate(cfg, siteCurrency); err != nil {
+		return 0, err
+	}
+	rate, err := gwutil.ParseRate(cfg["exchange_rate"])
+	if err != nil {
+		return 0, fmt.Errorf("coinbase: %w", err)
+	}
+	usdc := gwutil.ConvertCents(cents, rate)
+	if usdc <= 0 {
+		return 0, &gwutil.UserError{Msg: "amount is too small for Coinbase"}
+	}
+	return usdc, nil
+}
+
+// ValidateAmount compares the callback with the same forward USDC quote used by Pay.
+func (*Gateway) ValidateAmount(cfg map[string]string, siteCurrency string, expected int64, res *payment.NotifyResult) error {
+	usdc, err := quotedAmount(cfg, siteCurrency, expected)
+	if err != nil {
+		return err
+	}
+	if !strings.EqualFold(res.Currency, "USDC") || res.Amount != usdc {
+		return errors.New("coinbase: payment amount or currency mismatch")
+	}
+	return nil
+}
+
 // ValidateConfig parses the EC key and requires a real rate for sites not priced in dollars.
 func (*Gateway) ValidateConfig(cfg map[string]string, siteCurrency string) error {
 	if _, err := ParseKey(cfg["api_key_secret"]); err != nil {
@@ -175,16 +202,9 @@ func (g *Gateway) Pay(ctx context.Context, cfg map[string]string, req payment.Pa
 	if err != nil {
 		return nil, err
 	}
-	if err := checkRate(cfg, req.Currency); err != nil {
-		return nil, err // saved before ValidateConfig enforced it (or imported): never charge at 1:1
-	}
-	rate, err := gwutil.ParseRate(cfg["exchange_rate"])
+	usdc, err := quotedAmount(cfg, req.Currency, req.TotalAmount)
 	if err != nil {
-		return nil, fmt.Errorf("coinbase: %w", err)
-	}
-	usdc := gwutil.ConvertCents(req.TotalAmount, rate)
-	if usdc <= 0 {
-		return nil, &gwutil.UserError{Msg: "amount is too small for Coinbase"}
+		return nil, err
 	}
 	payUUID := gwutil.PaymentUUID(req.NotifyURL)
 	subject := req.Subject
@@ -329,12 +349,13 @@ func (g *Gateway) Notify(_ context.Context, cfg map[string]string, r *http.Reque
 	if tradeNo == "" || ev.ID == "" {
 		return nil, nil, errors.New("coinbase: event without trade_no or id")
 	}
-	slog.Info("coinbase payment confirmed", "trade_no", tradeNo, "checkout_id", ev.ID, "transaction_hash", ev.TransactionHash)
-	res := &payment.NotifyResult{TradeNo: tradeNo, CallbackNo: ev.ID}
-	if rate, err := gwutil.ParseRate(cfg["exchange_rate"]); err == nil && rate.Equal(decimal.NewFromInt(1)) {
-		if c, err := gwutil.ParseCents(ev.Amount); err == nil {
-			res.Amount = c
-		}
+	amount, err := gwutil.ParsePaidCents(ev.Amount)
+	if err != nil {
+		return nil, nil, fmt.Errorf("coinbase: %w", err)
 	}
-	return res, ack, nil
+	if !strings.EqualFold(ev.Currency, "USDC") {
+		return nil, nil, errors.New("coinbase: payment currency must be USDC")
+	}
+	slog.Info("coinbase payment confirmed", "trade_no", tradeNo, "checkout_id", ev.ID, "transaction_hash", ev.TransactionHash)
+	return &payment.NotifyResult{TradeNo: tradeNo, CallbackNo: ev.ID, Amount: amount, Currency: ev.Currency}, ack, nil
 }

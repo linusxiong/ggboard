@@ -27,6 +27,9 @@ func telegramFailAdmin(c *gin.Context, err error) {
 // <app_url>/api/v1/guest/telegram/webhook/<telegram_webhook_secret> → {ok, description, error_code?, url}.
 func settingsTelegramWebhookHandler(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if !requireLiveAdmin(c, a) {
+			return
+		}
 		res, err := telegram.RegisterWebhook(c.Request.Context(), a)
 		if err != nil {
 			telegramFailAdmin(c, err)
@@ -41,6 +44,9 @@ func settingsTelegramWebhookHandler(a *app.App) gin.HandlerFunc {
 // sent synchronously → {sent, failed, results:[{chat_id, ok, error?}]}.
 func settingsTelegramTestHandler(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if !requireLiveAdmin(c, a) {
+			return
+		}
 		rep, err := telegram.SendTest(c.Request.Context(), a)
 		if err != nil {
 			telegramFailAdmin(c, err)

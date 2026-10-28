@@ -5,11 +5,13 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"filippo.io/age"
 	"filippo.io/age/armor"
+	"gorm.io/gorm"
 
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/model"
@@ -96,6 +98,9 @@ func TestAgeKeyRoundTrip(t *testing.T) {
 	if _, err := guard.SetKeyEnabled(ctx, a, u.ID, true); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := guard.SetKeyEnabled(ctx, a, u.ID, true); err != nil {
+		t.Fatalf("setting the same enabled value again: %v", err)
+	}
 	k2, priv2, err := guard.GenerateKey(ctx, a, u.ID, true, nil)
 	if err != nil || !k2.Enabled || k2.PublicKey == k.PublicKey || priv2 == priv {
 		t.Fatalf("regenerate = %+v %v", k2, err)
@@ -118,6 +123,143 @@ func TestAgeKeyRoundTrip(t *testing.T) {
 	a.Cfg.JWT.Secret = "another-secret-another-secret-0123456789"
 	if v := guard.View(a, k3, true); v.PrivateKey != nil || v.PublicKey == nil {
 		t.Fatalf("view after rotation = %+v", v)
+	}
+}
+
+func TestAgeKeyLoadCannotRefillInvalidatedGeneration(t *testing.T) {
+	a := testutil.NewTestApp(t)
+	u := testutil.CreateUser(t, a, "age-cache-race@example.com")
+	old, _, err := guard.GenerateKey(t.Context(), a, u.ID, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	loaded, resume := make(chan struct{}), make(chan struct{})
+	var paused atomic.Bool
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(resume) }) }
+	t.Cleanup(release)
+	if err := a.DB.Callback().Query().After("gorm:query").Register("test:pause_age_key_load", func(tx *gorm.DB) {
+		if tx.Statement.Table == "subscription_keys" && paused.CompareAndSwap(false, true) {
+			close(loaded)
+			<-resume
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	type result struct {
+		key *model.SubscriptionKey
+		err error
+	}
+	done := make(chan result, 1)
+	go func() {
+		key, err := guard.LoadKey(t.Context(), a, u.ID)
+		done <- result{key, err}
+	}()
+	select {
+	case <-loaded:
+	case <-time.After(5 * time.Second):
+		t.Fatal("age key load did not reach the barrier")
+	}
+	current, _, err := guard.GenerateKey(t.Context(), a, u.ID, true, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	release()
+	select {
+	case got := <-done:
+		if got.err != nil || got.key == nil || got.key.PublicKey != current.PublicKey || got.key.PublicKey == old.PublicKey {
+			t.Fatalf("load after regeneration = %+v, err=%v; want current key", got.key, got.err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("age key load did not finish")
+	}
+}
+
+func TestAgeKeyWritesRejectReplacedAccountSnapshot(t *testing.T) {
+	a := testutil.NewTestApp(t)
+	u := testutil.CreateUser(t, a, "age-snapshot@example.com")
+	k, _, err := guard.GenerateKeyForUser(t.Context(), a, u, false, testutil.Ptr(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.DB.Model(&model.User{}).Where("id = ?", u.ID).Update("uuid", "replacement-account-uuid").Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := guard.GenerateKeyForUser(t.Context(), a, u, true, nil); err == nil {
+		t.Fatal("stale account regenerated the replacement's age key")
+	}
+	if _, err := guard.SetKeyEnabledForUser(t.Context(), a, u, false); err == nil {
+		t.Fatal("stale account disabled the replacement's age key")
+	}
+	if err := guard.DeleteKeyForUser(t.Context(), a, u); err == nil {
+		t.Fatal("stale account deleted the replacement's age key")
+	}
+	stored, err := guard.LoadKey(t.Context(), a, u.ID)
+	if err != nil || stored == nil || stored.PublicKey != k.PublicKey || !stored.Enabled {
+		t.Fatalf("replacement key = %+v, err=%v", stored, err)
+	}
+}
+
+func TestAgeKeyOwnerReadRejectsReplacedAccount(t *testing.T) {
+	a := testutil.NewTestApp(t)
+	u := testutil.CreateUser(t, a, "age-owner-read@example.com")
+	if _, _, err := guard.GenerateKeyForUser(t.Context(), a, u, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.DB.Model(&model.User{}).Where("id = ?", u.ID).Update("uuid", "replacement-account-uuid").Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := guard.GenerateKey(t.Context(), a, u.ID, true, nil); err != nil {
+		t.Fatal(err)
+	}
+	if k, err := guard.LoadKeyForUser(t.Context(), a, u); k != nil || err == nil {
+		t.Fatalf("stale owner read = %+v, %v", k, err)
+	}
+}
+
+func TestAgeKeySwitchReturnsOnlyUpdatedKey(t *testing.T) {
+	a := testutil.NewTestApp(t)
+	u := testutil.CreateUser(t, a, "age-switch-return@example.com")
+	old, _, err := guard.GenerateKeyForUser(t.Context(), a, u, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var updated, readAfterUpdate atomic.Bool
+	if err := a.DB.Callback().Update().After("gorm:update").Register("test:age_switch_update", func(tx *gorm.DB) {
+		if tx.Statement.Table == "subscription_keys" {
+			updated.Store(true)
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.DB.Callback().Query().After("gorm:query").Register("test:age_switch_query", func(tx *gorm.DB) {
+		if tx.Statement.Table == "subscription_keys" && updated.Load() {
+			readAfterUpdate.Store(true)
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	k, err := guard.SetKeyEnabledForUser(t.Context(), a, u, true)
+	if err != nil || k == nil || k.PublicKey != old.PublicKey || !k.Enabled {
+		t.Fatalf("updated key = %+v, %v", k, err)
+	}
+	if readAfterUpdate.Load() {
+		t.Fatal("key was reloaded after the account lock was released")
+	}
+}
+
+func TestAccessLogOwnerReadRejectsReplacedAccount(t *testing.T) {
+	a := testutil.NewTestApp(t)
+	u := testutil.CreateUser(t, a, "access-owner-read@example.com")
+	if err := a.DB.Model(&model.User{}).Where("id = ?", u.ID).Update("uuid", "replacement-account-uuid").Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := a.DB.Create(&model.SubscriptionAccess{UserID: u.ID, IP: "203.0.113.7", At: time.Now()}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if entries, err := guard.ListAccessForUser(t.Context(), a, u, guard.UserLogLimit); err == nil || len(entries) != 0 {
+		t.Fatalf("stale access-log read = %+v, %v", entries, err)
 	}
 }
 

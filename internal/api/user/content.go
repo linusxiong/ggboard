@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/auth"
@@ -29,6 +30,18 @@ type contentNotice struct {
 	ImgURL    string                  `json:"img_url"`
 	Tags      model.JSONSlice[string] `json:"tags"`
 	CreatedAt time.Time               `json:"created_at"`
+}
+
+// readingUser returns the live account behind the JWT while holding its row for the read.
+func readingUser(tx *gorm.DB, c *gin.Context) (*model.User, error) {
+	if err := lockCurrentUser(tx, c); err != nil {
+		return nil, err
+	}
+	var u model.User
+	if err := tx.First(&u, auth.CurrentUser(c).ID).Error; err != nil {
+		return nil, err
+	}
+	return &u, nil
 }
 
 // contentNotices: GET /user/notices?page&page_size — visible notices by sort, newest first.
@@ -60,9 +73,15 @@ func contentKnowledgeIndex(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		u := auth.CurrentUser(c)
-		hasPlan := u.PlanID != nil && u.IsAvailable(time.Now())
-		idx, err := contentsvc.New(a).KnowledgeIndex(c.Request.Context(), in.Language, in.Keyword, hasPlan)
+		var idx map[string][]contentsvc.KnowledgeSummary
+		err := a.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+			u, err := readingUser(tx, c)
+			if err != nil {
+				return err
+			}
+			idx, err = contentsvc.New(a).KnowledgeIndexWithDB(tx, in.Language, in.Keyword, u.PlanID != nil && u.IsAvailable(time.Now()))
+			return err
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -80,7 +99,15 @@ func contentKnowledgeArticle(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		art, err := contentsvc.New(a).Article(c.Request.Context(), id, auth.CurrentUser(c), time.Now())
+		var art *contentsvc.Article
+		err = a.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+			u, err := readingUser(tx, c)
+			if err != nil {
+				return err
+			}
+			art, err = contentsvc.New(a).ArticleWithDB(tx, id, u, time.Now())
+			return err
+		})
 		if errors.Is(err, contentsvc.ErrNotFound) {
 			httpx.Fail(c, httpx.NotFound("article not found"))
 			return

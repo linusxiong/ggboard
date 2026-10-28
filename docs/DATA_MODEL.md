@@ -8,7 +8,7 @@ Conventions:
 
 - Table names are plain plural snake_case (no `v2_` prefix). The exceptions are `knowledge`, `user_mfa` and `subscription_access`, which set `TableName()`.
 - `id` is a `uint64` auto-increment primary key. `created_at`/`updated_at` are `time.Time`, managed by GORM.
-- Money is integer **cents** (`int64`). Traffic is **bytes** (`int64`); the only exception is `plans.transfer_enable`, which is in GB.
+- Money is integer **cents** (`int64`). Traffic is **bytes** (`int64`); the only exception is `plans.transfer_enable`, which is in GB. Traffic counters saturate at `MaxInt64`; overflow or negative stored usage never restores node access.
 - `varchar(N)` means a Go `string` with `size:N` (VARCHAR on PostgreSQL/MySQL, TEXT affinity on SQLite).
 - Nullable scalars are Go pointers. Booleans are real `bool` columns with `default:false`. Defaults that should be `true`
   are set in code, never in the tag (docs/BACKEND.md §9).
@@ -78,7 +78,7 @@ Derived credentials (`model.UserCredentials(u, node)`):
 | name | varchar(191) not null | |
 | content | text | markdown description |
 | tags | json []string | |
-| transfer_enable | int64 | **GB** (as entered); `TransferBytes()` = GB × 2^30 on purchase |
+| transfer_enable | int64 | **GB** (as entered), 0..8,589,934,591; `TransferBytes()` = GB × 2^30 on purchase, and returns 0 for invalid imported negative/overflow values |
 | speed_limit | *int | Mbps |
 | device_limit | *int | |
 | conn_limit | *int | null = unlimited; copied to the user like `device_limit` (purchase, trial, admin create / generate, `force_update`) |

@@ -22,6 +22,7 @@ import (
 
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/cache"
+	"github.com/linusxiong/ggboard/internal/httpx"
 	"github.com/linusxiong/ggboard/internal/model"
 	mfasvc "github.com/linusxiong/ggboard/internal/service/mfa"
 	usersvc "github.com/linusxiong/ggboard/internal/service/user"
@@ -45,34 +46,82 @@ const EncryptionHeader = "X-Subscription-Encryption"
 const sealInfo = "ggboard/subscription/age-identity/v1"
 
 const (
-	keyNamespace = usersvc.SubscriptionKeyCacheNamespace // deleted by usersvc.ReclaimAccount as well
-	keyTTL       = time.Minute
+	keyTTL = time.Minute
 )
 
 func sealAAD(userID uint64) []byte { return []byte("ggboard:age:" + strconv.FormatUint(userID, 10)) }
 
 // LoadKey returns the user's age key (nil when none). Cached for a minute; every write invalidates it.
 func LoadKey(ctx context.Context, a *app.App, userID uint64) (*model.SubscriptionKey, error) {
-	key := a.Cache.Key(keyNamespace, strconv.FormatUint(userID, 10))
+	ns := usersvc.SubscriptionKeyCacheNamespace(userID)
 	lctx := context.WithoutCancel(ctx)
-	k, err := cache.GetOrLoad(a.Cache, key, keyTTL, func() (model.SubscriptionKey, error) {
-		var rows []model.SubscriptionKey
-		if err := a.DB.WithContext(lctx).Where("user_id = ?", userID).Limit(1).Find(&rows).Error; err != nil {
-			return model.SubscriptionKey{}, err
+	for {
+		key := a.Cache.Key(ns, "")
+		k, err := cache.GetOrLoad(a.Cache, key, keyTTL, func() (model.SubscriptionKey, error) {
+			var rows []model.SubscriptionKey
+			if err := a.DB.WithContext(lctx).Where("user_id = ?", userID).Limit(1).Find(&rows).Error; err != nil {
+				return model.SubscriptionKey{}, err
+			}
+			if len(rows) == 0 {
+				return model.SubscriptionKey{}, nil
+			}
+			return rows[0], nil
+		})
+		if key != a.Cache.Key(ns, "") {
+			continue
 		}
-		if len(rows) == 0 {
-			return model.SubscriptionKey{}, nil
+		if err != nil || k.UserID == 0 {
+			return nil, err
 		}
-		return rows[0], nil
+		return &k, nil
+	}
+}
+
+// LoadKeyForUser reads the private identity while the authenticated account snapshot still owns it.
+func LoadKeyForUser(ctx context.Context, a *app.App, u *model.User) (*model.SubscriptionKey, error) {
+	if u == nil {
+		return nil, httpx.Unauthorized("session expired, please sign in again")
+	}
+	var row model.SubscriptionKey
+	err := a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockUser(tx, u); err != nil {
+			return err
+		}
+		return tx.Where("user_id = ?", u.ID).First(&row).Error
 	})
-	if err != nil || k.UserID == 0 {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
 		return nil, err
 	}
-	return &k, nil
+	return &row, nil
 }
 
 func invalidateKey(a *app.App, userID uint64) {
-	a.Cache.Delete(a.Cache.Key(keyNamespace, strconv.FormatUint(userID, 10)))
+	a.Cache.InvalidateNamespace(usersvc.SubscriptionKeyCacheNamespace(userID))
+}
+
+func lockUser(tx *gorm.DB, u *model.User) error {
+	if err := tx.Model(&model.User{}).Where("id = ?", u.ID).
+		UpdateColumn("password_version", gorm.Expr("password_version")).Error; err != nil {
+		return err
+	}
+	var fresh model.User
+	if err := tx.First(&fresh, u.ID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return httpx.Unauthorized("session expired, please sign in again")
+		}
+		return err
+	}
+	if u.UUID == "" || fresh.UUID != u.UUID || fresh.PasswordVersion != u.PasswordVersion ||
+		usersvc.NormalizeEmail(fresh.Email) != usersvc.NormalizeEmail(u.Email) {
+		return httpx.Unauthorized("session expired, please sign in again")
+	}
+	if fresh.Banned {
+		return httpx.Forbidden("account is banned")
+	}
+	return nil
 }
 
 // PrivateKey decrypts the stored identity (AGE-SECRET-KEY-1…). It fails after jwt.secret was rotated; the
@@ -85,6 +134,23 @@ func PrivateKey(a *app.App, k *model.SubscriptionKey) (string, error) {
 // (ErrKeyExists otherwise); enabled nil keeps the current switch (false for a new key). It returns the row
 // and the plaintext identity.
 func GenerateKey(ctx context.Context, a *app.App, userID uint64, regenerate bool, enabled *bool) (*model.SubscriptionKey, string, error) {
+	return generateKey(ctx, a, userID, nil, regenerate, enabled, nil)
+}
+
+// GenerateKeyIf checks authorize in the key write transaction before replacing a key.
+func GenerateKeyIf(ctx context.Context, a *app.App, userID uint64, regenerate bool, enabled *bool, authorize func(*gorm.DB) error) (*model.SubscriptionKey, string, error) {
+	return generateKey(ctx, a, userID, nil, regenerate, enabled, authorize)
+}
+
+// GenerateKeyForUser is GenerateKey with an account snapshot checked in the key-write transaction.
+func GenerateKeyForUser(ctx context.Context, a *app.App, u *model.User, regenerate bool, enabled *bool) (*model.SubscriptionKey, string, error) {
+	if u == nil {
+		return nil, "", httpx.Unauthorized("session expired, please sign in again")
+	}
+	return generateKey(ctx, a, u.ID, u, regenerate, enabled, nil)
+}
+
+func generateKey(ctx context.Context, a *app.App, userID uint64, u *model.User, regenerate bool, enabled *bool, authorize func(*gorm.DB) error) (*model.SubscriptionKey, string, error) {
 	id, err := age.GenerateX25519Identity()
 	if err != nil {
 		return nil, "", fmt.Errorf("guard: generate age key: %w", err)
@@ -96,6 +162,16 @@ func GenerateKey(ctx context.Context, a *app.App, userID uint64, regenerate bool
 	}
 	row := model.SubscriptionKey{UserID: userID, PublicKey: id.Recipient().String(), PrivateKeyEnc: sealed, CreatedAt: time.Now()}
 	err = a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if authorize != nil {
+			if err := authorize(tx); err != nil {
+				return err
+			}
+		}
+		if u != nil {
+			if err := lockUser(tx, u); err != nil {
+				return err
+			}
+		}
 		var cur []model.SubscriptionKey
 		if err := tx.Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).Where("user_id = ?", userID).
 			Limit(1).Find(&cur).Error; err != nil {
@@ -125,21 +201,75 @@ func GenerateKey(ctx context.Context, a *app.App, userID uint64, regenerate bool
 
 // SetKeyEnabled switches encryption on or off (ErrNoKey without a key).
 func SetKeyEnabled(ctx context.Context, a *app.App, userID uint64, enabled bool) (*model.SubscriptionKey, error) {
-	res := a.DB.WithContext(ctx).Model(&model.SubscriptionKey{}).Where("user_id = ?", userID).Update("enabled", enabled)
+	return setKeyEnabled(ctx, a, userID, nil, enabled)
+}
+
+// SetKeyEnabledForUser is SetKeyEnabled with an account snapshot checked in the key-write transaction.
+func SetKeyEnabledForUser(ctx context.Context, a *app.App, u *model.User, enabled bool) (*model.SubscriptionKey, error) {
+	if u == nil {
+		return nil, httpx.Unauthorized("session expired, please sign in again")
+	}
+	return setKeyEnabled(ctx, a, u.ID, u, enabled)
+}
+
+func setKeyEnabled(ctx context.Context, a *app.App, userID uint64, u *model.User, enabled bool) (*model.SubscriptionKey, error) {
+	var row model.SubscriptionKey
+	err := a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if u != nil {
+			if err := lockUser(tx, u); err != nil {
+				return err
+			}
+		}
+		if err := tx.Where("user_id = ?", userID).First(&row).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrNoKey
+			}
+			return err
+		}
+		res := tx.Model(&model.SubscriptionKey{}).Where("user_id = ?", userID).Update("enabled", enabled)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			if err := tx.Where("user_id = ?", userID).First(&row).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return ErrNoKey
+				}
+				return err
+			}
+		}
+		row.Enabled = enabled
+		return nil
+	})
 	invalidateKey(a, userID)
-	if res.Error != nil {
-		return nil, res.Error
+	if err != nil {
+		return nil, err
 	}
-	k, err := LoadKey(ctx, a, userID)
-	if err == nil && k == nil {
-		err = ErrNoKey
-	}
-	return k, err
+	return &row, nil
 }
 
 // DeleteKey removes the user's key pair (encryption off). Deleting a missing key is not an error.
 func DeleteKey(ctx context.Context, a *app.App, userID uint64) error {
-	err := a.DB.WithContext(ctx).Where("user_id = ?", userID).Delete(&model.SubscriptionKey{}).Error
+	return deleteKey(ctx, a, userID, nil)
+}
+
+// DeleteKeyForUser is DeleteKey with an account snapshot checked in the key-write transaction.
+func DeleteKeyForUser(ctx context.Context, a *app.App, u *model.User) error {
+	if u == nil {
+		return httpx.Unauthorized("session expired, please sign in again")
+	}
+	return deleteKey(ctx, a, u.ID, u)
+}
+
+func deleteKey(ctx context.Context, a *app.App, userID uint64, u *model.User) error {
+	err := a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if u != nil {
+			if err := lockUser(tx, u); err != nil {
+				return err
+			}
+		}
+		return tx.Where("user_id = ?", userID).Delete(&model.SubscriptionKey{}).Error
+	})
 	invalidateKey(a, userID)
 	return err
 }

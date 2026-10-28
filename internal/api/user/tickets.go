@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/auth"
@@ -56,14 +57,22 @@ func ticketList(a *app.App) gin.HandlerFunc {
 			return
 		}
 		u := auth.CurrentUser(c)
-		f := ticketsvc.Filter{UserID: &u.ID}
-		if in.Status != nil {
-			st := model.TicketStatus(*in.Status)
-			f.Status = &st
-		}
-		rows, total, err := httpx.Paginate[model.Ticket](c, ticketsvc.New(a).Query(c.Request.Context(), f), ticketSort, "updated_at DESC, id DESC")
+		var rows []model.Ticket
+		var total int64
+		err := a.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+			if _, err := ticketsvc.LockOwner(tx, u); err != nil {
+				return err
+			}
+			q := tx.Model(&model.Ticket{}).Where("user_id = ?", u.ID)
+			if in.Status != nil {
+				q = q.Where("status = ?", *in.Status)
+			}
+			var err error
+			rows, total, err = httpx.Paginate[model.Ticket](c, q, ticketSort, "updated_at DESC, id DESC")
+			return err
+		})
 		if err != nil {
-			httpx.Fail(c, err)
+			httpx.Fail(c, ticketError(err))
 			return
 		}
 		out := make([]ticketsvc.View, 0, len(rows))
@@ -97,7 +106,7 @@ func ticketCreate(a *app.App) gin.HandlerFunc {
 			return
 		}
 		u := auth.CurrentUser(c)
-		t, err := ticketsvc.New(a).Create(c.Request.Context(), u.ID, subject, model.TicketLevel(*in.Level), message)
+		t, err := ticketsvc.New(a).CreateForOwner(c.Request.Context(), u, subject, model.TicketLevel(*in.Level), message)
 		if err != nil {
 			httpx.Fail(c, ticketError(err))
 			return
@@ -114,7 +123,7 @@ func ticketShow(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		t, err := ticketsvc.New(a).Get(c.Request.Context(), id, auth.CurrentUser(c).ID)
+		t, err := ticketsvc.New(a).GetForOwner(c.Request.Context(), id, auth.CurrentUser(c))
 		if err != nil {
 			httpx.Fail(c, ticketError(err))
 			return
@@ -144,7 +153,7 @@ func ticketReply(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, httpx.FieldError("message", "is required"))
 			return
 		}
-		t, err := ticketsvc.New(a).ReplyAsOwner(c.Request.Context(), id, auth.CurrentUser(c).ID, message)
+		t, err := ticketsvc.New(a).ReplyForOwner(c.Request.Context(), id, auth.CurrentUser(c), message)
 		if err != nil {
 			httpx.Fail(c, ticketError(err))
 			return
@@ -161,7 +170,7 @@ func ticketClose(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		if err := ticketsvc.New(a).Close(c.Request.Context(), id, auth.CurrentUser(c).ID); err != nil {
+		if err := ticketsvc.New(a).CloseForOwner(c.Request.Context(), id, auth.CurrentUser(c)); err != nil {
 			httpx.Fail(c, ticketError(err))
 			return
 		}
@@ -172,6 +181,8 @@ func ticketClose(a *app.App) gin.HandlerFunc {
 // ticketError maps ticket service errors to API errors.
 func ticketError(err error) error {
 	switch {
+	case errors.Is(err, ticketsvc.ErrSessionExpired):
+		return httpx.Unauthorized("session expired, please sign in again")
 	case errors.Is(err, ticketsvc.ErrNotFound):
 		return httpx.NotFound("ticket not found")
 	case errors.Is(err, ticketsvc.ErrOpenExists):

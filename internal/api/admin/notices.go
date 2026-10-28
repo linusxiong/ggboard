@@ -30,7 +30,9 @@ func registerNotices(g *gin.RouterGroup, a *app.App) {
 func noticeList(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var rows []model.Notice
-		if err := contentsvc.New(a).NoticeQuery(c.Request.Context(), false).Order(contentsvc.NoticeOrder).Find(&rows).Error; err != nil {
+		if err := withLiveStaffTx(c, a, func(tx *gorm.DB, _ bool) error {
+			return contentsvc.New(a).NoticeQueryWithDB(tx, false).Order(contentsvc.NoticeOrder).Find(&rows).Error
+		}); err != nil {
 			httpx.Fail(c, err)
 			return
 		}
@@ -116,7 +118,9 @@ func noticeCreate(a *app.App) gin.HandlerFunc {
 		}
 		n.Show, _ = m["show"].(bool)
 		n.Sort, _ = m["sort"].(int)
-		if err := a.DB.WithContext(c.Request.Context()).Create(&n).Error; err != nil {
+		if err := withLiveStaffTx(c, a, func(tx *gorm.DB, _ bool) error {
+			return tx.Create(&n).Error
+		}); err != nil {
 			httpx.Fail(c, err)
 			return
 		}
@@ -170,7 +174,10 @@ func noticeSort(a *app.App) gin.HandlerFunc {
 		if !ok {
 			return
 		}
-		if err := contentsvc.New(a).SortNotices(c.Request.Context(), ids); err != nil {
+		if err := contentsvc.New(a).SortNoticesIf(c.Request.Context(), ids, func(tx *gorm.DB) error {
+			_, err := liveStaffRole(c, tx, true)
+			return err
+		}); err != nil {
 			httpx.Fail(c, contentSortError(err))
 			return
 		}
@@ -213,7 +220,7 @@ func contentHTTPURL(s string) bool {
 // contentUpdate writes m to row id of T (404 when missing) and returns the reloaded row.
 func contentUpdate[T any](c *gin.Context, a *app.App, id uint64, m map[string]any) (*T, error) {
 	var out T
-	err := a.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+	err := withLiveStaffTx(c, a, func(tx *gorm.DB, _ bool) error {
 		var cur T
 		if err := tx.Where("id = ?", id).First(&cur).Error; err != nil {
 			return err
@@ -238,12 +245,17 @@ func contentDelete[T any](c *gin.Context, a *app.App, kind string) bool {
 		httpx.Fail(c, err)
 		return false
 	}
-	res := a.DB.WithContext(c.Request.Context()).Where("id = ?", id).Delete(new(T))
-	if res.Error != nil {
-		httpx.Fail(c, res.Error)
+	var affected int64
+	err = withLiveStaffTx(c, a, func(tx *gorm.DB, _ bool) error {
+		res := tx.Where("id = ?", id).Delete(new(T))
+		affected = res.RowsAffected
+		return res.Error
+	})
+	if err != nil {
+		httpx.Fail(c, err)
 		return false
 	}
-	if res.RowsAffected == 0 {
+	if affected == 0 {
 		httpx.Fail(c, httpx.NotFound(kind+" not found"))
 		return false
 	}

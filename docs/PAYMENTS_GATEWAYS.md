@@ -46,7 +46,8 @@ The original contract had gaps; these decisions are implemented and kept here as
    Alipay `subject`, Stripe product name, BTCPay `itemDesc`, Coinbase `description`) and `ExpiresAt` (Stripe
    `expires_at`, Alipay `timeout_express`, BTCPay `expirationMinutes`, Coinbase `expiresAt`).
 8. **Caller checks** (`ordersvc.HandleNotify`): the order's `payment_id` must equal the payment resolved from
-   `:uuid`; a non-zero `NotifyResult.Amount` must equal the expected charge; an already-paid order with a different
+   `:uuid`; every `NotifyResult.Amount` must be positive and match the expected charge (including currency and
+   forward conversion for Stripe/Coinbase); an already-paid order with a different
    `CallbackNo` is a possible double payment (WARN); a verified payment for a cancelled order is stored and alerted,
    never dropped (Xboard drops it).
 9. `Field` has `Default` and the `textarea` type. Alipay F2F is CNY-only (config rejected otherwise); EPay settles in
@@ -85,6 +86,8 @@ The original contract had gaps; these decisions are implemented and kept here as
 - Incoming decimal strings (`12.3`, `12.34`, `100.0000`, `10`): `gwutil.ParseCents` (exact decimal, rounded half-up
   to 2 places).
 - `Pay` rejects `TotalAmount <= 0`; the caller fulfils zero-amount orders itself.
+- Successful callbacks require a reported positive amount. Stripe/Coinbase also require the provider currency;
+  their `ValidateAmount` recomputes the current configured quote from site cents, with the same rounding as `Pay`.
 - FX (Stripe/Coinbase `exchange_rate`): `minor = roundHalfUp(cents × rate)` with `shopspring/decimal`
   (`gwutil.ConvertCents`); an empty rate means 1.
 
@@ -150,6 +153,12 @@ normal values.
 Return `PayResult{url}` = `<url>/submit.php?` + `url.Values.Encode()`. Encoding happens after signing. Caihong
 also accepts the same fields as a POST form.
 
+Both callback URLs must use HTTP(S), without user information, and have a DNS hostname (ASCII letters,
+digits, dots and hyphens) or an IP address, optionally with a port. Query strings, fragments and raw `&` are
+not accepted. Reject malformed authorities before
+signing: when `app_url` is unset the request Host is untrusted, and a raw `&` can otherwise turn the
+merchant-request signature into a successful callback signature.
+
 | param | value |
 | --- | --- |
 | `pid` | cfg.pid |
@@ -188,6 +197,9 @@ Some clones POST a form instead, so accept both.
 
 Steps:
 
+0. Reject merchant-only `notify_url` / `return_url` fields and parameter names containing anything other
+   than ASCII letters, digits or underscores. Require both `out_trade_no` and `trade_no` on a success.
+   Merchant requests and callbacks must not be interchangeable under the raw `k=v` signature format.
 1. Recompute §2.1 over **all received** params, extras included, and compare in constant time.
 2. Require `pid == cfg.pid`.
 3. Require `trade_status == "TRADE_SUCCESS"`; anything else is a no-op ack.
@@ -550,8 +562,10 @@ Rules:
 3. `completed` with `unpaid` → ack and wait for the async event. `async_payment_failed`, `expired` and anything
    else → ack.
 4. Return `TradeNo=client_reference_id` and `CallbackNo` = the PaymentIntent id (falling back to the session id).
-   `Amount` is `amount_total` converted back to cents when the currency equals the site currency and the rate
-   is 1; otherwise 0.
+   Require positive `amount_total` and a nonempty `currency`; return them as `Amount` (Stripe minor units) and
+   `Currency`. `ValidateAmount` resolves the configured currency against the current site currency and computes the
+   expected minor units with §5's rules; both amount and currency must match, including non-1 exchange rates and
+   zero-decimal currencies. No inverse conversion is used.
 
 Response: `200 application/json {"received":true}`. In live mode Stripe retries non-2xx with backoff for up to
 3 days.
@@ -639,8 +653,10 @@ Rules:
 1. Require `metadata.payment_uuid == uuid`; otherwise ack.
 2. `eventType=="checkout.payment.success"` with `status=="COMPLETED"` → **paid**.
 3. `failed`, `expired` and `checkout.refund.*` → ack; log refunds for the admin.
-4. Return `TradeNo=metadata.trade_no`, `CallbackNo=id`, and log `transactionHash`. `Amount=cents(amount)` only
-   when `exchange_rate` is empty or 1 (then USDC cents equal site cents); otherwise 0.
+4. Require a positive `amount` and `currency=USDC`; return `TradeNo=metadata.trade_no`, `CallbackNo=id`,
+   `Amount=cents(amount)` and `Currency=USDC`, and log `transactionHash`. `ValidateAmount` checks the configured
+   rate for the current site currency, computes `roundHalfUp(expected site cents × exchange_rate)` exactly as `Pay`
+   does, and requires the reported amount to match. No inverse conversion is used.
 
 Deliveries can repeat. Response: `200 ok`.
 
@@ -771,9 +787,9 @@ BTCPay-Sig: sha256=f1a2d817b438106a73e851ffee748de61af0666fb1038809ca63cbdc4d7fe
 - **Epusdt** sends only the vector's fields (+ `fiat` for non-CNY sites); `name`/`timeout` are not sent because legacy
   epusdt verifies a signature over its own fixed field set.
 - **Stripe** `payment_methods=auto` sends `payment_method_options[wechat_pay][client]=web` and retries once without it
-  when Stripe answers 400 about `wechat_pay`. `NotifyResult.Amount` is reported only for a 1:1 rate in a two-decimal
-  currency (otherwise 0, so the caller skips the amount check). `customer_email` is not sent.
-- **Coinbase** reports `Amount` only when `exchange_rate` is empty or 1.
+  when Stripe answers 400 about `wechat_pay`. `NotifyResult.Amount` is always the positive provider minor amount;
+  `ValidateAmount` verifies the current quote and currency. `customer_email` is not sent.
+- **Coinbase** always reports positive USDC cents; `ValidateAmount` verifies the current quote and USDC currency.
 - **BTCPay** pays only invoices with a valid `ggboardBinding` (§7.2 step 3) and reports `Amount = cents(invoice.amount)`
   (bound, so in the site currency and > 0); `server_url` must be https.
 - **EPay/Epusdt** accept `http://` base URLs with a WARN; every other gateway requires https.

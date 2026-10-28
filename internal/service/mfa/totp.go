@@ -13,6 +13,7 @@ import (
 
 	"github.com/linusxiong/ggboard/internal/httpx"
 	"github.com/linusxiong/ggboard/internal/model"
+	usersvc "github.com/linusxiong/ggboard/internal/service/user"
 )
 
 // TOTP parameters (Google Authenticator compatible): SHA-1, 6 digits, 30 s period, ±1 step accepted.
@@ -36,6 +37,9 @@ type BackupCodes struct {
 
 type pendingSetup struct {
 	Secret   string
+	UUID     string
+	Email    string
+	Version  int
 	Attempts int
 	Expires  time.Time
 }
@@ -101,7 +105,8 @@ func (s *Service) SetupTOTP(ctx context.Context, u *model.User) (TOTPSetup, erro
 	if err != nil {
 		return TOTPSetup{}, fmt.Errorf("mfa: generate totp secret: %w", err)
 	}
-	s.a.KV.Set(idKey(kvSetup, u.ID), pendingSetup{Secret: key.Secret(), Expires: time.Now().Add(SetupTTL)}, SetupTTL)
+	s.a.KV.Set(idKey(kvSetup, u.ID), pendingSetup{Secret: key.Secret(), UUID: u.UUID, Email: u.Email, Version: u.PasswordVersion,
+		Expires: time.Now().Add(SetupTTL)}, SetupTTL)
 	return TOTPSetup{Secret: key.Secret(), OTPAuthURL: key.URL()}, nil
 }
 
@@ -119,7 +124,8 @@ func (s *Service) EnableTOTP(ctx context.Context, u *model.User, code string) ([
 	key := idKey(kvSetup, u.ID)
 	v, ok := s.a.KV.Take(key)
 	p, _ := v.(pendingSetup)
-	if !ok || p.Secret == "" {
+	if !ok || p.Secret == "" || p.UUID == "" || p.UUID != u.UUID || p.Version != u.PasswordVersion ||
+		usersvc.NormalizeEmail(p.Email) != usersvc.NormalizeEmail(u.Email) {
 		return nil, httpx.FieldError("code", "no pending setup, start again")
 	}
 	c, okFmt := normalizeTOTP(code)
@@ -137,17 +143,24 @@ func (s *Service) EnableTOTP(ctx context.Context, u *model.User, code string) ([
 	}
 	codes, hashes := newBackupCodes()
 	now := time.Now()
-	err = s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.withUser(ctx, u, func(tx *gorm.DB) error {
 		if err := ensureRow(ctx, tx, u.ID); err != nil {
 			return err
 		}
-		return tx.Model(&model.UserMFA{}).Where("user_id = ?", u.ID).Updates(map[string]any{
+		res := tx.Model(&model.UserMFA{}).Where("user_id = ? AND totp_enabled = ?", u.ID, false).Updates(map[string]any{
 			"totp_secret":     enc,
 			"totp_enabled":    true,
 			"totp_enabled_at": now,
 			"totp_last_step":  step,
 			"backup_codes":    model.JSONSlice[string](hashes),
-		}).Error
+		})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return httpx.Conflict("two-factor authentication is already enabled")
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("mfa: enable totp: %w", err)
@@ -178,7 +191,7 @@ func (s *Service) enabledRow(ctx context.Context, userID uint64) (*model.UserMFA
 
 // verifyCode checks a TOTP code (a step newer than the last accepted one) or an unused backup code against
 // row and consumes it. ok is false for wrong, replayed or malformed codes.
-func (s *Service) verifyCode(ctx context.Context, row *model.UserMFA, code string) (bool, error) {
+func (s *Service) verifyCode(ctx context.Context, db *gorm.DB, row *model.UserMFA, code string) (bool, error) {
 	if c, ok := normalizeTOTP(code); ok {
 		key, err := s.secretKey()
 		if err != nil {
@@ -192,8 +205,8 @@ func (s *Service) verifyCode(ctx context.Context, row *model.UserMFA, code strin
 		if !match || step <= row.TOTPLastStep {
 			return false, nil
 		}
-		res := s.a.DB.WithContext(ctx).Model(&model.UserMFA{}).
-			Where("user_id = ? AND totp_last_step < ?", row.UserID, step).
+		res := db.WithContext(ctx).Model(&model.UserMFA{}).
+			Where("user_id = ? AND totp_last_step < ? AND totp_enabled = ? AND totp_secret = ?", row.UserID, step, true, row.TOTPSecret).
 			Update("totp_last_step", step)
 		if res.Error != nil {
 			return false, fmt.Errorf("mfa: record totp step: %w", res.Error)
@@ -205,19 +218,19 @@ func (s *Service) verifyCode(ctx context.Context, row *model.UserMFA, code strin
 		return true, nil
 	}
 	if c, ok := normalizeBackup(code); ok {
-		return s.consumeBackup(ctx, row, c)
+		return s.consumeBackup(ctx, db, row, c)
 	}
 	return false, nil
 }
 
 // checkCode verifies a second-factor code for an authenticated user (user lockout applies): 400 on "code"
 // when wrong, 429 after UserFailureLimit failures.
-func (s *Service) checkCode(ctx context.Context, row *model.UserMFA, code string) error {
+func (s *Service) checkCode(ctx context.Context, db *gorm.DB, row *model.UserMFA, code string) error {
 	release, err := s.reserveFailure(row.UserID)
 	if err != nil {
 		return err
 	}
-	ok, err := s.verifyCode(ctx, row, code)
+	ok, err := s.verifyCode(ctx, db, row, code)
 	if err != nil {
 		release()
 		return err
@@ -239,16 +252,18 @@ func (s *Service) DisableTOTP(ctx context.Context, u *model.User, password, code
 	if err := s.checkPassword(u, password); err != nil {
 		return err
 	}
-	if err := s.checkCode(ctx, row, code); err != nil {
-		return err
-	}
-	err = s.a.DB.WithContext(ctx).Model(&model.UserMFA{}).Where("user_id = ?", u.ID).Updates(map[string]any{
-		"totp_secret":     "",
-		"totp_enabled":    false,
-		"totp_enabled_at": nil,
-		"totp_last_step":  0,
-		"backup_codes":    model.JSONSlice[string]{},
-	}).Error
+	err = s.withUser(ctx, u, func(tx *gorm.DB) error {
+		if err := s.checkCode(ctx, tx, row, code); err != nil {
+			return err
+		}
+		return tx.Model(&model.UserMFA{}).Where("user_id = ?", u.ID).Updates(map[string]any{
+			"totp_secret":     "",
+			"totp_enabled":    false,
+			"totp_enabled_at": nil,
+			"totp_last_step":  0,
+			"backup_codes":    model.JSONSlice[string]{},
+		}).Error
+	})
 	if err != nil {
 		return fmt.Errorf("mfa: disable totp: %w", err)
 	}
@@ -263,12 +278,15 @@ func (s *Service) RegenerateBackupCodes(ctx context.Context, u *model.User, code
 	if err != nil {
 		return nil, err
 	}
-	if err := s.checkCode(ctx, row, code); err != nil {
-		return nil, err
-	}
 	codes, hashes := newBackupCodes()
-	if err := s.a.DB.WithContext(ctx).Model(&model.UserMFA{}).Where("user_id = ?", u.ID).
-		Update("backup_codes", model.JSONSlice[string](hashes)).Error; err != nil {
+	err = s.withUser(ctx, u, func(tx *gorm.DB) error {
+		if err := s.checkCode(ctx, tx, row, code); err != nil {
+			return err
+		}
+		return tx.Model(&model.UserMFA{}).Where("user_id = ?", u.ID).
+			Update("backup_codes", model.JSONSlice[string](hashes)).Error
+	})
+	if err != nil {
 		return nil, fmt.Errorf("mfa: regenerate backup codes: %w", err)
 	}
 	return codes, nil

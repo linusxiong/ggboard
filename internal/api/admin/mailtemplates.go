@@ -109,9 +109,9 @@ func mailTemplateViewOf(name, locale string, row *model.MailTemplate) mailTempla
 }
 
 // mailTemplateFind loads the row of name/locale (nil when the built-in template is in use).
-func mailTemplateFind(c *gin.Context, a *app.App, name, locale string) (*model.MailTemplate, error) {
+func mailTemplateFind(db *gorm.DB, name, locale string) (*model.MailTemplate, error) {
 	var row model.MailTemplate
-	err := a.DB.WithContext(c.Request.Context()).Where("name = ? AND locale = ?", name, locale).First(&row).Error
+	err := db.Where("name = ? AND locale = ?", name, locale).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -126,7 +126,9 @@ func mailTemplateFind(c *gin.Context, a *app.App, name, locale string) (*model.M
 func mailTemplateList(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var rows []model.MailTemplate
-		if err := a.DB.WithContext(c.Request.Context()).Select("name", "locale", "updated_at").Find(&rows).Error; err != nil {
+		if err := withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			return tx.Select("name", "locale", "updated_at").Find(&rows).Error
+		}); err != nil {
 			httpx.Fail(c, err)
 			return
 		}
@@ -164,7 +166,12 @@ func mailTemplateShow(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		row, err := mailTemplateFind(c, a, name, locale)
+		var row *model.MailTemplate
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			var loadErr error
+			row, loadErr = mailTemplateFind(tx, name, locale)
+			return loadErr
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -230,15 +237,22 @@ func mailTemplateSave(a *app.App) gin.HandlerFunc {
 		}
 		ctx := c.Request.Context()
 		row := model.MailTemplate{Name: name, Locale: in.Locale, Subject: strings.TrimSpace(in.Subject), Body: in.Body}
-		if err := a.DB.WithContext(ctx).Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "name"}, {Name: "locale"}},
-			DoUpdates: clause.AssignmentColumns([]string{"subject", "body", "updated_at"}),
-		}).Create(&row).Error; err != nil {
+		var saved *model.MailTemplate
+		if err := withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			if err := tx.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "name"}, {Name: "locale"}},
+				DoUpdates: clause.AssignmentColumns([]string{"subject", "body", "updated_at"}),
+			}).Create(&row).Error; err != nil {
+				return err
+			}
+			var err error
+			saved, err = mailTemplateFind(tx, name, in.Locale)
+			return err
+		}); err != nil {
 			httpx.Fail(c, err)
 			return
 		}
-		saved, err := mailTemplateFind(c, a, name, in.Locale)
-		if err == nil && saved == nil {
+		if saved == nil {
 			err = errors.New("admin: saved mail template not found")
 		}
 		if err != nil {
@@ -269,16 +283,21 @@ func mailTemplateReset(a *app.App) gin.HandlerFunc {
 			return
 		}
 		ctx := c.Request.Context()
-		res := a.DB.WithContext(ctx).Where("name = ? AND locale = ?", name, locale).Delete(&model.MailTemplate{})
-		if res.Error != nil {
-			httpx.Fail(c, res.Error)
+		var deleted int64
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			res := tx.Where("name = ? AND locale = ?", name, locale).Delete(&model.MailTemplate{})
+			deleted = res.RowsAffected
+			return res.Error
+		})
+		if err != nil {
+			httpx.Fail(c, err)
 			return
 		}
 		if err := a.Mailer.ReloadTemplates(ctx); err != nil {
 			httpx.Fail(c, err)
 			return
 		}
-		if res.RowsAffected > 0 {
+		if deleted > 0 {
 			httpx.Logger(c).Info("admin reset mail template", "admin_id", auth.CurrentUser(c).ID, "name", name, "locale", locale)
 		}
 		httpx.OK(c, true)
@@ -315,6 +334,9 @@ func mailTemplatePreview(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
+		if !requireLiveAdmin(c, a) {
+			return
+		}
 		httpx.OK(c, mailTemplatePreviewResult{Subject: msg.Subject, HTML: msg.HTML, Text: msg.Text,
 			Unknown: v.Unknown, Missing: v.Missing})
 	}
@@ -339,6 +361,9 @@ func mailTemplateTest(a *app.App) gin.HandlerFunc {
 			mail.SampleData(name, in.Locale))
 		if err != nil {
 			httpx.Fail(c, err)
+			return
+		}
+		if !requireLiveAdmin(c, a) {
 			return
 		}
 		if err := a.Mailer.SendNow(c.Request.Context(), msg); err != nil {

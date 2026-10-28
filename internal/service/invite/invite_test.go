@@ -26,7 +26,7 @@ func TestTransferIsAtomic(t *testing.T) {
 	)
 	for range 10 {
 		wg.Go(func() {
-			_, err := svc.Transfer(t.Context(), u.ID, 300)
+			_, err := svc.Transfer(t.Context(), u, 300)
 			mu.Lock()
 			defer mu.Unlock()
 			if err == nil {
@@ -44,7 +44,7 @@ func TestTransferIsAtomic(t *testing.T) {
 	if ok != 3 || len(errs) != 0 || got.CommissionBalance != 100 || got.Balance != 900 {
 		t.Fatalf("ok=%d errs=%v commission=%d balance=%d", ok, errs, got.CommissionBalance, got.Balance)
 	}
-	if _, err := svc.Transfer(t.Context(), u.ID, 0); !errors.Is(err, invitesvc.ErrInsufficientCommission) {
+	if _, err := svc.Transfer(t.Context(), u, 0); !errors.Is(err, invitesvc.ErrInsufficientCommission) {
 		t.Fatalf("zero amount: %v", err)
 	}
 }
@@ -56,7 +56,7 @@ func TestGenerateCodeLimitUnderConcurrency(t *testing.T) {
 	svc := invitesvc.New(a)
 	var wg sync.WaitGroup
 	for range 8 {
-		wg.Go(func() { _, _ = svc.GenerateCode(t.Context(), u.ID) })
+		wg.Go(func() { _, _ = svc.GenerateCode(t.Context(), u) })
 	}
 	wg.Wait()
 	var n int64
@@ -66,7 +66,7 @@ func TestGenerateCodeLimitUnderConcurrency(t *testing.T) {
 	if n != 3 {
 		t.Fatalf("codes = %d, want 3", n)
 	}
-	if _, err := svc.GenerateCode(t.Context(), 424242); !errors.Is(err, invitesvc.ErrUserNotFound) {
+	if _, err := svc.GenerateCode(t.Context(), &model.User{ID: 424242, UUID: "missing"}); !errors.Is(err, invitesvc.ErrUserNotFound) {
 		t.Fatalf("unknown user: %v", err)
 	}
 }

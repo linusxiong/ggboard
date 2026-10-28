@@ -49,12 +49,12 @@ func newCouponCode() string {
 	return string(b)
 }
 
-func adminCouponViews(c *gin.Context, a *app.App, coupons []model.Coupon) ([]adminCouponView, error) {
+func adminCouponViews(c *gin.Context, db *gorm.DB, coupons []model.Coupon) ([]adminCouponView, error) {
 	ids := make([]uint64, len(coupons))
 	for i, cp := range coupons {
 		ids[i] = cp.ID
 	}
-	usage, err := ordersvc.CouponUsage(c.Request.Context(), a.DB, ids)
+	usage, err := ordersvc.CouponUsage(c.Request.Context(), db, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -76,22 +76,27 @@ func adminListCoupons(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		db := a.DB.WithContext(c.Request.Context()).Model(&model.Coupon{})
-		if q.Code != "" {
-			db = db.Where("code = ?", strings.TrimSpace(q.Code))
-		}
-		if q.Name != "" {
-			// Case-insensitive substring on every dialect (PostgreSQL LIKE is case-sensitive); % and _ are literal.
-			db = db.Where("LOWER(name) LIKE ? ESCAPE '!'", "%"+couponLikeEscape(strings.ToLower(strings.TrimSpace(q.Name)))+"%")
-		}
-		coupons, total, err := httpx.Paginate[model.Coupon](c, db, map[string]string{
-			"id": "id", "created_at": "created_at", "ended_at": "ended_at", "started_at": "started_at", "value": "value",
-		}, "id DESC")
-		if err != nil {
-			httpx.Fail(c, err)
-			return
-		}
-		views, err := adminCouponViews(c, a, coupons)
+		var views []adminCouponView
+		var total int64
+		err := withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			db := tx.Model(&model.Coupon{})
+			if q.Code != "" {
+				db = db.Where("code = ?", strings.TrimSpace(q.Code))
+			}
+			if q.Name != "" {
+				// Case-insensitive substring on every dialect (PostgreSQL LIKE is case-sensitive); % and _ are literal.
+				db = db.Where("LOWER(name) LIKE ? ESCAPE '!'", "%"+couponLikeEscape(strings.ToLower(strings.TrimSpace(q.Name)))+"%")
+			}
+			coupons, n, err := httpx.Paginate[model.Coupon](c, db, map[string]string{
+				"id": "id", "created_at": "created_at", "ended_at": "ended_at", "started_at": "started_at", "value": "value",
+			}, "id DESC")
+			if err != nil {
+				return err
+			}
+			total = n
+			views, err = adminCouponViews(c, tx, coupons)
+			return err
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -169,7 +174,7 @@ func adminBindCoupon(c *gin.Context) (*adminCouponInput, error) {
 	return &in, nil
 }
 
-func adminValidateCoupon(c *gin.Context, a *app.App, cp *model.Coupon) error {
+func adminValidateCoupon(c *gin.Context, db *gorm.DB, cp *model.Coupon) error {
 	e := commerceFieldErrs{}
 	if cp.Name == "" {
 		e.add("name", "is required")
@@ -204,7 +209,7 @@ func adminValidateCoupon(c *gin.Context, a *app.App, cp *model.Coupon) error {
 	}
 	if len(cp.LimitPlanIDs) > 0 {
 		var n int64
-		if err := a.DB.WithContext(c.Request.Context()).Model(&model.Plan{}).Where("id IN ?", []uint64(cp.LimitPlanIDs)).Count(&n).Error; err != nil {
+		if err := db.WithContext(c.Request.Context()).Model(&model.Plan{}).Where("id IN ?", []uint64(cp.LimitPlanIDs)).Count(&n).Error; err != nil {
 			return err
 		}
 		if n != int64(len(cp.LimitPlanIDs)) {
@@ -223,10 +228,6 @@ func adminCreateCoupons(a *app.App) gin.HandlerFunc {
 		}
 		tmpl := model.Coupon{Show: true, LimitPlanIDs: model.JSONSlice[uint64]{}, LimitPeriods: model.JSONSlice[string]{}}
 		in.apply(&tmpl)
-		if err := adminValidateCoupon(c, a, &tmpl); err != nil {
-			httpx.Fail(c, err)
-			return
-		}
 		count := max(in.Count, 1)
 		batch := count > 1 // a batch always gets generated codes
 		if !batch && tmpl.Code == "" {
@@ -243,67 +244,76 @@ func adminCreateCoupons(a *app.App) gin.HandlerFunc {
 		for i, cp := range coupons {
 			codes[i] = cp.Code
 		}
-		var dup int64
-		if err := a.DB.WithContext(c.Request.Context()).Model(&model.Coupon{}).Where("code IN ?", codes).Count(&dup).Error; err != nil {
-			httpx.Fail(c, err)
-			return
-		}
-		if dup > 0 {
-			httpx.Fail(c, httpx.Conflict("coupon code already exists").WithField("code", "already exists"))
-			return
-		}
-		if err := a.DB.WithContext(c.Request.Context()).CreateInBatches(&coupons, 100).Error; err != nil {
-			httpx.Fail(c, err)
-			return
-		}
-		httpx.Logger(c).Info("coupons created", "count", count, "admin_id", auth.CurrentUser(c).ID)
-		views, err := adminCouponViews(c, a, coupons)
+		var views []adminCouponView
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			if err := adminValidateCoupon(c, tx, &tmpl); err != nil {
+				return err
+			}
+			var dup int64
+			if err := tx.Model(&model.Coupon{}).Where("code IN ?", codes).Count(&dup).Error; err != nil {
+				return err
+			}
+			if dup > 0 {
+				return httpx.Conflict("coupon code already exists").WithField("code", "already exists")
+			}
+			if err := tx.CreateInBatches(&coupons, 100).Error; err != nil {
+				return err
+			}
+			views, err = adminCouponViews(c, tx, coupons)
+			return err
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
 		}
+		httpx.Logger(c).Info("coupons created", "count", count, "admin_id", auth.CurrentUser(c).ID)
 		httpx.Created(c, views)
 	}
 }
 
-func adminLoadCoupon(c *gin.Context, a *app.App) (*model.Coupon, bool) {
-	id, err := httpx.ParamID(c, "id")
-	if err != nil {
-		httpx.Fail(c, err)
-		return nil, false
-	}
+func adminLoadCoupon(db *gorm.DB, id uint64) (*model.Coupon, error) {
 	var cp model.Coupon
-	if err := a.DB.WithContext(c.Request.Context()).First(&cp, id).Error; err != nil {
+	if err := db.First(&cp, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = httpx.NotFound("coupon not found")
 		}
-		httpx.Fail(c, err)
-		return nil, false
+		return nil, err
 	}
-	return &cp, true
-}
-
-func adminCouponResponse(c *gin.Context, a *app.App, cp *model.Coupon) {
-	views, err := adminCouponViews(c, a, []model.Coupon{*cp})
-	if err != nil {
-		httpx.Fail(c, err)
-		return
-	}
-	httpx.OK(c, views[0])
+	return &cp, nil
 }
 
 func adminGetCoupon(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if cp, ok := adminLoadCoupon(c, a); ok {
-			adminCouponResponse(c, a, cp)
+		id, err := httpx.ParamID(c, "id")
+		if err != nil {
+			httpx.Fail(c, err)
+			return
 		}
+		var view adminCouponView
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			cp, err := adminLoadCoupon(tx, id)
+			if err != nil {
+				return err
+			}
+			views, err := adminCouponViews(c, tx, []model.Coupon{*cp})
+			if err == nil {
+				view = views[0]
+			}
+			return err
+		})
+		if err != nil {
+			httpx.Fail(c, err)
+			return
+		}
+		httpx.OK(c, view)
 	}
 }
 
 func adminUpdateCoupon(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		cp, ok := adminLoadCoupon(c, a)
-		if !ok {
+		id, err := httpx.ParamID(c, "id")
+		if err != nil {
+			httpx.Fail(c, err)
 			return
 		}
 		in, err := adminBindCoupon(c)
@@ -315,54 +325,70 @@ func adminUpdateCoupon(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, httpx.FieldError("count", "is only accepted when creating coupons"))
 			return
 		}
-		in.apply(cp)
-		if cp.Code == "" {
-			httpx.Fail(c, httpx.FieldError("code", "is required"))
-			return
-		}
-		if err := adminValidateCoupon(c, a, cp); err != nil {
+		var view adminCouponView
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			cp, err := adminLoadCoupon(tx, id)
+			if err != nil {
+				return err
+			}
+			in.apply(cp)
+			if cp.Code == "" {
+				return httpx.FieldError("code", "is required")
+			}
+			if err := adminValidateCoupon(c, tx, cp); err != nil {
+				return err
+			}
+			var dup int64
+			if err := tx.Model(&model.Coupon{}).Where("code = ? AND id <> ?", cp.Code, cp.ID).Count(&dup).Error; err != nil {
+				return err
+			}
+			if dup > 0 {
+				return httpx.Conflict("coupon code already exists").WithField("code", "already exists")
+			}
+			db := tx
+			if in.LimitUse == nil && !in.clearLimitUse {
+				// limit_use is a concurrent remaining-uses counter; do not overwrite it with a loaded value.
+				db = db.Omit("limit_use")
+			}
+			if err := db.Save(cp).Error; err != nil {
+				return err
+			}
+			if err := tx.First(cp, cp.ID).Error; err != nil {
+				return err
+			}
+			views, err := adminCouponViews(c, tx, []model.Coupon{*cp})
+			if err == nil {
+				view = views[0]
+			}
+			return err
+		})
+		if err != nil {
 			httpx.Fail(c, err)
 			return
 		}
-		var dup int64
-		if err := a.DB.WithContext(c.Request.Context()).Model(&model.Coupon{}).Where("code = ? AND id <> ?", cp.Code, cp.ID).Count(&dup).Error; err != nil {
-			httpx.Fail(c, err)
-			return
-		}
-		if dup > 0 {
-			httpx.Fail(c, httpx.Conflict("coupon code already exists").WithField("code", "already exists"))
-			return
-		}
-		db := a.DB.WithContext(c.Request.Context())
-		if in.LimitUse == nil && !in.clearLimitUse {
-			// limit_use is the remaining-uses counter that orders decrement and cancellations increment
-			// concurrently; writing back the value loaded above would undo those changes.
-			db = db.Omit("limit_use")
-		}
-		if err := db.Save(cp).Error; err != nil {
-			httpx.Fail(c, err)
-			return
-		}
-		if err := a.DB.WithContext(c.Request.Context()).First(cp, cp.ID).Error; err != nil {
-			httpx.Fail(c, err)
-			return
-		}
-		httpx.Logger(c).Info("coupon updated", "coupon_id", cp.ID, "admin_id", auth.CurrentUser(c).ID)
-		adminCouponResponse(c, a, cp)
+		httpx.Logger(c).Info("coupon updated", "coupon_id", id, "admin_id", auth.CurrentUser(c).ID)
+		httpx.OK(c, view)
 	}
 }
 
 func adminDeleteCoupon(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		cp, ok := adminLoadCoupon(c, a)
-		if !ok {
-			return
-		}
-		if err := a.DB.WithContext(c.Request.Context()).Delete(&model.Coupon{}, cp.ID).Error; err != nil {
+		id, err := httpx.ParamID(c, "id")
+		if err != nil {
 			httpx.Fail(c, err)
 			return
 		}
-		httpx.Logger(c).Info("coupon deleted", "coupon_id", cp.ID, "admin_id", auth.CurrentUser(c).ID)
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			if _, err := adminLoadCoupon(tx, id); err != nil {
+				return err
+			}
+			return tx.Delete(&model.Coupon{}, id).Error
+		})
+		if err != nil {
+			httpx.Fail(c, err)
+			return
+		}
+		httpx.Logger(c).Info("coupon deleted", "coupon_id", id, "admin_id", auth.CurrentUser(c).ID)
 		httpx.OK(c, true)
 	}
 }

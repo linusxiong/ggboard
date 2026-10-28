@@ -39,7 +39,8 @@ type PayResult struct {
 type NotifyResult struct {
     TradeNo    string // our order no
     CallbackNo string // gateway transaction id
-    Amount     int64  // cents if the gateway reports it, else 0
+    Amount     int64  // required and > 0; site cents, or provider minor units when ValidateAmount is implemented
+    Currency   string // provider currency when ValidateAmount is implemented
 }
 
 type NotifyResponse struct {
@@ -72,6 +73,10 @@ Optional extensions (duck-typed, no change to the interface):
 - `ValidateConfig(cfg map[string]string, siteCurrency string) error` — called by `POST`/`PATCH /admin/payments` after the
   required `Fields()` are checked; its error becomes a 400 on `config` (base-URL checks, key parsing, CNY-only Alipay,
   Stripe currency/rate/method, Coinbase rate for non-USD sites).
+- `ValidateAmount(cfg map[string]string, siteCurrency string, expected int64, res *NotifyResult) error` — for
+  gateways with currency conversion, recompute the charge from the order's site cents with the same rules as `Pay`
+  and require both the reported currency and provider amount to match. Stripe uses its currency's minor units;
+  Coinbase uses USDC cents. Other gateways report site cents directly.
 - Errors implementing `UserMessage() string` (e.g. `gwutil.UserError`, Stripe `amount_too_small`) are shown to the user
   as the 402 message; every other `Pay` error becomes 402 "payment gateway error" (cause logged at WARN).
 - The payment uuid is the last path segment of `PayRequest.NotifyURL` and of the notify request path
@@ -85,9 +90,10 @@ generated from it and pre-fills `Field.Default`); every admin payment response c
 ## Order lifecycle (`internal/service/order`)
 
 1. `POST /user/orders {plan_id, period, coupon_code?}` → **201** `{trade_no, status}`, all inside one transaction with
-   the user row locked (`POST /user/orders`, `/checkout` and `/coupons/check` share a per-user rate limit → 429):
+   the user row locked and the authenticated account UUID/email/security version rechecked before consuming balance or coupon
+   (`POST /user/orders`, `/checkout` and `/coupons/check` share a per-user rate limit → 429):
    - one open order per user (status 0/1) → 409 `conflict` with `errors.trade_no = [<pending trade_no>]`;
-   - shop rules: the period must be known and the plan must have `prices[period]` (400 `period`); a hidden plan
+   - shop rules: the period must be known and the plan must have `prices[period]` (400 `period`); a plan with invalid GB traffic outside 0..8,589,934,591 is rejected before charging (400 `plan_id`); a hidden plan
      (`show=false`) is 404 unless the buyer holds it; non-holders need `show && sell` (400 `plan_id`) and free
      capacity (`capacity_limit` vs active holders, buyer excluded → 409 "sold out"); holders need `renew`, and
      hidden/legacy (`sell=false`) plans only while the subscription is active; `reset_traffic` only for an active
@@ -99,18 +105,18 @@ generated from it and pre-fills `Field.Default`); every admin payment response c
      plans by unused traffic share of the last one-time order; periodic plans by remaining time share of the current
      plan's orders since its last new/upgrade order, capped at the user's `expired_at`), surplus above the price →
      `refund_amount` (credited on fulfilment); then the balance pays as much as possible → `balance_amount` (deducted
-     now); the rest is `total_amount`. Percentages round half up.
+     now); the rest is `total_amount`. Percentages round half up without integer overflow; a negative stored total is never treated as a free checkout.
    - coupons: `limit_use` is the *remaining* count (Xboard): one use is taken at creation and given back on cancel
-     (Xboard never gives it back; changed so that timed-out orders do not burn uses); `limit_use_with_user` counts the
+     (Xboard never gives it back; changed so that timed-out orders do not burn uses; an imported counter already at the integer maximum stays saturated); `limit_use_with_user` counts the
      user's paid orders with the coupon; dates, plans and periods are enforced.
    - `invite_user_id` = the user's inviter when `total_amount > 0`.
    - `trade_no` = `YYYYMMDDHHMMSS` (server time) + 6 random digits. `total_amount == 0` → paid and fulfilled immediately
-     with `callback_no` `free` (nothing to pay) or `balance`.
+     with `callback_no` `free` (nothing to pay) or `balance`; fulfilment rechecks the same account snapshot.
 2. `POST /user/orders/:trade_no/checkout {payment_id}` → paid/free orders answer `{type:"paid", data:<trade_no>}`, a
-   cancelled order 409; otherwise `payment_id` is required and the payment must be enabled with a registered gateway
+   cancelled order 409; a stale authenticated account snapshot is 401 before starting or claiming a checkout; otherwise `payment_id` is required and the payment must be enabled with a registered gateway
    (400 `payment_id`). `handling_amount = round(total × percent / 100 + fixed)` and `payment_id` are stored
-   (409 if the order stopped being pending), and `gateway.Pay` (30 s timeout) gets `TotalAmount = total + handling`,
-   `Subject = "<app_name> - <plan name>"`, `ExpiresAt = created_at + order_timeout_minutes`,
+   (409 if the order stopped being pending); an unrepresentable total plus fee is rejected before payment. `gateway.Pay` (30 s timeout) gets `TotalAmount = total + handling`,
+   `Subject = "<app_name> - <plan name>"`, `UserEmail` from the account row checked in the checkout transaction, `ExpiresAt = created_at + order_timeout_minutes`,
    `NotifyURL = <notify_domain | app_url | request origin>/api/v1/guest/payment/notify/<gateway>/<uuid>`,
    `ReturnURL = <app_url | request origin>/api/v1/guest/payment/return/<trade_no>`. Set `app_url`: the request-origin
    fallback uses the `Host` header. Response `{type, data}`; the SPA redirects (`url`), renders a QR (`qrcode`) or the
@@ -121,14 +127,16 @@ generated from it and pre-fills `Field.Default`); every admin payment response c
    that it is enabled and its gateway registered → `Notify` → `ordersvc.HandleNotify`:
    - unknown/disabled payment, gateway mismatch, unregistered gateway, verification failure → 400 `fail` (WARN/ERROR);
    - unknown order → acknowledged, ERROR + admin alert;
-   - the order's `payment_id` must equal the resolved payment, and when `NotifyResult.Amount != 0` it must equal
-     `total_amount + handling_amount`; otherwise the order is NOT paid, ERROR + admin alert, acknowledged;
+   - every successful result must report `Amount > 0`; missing/zero/negative amounts fail verification (400);
+   - the order's `payment_id` must equal the resolved payment; its `total_amount + handling_amount` must match the
+     reported amount, using `ValidateAmount` when implemented; otherwise the order is NOT paid, ERROR + admin
+     alert, acknowledged;
    - an already-paid order with a different `CallbackNo` is logged WARN (possible double payment) and acknowledged;
    - a verified payment for a cancelled order is NOT dropped: `callback_no` stored, ERROR, admin alerted (once per
      gateway transaction: replays of the same notification are acknowledged without a new alert);
-   - gateways that always report the amount (EPay, Epusdt, Alipay) treat a zero or negative signed amount as a
-     verification failure (`gwutil.ParsePaidCents`), since `Amount == 0` means "not reported" here;
    - otherwise `Paid(tradeNo, callbackNo)` (conditional `status 0 → 3` update + fulfilment in one transaction, idempotent);
+     callback fulfilment also compares the verified `payment_id`, `total_amount` and `handling_amount` in that update,
+     so a concurrent checkout cannot change the charge after verification (a change returns 500 for retry);
      database errors answer 500 so the gateway retries. The gateway's `NotifyResponse` is written verbatim.
    Admin alerts use the `notify` mail template and go to the first administrator (lowest id).
    `GET /guest/payment/return/:trade_no` drops the gateway's query string and 302s to `<app_url>/orders/<trade_no>`.
@@ -136,14 +144,15 @@ generated from it and pre-fills `Field.Default`); every admin payment response c
    periods → plan/group/traffic and `expired_at` = max(now, expired_at) + 1/3/6/12/24/36 calendar months (server time
    zone; upgrades start from now); usage resets for new purchases, upgrades and one-time → periodic switches, renewals
    keep it; speed/device/connection limits (`speed_limit`, `device_limit`, `conn_limit`) from the plan; `next_reset_at` (`usersvc.ComputeNextResetAt`); surplus orders → status 4;
-   `refund_amount` → balance; commission computed (`commission_status = 0`). After commit: `auth.InvalidateUser`,
+   `refund_amount` → balance; commission computed (`commission_status = 0`). Balance and commission credits that would overflow `int64` roll back instead of wrapping. After commit: `auth.InvalidateUser`,
    `usersvc.InvalidateNodeUsers()`, email `order_paid`.
 5. `order_timeout` job (every minute) cancels pending orders older than `order_timeout_minutes`, except orders checked
    out (payment_id set) within the last `ordersvc.CheckoutGrace` (31 min: Stripe sessions live ≥ 30 min, so a payment
    page opened just before the deadline would otherwise turn into "paid after cancel"); checkout refuses (409) orders
-   past `created_at + order_timeout_minutes`. Cancel (user, admin or job) returns `balance_amount` to the balance and
+   past `created_at + order_timeout_minutes`. User cancellation rechecks the authenticated account snapshot before changing the order or balance. Cancel (user, admin or job) returns `balance_amount` to the balance and
    the coupon use; only pending orders can be cancelled (409). Admin `POST /admin/orders/:id/paid` fulfils a pending
    order with `callback_no = "manual"`; `POST /admin/orders` assigns a pending order without discounts, coupon, surplus or balance.
+   Administrator order writes recheck the JWT account snapshot and administrator role in their write transaction; a demoted or replaced in-flight session gets 401.
 
 ## Commissions
 

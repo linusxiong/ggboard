@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/model"
 )
@@ -100,6 +102,11 @@ func New(a *app.App) *Service { return &Service{a: a} }
 
 // Views converts users to admin views, loading plan names and inviter emails with one query each.
 func (s *Service) Views(ctx context.Context, users []model.User) ([]View, error) {
+	return s.ViewsWithDB(s.a.DB.WithContext(ctx), users)
+}
+
+// ViewsWithDB builds views within the caller's authorization transaction.
+func (s *Service) ViewsWithDB(db *gorm.DB, users []model.User) ([]View, error) {
 	planIDs, inviterIDs := map[uint64]struct{}{}, map[uint64]struct{}{}
 	for i := range users {
 		if users[i].PlanID != nil {
@@ -112,7 +119,7 @@ func (s *Service) Views(ctx context.Context, users []model.User) ([]View, error)
 	plans := map[uint64]string{}
 	if len(planIDs) > 0 {
 		var rows []model.Plan
-		if err := s.a.DB.WithContext(ctx).Select("id", "name").Where("id IN ?", keys(planIDs)).
+		if err := db.Select("id", "name").Where("id IN ?", keys(planIDs)).
 			Find(&rows).Error; err != nil {
 			return nil, fmt.Errorf("adminuser: load plans: %w", err)
 		}
@@ -123,7 +130,7 @@ func (s *Service) Views(ctx context.Context, users []model.User) ([]View, error)
 	emails := map[uint64]string{}
 	if len(inviterIDs) > 0 {
 		var rows []model.User
-		if err := s.a.DB.WithContext(ctx).Select("id", "email").Where("id IN ?", keys(inviterIDs)).
+		if err := db.Select("id", "email").Where("id IN ?", keys(inviterIDs)).
 			Find(&rows).Error; err != nil {
 			return nil, fmt.Errorf("adminuser: load inviters: %w", err)
 		}
@@ -151,7 +158,12 @@ func (s *Service) Views(ctx context.Context, users []model.User) ([]View, error)
 
 // View converts one user.
 func (s *Service) View(ctx context.Context, u *model.User) (View, error) {
-	vs, err := s.Views(ctx, []model.User{*u})
+	return s.ViewWithDB(s.a.DB.WithContext(ctx), u)
+}
+
+// ViewWithDB builds a view within the caller's authorization transaction.
+func (s *Service) ViewWithDB(db *gorm.DB, u *model.User) (View, error) {
+	vs, err := s.ViewsWithDB(db, []model.User{*u})
 	if err != nil {
 		return View{}, err
 	}

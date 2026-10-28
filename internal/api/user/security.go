@@ -47,7 +47,7 @@ func bindBody(c *gin.Context, dst any) error {
 
 func getSecurity(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		out, err := mfasvc.New(a).Overview(c.Request.Context(), auth.CurrentUser(c).ID)
+		out, err := mfasvc.New(a).OverviewForUser(c.Request.Context(), auth.CurrentUser(c))
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -216,7 +216,12 @@ func passkeyRename(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		pk, err := mfasvc.New(a).RenamePasskey(c.Request.Context(), auth.CurrentUser(c).ID, id, in.Name)
+		u, err := freshUser(c, a)
+		if err != nil {
+			httpx.Fail(c, err)
+			return
+		}
+		pk, err := mfasvc.New(a).RenamePasskey(c.Request.Context(), u, id, in.Name)
 		if err != nil {
 			httpx.Fail(c, err)
 			return

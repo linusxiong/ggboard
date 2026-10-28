@@ -164,9 +164,7 @@ func ParseCents(s string) (int64, error) {
 	return d.Shift(2).Round(0).IntPart(), nil
 }
 
-// ParsePaidCents parses the amount of a verified payment notification. A zero or negative amount is an error:
-// ordersvc treats Amount 0 as "not reported" and would skip the amount check, so a signed "0.00" must never
-// reach it as a payment.
+// ParsePaidCents requires a positive reported amount for a successful payment notification.
 func ParsePaidCents(s string) (int64, error) {
 	c, err := ParseCents(s)
 	if err != nil {
