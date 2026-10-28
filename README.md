@@ -3,8 +3,7 @@
 </p>
 <h1 align="center">GG Bond · ggboard</h1>
 <!-- screenshots: see docs/screenshots -->
-<p align="center">简洁、美观、高性能的代理面板。单个 Go 二进制，内嵌 React 前端。<br/>
-<em>A fast, simple proxy panel: one Go binary with an embedded React SPA.</em></p>
+<p align="center">A simple, good-looking, fast proxy panel: one Go binary with an embedded React frontend.</p>
 
 <p align="center">
   <a href="https://github.com/linusxiong/ggboard/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/linusxiong/ggboard"></a>
@@ -14,173 +13,180 @@
   <img alt="Lighthouse" src="https://img.shields.io/badge/Lighthouse-100%20%C2%B7%20100%20%C2%B7%20100%20%C2%B7%20100-brightgreen">
 </p>
 
-> **状态 / Status：1.0 正式版** — 每个版本的变更见 [CHANGELOG.md](CHANGELOG.md)，二进制与镜像见 [Releases](https://github.com/linusxiong/ggboard/releases)；
-> 升级前请先备份 `data/`。
-> Stable since 1.0: changes per version in CHANGELOG.md, binaries and images on the Releases page; back up `data/` before upgrading.
+<p align="center"><b>English</b> · <a href="README.zh-CN.md">简体中文</a></p>
+
+> **Status: stable since 1.0** — changes per version are in [CHANGELOG.md](CHANGELOG.md), binaries and images on
+> [Releases](https://github.com/linusxiong/ggboard/releases). Back up `data/` before upgrading.
 
 ---
 
-## 特性 / Features
+## Features
 
-- **节点对接**：XrayR / V2bX（`UniProxy` 接口）与 soga（`soga-v1` webapi）。
-- **全协议**：vmess、vless（含 REALITY / XHTTP）、shadowsocks（含 2022）、shadowsocksr、trojan、hysteria 1/2、anytls、mieru、tuic。
-- **订阅与分流自选**：用户在面板里选择模板（无规则 / 精简 / 标准 / 精细）、规则集来源
-  （blackmatrix7、Loyalsoldier、MetaCubeX、SagerNet、ACL4SSR、DustinWin）、分类（OpenAI、Claude、Telegram、Netflix…）、
-  策略组和 GitHub 镜像；一条订阅链接即可输出 mihomo / Clash / Stash / sing-box / Surge / Surfboard / Quantumult X /
-  Shadowrocket / Loon / v2rayN 等格式。
-- **多套订阅配置与节点处理**（参考 Sub-Store）：每个用户最多 10 套配置，各有独立链接（`?profile=<slug>`）、分流规则与
-  节点处理流水线——按类型 / 地区（47 个地区，旗帜 → 名称 → 代码识别）/ 正则筛选、去重、正则重命名、旗帜 emoji、
-  前后缀、排序、数量上限，并带实时预览。
-- **订阅防泄露**：mihomo 1.19.27+ 的 **age 加密订阅**（Clash Party、FlClash 可直接填私钥）、可选严格模式；订阅访问日志
-  （IP 与归属地、客户端、格式；归属地来自每日自动更新的纯真 IP 库）；同一 token 24 小时内 IP 数超限时邮件 + Telegram 告警，或自动轮换链接；“只换链接”与“重置订阅”分开。
-- **Telegram 机器人**（可插拔通知渠道）：新订单 / 支付 / 取消、新工单 / 回复、提现申请、订阅泄露推送给管理员；
-  **每次管理员 / 客服登录都推送提醒**（邮箱、方式、IP、UA、时间）；用户用一次性绑定码绑定后接收自己的支付、工单回复与
-  到期 / 流量提醒。
-- **真实支付，插件化网关**：易支付（EPay）、Epusdt/BEpusdt、支付宝当面付、Stripe Checkout、Coinbase Business、BTCPay Server。
-  新增网关只需实现一个 Go 接口并注册；支付方式可选 16 个原创预设图标（支付宝、微信、USDT、Stripe…）或自定义图片 / emoji。
-- **账户安全**：argon2id 密码、TOTP 两步验证 + 备用码、Passkey（WebAuthn，支持无用户名一键登录），
-  完整适配 1Password / Bitwarden / iCloud 钥匙串等密码管理器自动填充；注册可要求邮箱验证码、限定邮箱后缀、关闭注册，
-  可选 Turnstile / reCAPTCHA / hCaptcha；可强制管理员两步验证。
-- **从 Xboard 迁移**：一条命令导入用户、套餐、节点、优惠券、工单、公告、知识库、支付配置与设置（不导入历史订单），
-  同时支持旧版分表 schema 与上游统一表 schema，MySQL / PostgreSQL / SQLite 均可。
-- **运营功能**：套餐 / 订单 / 优惠券 / 佣金与邀请 / 工单 / 公告 / 知识库 / 统计 / 定时任务 / 邮件提醒。
-- **前端**：React 19 + HeroUI v3 + TanStack（Router / Query / Table / Form）+ zustand，Apple HIG 设计语言
-  （系统色、iOS 分段控件、分组表单、底部保存栏），浅色 / 深色自动切换，中英文；动效组件全部原创；公开页面构建时预渲染，
-  Lighthouse 四项 100 分（桌面与移动端）。
-- **零依赖部署**：SQLite 默认即可运行，无需 Redis / 队列进程；也支持 PostgreSQL 与 MySQL，`ggboard db copy`
-  把已有数据整库复制过去并逐行校验（也能复制回来），见 [DEPLOY.md §5](docs/DEPLOY.md#从-sqlite-迁移到-postgresql--moving-from-sqlite-to-postgresql)。
+- **Node backends**: XrayR / V2bX (the `UniProxy` API) and soga (the `soga-v1` webapi).
+- **Every protocol**: vmess, vless (including REALITY / XHTTP), shadowsocks (including 2022), shadowsocksr, trojan,
+  hysteria 1/2, anytls, mieru, tuic.
+- **Routing users choose themselves**: in the panel, users pick a template (None / Minimal / Standard / Full), a rule-set
+  source (blackmatrix7, Loyalsoldier, MetaCubeX, SagerNet, ACL4SSR, DustinWin), categories (OpenAI, Claude, Telegram,
+  Netflix…), policy groups and a GitHub mirror. One subscription link serves mihomo / Clash / Stash / sing-box / Surge /
+  Surfboard / Quantumult X / Shadowrocket / Loon / v2rayN and more.
+- **Subscription profiles and node operations** (modelled on Sub-Store): up to 10 profiles per user, each with its own
+  link (`?profile=<slug>`), routing rules and node pipeline — filter by type / region (47 regions, detected by flag →
+  name → code) / regex, dedupe, regex rename, flag emoji, prefix and suffix, sort, count limit — with a live preview.
+- **Subscription leak protection**: **age-encrypted subscriptions** for mihomo 1.19.27+ (Clash Party and FlClash take
+  the private key directly) with an optional strict mode; a subscription access log (IP and location, client, format;
+  locations come from the CZ88 IP database, updated daily); email + Telegram alerts, or automatic link rotation, when one
+  token is used from too many IPs within 24 hours. Rotating only the link is separate from resetting the subscription.
+- **Telegram bot** (a pluggable notification channel): new orders / payments / cancellations, new tickets / replies,
+  withdrawal requests and subscription leaks go to admins; **every admin and staff sign-in sends an alert** (email,
+  method, IP, user agent, time). Users bind with a one-time code to get their own payment, ticket-reply and expiry /
+  traffic reminders.
+- **Real payments, pluggable gateways**: EPay, Epusdt/BEpusdt, Alipay Face-to-Face, Stripe Checkout, Coinbase Business,
+  BTCPay Server. A new gateway is one Go interface plus a registration. Payment methods use one of 16 original preset
+  icons (Alipay, WeChat Pay, USDT, Stripe…) or a custom image / emoji.
+- **Account security**: argon2id passwords, TOTP two-factor authentication with backup codes, passkeys (WebAuthn,
+  including one-tap sign-in without a username), and full autofill support for 1Password / Bitwarden / iCloud Keychain
+  and other password managers. Registration can require an email code, allow only some email domains, or be closed;
+  Turnstile / reCAPTCHA / hCaptcha are optional; 2FA can be made mandatory for admins.
+- **Migration from Xboard**: one command imports users, plans, nodes, coupons, tickets, announcements, knowledge base,
+  payment settings and site settings (past orders are not imported). Both the legacy per-type tables and upstream's
+  unified table are supported, from MySQL / PostgreSQL / SQLite.
+- **Operations**: plans / orders / coupons / commissions and invites / tickets / announcements / knowledge base /
+  statistics / scheduled jobs / email reminders.
+- **Frontend**: React 19 + HeroUI v3 + TanStack (Router / Query / Table / Form) + zustand, in the Apple HIG design
+  language (system colors, iOS segmented controls, grouped forms, a bottom save bar). Light and dark follow the system;
+  the UI is in Chinese and English; every motion component is original. Public pages are prerendered at build time and
+  score 100 in all four Lighthouse categories, on desktop and mobile.
+- **No extra services to deploy**: runs on SQLite out of the box, with no Redis or queue workers. PostgreSQL and MySQL
+  are supported too: `ggboard db copy` copies existing data across and verifies it row by row (and copies it back), see
+  [DEPLOY.md §5](docs/DEPLOY.md#moving-from-sqlite-to-postgresql).
 
-## 性能 / Performance
+## Performance
 
-单个进程、默认 SQLite、10,000 个用户、50 个节点，压测工具与面板在同一台机器上走回环网络（无 TLS、无反向代理），
-每个场景 64 个连接（登录 16 个）。数字来自一次真实运行，`make bench` 可以复现。
+One process, the default SQLite, 10,000 users and 50 nodes. The load generator runs on the same machine as the panel,
+over loopback (no TLS, no reverse proxy), with 64 connections per scenario (16 for sign-in). The numbers come from one
+real run, and `make bench` reproduces them.
 
-*One process, SQLite, 10,000 users and 50 nodes; load generator on the same machine over loopback; one real run,
-reproducible with `make bench`.*
+<p align="center"><img src="docs/perf/benchmark.svg" width="860" alt="Requests per second and p99 latency per scenario"></p>
 
-<p align="center"><img src="docs/perf/benchmark.svg" width="860" alt="每个场景的每秒请求数与 p99 延迟 / Requests per second and p99 latency per scenario"></p>
-
-| 场景 / Scenario | 吞吐 / req/s | p99 |
+| Scenario | req/s | p99 |
 | --- | ---: | ---: |
-| 订阅 · v2ray（base64） | 13,208 | 19 ms |
-| 订阅 · mihomo + standard 分流规则（18 个规则集） | 13,322 | 18 ms |
-| 节点拉用户列表，ETag 命中 → 304 | 86,836 | 2.5 ms |
-| 节点拉完整用户列表（10,000 人，gzip） | 29,794 | 6.1 ms |
-| 节点上报流量（每次 1,000 人，即每秒约 428 万条） | 4,282 | 24 ms |
-| 密码登录（argon2id，64 MiB，有意为之的慢） | 104 | 164 ms |
+| Subscription · v2ray (base64) | 13,208 | 19 ms |
+| Subscription · mihomo + standard routing rules (18 rule sets) | 13,322 | 18 ms |
+| Node fetches the user list, ETag hit → 304 | 86,836 | 2.5 ms |
+| Node fetches the full user list (10,000 users, gzip) | 29,794 | 6.1 ms |
+| Node reports traffic (1,000 users per report, about 4.28 million rows/s) | 4,282 | 24 ms |
+| Password sign-in (argon2id, 64 MiB, deliberately slow) | 104 | 164 ms |
 
-测试机：Apple M5 Pro（18 核）· 48 GB · macOS 27.0.1 · Go 1.27.3 · 2026-10-23 · commit `8db6777`。
-方法、全部场景（含静态文件）、注意事项和发现见 [docs/perf/README.md](docs/perf/README.md)。
+Machine: Apple M5 Pro (18 cores) · 48 GB · macOS 27.0.1 · Go 1.27.3 · 2026-10-23 · commit `8db6777`.
+Method, every scenario (static files included), caveats and findings: [docs/perf/README.md](docs/perf/README.md).
 
-*Machine: Apple M5 Pro (18 cores), 48 GB, macOS 27.0.1, Go 1.27.3. Method, every scenario, caveats and findings:
-[docs/perf/README.md](docs/perf/README.md).*
-
-## 截图 / Screenshots
+## Screenshots
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/landing-light.png" alt="首页（浅色）/ Landing page (light)"></td>
-    <td width="50%"><img src="docs/screenshots/landing-dark.png" alt="首页（深色）/ Landing page (dark)"></td>
+    <td width="50%"><img src="docs/screenshots/landing-light.png" alt="Landing page (light)"></td>
+    <td width="50%"><img src="docs/screenshots/landing-dark.png" alt="Landing page (dark)"></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/login-light.png" alt="登录 / Sign in"></td>
-    <td><img src="docs/screenshots/dashboard-light.png" alt="用户仪表盘 / User dashboard"></td>
+    <td><img src="docs/screenshots/login-light.png" alt="Sign in"></td>
+    <td><img src="docs/screenshots/dashboard-light.png" alt="User dashboard"></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/subscription-profiles-light.png" alt="订阅配置：链接、一键导入与分段标签 / Subscription profiles"></td>
-    <td><img src="docs/screenshots/subscription-nodeops-light.png" alt="节点处理与实时预览 / Node operations with live preview"></td>
+    <td><img src="docs/screenshots/subscription-profiles-light.png" alt="Subscription profiles: link, one-click import and segmented tabs"></td>
+    <td><img src="docs/screenshots/subscription-nodeops-light.png" alt="Node operations with live preview"></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/subscription-rules-light.png" alt="分流规则编辑器 / Rule builder"></td>
-    <td><img src="docs/screenshots/subscription-age-light.png" alt="订阅安全（访问日志、轮换链接）与 age 加密 / Access log and age encryption"></td>
+    <td><img src="docs/screenshots/subscription-rules-light.png" alt="Rule builder"></td>
+    <td><img src="docs/screenshots/subscription-age-light.png" alt="Subscription security (access log, link rotation) and age encryption"></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/shop-light.png" alt="购买套餐 / Shop"></td>
-    <td><img src="docs/screenshots/orders-light.png" alt="我的订单（分段筛选）/ Orders with segmented filter"></td>
+    <td><img src="docs/screenshots/shop-light.png" alt="Shop"></td>
+    <td><img src="docs/screenshots/orders-light.png" alt="Orders with segmented filter"></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/order-light.png" alt="订单详情 / Order detail"></td>
-    <td><img src="docs/screenshots/admin-dashboard-light.png" alt="管理后台概览 / Admin dashboard"></td>
+    <td><img src="docs/screenshots/order-light.png" alt="Order detail"></td>
+    <td><img src="docs/screenshots/admin-dashboard-light.png" alt="Admin dashboard"></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/admin-node-editor-light.png" alt="节点编辑（VLESS REALITY）/ Admin node editor"></td>
-    <td><img src="docs/screenshots/admin-payments-icons-light.png" alt="支付方式与预设图标 / Payment method icon picker"></td>
+    <td><img src="docs/screenshots/admin-node-editor-light.png" alt="Admin node editor (VLESS REALITY)"></td>
+    <td><img src="docs/screenshots/admin-payments-icons-light.png" alt="Payment methods and preset icons"></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/admin-settings-telegram-light.png" alt="系统设置 · Telegram / Settings: Telegram"></td>
-    <td><img src="docs/screenshots/admin-settings-register-light.png" alt="系统设置 · 注册与登录 / Settings: registration"></td>
+    <td><img src="docs/screenshots/admin-settings-telegram-light.png" alt="Settings: Telegram"></td>
+    <td><img src="docs/screenshots/admin-settings-register-light.png" alt="Settings: registration and sign-in"></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/dashboard-dark.png" alt="用户仪表盘（深色）/ User dashboard (dark)"></td>
-    <td><img src="docs/screenshots/subscription-profiles-dark.png" alt="订阅配置（深色）/ Subscription profiles (dark)"></td>
+    <td><img src="docs/screenshots/dashboard-dark.png" alt="User dashboard (dark)"></td>
+    <td><img src="docs/screenshots/subscription-profiles-dark.png" alt="Subscription profiles (dark)"></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/admin-dashboard-dark.png" alt="管理后台概览（深色）/ Admin dashboard (dark)"></td>
-    <td><img src="docs/screenshots/admin-node-editor-dark.png" alt="节点编辑（深色）/ Admin node editor (dark)"></td>
+    <td><img src="docs/screenshots/admin-dashboard-dark.png" alt="Admin dashboard (dark)"></td>
+    <td><img src="docs/screenshots/admin-node-editor-dark.png" alt="Admin node editor (dark)"></td>
   </tr>
 </table>
 
-全部截图（1440×900，浅色与深色）见 [`docs/screenshots/`](docs/screenshots/)：基础场景由
-`node web/scripts/screenshots.mjs` 对运行中的演示实例（`scripts/e2e-full.sh` 填充数据）生成，订阅配置 / 节点处理 / age /
-订单筛选 / 支付图标 / Telegram / 注册设置几张是同样方式补拍的。截图里只有 `example.com` 演示账号，订阅 token 与密钥均已遮盖。
-All screenshots (1440×900, light and dark) are in `docs/screenshots/`, taken with puppeteer against a demo instance
-seeded by `scripts/e2e-full.sh` (`web/scripts/screenshots.mjs` for the base scenes); only `example.com` demo accounts
-appear and tokens and secrets are masked.
+All screenshots (1440×900, light and dark) are in [`docs/screenshots/`](docs/screenshots/). The base scenes come from
+`node web/scripts/screenshots.mjs` run against a demo instance seeded by `scripts/e2e-full.sh`; the profile, node
+operations, age, order filter, payment icon, Telegram and registration shots were added the same way. The UI in the
+screenshots is in Chinese; only `example.com` demo accounts appear, and subscription tokens and secrets are masked.
 
-## 快速开始 / Quick start
+## Quick start
 
-### Docker Compose · 预构建镜像（推荐，不用克隆、不用编译）
+### Docker Compose · prebuilt image (recommended: no clone, no build)
 
 ```bash
 mkdir ggboard && cd ggboard
 curl -fsSLO https://raw.githubusercontent.com/linusxiong/ggboard/main/deploy/docker-compose.prebuilt.yml
 curl -fsSL https://raw.githubusercontent.com/linusxiong/ggboard/main/.env.example -o .env
-echo 'GGBOARD_VERSION=1.0.1' >> .env       # 镜像 tag：固定到一个发布版本；main 是 main 分支的滚动构建
+echo 'GGBOARD_VERSION=1.0.1' >> .env       # image tag: pin a release; main is a rolling build of the main branch
 docker compose -f docker-compose.prebuilt.yml up -d
 docker compose -f docker-compose.prebuilt.yml exec ggboard ggboard admin create --email admin@example.com
 ```
 
-不带 `--password` 时会生成随机密码并只打印一次。`.env` 必须和 compose 文件放在同一个目录；`GGBOARD_JWT_SECRET` 留空会自动生成。
-面板只监听 `127.0.0.1:8080`，请用 nginx / Caddy 反向代理并启用 HTTPS（见 [docs/DEPLOY.md](docs/DEPLOY.md)）。
-每个 `v*` tag 由[发布工作流](.github/workflows/release.yml)构建镜像（amd64 + arm64），发布在 `ghcr.io/linusxiong/ggboard`
-（如 `1.0.0`、`1.0`、`1`、`latest`）；升级时改 `GGBOARD_VERSION`，再 `pull` 和 `up -d`。
+Without `--password`, a random password is generated and printed once. `.env` must sit in the same directory as the
+compose file; an empty `GGBOARD_JWT_SECRET` is generated for you. The panel listens on `127.0.0.1:8080` only: put
+nginx / Caddy in front with HTTPS (see [docs/DEPLOY.md](docs/DEPLOY.md)). The
+[release workflow](.github/workflows/release.yml) builds an image (amd64 + arm64) for every `v*` tag and publishes it to
+`ghcr.io/linusxiong/ggboard` (for example `1.0.0`, `1.0`, `1`, `latest`). To upgrade, change `GGBOARD_VERSION`, then
+`pull` and `up -d`.
 
-*Prebuilt multi-arch image from GHCR: download the compose file and `.env`, set `GGBOARD_VERSION`, `up -d`, create the admin.*
-
-### Docker Compose · 从源码构建
+### Docker Compose · build from source
 
 ```bash
 git clone https://github.com/linusxiong/ggboard.git && cd ggboard
-cp .env.example .env            # GGBOARD_JWT_SECRET 留空会自动生成；自填须 32+ 字节随机值（openssl rand -hex 32）
+cp .env.example .env            # empty GGBOARD_JWT_SECRET is generated; if you set it, use 32+ random bytes (openssl rand -hex 32)
 docker compose -f deploy/docker-compose.yml up -d --build
 docker compose -f deploy/docker-compose.yml exec ggboard ggboard admin create --email admin@example.com --password 'change-me'
 ```
 
-面板监听 `127.0.0.1:8080`，请用 nginx / Caddy 反向代理并启用 HTTPS（示例：`deploy/nginx.example.conf`），
-并把代理地址写进 `server.trusted_proxies`。完整部署（两种 Compose、systemd、TLS、备份、升级、PostgreSQL / MySQL）见
-[docs/DEPLOY.md](docs/DEPLOY.md)。
+The panel listens on `127.0.0.1:8080`: put nginx / Caddy in front with HTTPS (example: `deploy/nginx.example.conf`) and
+add the proxy's address to `server.trusted_proxies`. Full deployment (both Compose setups, systemd, TLS, backups,
+upgrades, PostgreSQL / MySQL) is in [docs/DEPLOY.md](docs/DEPLOY.md).
 
-### 二进制 · Release / Release binaries
+### Binary · release
 
-[Releases](https://github.com/linusxiong/ggboard/releases) 页面提供 linux / darwin（amd64、arm64）与 windows/amd64 的压缩包和
-`SHA256SUMS`，二进制内嵌前端、静态链接。下载、校验并装成 systemd 服务的步骤见
-[docs/DEPLOY.md §2](docs/DEPLOY.md#二进制安装release--release-binaries)。
+The [Releases](https://github.com/linusxiong/ggboard/releases) page has archives for linux / darwin (amd64, arm64) and
+windows/amd64, plus `SHA256SUMS`. The binaries are statically linked with the frontend embedded. Downloading, verifying
+and installing as a systemd service is covered in
+[docs/DEPLOY.md §2](docs/DEPLOY.md#release-binaries).
 
-### 二进制 · 从源码 / From source
+### Binary · from source
 
 ```bash
-make web && make build          # 构建前端并嵌入，产物 bin/ggboard
+make web && make build          # build the frontend and embed it; output: bin/ggboard
 ./bin/ggboard admin create --email admin@example.com --password 'change-me'
-./bin/ggboard serve             # 默认 :8080，数据在 ./data
+./bin/ggboard serve             # :8080 by default, data in ./data
 ```
 
-配置通过 `config.yaml`（参考 `config.example.yaml`）或环境变量 `GGBOARD_*` 提供；站点名称、邮件、支付等运行时设置在后台“设置”里修改。
+Configuration comes from `config.yaml` (see `config.example.yaml`) or `GGBOARD_*` environment variables. Runtime
+settings such as the site name, mail and payments are edited under Settings in the admin console.
 
-## 节点后端接入 / Connecting node backends
+## Connecting node backends
 
-后台 **设置 → 节点通讯** 可看到 `server_token`；先在 **节点** 页创建节点，拿到节点 ID。
+The `server_token` is under **Settings → Node connection** in the admin console. Create the node on the **Nodes**
+page first to get its node ID.
 
-**XrayR**（面板类型 `NewV2board`，即 `UniProxy` 接口）：
+**XrayR** (panel type `NewV2board`, i.e. the `UniProxy` API):
 
 ```yaml
 Nodes:
@@ -190,77 +196,84 @@ Nodes:
       ApiKey: "<server_token>"
       NodeID: 1
       NodeType: Vless        # V2ray | Vless | Trojan | Shadowsocks
-      EnableVless: true      # 仅 vless 节点需要
+      EnableVless: true      # vless nodes only
 ```
 
-**V2bX**（同一套 `UniProxy` 接口，另支持 hysteria / hysteria2 / tuic / anytls）：
+**V2bX** (the same `UniProxy` API, plus hysteria / hysteria2 / tuic / anytls):
 
 ```json
 { "Core": "sing", "ApiHost": "https://panel.example.com", "ApiKey": "<server_token>", "NodeID": 1, "NodeType": "vless" }
 ```
 
-**soga**（协议 `soga-v1`，推荐 `/soga/` 前缀）：
+**soga** (protocol `soga-v1`; the `/soga/` prefix is recommended):
 
 ```bash
 soga config type=soga-v1 server_type=vless node_id=1 webapi_url=https://panel.example.com/soga/ webapi_key=<server_token>
 ```
 
-协议与各后端类型对照、完整配置片段见 [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md)，接口细节见 [docs/NODE_PROTOCOLS.md](docs/NODE_PROTOCOLS.md)。
+Which protocols each backend supports and full config snippets: [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md). API details:
+[docs/NODE_PROTOCOLS.md](docs/NODE_PROTOCOLS.md).
 
-## 从 Xboard 迁移 / Migrating from Xboard
+## Migrating from Xboard
 
 ```bash
-ggboard import xboard --dsn "mysql://user:pass@127.0.0.1:3306/xboard" --dry-run   # 先预演
+ggboard import xboard --dsn "mysql://user:pass@127.0.0.1:3306/xboard" --dry-run   # rehearse first
 ggboard import xboard --dsn "mysql://user:pass@127.0.0.1:3306/xboard" --with-stats
 ```
 
-导入保留原主键、密码哈希（bcrypt / md5 / sha256 均可继续登录并自动升级为 argon2id）、订阅 token、UUID、`server_token`
-与用户的 `telegram_id`，因此现有订阅链接与节点后端无需改动。Xboard 的 Telegram 设置不导入：迁移后在
-**设置 → Telegram** 填回同一个机器人的 token 并点“设置 Webhook”。细节与迁移后检查清单见
-[docs/IMPORT_XBOARD.md](docs/IMPORT_XBOARD.md)，一次真实割接的完整命令序列见 [docs/MIGRATION_TERABIX.md](docs/MIGRATION_TERABIX.md)。
+The import keeps primary keys, password hashes (bcrypt / md5 / sha256 all still sign in and are upgraded to argon2id),
+subscription tokens, UUIDs and users' `telegram_id`, so existing subscription links keep working unchanged. A
+`server_token` of at least 16 characters is imported as is, so node backends need no change either; a shorter one is not
+imported, ggboard keeps the token it generated, and the import report tells you to copy it into every node backend. Xboard's Telegram settings are not imported: after the migration, enter the same bot's token
+under **Settings → Telegram** and click "Set webhook". Details and a post-migration checklist are in
+[docs/IMPORT_XBOARD.md](docs/IMPORT_XBOARD.md); the full command sequence of one real cutover is in
+[docs/MIGRATION_TERABIX.md](docs/MIGRATION_TERABIX.md).
 
-## 文档 / Docs
+## Docs
 
-| 文档 | 内容 |
-| --- | --- |
-| [AGENTS.md](AGENTS.md) | 项目约定、技术栈、设计规范、可插拔点 |
-| [CHANGELOG.md](CHANGELOG.md) | 每个版本的变更（也是 GitHub Release 的说明） |
-| [docs/DEPLOY.md](docs/DEPLOY.md) | 部署：Docker Compose、systemd、nginx / Caddy、配置参考、备份与升级 |
-| [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md) | 管理员指南：设置、节点对接、套餐与支付（预设图标）、Telegram 机器人、订阅防泄露、规则集、2FA 策略 |
-| [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | 用户指南：各客户端一键导入、订阅配置与节点处理、age 加密、访问日志、Telegram 绑定、2FA / Passkey、密码管理器 |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架构、启动流程、缓存、定时任务、安全 |
-| [docs/API.md](docs/API.md) | 全部 HTTP 接口 |
-| [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | 数据模型 |
-| [docs/SUBSCRIPTION.md](docs/SUBSCRIPTION.md) · [docs/RULESETS.md](docs/RULESETS.md) | 订阅格式、多套配置、节点处理与地区表、age 加密与泄露检测、规则集目录与模板 |
-| [docs/PAYMENTS.md](docs/PAYMENTS.md) · [docs/PAYMENTS_GATEWAYS.md](docs/PAYMENTS_GATEWAYS.md) | 支付插件接口与各网关协议 |
-| [docs/NODE_PROTOCOLS.md](docs/NODE_PROTOCOLS.md) | XrayR / V2bX / soga 对接协议 |
-| [docs/IMPORT_XBOARD.md](docs/IMPORT_XBOARD.md) · [docs/MIGRATION_TERABIX.md](docs/MIGRATION_TERABIX.md) | Xboard 导入器规格与迁移检查清单；一次真实割接的手册 |
-| [docs/BACKEND.md](docs/BACKEND.md) · [docs/FRONTEND.md](docs/FRONTEND.md) · [web/README.md](web/README.md) | 开发指南 |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献指南：开发环境、约定、如何新增插件（支付、订阅格式、验证码、通知渠道） |
-| [SECURITY.md](SECURITY.md) | 安全策略：漏洞报告与加固清单 |
-| [docs/REVIEW_2026-10-22.md](docs/REVIEW_2026-10-22.md) | 后端安全与正确性评审记录 |
-| [docs/E2E_2026-10-22.md](docs/E2E_2026-10-22.md) | 端到端集成测试记录：缺陷表与 Lighthouse 分数 |
-| [MISTAKES.md](MISTAKES.md) | 错题本：开发中踩过的坑 |
+Language column: **EN + ZH** means there is also a Simplified Chinese copy (`*.zh-CN.md`, linked at the top of each doc); **EN** and **ZH** mean the doc exists in that language only.
 
-## 开发 / Development
+| Doc | Contents | Language |
+| --- | --- | --- |
+| [AGENTS.md](AGENTS.md) | Project conventions, tech stack, design rules, plugin points | ZH |
+| [CHANGELOG.md](CHANGELOG.md) | Changes per version (also the GitHub release notes) | EN + ZH |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | Deployment: Docker Compose, systemd, nginx / Caddy, configuration reference, backups and upgrades | EN + ZH |
+| [docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md) | Admin guide: settings, node backends, plans and payments (preset icons), Telegram bot, leak protection, rule sets, 2FA policy | EN + ZH |
+| [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | User guide: one-click import per client, profiles and node operations, age encryption, access log, Telegram binding, 2FA / passkeys, password managers | EN + ZH |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Architecture, boot sequence, caching, scheduled jobs, security | EN |
+| [docs/API.md](docs/API.md) | Every HTTP endpoint | EN |
+| [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | Data model | EN |
+| [docs/SUBSCRIPTION.md](docs/SUBSCRIPTION.md) · [docs/RULESETS.md](docs/RULESETS.md) | Subscription formats, profiles, node operations and the region table, age encryption and leak detection, rule-set catalog and templates | EN |
+| [docs/PAYMENTS.md](docs/PAYMENTS.md) · [docs/PAYMENTS_GATEWAYS.md](docs/PAYMENTS_GATEWAYS.md) | Payment plugin interface and each gateway's wire protocol | EN |
+| [docs/NODE_PROTOCOLS.md](docs/NODE_PROTOCOLS.md) | XrayR / V2bX / soga protocols | EN |
+| [docs/IMPORT_XBOARD.md](docs/IMPORT_XBOARD.md) · [docs/MIGRATION_TERABIX.md](docs/MIGRATION_TERABIX.md) | Xboard importer spec and migration checklist; the runbook of one real cutover | EN · EN + ZH |
+| [docs/BACKEND.md](docs/BACKEND.md) · [docs/FRONTEND.md](docs/FRONTEND.md) · [web/README.md](web/README.md) | Developer guides | EN |
+| [docs/perf/README.md](docs/perf/README.md) | Benchmark method, every scenario, caveats and findings | EN + ZH |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Contributing: setup, conventions, adding plugins (payments, subscription formats, CAPTCHA, notification channels) | EN + ZH |
+| [SECURITY.md](SECURITY.md) | Security policy: reporting vulnerabilities and a hardening checklist | EN + ZH |
+| [docs/REVIEW_2026-10-22.md](docs/REVIEW_2026-10-22.md) | Backend security and correctness review | EN |
+| [docs/E2E_2026-10-22.md](docs/E2E_2026-10-22.md) | End-to-end integration run: defect table and Lighthouse scores | EN |
+| [MISTAKES.md](MISTAKES.md) | Lessons learned: mistakes made during development | ZH |
+
+## Development
 
 ```bash
-make test                       # Go 单元测试（-race）
+make test                       # Go unit tests (-race)
 make lint                       # golangci-lint
-pnpm -C web install && pnpm -C web dev      # 前端开发服务器，/api 代理到 :8080
-pnpm -C web typecheck && pnpm -C web lint && pnpm -C web test && pnpm -C web build   # build 含公开页预渲染（需 Chrome）
-pnpm -C web lh                  # Lighthouse：桌面 + 移动端，要求四项 100
-make e2e                        # 冒烟 + 完整 API 端到端流程（scripts/e2e-full.sh，也可 BASE=… 为运行中的实例填充演示数据）
-make bench                      # 压测：起一个临时实例灌入 1 万用户，产出 docs/perf/（results.json、results.md、benchmark.svg）
+pnpm -C web install && pnpm -C web dev      # frontend dev server, /api proxied to :8080
+pnpm -C web typecheck && pnpm -C web lint && pnpm -C web test && pnpm -C web build   # build prerenders public pages (needs Chrome)
+pnpm -C web lh                  # Lighthouse, desktop + mobile: all four categories must score 100
+make e2e                        # smoke test + full API end-to-end run (scripts/e2e-full.sh; BASE=… seeds demo data into a running instance)
+make bench                      # load test: starts a throwaway instance with 10,000 users, writes docs/perf/ (results.json, results.md, benchmark.svg)
 ```
 
-## 致谢 / Credits
+## Credits
 
-- IP 归属地数据：[纯真 CZ88](https://www.cz88.net/) 社区版 IP 库，由 [metowolf/qqwry.dat](https://github.com/metowolf/qqwry.dat)
-  每周同步发布为 `qqwry.dat`。面板运行时自动下载到数据目录，仓库与镜像里都不包含该数据文件。
-  *IP locations: the CZ88 (纯真) community IP database, published weekly as `qqwry.dat` by metowolf/qqwry.dat; downloaded
-  at run time into the data directory, never shipped in the repository or the images.*
+- IP location data: the [CZ88 (纯真)](https://www.cz88.net/) community IP database, published weekly as `qqwry.dat` by
+  [metowolf/qqwry.dat](https://github.com/metowolf/qqwry.dat). The panel downloads it into the data directory at run
+  time; neither the repository nor the images contain the data file.
 
-## 许可证 / License
+## License
 
-[GPL-3.0](LICENSE)。全部代码（含 `web/src/components/effects/` 下的动效组件）均为原创，无第三方许可证限制。
+[GPL-3.0](LICENSE). All code, including the motion components in `web/src/components/effects/`, is original, with no
+third-party license restrictions.

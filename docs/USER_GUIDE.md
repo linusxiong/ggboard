@@ -1,114 +1,136 @@
-# 用户指南 / User guide
+# User guide
 
-面向用户：注册登录、购买套餐、在各客户端导入订阅、多套订阅配置与节点处理、加密订阅与访问记录、两步验证与通行密钥、
-Telegram 通知、工单和邀请返利。菜单名称以中文界面为准，括号内为英文界面名称。
+**English** · [简体中文](USER_GUIDE.zh-CN.md)
 
-*For end users: sign up, buy a plan, import the subscription into your client, keep several subscription profiles with
-their own rules and node operations, encrypt the subscription and watch its access log, secure the account with 2FA and
-passkeys, bind Telegram, open tickets and invite friends.*
-
----
-
-## 1. 注册与登录 / Sign up and sign in
-
-- **注册**（`/register`）：邮箱 + 密码（至少 8 位）。站点开启邮箱验证时点 **发送验证码** 并填写邮箱验证码；
-  邀请码可选，站点强制邀请时必填。好友分享的邀请链接 `/register?code=<邀请码>` 会自动填好邀请码。
-  站点可能限制邮箱后缀，或启用人机验证（Turnstile / reCAPTCHA / hCaptcha）。
-- **登录**（`/login`）：邮箱 + 密码；开启了两步验证时再输入 6 位验证码（或备用码），也可以点 **改用通行密钥验证**。
-- **使用通行密钥登录**：无需输入邮箱，选择设备或密码管理器里保存的通行密钥即可；支持的浏览器还会在邮箱输入框的自动填充菜单里直接列出通行密钥。
-- **忘记密码**（`/forgot`）：通过邮箱验证码设置新密码。如果注册时没有验证过邮箱，第一次找回密码会被当作确认账户归属：
-  订阅链接与节点凭据会更换（各客户端需重新导入订阅），通行密钥、两步验证和 Telegram 绑定会被清除，需要重新设置。
-- 连续输错密码会被暂时锁定，按页面提示等待后再试。
+For users: signing up and signing in, buying a plan, importing the subscription into each client, subscription
+profiles and node operations, encrypted subscriptions and the access log, two-factor authentication and passkeys,
+Telegram notifications, tickets, and invites and commission. Menu names are those of the English interface.
 
 ---
 
-## 2. 购买套餐 / Buying a plan
+## 1. Sign up and sign in
 
-1. **购买套餐（Shop）**：选择套餐与付费周期（月付、季付、半年付、年付、两年付、三年付、一次性）。已到期或流量用尽时可购买
-   **流量重置包**，立即清零本周期已用流量，到期时间不变。
-2. **确认订单**：可输入优惠码；账户余额会自动抵扣；更换套餐时原套餐剩余价值会折抵（以订单页金额为准）。
-   同一时间只能有一个待支付订单，可前往该订单或取消后继续。
-3. **订单详情**：选择支付方式后 **去支付**。根据网关不同会跳转支付页、显示二维码或嵌入支付页面；支付后页面自动刷新状态。
-   余额与优惠覆盖全部金额时点 **确认开通** 即可。
-4. 订单状态：待支付 → 开通中 → 已完成；超时未支付会自动取消，取消时已抵扣的余额自动退回。**我的订单** 顶部可按状态筛选。
+- **Create account** (`/register`): email + password (at least 8 characters). When the site requires email
+  verification, click **Send code** and enter the email code. The invite code is optional, and required when the site
+  enforces invites. An invite link shared by a friend, `/register?code=<invite-code>`, fills in the invite code for you.
+  The site may restrict email domains or turn on a human check (Turnstile / reCAPTCHA / hCaptcha).
+- **Sign in** (`/login`): email + password. With two-factor authentication on, you then enter the 6-digit code (or a
+  backup code), or click **Use a passkey instead**.
+- **Sign in with a passkey**: no email needed. Pick a passkey saved on your device or in your password manager.
+  Supported browsers also list your passkeys directly in the autofill menu of the email field.
+- **Forgot password?** (`/forgot`): set a new password with an email code. If you did not verify your email when you
+  signed up, the first password reset counts as confirming that the account is yours: the subscription link and node
+  credentials change (every client has to import the subscription again), and passkeys, two-factor authentication and
+  the Telegram binding are cleared and need to be set up again.
+- Too many wrong passwords in a row lock you out for a while. Wait as the page says, then try again.
 
 ---
 
-## 3. 导入订阅 / Importing the subscription
+## 2. Buying a plan
 
-打开 **订阅（Subscription）**（`/subscription`）。页面自上而下是：订阅配置标签（见 4.1）、当前配置的 **订阅链接**（复制、
-二维码、一键导入）、编辑器标签 **分流规则 / 节点处理 / 配置预览**，以及 **订阅安全**（访问记录、轮换与重置）和
-**订阅加密** 两张卡片。订阅地址形如：
+1. **Shop**: choose a plan and a billing period (Monthly, Quarterly, Half-yearly, Yearly, 2 years, 3 years, One-time).
+   When your plan has expired or its traffic is used up you can buy a **Traffic reset**: it clears the traffic used in
+   the current cycle right away and leaves the expiry date as it is.
+2. **Confirm order**: you can enter a coupon code. Your account balance is applied automatically. When you change plans,
+   the remaining value of the current plan is credited (the amount on the order page is what counts).
+   You can have only one unpaid order at a time: go to that order, or cancel it and continue.
+3. **Order details**: choose a payment method, then **Pay now**. Depending on the gateway you are sent to a payment
+   page, shown a QR code, or shown an embedded payment page. After you pay, the page updates the status by itself.
+   When your balance and discounts cover the full amount, click **Activate**.
+4. Order status: Unpaid → Activating → Completed. An order that is not paid in time is cancelled automatically, and any
+   balance it used is returned on cancellation. You can filter by status at the top of **Orders**.
+
+---
+
+## 3. Importing the subscription
+
+Open **Subscription** (`/subscription`). From top to bottom the page has: the subscription profile tabs (see 4.1), the
+current profile's **Subscription link** (copy, QR code, one-click import), the editor tabs **Routing rules / Node
+operations / Config preview**, and two cards, **Subscription security** (access log, rotation and reset) and
+**Subscription encryption**. The subscription URL looks like this:
 
 ```text
-https://<订阅域名>/api/v1/client/subscribe?token=<你的 token>
+https://<subscription-domain>/api/v1/client/subscribe?token=<your token>
 ```
 
-请勿泄露该链接。站点通过客户端的 User-Agent 自动输出对应格式，并在响应头 `Subscription-Userinfo`
-中带上已用流量、总流量与到期时间，大多数客户端会直接显示。
+Do not share this link. The site picks the output format from the client's User-Agent, and the
+`Subscription-Userinfo` response header carries used traffic, total traffic and the expiry time, which most clients
+show directly.
 
-### 3.1 一键导入 / One-click import
+### 3.1 One-click import
 
-| 客户端 | 适用平台 | 打开的链接 |
+| Client | Platforms | Link it opens |
 | --- | --- | --- |
-| Clash / mihomo | Clash Verge · FlClash · CMFA | `clash://install-config?url=<订阅地址>` |
-| sing-box | SFA · SFI · SFM · Hiddify | `sing-box://import-remote-profile?url=<订阅地址>` |
-| Shadowrocket | iOS | `shadowrocket://add/sub://<base64url(订阅地址)>?remark=<站点名>` |
-| Stash | iOS · macOS | `stash://install-config?url=<订阅地址>` |
-| Surge | iOS · macOS | `surge:///install-config?url=<订阅地址>` |
-| Quantumult X | iOS | `quantumult-x:///add-resource?remote-resource=…`（作为 `server_remote` 添加） |
-| Loon | iOS | `loon://import?sub=<订阅地址>` |
+| Clash / mihomo | Clash Verge · FlClash · CMFA | `clash://install-config?url=<subscription-url>` |
+| sing-box | SFA · SFI · SFM · Hiddify | `sing-box://import-remote-profile?url=<subscription-url>` |
+| Shadowrocket | iOS | `shadowrocket://add/sub://<base64url(subscription-url)>?remark=<site-name>` |
+| Stash | iOS · macOS | `stash://install-config?url=<subscription-url>` |
+| Surge | iOS · macOS | `surge:///install-config?url=<subscription-url>` |
+| Quantumult X | iOS | `quantumult-x:///add-resource?remote-resource=…` (added as a `server_remote`) |
+| Loon | iOS | `loon://import?sub=<subscription-url>` |
 
-在电脑上可点 **显示二维码**，用手机客户端扫码导入。v2rayN、v2rayNG、NekoBox、Karing、Passwall 等客户端请
-**复制** 订阅地址后在客户端里手动添加。
+On a computer, click **Show QR code** and scan it with a mobile client to import. For v2rayN, v2rayNG, NekoBox, Karing,
+Passwall and similar clients, **Copy** the subscription URL and add it in the client by hand.
 
-### 3.2 指定格式与高级参数 / Formats and query parameters
+### 3.2 Formats and query parameters
 
-自动识别失败时，在链接末尾追加 `&flag=<格式>`：`clash-meta`、`clash`、`stash`、`singbox`、`surge`、`surfboard`、
-`quantumultx`、`shadowrocket`、`loon`、`v2ray`（Base64 分享链接）、`ssr`。其他可选参数：
+If automatic detection fails, append `&flag=<format>` to the link: `clash-meta`, `clash`, `stash`, `singbox`, `surge`,
+`surfboard`, `quantumultx`, `shadowrocket`, `loon`, `v2ray` (Base64 share links), `ssr`. Other optional parameters:
 
-| 参数 | 作用 |
+| Parameter | Effect |
 | --- | --- |
-| `profile=<链接标识>` | 使用你的某个订阅配置（见 4.1，切换到该配置后订阅链接里已经带上）；填模板名 `none` / `minimal` / `standard` / `full` 时，默认配置临时改用该模板，不改动已保存的规则；其他值（包括已删除配置的标识）使用默认配置 |
-| `source=` · `cats=a,b` · `final=` · `mirror=` | 临时覆盖规则来源、启用的分类、兜底策略、规则下载镜像（`0` 直连） |
-| `types=vless,trojan` | 只输出这些协议的节点 |
-| `filter=香港,HK` | 只输出名称或标签包含任一关键字的节点（不区分大小写） |
-| `emoji=0` | 去掉节点名中的 emoji |
-| `list=1` | Surge / Surfboard / Loon / Quantumult X 只输出节点行 |
-| `age=0` | 开启了加密订阅时临时获取明文（站点允许时才有效，见 3.4） |
+| `profile=<link-id>` | Use one of your subscription profiles (see 4.1; once you switch to that profile, the subscription link already carries it). A template name, `none` / `minimal` / `standard` / `full`, makes the default profile use that template for this request without changing your saved rules. Any other value (including the ID of a deleted profile) uses the default profile |
+| `source=` · `cats=a,b` · `final=` · `mirror=` | Temporarily override the rule source, the enabled categories, the final policy and the rule download mirror (`0` = direct) |
+| `types=vless,trojan` | Only output nodes of these protocols |
+| `filter=香港,HK` | Only output nodes whose name or tags contain any of the keywords (case-insensitive) |
+| `emoji=0` | Remove emoji from node names |
+| `list=1` | Surge / Surfboard / Loon / Quantumult X: output only the node lines |
+| `age=0` | Get plain text for this request while encrypted subscriptions are on (only when the site allows it, see 3.4) |
 
-站点关闭“自定义分流”时，规则相关参数会被忽略。在默认配置下，订阅链接旁的 **分流规则** 下拉框选择“临时使用模板”时，
-会自动给链接加上 `profile=<模板名>`。
+When the site turns off "custom routing", the rule parameters are ignored. On the default profile, choosing a "Template
+for this link" option in the **Routing rules** dropdown next to the subscription link adds `profile=<template-name>` to
+the link automatically.
 
-### 3.3 轮换或重置订阅链接 / Rotate or reset
+### 3.3 Rotate or reset
 
-两个按钮都在订阅页的 **订阅安全** 卡片里（**重置订阅** 也在 **个人中心 → 订阅**）：
+Both buttons are on the **Subscription security** card of the subscription page (**Reset subscription** is also under
+**Profile → Subscription**):
 
-- **轮换订阅链接**：只换链接里的 token，旧链接立即失效；节点密码（UUID）、正在使用的连接和登录状态都不变，
-  在各设备上换成新链接即可。怀疑链接泄露时优先使用。所有订阅配置的链接会一起更换。
-- **重置订阅**：同时更换 token 和 UUID（节点密码），旧链接和旧节点配置全部失效，所有设备都需要重新导入，
-  正在使用的连接会断开，其他设备也会退出登录（当前页面保持登录）。
-- 站点开启了泄露检测时，同一个订阅链接 24 小时内被过多不同 IP（IPv6 按 /64 计）获取会给你发邮件提醒；站点也可能设置为
-  自动轮换订阅链接，此时邮件里会附上新链接。
-- 管理员也可以重置你的订阅：你会收到“系统已重置您的订阅信息”的邮件（绑定了 Telegram 时还有一条消息）。旧链接已失效，
-  你也已退出登录；重新登录后在订阅页复制新链接并重新导入。这封通知不含新链接，只指向本站的订阅页。
+- **Rotate link**: changes only the token in the link, and the old link stops working immediately. The node password
+  (UUID), active connections and sign-ins stay as they are; just put the new link on each device. Use this first when
+  you suspect the link has leaked. The links of all your subscription profiles change together.
+- **Reset subscription**: changes both the token and the UUID (node password). The old link and the old node
+  configuration all stop working, every device has to import again, active connections drop, and your other devices are
+  signed out (the current page stays signed in).
+- When the site has leak detection on, you get an email (and a Telegram message if you have bound Telegram) if one
+  subscription link is fetched from too many different IPs (IPv6 counted per /64) within 24 hours. The site may also be
+  set to rotate the link automatically; the email then includes the new link (the Telegram message does not).
+- An administrator can also reset your subscription. You get an email titled "Your <site name> subscription was reset by
+  the administrator" (and a Telegram message if you have bound Telegram). The old link no longer works and you have been
+  signed out; sign in again, copy the new link on the subscription page and import it again. The notice does not contain
+  the new link; it only points to this site's subscription page.
 
-### 3.4 加密订阅（age）/ Encrypted subscriptions
+### 3.4 Encrypted subscriptions (age)
 
-开启后，订阅内容用你的 [age](https://age-encryption.org/) 公钥加密，只有持有私钥的客户端能解开：即使订阅链接被别人拿到，
-也只能下载到一段密文。目前只有 mihomo（Clash Meta）格式会加密，需要 **mihomo 1.19.27 或更新** 的内核。
+When this is on, the subscription content is encrypted with your [age](https://age-encryption.org/) public key, and only
+a client that holds the private key can decrypt it: even if someone gets hold of your subscription link, all they can
+download is ciphertext. For now only the mihomo (Clash Meta) format is encrypted, and it needs **mihomo 1.19.27 or
+later** as the core.
 
-1. 订阅页 **订阅加密** 卡片 → **生成密钥**，点 **显示私钥** / **复制私钥** 取得 `AGE-SECRET-KEY-1…`（之后随时可以再次查看）。
-   新生成的密钥默认不开启加密，先配置客户端。
-2. 在客户端里填写私钥（卡片里的 **客户端设置方法** 有同样的说明）：
-   - **Clash Party（原 Mihomo Party，1.9.4 及以上）**、**FlClash**：编辑这个订阅，在 Age 私钥一栏粘贴私钥，保存后更新订阅。
-   - **mihomo 内核（1.19.27 及以上）/ 自己写配置**：用 `proxy-providers` 引用订阅地址并加上 `age-secret-key`：
+1. On the subscription page, **Subscription encryption** card → **Generate key**, then click **Show private key** /
+   **Copy private key** to get `AGE-SECRET-KEY-1…` (you can view it again at any time). A newly generated key does not
+   turn encryption on; set up your clients first.
+2. Enter the private key in your client (**How to set up your client** on the card says the same):
+   - **Clash Party (formerly Mihomo Party, 1.9.4 or later)**, **FlClash**: edit this subscription, paste the key into the
+     Age private key field, save, then update the subscription.
+   - **mihomo core (1.19.27 or later) / your own config**: reference the subscription URL with `proxy-providers` and add
+     `age-secret-key`:
 
      ```yaml
      proxy-providers:
        ggboard:
          type: http
-         url: "https://<订阅域名>/api/v1/client/subscribe?token=<你的 token>&flag=clash-meta"
+         url: "https://<subscription-domain>/api/v1/client/subscribe?token=<your token>&flag=clash-meta"
          interval: 3600
          age-secret-key: AGE-SECRET-KEY-1...
      proxy-groups:
@@ -117,159 +139,204 @@ https://<订阅域名>/api/v1/client/subscribe?token=<你的 token>
        - MATCH,Proxy
      ```
 
-     `proxy-providers` 只导入节点，分流规则需要写在这份本地配置里。直接运行内核加载整份加密配置时，用命令行参数
-     `-age-secret-key` 或环境变量 `CLASH_AGE_SECRET_KEY` 提供私钥（配置文件里不能写私钥）。
-   - **Clash Verge Rev** 没有私钥输入项：新建一个本地配置，按上面的 `proxy-providers` 写法引用订阅（由内置的 mihomo 内核解密）。
-   - 客户端里找不到 age 相关选项时，先升级到最新版本。
-3. 客户端能正常更新后，回到订阅页打开 **加密订阅内容** 开关。之后 Clash Meta（mihomo）格式的订阅都是加密内容
-   （以 `-----BEGIN AGE ENCRYPTED FILE-----` 开头），流量与到期信息照常显示。
-4. Stash、sing-box、Surge、Quantumult X、Loon、Shadowrocket、v2rayN 等客户端不能解密：站点默认仍给它们明文；
-   站点开启“严格模式”时这些客户端会被拒绝（406），无法更新订阅。需要临时明文时可在 Clash Meta 链接后加 `&age=0`（站点允许时，卡片上会提示）。
-5. **重新生成** 后旧私钥立即失效，需要在所有客户端里换上新私钥（开关状态不变）；**删除密钥** 即恢复明文。
-   私钥等同于订阅本身，只粘贴到你自己的客户端里。站点更换了内部加密密钥时私钥会无法再显示，此时公钥仍有效，需要私钥时请重新生成。
-6. 订阅页的 **配置预览** 始终显示明文。
+     `proxy-providers` imports only the nodes, so the routing rules have to be written in this local config. When you
+     run the core directly on a whole encrypted config, give it the private key with the `-age-secret-key` command-line
+     flag or the `CLASH_AGE_SECRET_KEY` environment variable (the private key cannot go in the config file).
+   - **Clash Verge Rev** has no private key field: create a local profile and reference the subscription with the
+     `proxy-providers` snippet above (the bundled mihomo core decrypts it).
+   - If your client has no age option, update it to the latest version first.
+3. Once your clients update without problems, go back to the subscription page and turn on **Encrypt subscription
+   content**. From then on every Clash Meta (mihomo) format subscription is encrypted (it starts with
+   `-----BEGIN AGE ENCRYPTED FILE-----`), and traffic and expiry information still shows as usual.
+4. Stash, sing-box, Surge, Quantumult X, Loon, Shadowrocket, v2rayN and other clients cannot decrypt. By default the
+   site still gives them plain text; when the site turns on "strict mode", these clients are refused (406) and cannot
+   update the subscription. If you need plain text for a while, append `&age=0` to the Clash Meta link (when the site
+   allows it, the card says so).
+5. After **Regenerate**, the old private key stops working immediately, and every client needs the new private key (the
+   switch stays as it is). **Delete key** goes back to plain text. The private key is as good as the subscription itself:
+   paste it only into your own clients. If the site changes its internal encryption key, the private key can no longer
+   be shown. The public key keeps working; regenerate when you need the private key.
+6. The **Config preview** on the subscription page always shows plain text.
 
-### 3.5 订阅访问记录 / Access log
+### 3.5 Access log
 
-订阅页 **订阅安全** 卡片的 **最近访问** 列出最近 50 次订阅更新：时间、客户端、格式和 IP（IPv4 隐藏最后一段，
-IPv6 只显示前 64 位），并显示近 24 小时有多少个不同 IP 获取过订阅。所有订阅配置的链接共用这份记录。
-出现陌生的地区或客户端时，说明链接可能已泄露，请 **轮换订阅链接**。
+**Recent access** on the **Subscription security** card of the subscription page lists the last 50 subscription
+updates: time, client, format and IP (the last part of an IPv4 address is hidden; for IPv6 only the first 64 bits are
+shown). It also shows how many different IPs fetched the subscription in the last 24 hours. The links of all your
+subscription profiles share this log. A location or client you do not recognise means the link may have leaked; click
+**Rotate link**.
 
 ---
 
-## 4. 分流规则 / Routing rules
+## 4. Routing rules
 
-订阅页编辑器的 **分流规则** 标签（站点管理员关闭自定义时为只读），每个订阅配置各有一份：
+Routing rules live in the **Routing rules** tab of the editor on the subscription page (read-only when the site
+administrator has turned customisation off). Every subscription profile has its own:
 
-1. **模板**：无规则（全局代理）、精简（国内直连）、标准分流、精细分流。切换模板会覆盖分类、策略组与兜底策略的修改。
-2. **规则来源**：blackmatrix7、MetaCubeX、Loyalsoldier、SagerNet、ACL4SSR、DustinWin；当前来源缺少某个分类，或没有某个客户端的
-   规则文件（如 blackmatrix7 没有 sing-box 规则集）时，按分类自动改用其他来源，不需要为某个客户端手动切换。来源列表下方的
-   **各客户端实际使用** 列出每个客户端拿到的来源（Clash Meta 总是优先用 MetaCubeX）。
-3. **分类**：按“基础 / AI 服务 / 通讯 / 流媒体 / 平台与服务 / 游戏 / 地区与兜底”分组，开启需要分流的服务
-   （如 OpenAI、Claude、Telegram、Netflix）并为每个分类选择目标策略：某个策略组、直连（DIRECT）或拦截（REJECT）。
-4. **策略组**：类型可选手动选择、自动测速、故障转移、负载均衡；**包含** 用逗号分隔，可写其他策略组名、`DIRECT`、
-   `REJECT`、`*`（全部节点）或匹配节点名的正则（如 `香港|HK`）。`Proxy` 是必需的主策略组，不能重命名或删除。
-5. **其他设置**：兜底策略、规则下载镜像（直连 GitHub / 站点默认镜像 / 镜像站）、DNS 模式（默认 / Fake-IP / 不下发 DNS）、
-   中国大陆 IP 直连（`GEOIP,CN,DIRECT`）。
+1. **Template**: None (global proxy), Minimal (China direct), Standard, Full. Switching templates overwrites your
+   changes to categories, policy groups and the final policy.
+2. **Rule source**: blackmatrix7, MetaCubeX, Loyalsoldier, SagerNet, ACL4SSR, DustinWin. When the current source lacks a
+   category, or has no rule files for a client (blackmatrix7, for example, has no sing-box rule sets), that category
+   switches to another source automatically, so you never switch sources by hand for one client. **Source each client
+   gets**, below the source list, shows the source each client ends up with (Clash Meta always prefers MetaCubeX).
+3. **Categories**: grouped as "Basics / AI services / Messaging / Streaming / Platforms & services / Games / Regions &
+   fallback". Turn on the services you want to route (such as OpenAI, Claude, Telegram, Netflix) and pick a target
+   policy for each category: a policy group, Direct (DIRECT) or Block (REJECT).
+4. **Policy groups**: the type is Manual select, Auto (URL test), Fallback or Load balance. **Members** is comma
+   separated and can hold other group names, `DIRECT`, `REJECT`, `*` (all nodes) or a regex matching node names (such
+   as `香港|HK`). `Proxy` is the required main group; it cannot be renamed or deleted.
+5. **More settings**: the final policy, the rule download mirror (GitHub (direct) / Site default mirror / a mirror
+   site), the DNS mode (Default / Fake-IP / No DNS block), and mainland China IPs going direct (`GEOIP,CN,DIRECT`).
 
-点 **保存规则** 后订阅链接自动生效，客户端下次更新订阅即可。**配置预览** 标签可查看各客户端格式按已保存规则生成的结果。
-规则集会下发给 mihomo / Clash Meta、Stash、sing-box、Surge、Surfboard、Loon、Quantumult X；Shadowrocket 与
-v2rayN 等只接收节点，规则需在客户端内设置。
+After **Save rules** the subscription link uses them right away; clients pick them up on their next subscription
+update. The **Config preview** tab shows what each client format generates from the saved rules. Rule sets are
+delivered to mihomo / Clash Meta, Stash, sing-box, Surge, Surfboard, Loon and Quantumult X. Shadowrocket, v2rayN and
+similar clients receive only nodes; set their rules in the client.
 
-### 4.1 多个订阅配置 / Multiple profiles
+### 4.1 Multiple profiles
 
-订阅页顶部的标签是你的 **订阅配置**（如“默认”“手机”“公司”），最多 10 个。每个配置有独立的订阅链接、分流规则和节点处理，
-可以分别导入到不同设备。
+The tabs at the top of the subscription page are your **subscription profiles** (such as "Default", "Phone", "Work"),
+up to 10. Each profile has its own subscription link, routing rules and node operations, so you can import different
+ones on different devices.
 
-- **新建配置**：填写名称和 **链接标识**（小写字母、数字、`-`、`_`，最多 32 位，不能与模板名相同；留空自动生成），
-  初始内容选“站点默认模板”或复制一个已有配置。链接标识创建后不可修改。
-- 标签旁的更多菜单：**重命名**（只改名称）、**复制**、**设为默认**、**删除**。默认配置不能删除。
-- 切换到某个配置后，上方的订阅链接就是它的链接（默认配置之外的链接带 `&profile=<链接标识>`）。不带参数的链接
-  （包括已导入客户端的旧链接）使用 **默认配置**，**设为默认** 会让它们改用新的默认配置；删除一个配置后，
-  带它标识的链接也会退回默认配置。
-- 切换配置前若有未保存的修改，会提示是否放弃。站点关闭“自定义分流”时只能查看，订阅统一使用站点默认规则（节点处理也不生效）。
+- **New profile**: enter a name and a **Link ID** (lower-case letters, digits, `-` and `_`, at most 32 characters, not
+  a template name; leave it empty to generate one), and start from the "Site default template" or a copy of an existing
+  profile. The link ID cannot be changed after creation.
+- The more menu next to a tab: **Rename** (changes only the name), **Duplicate**, **Make default**, **Delete**. The
+  default profile cannot be deleted.
+- Once you switch to a profile, the subscription link above is its link (links of profiles other than the default carry
+  `&profile=<link-id>`). Links without the parameter (including old links already imported into clients) use the
+  **default profile**, and **Make default** moves them to the new default profile. After you delete a profile, links
+  with its ID fall back to the default profile too.
+- If you have unsaved changes when you switch profiles, you are asked whether to discard them. When the site turns off
+  "custom routing" you can only view, and every subscription uses the site's default rules (node operations have no
+  effect either).
 
-### 4.2 节点处理 / Node operations
+### 4.2 Node operations
 
-编辑器的 **节点处理** 标签（类似 Sub-Store 的节点操作）整理当前配置的节点列表，对所有客户端格式生效，
-不影响开头的流量 / 到期信息条目：
+The editor's **Node operations** tab (similar to Sub-Store's node operations) tidies the current profile's node list.
+It applies to every client format and leaves the traffic / expiry entries at the top alone:
 
-| 设置 | 作用 |
+| Setting | Effect |
 | --- | --- |
-| 节点类型 | 只保留选中的协议（vless、hysteria2、ss 等），不选 = 全部 |
-| 地区 | 只保留选中地区（HK、TW、JP、SG、US、KR、DE、GB…，`UK` 视同 GB），不选 = 全部。地区按节点名或节点标签里的国旗、中英文地名或城市名（香港、Tokyo…）、地区代码（`HK01`、`JP-2`）识别，认不出地区的节点会被去掉 |
-| 包含（正则） / 排除（正则） | RE2 正则，按节点名保留或去掉，例如 `香港\|HK`、`过期\|剩余\|官网`；开头加 `(?i)` 忽略大小写；两者合计最多 32 条，每条 ≤ 256 字节，不支持环视和反向引用 |
-| 重命名 | 按顺序执行“匹配 → 替换为”，可用 `$1`、`${1}` 引用分组（后面紧跟字母或数字时写 `${1}`），`$$` 表示 `$`，替换为空即删除匹配的文字 |
-| 前缀 / 后缀 | 给每个节点名加上固定文字（各最多 32 个字符） |
-| 旗帜 Emoji | 保持原样 / 自动添加（名字里没有国旗时按地区加上）/ 全部移除 |
-| 排序 | 面板顺序 / 按名称（自然排序，`HK 2` 在 `HK 10` 前）/ 按地区（按所选地区的顺序，未选时按内置顺序） |
-| 移除重复节点 | 协议、服务器地址和端口都相同的节点只保留第一个 |
-| 数量上限 | 最多保留前 N 个节点（0 = 不限，最多 1000） |
+| Node types | Keep only the selected protocols (vless, hysteria2, ss, …); none selected = all |
+| Regions | Keep only the selected regions (HK, TW, JP, SG, US, KR, DE, GB…; `UK` counts as GB); none selected = all. Regions are detected from a flag, a Chinese or English place or city name (香港, Tokyo…) or a region code (`HK01`, `JP-2`) in the node name or node tags; nodes whose region cannot be detected are removed |
+| Include (regex) / Exclude (regex) | RE2 regexes that keep or remove nodes by name, e.g. `香港\|HK`, `过期\|剩余\|官网`; start with `(?i)` to ignore case. At most 32 in total for both, each ≤ 256 bytes; lookarounds and backreferences are not supported |
+| Rename | Runs "Match → Replace with" pairs in order. Reference groups with `$1` or `${1}` (write `${1}` when a letter or digit follows), `$$` stands for `$`, and an empty replacement deletes the matched text |
+| Prefix / Suffix | Add fixed text to every node name (at most 32 characters each) |
+| Flag emoji | Keep as is / Add automatically (adds one by region when the name has no flag) / Remove all |
+| Sort | Panel order / By name (natural sort, `HK 2` before `HK 10`) / By region (in the order of the selected regions, or a built-in order when none are selected) |
+| Remove duplicate nodes | Of nodes with the same protocol, server address and port, keep only the first |
+| Maximum nodes | Keep at most the first N nodes (0 = no limit, at most 1000) |
 
-处理顺序：筛选（类型、地区、包含、排除）→ 去重 → 重命名 → 旗帜 → 前后缀 → 排序 → 数量上限；最后重名的节点自动追加 2、3…。
-**实时预览** 用你当前可用的节点在浏览器里模拟结果，显示保留数量、被移除的节点及原因，最终以订阅为准。改完点
-**保存节点处理**；**清空节点处理** 恢复默认。地区识别的完整关键词表见 [SUBSCRIPTION.md](SUBSCRIPTION.md)。
-
----
-
-## 5. 账户安全 / Account security
-
-都在 **个人中心 → 安全**（`/profile?tab=security`）。
-
-### 5.1 两步验证 / Two-factor authentication (TOTP)
-
-1. 点 **开启两步验证**，用身份验证器 App（1Password、Google Authenticator、Microsoft Authenticator 等）扫描二维码，
-   或手动输入密钥；在手机上可直接点 **在本设备的验证器中打开**。
-2. 输入 6 位验证码完成绑定。
-3. **保存备用码**：每个备用码（格式 `xxxxx-xxxxx`）只能用一次，只显示这一次，可复制或下载 `.txt`。
-   剩余不多时点 **重新生成备用码**（需输入验证码，旧备用码全部失效）。
-4. 关闭两步验证需要当前密码和验证码，备用码随之失效。
-
-丢失手机时：用备用码登录，或用已添加的通行密钥登录，再重新绑定。两者都没有时只能联系管理员。
-
-### 5.2 通行密钥 / Passkeys
-
-- **添加通行密钥**：先起个名字（如 MacBook、iPhone、1Password），再按浏览器或密码管理器提示创建。通行密钥可保存在
-  iCloud 钥匙串、1Password、Bitwarden 等并跨设备同步。同一设备或密码管理器不能为同一账户重复添加。
-- 每个通行密钥可 **重命名**；**删除** 需要输入当前密码，并记得同时在设备或密码管理器中移除它。
-- 登录页点 **使用通行密钥登录** 即可免密码登录；开启了两步验证的账户用通行密钥登录时不再需要验证码。
-- 必须通过站点正式域名访问，否则会提示“通行密钥与当前网址不匹配”。站点未配置通行密钥时，登录页不显示通行密钥入口。
-
-### 5.3 修改密码 / Change password
-
-**修改密码** 后所有设备都会退出登录，需要用新密码重新登录。
+Processing order: filters (types, regions, include, exclude) → dedupe → rename → flags → prefix / suffix → sort →
+limit; names that still collide at the end get 2, 3… appended. **Live preview** simulates the result in your browser
+with the nodes currently available to you, and shows how many nodes are kept and which were removed and why; the
+subscription itself is what counts. When you are done, click **Save node operations**; **Clear node operations**
+restores the defaults. The full keyword list for region detection is in [SUBSCRIPTION.md](SUBSCRIPTION.md).
 
 ---
 
-## 6. 密码管理器 / Password managers
+## 5. Account security
 
-登录、注册、找回密码与修改密码都是标准表单：邮箱字段 `autocomplete="username"`，密码字段
-`current-password` / `new-password`，验证码字段 `one-time-code`，登录页邮箱字段还带 `webauthn`（通行密钥自动填充）。
-因此 1Password、Bitwarden / Vaultwarden、iCloud 钥匙串与 Chrome 都能正确保存和填充：
+All of this is under **Profile → Security** (`/profile?tab=security`).
 
-- 注册与找回密码时可直接让密码管理器生成强密码；两步验证码可由支持 TOTP 的密码管理器自动填写。
-- 密码管理器的“修改密码”入口会访问 `/.well-known/change-password`，自动跳转到 `/profile?tab=security`。
-- `/.well-known/passkey-endpoints` 告诉密码管理器在哪里添加和管理通行密钥（同一页面）。
+### 5.1 Two-factor authentication (TOTP)
+
+1. Click **Turn on 2FA** and scan the QR code with an authenticator app (1Password, Google Authenticator, Microsoft
+   Authenticator and so on), or enter the key by hand. On a phone you can tap **Open in an authenticator on this
+   device**.
+2. Enter the 6-digit code to finish.
+3. **Save your backup codes**: each backup code (format `xxxxx-xxxxx`) works only once and is shown only this one time;
+   copy them or download a `.txt`. When you are running low, click **Generate new backup codes** (this asks for a code,
+   and all old backup codes stop working).
+4. Turning off two-factor authentication needs your current password and a code; the backup codes stop working with it.
+
+If you lose your phone, sign in with a backup code or with a passkey you have added, then set it up again. If you have
+neither, only an administrator can help.
+
+### 5.2 Passkeys
+
+- **Add a passkey**: first give it a name (such as MacBook, iPhone, 1Password), then follow the prompts of your browser
+  or password manager. Passkeys can be stored in iCloud Keychain, 1Password, Bitwarden and the like, and synced across
+  devices. The same device or password manager cannot add a second passkey for the same account.
+- You can **Rename** each passkey. **Remove** asks for your current password; remember to remove the passkey from the
+  device or password manager too.
+- On the sign-in page, **Sign in with a passkey** signs you in without a password. Accounts with two-factor
+  authentication on need no code when they sign in with a passkey.
+- You have to open the site on its official domain; otherwise you see "This passkey doesn't match this address". When
+  the site has not set up passkeys, the sign-in page shows no passkey option.
+
+### 5.3 Change password
+
+After **Change password** every device is signed out, and you sign in again with the new password.
 
 ---
 
-## 7. 工单、公告与知识库 / Tickets, notices and knowledge
+## 6. Password managers
 
-- **工单（Tickets）**：**新建工单** 填写主题、优先级（低 / 中 / 高）与问题描述。同一时间只能有一个处理中的工单，
-  请在原工单中继续沟通，或 **关闭工单** 后再新建。状态：等待回复 / 已回复 / 已关闭。
-- **公告（Notices）** 与 **使用文档（Knowledge）**：站点发布的通知和客户端教程；部分文档内容需要有效套餐才能查看。
+Sign-in, sign-up, password reset and password change are all standard forms: the email field has
+`autocomplete="username"`, password fields `current-password` / `new-password`, code fields `one-time-code`, and the
+email field on the sign-in page also has `webauthn` (passkey autofill). So 1Password, Bitwarden / Vaultwarden, iCloud
+Keychain and Chrome all save and fill them correctly:
 
----
-
-## 8. 邀请返利 / Invite and commission
-
-**邀请返利（Invite）** 页面：
-
-- **生成邀请码**（数量有上限，只显示未使用的码），复制邀请码或邀请链接 `/register?code=<邀请码>`，也可显示二维码。
-- 好友通过链接注册并购买后，你按佣金比例获得佣金：订单完成后进入“待结算佣金”，结算后计入“累计获得佣金”，
-  **佣金记录** 列出每笔订单。
-- **转入余额**：把可用佣金转入账户余额，用于购买套餐。
-- **申请提现**：填写提现方式（如 USDT、Alipay，须为站点允许的方式）与收款账户；需达到最低提现金额。提交后会创建一个工单，
-  由工作人员人工处理（因此需要先关闭其他未关闭的工单）。站点可能关闭提现，此时只能转入余额。
+- When you sign up or reset your password, you can let the password manager generate a strong password. A password
+  manager that supports TOTP can fill in the two-factor code.
+- A password manager's "change password" shortcut opens `/.well-known/change-password`, which redirects to
+  `/profile?tab=security`.
+- `/.well-known/passkey-endpoints` tells password managers where to add and manage passkeys (the same page).
 
 ---
 
-## 9. Telegram 通知 / Telegram notifications
+## 7. Tickets, notices and knowledge
 
-站点启用了 Telegram 机器人时，可以把账户绑定到自己的 Telegram，接收订单支付成功、工单回复、订阅到期与流量提醒。
-*Bind your Telegram account to receive payment confirmations, ticket replies and expiry/traffic reminders.*
+- **Tickets**: **New ticket** asks for a subject, a priority (Low / Medium / High) and a description of the problem.
+  You can have only one open ticket at a time: continue in that ticket, or **Close ticket** and then open a new one.
+  Status: Awaiting reply / Replied / Closed.
+- **Notices** and **Knowledge**: announcements and client guides published by the site. Some articles need an active
+  plan to view.
 
-1. 打开 **个人中心 → 账户**，在 **Telegram** 卡片点 **绑定 Telegram**。弹窗给出一个按钮 **在 Telegram 中打开** 和二维码
-   （链接为 `https://t.me/<机器人>?start=<绑定码>`）。
-2. 在手机或电脑上打开链接（或用手机扫码），Telegram 会打开与机器人的对话，点 **开始 / Start**。机器人回复“绑定成功”，
-   面板弹窗会自动显示“Telegram 绑定成功”。也可以手动把 `/start <绑定码>` 发给机器人。绑定码 10 分钟内有效、只能用一次，
-   点 **重新获取绑定码** 会让旧码失效。
-3. 卡片显示已绑定的 Telegram 用户名；站点提供交流群时会显示 **加入讨论群**。
+---
 
-- **解除绑定**：在 Telegram 卡片点 **解除绑定**，或在 Telegram 里给机器人发送 `/unbind`。
-- **换号**：用另一个 Telegram 账号重新绑定即可；一个 Telegram 账号只能绑定一个面板账户，用它绑定新账户时旧账户会自动解绑。
-- 能收到的通知：自己的订单支付成功、工单回复、套餐到期提醒和流量提醒（站点关闭“用户通知”时都不发送）。订阅疑似泄露的提醒只发邮件。
-- 到期与流量提醒遵循 **个人中心 → 账户 → 邮件提醒** 里的“套餐即将到期时提醒我”“流量即将用尽时提醒我”开关，
-  邮件和 Telegram 一起发送，每类提醒 24 小时内最多一次。
-- 站点未启用机器人时卡片显示“管理员尚未启用 Telegram”。
-- 机器人命令：`/start <绑定码>` 绑定、`/unbind` 解绑、`/id` 查看 Chat ID。
+## 8. Invite and commission
+
+The **Invite** page:
+
+- **Generate code** (the number of codes is capped, and only unused codes are shown), then copy the invite code or the
+  invite link `/register?code=<invite-code>`, or show a QR code.
+- When friends sign up through your link and buy a plan, you earn commission at the commission rate: once an order
+  completes, it goes into "Pending commission", and after settlement it counts towards "Commission earned".
+  **Commission history** lists every order.
+- **Move to balance**: move available commission into your account balance to pay for plans.
+- **Withdraw**: enter a withdrawal method (such as USDT or Alipay; it must be one the site allows) and the receiving
+  account; you need at least the minimum withdrawal amount. Submitting creates a ticket that staff process by hand (so
+  close any other open ticket first). The site may turn withdrawals off; then you can only move commission to your
+  balance.
+
+---
+
+## 9. Telegram notifications
+
+When the site has the Telegram bot enabled, you can bind your account to your own Telegram and receive successful order
+payments, ticket replies, and subscription expiry and traffic reminders there.
+
+1. Open **Profile → Account** and click **Bind Telegram** on the **Telegram** card. The dialog shows an **Open in
+   Telegram** button and a QR code (the link is `https://t.me/<bot>?start=<code>`).
+2. Open the link on your phone or computer (or scan the QR code with your phone). Telegram opens a chat with the bot;
+   tap **Start**. The bot replies "Linked to …", and the panel dialog shows "Telegram bound" by itself. You can also
+   send `/start <code>` to the bot by hand. A code is valid for 10 minutes and works once; **Get a new code** makes the
+   old code invalid.
+3. The card shows the bound Telegram username. When the site has a community group, it also shows **Join the discussion
+   group**.
+
+- **Unbind**: click **Unbind** on the Telegram card, or send `/unbind` to the bot in Telegram.
+- **Switch accounts**: bind again with another Telegram account. A Telegram account can be bound to only one panel
+  account; binding it to a new account unbinds the old one automatically.
+- The notifications you can get: successful payments of your own orders, ticket replies, plan expiry reminders, traffic
+  reminders, suspected subscription leak alerts, and the notice after an administrator resets your subscription (none
+  are sent when the site turns off "User notifications").
+- Expiry and traffic reminders follow the "Remind me before my plan expires" and "Remind me when my traffic is running
+  out" switches under **Profile → Account → Email reminders**. They go out by email and Telegram together, at most once
+  per type within 24 hours.
+- When the site has not enabled the bot, the card shows "The administrator has not enabled Telegram yet."
+- Bot commands: `/start <code>` binds, `/unbind` unbinds, `/id` shows the Chat ID.

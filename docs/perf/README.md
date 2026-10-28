@@ -1,198 +1,204 @@
-# 性能测试 / Benchmark
+# Benchmark
 
-一次在开发机上真实跑出来的负载测试：一个 `ggboard` 进程、默认 SQLite、10,000 个用户、50 个节点，
-压订阅生成、节点接口、登录和静态文件。图表、表格和 `results.json` 都由同一个工具生成，`make bench` 可以原样复现。
+**English** · [简体中文](README.zh-CN.md)
 
-*A real load test on a development machine — one ggboard process, SQLite, 10,000 users, 50 nodes — covering
-subscriptions, the node API, login and static files. Chart, tables and `results.json` come from one tool; `make bench`
-reproduces them.*
+A load test actually run on a development machine: one `ggboard` process, the default SQLite, 10,000 users, 50 nodes,
+hitting subscription generation, the node API, login and static files. The chart, the tables and `results.json` all come
+from the same tool, and `make bench` reproduces them as they are.
 
-![GG Bond 吞吐量：每个场景的每秒请求数与 p99 延迟 / Requests per second and p99 latency per scenario](benchmark.svg)
+![GG Bond throughput: requests per second and p99 latency per scenario](benchmark.svg)
 
-## 结果 / Results（2026-10-23）
+## Results (2026-10-23)
 
-| 场景 | 请求 | 连接 | 请求数 | req/s | p50 | p95 | p99 | 错误 | 线上大小 | CPU 服务端 / 压测端 |
+| Scenario | Request | Conn | Requests | req/s | p50 | p95 | p99 | Errors | Body | CPU server / load gen |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 订阅 · v2ray（base64）† | `GET /api/v1/client/subscribe?flag=v2ray` | 64 | 85,552 | **13,208** | 3.7 ms | 12 ms | 19 ms | 0 | 4.5 KiB | 10.8 / 1.2 核 |
-| 订阅 · mihomo + standard 规则 † | `GET …/subscribe?flag=clash-meta&profile=standard` | 64 | 85,345 | **13,322** | 3.7 ms | 12 ms | 18 ms | 0 | 3.3 KiB | 11.8 / 1.0 核 |
-| 节点 · 用户列表，ETag 命中 → 304 | `GET /api/v1/server/UniProxy/user` + `If-None-Match` | 64 | 2,605,180 | **86,836** | 0.94 ms | 2.1 ms | 2.5 ms | 0 | 0 B | 6.2 / 4.6 核 |
-| 节点 · 完整用户列表（10,000 人） | `GET /api/v1/server/UniProxy/user` | 64 | 893,885 | **29,794** | 2.0 ms | 4.2 ms | 6.1 ms | 0 | 244.0 KiB | 3.4 / 12.4 核 |
-| 节点 · 流量上报（每次 1,000 人） | `POST /api/v1/server/UniProxy/push` | 64 | 128,496 | **4,282** | 15 ms | 21 ms | 24 ms | 0 | 13 B | 6.7 / 0.4 核 |
-| 登录 · 密码（argon2id） | `POST /api/v1/passport/login` | 16 | 3,129 | **104** | 154 ms | 160 ms | 164 ms | 0 | 931 B | 13.7 / 0.0 核 |
-| 静态 · `index.html`（预渲染，brotli） | `GET /` | 64 | 2,576,135 | **85,867** | 0.95 ms | 2.0 ms | 2.5 ms | 0 | 2.5 KiB | 6.7 / 4.8 核 |
-| 静态 · 最大的 JS 分块（brotli，immutable） | `GET /assets/react-<hash>.js` | 64 | 1,555,314 | **51,842** | 1.1 ms | 2.4 ms | 3.5 ms | 0 | 56.8 KiB | 7.8 / 7.3 核 |
+| Subscription · v2ray (base64) † | `GET /api/v1/client/subscribe?flag=v2ray` | 64 | 85,552 | **13,208** | 3.7 ms | 12 ms | 19 ms | 0 | 4.5 KiB | 10.8 / 1.2 cores |
+| Subscription · mihomo + standard rules † | `GET …/subscribe?flag=clash-meta&profile=standard` | 64 | 85,345 | **13,322** | 3.7 ms | 12 ms | 18 ms | 0 | 3.3 KiB | 11.8 / 1.0 cores |
+| Node API · user list, If-None-Match → 304 (304 rate 100.0 %) | `GET /api/v1/server/UniProxy/user` + `If-None-Match` | 64 | 2,605,180 | **86,836** | 0.94 ms | 2.1 ms | 2.5 ms | 0 | 0 B | 6.2 / 4.6 cores |
+| Node API · user list, full body (10,000 users) | `GET /api/v1/server/UniProxy/user` | 64 | 893,885 | **29,794** | 2.0 ms | 4.2 ms | 6.1 ms | 0 | 244.0 KiB | 3.4 / 12.4 cores |
+| Node API · traffic push (1,000 users per report) | `POST /api/v1/server/UniProxy/push` | 64 | 128,496 | **4,282** | 15 ms | 21 ms | 24 ms | 0 | 13 B | 6.7 / 0.4 cores |
+| Login · password login (argon2id) | `POST /api/v1/passport/login` | 16 | 3,129 | **104** | 154 ms | 160 ms | 164 ms | 0 | 931 B | 13.7 / 0.0 cores |
+| Static · index.html (prerendered, brotli) | `GET /` | 64 | 2,576,135 | **85,867** | 0.95 ms | 2.0 ms | 2.5 ms | 0 | 2.5 KiB | 6.7 / 4.8 cores |
+| Static · largest JS chunk (brotli, immutable) | `GET /assets/react-<hash>.js` | 64 | 1,555,314 | **51,842** | 1.1 ms | 2.4 ms | 3.5 ms | 0 | 56.8 KiB | 7.8 / 7.3 cores |
 
-† 订阅场景分别在 6.5 s / 6.4 s 后提前结束：每个令牌都已用满本次运行的 25 次额度（服务端每令牌突发 30 次），见下文“方法”。
-两个订阅场景各约 8.5 万个样本，没有一个请求被限流。
+† The subscription scenarios ended early, after 6.5 s and 6.4 s: every token had used up its 25-request quota for this
+run (the server allows a burst of 30 per token); see “Method” below. Each subscription scenario has about 85,000 samples,
+and not a single request was rate limited.
 
-- 订阅正文（解压后）：v2ray 13.8 KiB（53 条分享链接：50 个节点 + 3 条剩余流量 / 到期 / 重置信息），mihomo 25.0 KiB
-  （全部 50 个节点 + 信息条目、18 个 rule-providers）。完整用户列表 JSON 887.6 KiB，gzip 后 244 KiB。
-- **流量写库**：一个完整窗口 500,000 个 (节点, 用户) 对（50 节点 × 10,000 用户）由下一次 `traffic_flush` 在一个事务里
-  写完（`users.u/d` 更新 + `stat_users` / `stat_nodes` upsert），用时 **3.9 s**。真实节点每 60 s 上报一次，一个 10 s 窗口里
-  通常只有约六分之一的节点。
-- 运行结束时服务端：75 个 goroutine，Go 堆 20 MiB；整个运行期间峰值 RSS 1.2 GiB（1,238.5 MiB，出现在登录场景，见下文“发现”）。
-- 服务端日志里唯一的 WARN 是订阅访问日志缓冲区满（3 次，共丢弃 220,002 行，见下文）；没有 ERROR。
+- Subscription bodies (decompressed): v2ray 13.8 KiB (53 share links: 50 nodes + 3 entries for remaining traffic /
+  expiry / reset), mihomo 25.0 KiB (all 50 nodes + the info entries, 18 rule-providers). The full user list JSON is
+  887.6 KiB, 244 KiB after gzip.
+- **Traffic writes**: one full window of 500,000 (node, user) pairs (50 nodes × 10,000 users) is written by the next
+  `traffic_flush` in one transaction (`users.u/d` updates + `stat_users` / `stat_nodes` upserts) in **3.9 s**. Real nodes
+  report once every 60 s; a 10 s window usually holds only about a sixth of the nodes.
+- The server at the end of the run: 75 goroutines, 20 MiB Go heap; peak RSS over the whole run 1.2 GiB (1,238.5 MiB,
+  during the login scenario; see “Findings” below).
+- The only WARN in the server log is the subscription access log buffer being full (3 times, 220,002 rows dropped in
+  total; see below); no ERROR.
 
-原始数据：[`results.json`](results.json)；工具生成的完整表格：[`results.md`](results.md)（每次运行都会重写，上表是这次运行的抄录）。
-上一次运行（`9e613b5`，修复“发现”1、2 之前）的数字见本文件的 git 历史和下文“发现”。
+Raw data: [`results.json`](results.json); the full table generated by the tool: [`results.md`](results.md) (rewritten by
+every run; the table above is a transcript of this run). The numbers from the previous run (`9e613b5`, before the fixes
+for findings 1 and 2) are in this file's git history and in “Findings” below.
 
-*Raw data in `results.json`, the generated table in `results.md` (rewritten by every run; the table above is copied from
-the 2026-10-23 run at `8db6777`). No request failed; the subscription scenarios stopped after 6.5 / 6.4 s once every token
-had used its per-run share of the rate limit (about 85,000 samples each).*
+## Environment
 
-## 测试环境 / Environment
-
-| 项 | 值 |
+| Item | Value |
 | --- | --- |
-| 机器 | Apple M5 Pro，18 核（6 Super + 12 Performance），48 GB 内存（`sysctl -n machdep.cpu.brand_string hw.memsize`） |
-| 系统 | macOS 27.0.1，开始测量时负载平均值 1.54 / 2.24 / 1.98（其他进程没有停） |
-| Go | go1.27.3（服务端与压测工具相同），`CGO_ENABLED=0 go build -trimpath -ldflags "-s -w"`（`make build`） |
-| 提交 | `8db6777`（工作区干净；内嵌的前端是主检出里预构建的产物，`internal/static/dist` 不入库） |
-| 日期 | 2026-10-23 |
-| 数据库 | SQLite（纯 Go 驱动），临时数据目录；WAL、`synchronous=NORMAL`、`busy_timeout=5000`、`foreign_keys=1`、`_txlock=immediate`、8 个连接 |
-| 服务端配置 | `server.addr` 为 ≥ 20000 的空闲端口（只监听 127.0.0.1），`server.trusted_proxies: ["127.0.0.1"]`，`log.level: info`（文本格式写文件），邮件驱动 `log`（默认） |
-| 压测参数 | 64 个连接（登录 16），预热 3 s，计时 30 s，场景间隔 3 s，每次上报 1,000 个用户，每令牌最多 25 次订阅请求 |
+| Machine | Apple M5 Pro, 18 cores (6 Super + 12 Performance), 48 GB RAM (`sysctl -n machdep.cpu.brand_string hw.memsize`) |
+| OS | macOS 27.0.1; load average when measurement started 1.54 / 2.24 / 1.98 (other processes were not stopped) |
+| Go | go1.27.3 (same for the server and the load generator), `CGO_ENABLED=0 go build -trimpath -ldflags "-s -w"` (`make build`) |
+| Commit | `8db6777` (clean working tree; the embedded frontend is the prebuilt output from the main checkout, `internal/static/dist` is not committed) |
+| Date | 2026-10-23 |
+| Database | SQLite (pure Go driver), temporary data directory; WAL, `synchronous=NORMAL`, `busy_timeout=5000`, `foreign_keys=1`, `_txlock=immediate`, 8 connections |
+| Server configuration | `server.addr` a free port ≥ 20000 (listening on 127.0.0.1 only), `server.trusted_proxies: ["127.0.0.1"]`, `log.level: info` (text format, written to a file), mail driver `log` (the default) |
+| Load parameters | 64 connections (login 16), 3 s warm-up, 30 s measured, 3 s between scenarios, 1,000 users per report, at most 25 subscription requests per token |
 
-*Apple M5 Pro (18 cores, 48 GB), macOS 27.0.1, Go 1.27.3, commit 8db6777 (clean tree), 2026-10-23, SQLite in WAL mode
-with 8 connections, info logging to a file.*
+## Findings
 
-## 发现 / Findings
+1. **The full user list was gzipped again on every request — fixed (`26d8805`).** Before the fix (`9e613b5`): the JSON
+   body of the node user list was cached (60 s), but the gzip middleware compressed these 887.6 KiB again for every
+   request: the server used 14.8 cores for only 2,153 req/s, about 6.9 ms of CPU per response on average, p99 127 ms; in
+   a 5 s macOS `sample` profile, 85.5 % of the server's on-CPU samples were in `compress/flate` and `hash/crc32`. Now the
+   body is cached together with its gzip encoding (`nodesvc.Body.Gzip`: each body version is compressed once, on the
+   first gzip response, and is invalidated together with the body, so it always matches the ETag; it is sent by
+   `httpx.DataPrecompressed` with the same response headers as the middleware, plus the encoded `Content-Length`). This
+   run: **29,794 req/s, 3.4 server cores, about 0.11 ms of CPU per response, p99 6.1 ms**; bytes on the wire unchanged
+   (244 KiB). The bottleneck moved to the load generator: it takes 12.4 cores and reads about 7.4 GB per second from
+   loopback. A/B runs (`8db6777`, working tree with documentation changes only; 10 s each, this scenario only):
+   `identity` 9,367 req/s, 2.1 server cores (about 0.22 ms of CPU per response, 3.6 times the gzip bytes on the wire);
+   `gzip` 29,361 req/s, 3.5 server cores. The A/B runs before the fix: gzip 2,363 req/s / 15.1 cores, identity
+   9,079 req/s / 2.2 cores. soga's `/users` uses the same cache. Normal polling still goes through the ETag (304,
+   86,836 req/s).
+2. **A burst of concurrent logins grew RSS to about 2.7 GiB — tightened (`7824191`).** Before the fix: argon2id
+   allocates 64 MiB per verification, and the concurrency limit was `max(2, NumCPU)` (18 on this machine); during the
+   login scenario RSS grew from 709 MiB to 2,732 MiB, and the runtime still held 2.7 GiB at the end of the run. Now the
+   limit is `auth.argon2_concurrency`, default `min(GOMAXPROCS, 4)` (4 on this machine, at most 256 MiB being computed),
+   and extra logins queue for a free slot: during the login scenario RSS grew from 650 MiB to 1,237 MiB (+587 MiB,
+   +2,023 MiB before the fix), and the peak over the whole run was 1.2 GiB. The cost is throughput 115 → **104 req/s**
+   (−10 %) and p50 138 → 154 ms; p99 actually dropped from 174 to 164 ms, server CPU went from 16.9 to 13.7 cores, and
+   CPU per login from about 147 ms to 132 ms (presumably because the overhead of 18 concurrent verifications with 4 lanes
+   each competing for 18 cores is gone). The part above 256 MiB is presumably mostly GC headroom: by default
+   (`GOGC=100`) Go collects only once the heap has grown to about twice what survived the last collection; this run did
+   not measure it separately.
+   Login alone (new process, 10 s, 16 connections, two runs each): peak RSS 826 / 827 MiB; with `GOMEMLIMIT=600MiB`:
+   808 / 774 MiB, throughput 103–105 req/s throughout. In both cases the RSS seen by `ps` did not drop within 3 minutes
+   after the peak (observed on this macOS machine; the runtime does not return memory right away when idle). On machines
+   with little memory, set `auth.argon2_concurrency` to 1–2, then set `GOMEMLIMIT` as needed; see
+   [docs/DEPLOY.md](../DEPLOY.md), section 4, “Memory”.
+3. **The subscription access log drops rows under sustained high-frequency access.** Access log rows first go into an
+   in-memory buffer (at most 10,000 rows) and are written to the database in batches every 10 s; when the buffer is full,
+   rows are dropped (requests are never blocked), so sustained traffic above about 1,000 requests per second loses rows:
+   this run dropped 220,002 rows (3 WARNs). Leak detection counts IPs from these rows, so under such a flood it
+   undercounts; real subscription refresh rates are several orders of magnitude lower.
+4. **Both subscription formats reach almost the same throughput (13,208 / 13,322 req/s), and the machine was not
+   saturated** (server 10.8–11.8 cores + load generator about 1 core, out of 18). This shows the bottleneck is in a common
+   step every request goes through, not in generating the body. In a separate 3 s profile taken during the previous run
+   (`9e613b5`), 56 % of the server thread samples were waiting; of the on-CPU part, the Go runtime (allocation / GC) took
+   33 %, gzip 13 %, SQLite 8 %, regex 6 %, with no single hot spot. It may be the per-request lookup by token (a pool of
+   8 connections) or the serialized log writes; it has not been pinned down and **is not a confirmed problem**. It has no
+   effect on real load (10,000 users refreshing their subscriptions a few times a day).
+5. **A flush that writes 500,000 traffic pairs at once holds the SQLite write lock for 3.9 s.** Other writes queue
+   during that time (`busy_timeout` is 5 s). At the normal reporting pace the window is much smaller; with an order of
+   magnitude more nodes and users, all reporting at the same time, watch the flush duration approaching `busy_timeout`
+   and the 10 s scheduling interval.
 
-1. **完整用户列表每次请求都重新 gzip —— 已修复（`26d8805`）。** 修复前（`9e613b5`）：节点用户列表的 JSON body 已缓存（60 s），
-   但 gzip 中间件对每个请求重新压缩这 887.6 KiB：服务端 14.8 核只跑出 2,153 req/s，平均每个响应约 6.9 ms CPU，p99 127 ms；
-   用 macOS `sample` 采样 5 s，服务端在 CPU 上的样本有 85.5 % 落在 `compress/flate` 与 `hash/crc32`。现在 body 连同它的 gzip
-   编码一起缓存（`nodesvc.Body.Gzip`：每个 body 版本在第一次 gzip 响应时压缩一次，随 body 一起失效，所以总与 ETag 对应；
-   由 `httpx.DataPrecompressed` 发出，响应头与中间件相同，另带编码后的 `Content-Length`）。这次运行：**29,794 req/s，
-   服务端 3.4 核，每个响应约 0.11 ms CPU，p99 6.1 ms**；线上字节不变（244 KiB）。瓶颈移到了压测端：它占 12.4 核，每秒从回环
-   读约 7.4 GB。对照实验（`8db6777`，工作区只有文档改动；各 10 s、只跑这个场景）：`identity` 9,367 req/s、服务端 2.1 核（每个响应约 0.22 ms CPU，
-   线上字节是 gzip 的 3.6 倍）；`gzip` 29,361 req/s、服务端 3.5 核。修复前的对照：gzip 2,363 req/s / 15.1 核，identity
-   9,079 req/s / 2.2 核。soga 的 `/users` 走同一个缓存。正常轮询仍走 ETag（304，86,836 req/s）。
-2. **一波并发登录会让 RSS 长到约 2.7 GiB —— 已收紧（`7824191`）。** 修复前：argon2id 每次校验分配 64 MiB，并发上限是
-   `max(2, NumCPU)`（这台机器是 18），登录场景中 RSS 从 709 MiB 涨到 2,732 MiB，运行结束时 runtime 仍持有 2.7 GiB。现在上限是
-   `auth.argon2_concurrency`，默认 `min(GOMAXPROCS, 4)`（这台机器是 4，最多 256 MiB 在算），多出来的登录排队等空位：
-   登录场景中 RSS 从 650 MiB 涨到 1,237 MiB（+587 MiB，修复前 +2,023 MiB），整次运行峰值 1.2 GiB。代价是吞吐 115 → **104 req/s**
-   （−10 %）、p50 138 → 154 ms；p99 反而从 174 降到 164 ms，服务端 CPU 16.9 → 13.7 核，每次登录的 CPU 从约 147 ms 降到 132 ms
-   （推测是 18 个并发、每个 4 个 lane 争抢 18 个核的开销没了）。超出 256 MiB 的部分推测主要是 GC 的余量：Go 默认（`GOGC=100`）
-   在堆长到上次回收后存活量的约两倍时才回收，本次没有单独测量。
-   单独跑登录（新进程、10 s、16 个连接，各跑两次）：峰值 RSS 826 / 827 MiB；加 `GOMEMLIMIT=600MiB`：808 / 774 MiB，
-   吞吐都在 103–105 req/s。两种情况下高峰过后 3 分钟内 `ps` 看到的 RSS 都没有下降（这台 macOS 机器上观察到的，运行时在空闲时
-   不会马上归还）。内存小的机器把
-   `auth.argon2_concurrency` 调到 1–2，再按需设 `GOMEMLIMIT`，见 [docs/DEPLOY.md](../DEPLOY.md) 第 4 节“内存”。
-3. **订阅访问日志在持续高频访问下会丢行。** 访问日志先进内存缓冲（上限 10,000 行），每 10 s 批量写库，满了就丢弃
-   （从不阻塞请求），所以持续超过约 1,000 次 / 秒就会丢：这次运行丢了 220,002 行（3 条 WARN）。泄露检测按这些行统计
-   IP 数，在这种洪峰下会少算；真实的订阅刷新频率比这低几个数量级。
-4. **两种订阅格式的吞吐几乎一样（13,208 / 13,322 req/s），而机器没有跑满**（服务端 10.8–11.8 核 + 压测端约 1 核，共 18 核）。
-   说明瓶颈在每个请求都要走的公共步骤，而不是正文生成。上一次运行（`9e613b5`）另做的 3 s 采样里服务端线程 56 % 的样本在等待；
-   在 CPU 上的部分，Go 运行时（分配 / GC）占 33 %、gzip 13 %、SQLite 8 %、正则 6 %，没有单一热点。可能是每次请求按令牌查库
-   （8 个连接的池）或串行的日志写入，没有定位，**不是已确认的问题**；对真实负载（一万用户每天刷新几次订阅）没有影响。
-5. **一次写 500,000 个流量对的 flush 持有 SQLite 写锁 3.9 s。** 其他写操作在此期间排队（`busy_timeout` 为 5 s）。
-   正常上报节奏下窗口要小得多；节点和用户再多一个数量级、而且同时上报时，需要关注 flush 时长逼近 `busy_timeout` 和
-   10 s 的调度间隔。
+The A/B runs, the separate login / `GOMEMLIMIT` runs and the profiles are not part of `make bench`; their numbers come
+from separate runs on the same day on the same machine (`./scripts/bench/run.sh -only … -d 10s -out <elsewhere>`; the RSS
+after the peak was read with `ps -o rss=` at intervals after the login scenario ended). The `sample` profiles were taken
+before the fix, with a build without `-s -w`, and profiling itself slows the server down, so the throughput of those runs
+is not used as a result.
 
-对照实验、单独的登录 / `GOMEMLIMIT` 运行和采样都不在 `make bench` 里，数字来自同一天、同一台机器上单独的几次运行
-（`./scripts/bench/run.sh -only … -d 10s -out <别处>`；高峰后的 RSS 是在登录场景结束后每隔一段时间 `ps -o rss=` 读的）。
-`sample` 采样是修复前做的，用的是不带 `-s -w` 的构建，采样本身会拖慢服务端，所以那几次的吞吐不作为结果。
-
-*Findings: (1) fixed in 26d8805: the user list is cached with its gzip encoding, so a full response is a copy: 2,153 →
-29,794 req/s, server 14.8 → 3.4 cores (6.9 → 0.11 ms of CPU per response), p99 127 → 6.1 ms, same 244 KiB on the wire;
-the load generator (12.4 cores) is now the limit. (2) bounded in 7824191: argon2id concurrency defaults to
-min(GOMAXPROCS, 4), so the login burst adds 587 MiB of RSS instead of 2,023 MiB (peak 1.2 GiB instead of 2.7 GiB) at
-104 instead of 115 logins/s; GOMEMLIMIT=600MiB lowered a 10 s burst's peak from 826–827 to 774–808 MiB (two runs each)
-and RSS did not drop within 3 minutes either way. (3) the subscription access log drops rows above ~1,000 req/s sustained (220,002 in this
-run); (4) both subscription formats plateau at ~13.3k req/s with the machine not saturated: a shared per-request step,
-not identified; (5) a 500,000-pair traffic flush holds the SQLite write lock for 3.9 s. The A/B runs, the separate login
-runs and the profile are diagnostics, not part of `make bench`.*
-
-## 怎么复现 / Reproduce
+## Reproduce
 
 ```bash
-make bench                                   # 构建、在 ≥ 20000 的空闲端口起一个临时实例（临时数据目录）、压测、写 docs/perf、停服务
-make bench BENCH_ARGS="-d 10s"               # 参数原样传给压测工具：-c 连接数、-d 时长、-users、-nodes、-only sub_v2ray,login …
-KEEP_LOG=1 make bench                        # 保留临时目录（服务端日志、数据库）便于排查
-go run ./scripts/bench -render docs/perf/results.json   # 只根据 results.json 重画 results.md 和 benchmark.svg
+make bench                                   # build, start a throwaway instance on a free port ≥ 20000 (temporary data directory), run the load test, write docs/perf, stop the server
+make bench BENCH_ARGS="-d 10s"               # arguments go to the load generator as they are: -c connections, -d duration, -users, -nodes, -only sub_v2ray,login …
+KEEP_LOG=1 make bench                        # keep the temporary directory (server log, database) for debugging
+go run ./scripts/bench -render docs/perf/results.json   # only redraw results.md and benchmark.svg from results.json
 ./scripts/bench/run.sh -only node_users_full -d 10s -node-encoding identity -out /tmp/perf-identity
-                                             # “发现 1”的对照实验：-out 指到别处，免得覆盖 docs/perf
+                                             # A/B run for finding 1: point -out elsewhere so docs/perf is not overwritten
 GOMEMLIMIT=600MiB ./scripts/bench/run.sh -only login -d 10s -out /tmp/perf-login
-                                             # “发现 2”：服务端（和压测工具）继承 GOMEMLIMIT
+                                             # finding 2: the server (and the load generator) inherit GOMEMLIMIT
 ```
 
-对已经在运行的实例（例如测试机）：
+Against an instance that is already running (for example a test machine):
 
 ```bash
 BENCH_ADMIN_PASSWORD='…' go run ./scripts/bench -base http://127.0.0.1:23456 -admin-email admin@example.com -out /tmp/perf
 ```
 
-工具会通过管理 API 幂等地补齐数据（已存在的分组 / 套餐 / 节点 / 用户直接复用），所以可以重复运行；但订阅令牌的
-限流桶要 15 分钟才回满，**同一实例 15 分钟内重跑订阅场景会出现 429**（报告里记为错误，不会被当成成功）。登录场景要求
-服务端信任压测机的 `X-Forwarded-For`（`server.trusted_proxies`），否则 30 次 / 分钟 / IP 的限流会让它全部 429。
-只在测试实例上运行：它会创建 10,000 个 `bench-…@example.com` 账号和 50 个 `*.bench.example.com` 节点。
+The tool fills in the data idempotently through the admin API (existing groups / plans / nodes / users are reused as
+they are), so it can be run repeatedly. But the subscription tokens' rate-limit buckets take 15 minutes to refill, so
+**rerunning the subscription scenarios on the same instance within 15 minutes gets 429s** (recorded as errors in the
+report, never counted as successes). The login scenario needs the server to trust the load generator's
+`X-Forwarded-For` (`server.trusted_proxies`); otherwise the limit of 30 per minute per IP turns every login into a 429.
+Run it only against a test instance: it creates 10,000 `bench-…@example.com` accounts and 50 `*.bench.example.com`
+nodes.
 
-*`make bench` builds, starts a throwaway instance, runs everything and always stops the server. Against an existing
-instance the seeding is idempotent, but the per-token subscription buckets need 15 minutes to refill, and login needs
-`server.trusted_proxies` to cover the load generator. Use a test instance only.*
+## Scenarios
 
-## 测了什么 / Scenarios
-
-| id | 请求 | 经过的代码路径 |
+| id | Request | Code path |
 | --- | --- | --- |
-| `sub_v2ray` | `GET /api/v1/client/subscribe?token=…&flag=v2ray` | 令牌校验 → 按令牌查用户（SQLite，每次请求一条索引查询）→ 每令牌限流桶 → 节点列表缓存（5 s / 分组）→ 生成 50 条分享链接并 base64 → 订阅访问日志（内存缓冲，每 10 s 批量写库）→ gzip |
-| `sub_clash_rules` | 同上，`flag=clash-meta&profile=standard` | 同上，但生成完整的 mihomo YAML：50 个代理、策略组、`standard` 模板的规则集（rule-providers）与规则；用户的规则配置缓存 1 min |
-| `node_users_304` | `GET /api/v1/server/UniProxy/user` + `If-None-Match` | 节点令牌常量时间比较 → 节点解析（缓存）→ 用户列表 body 缓存（60 s）→ ETag 命中，返回 304 空 body。这是 XrayR / V2bX 每个拉取周期的常态 |
-| `node_users_full` | 同上，不带 `If-None-Match` | 同上，但每次都发送完整的 10,000 用户 JSON：缓存的 body 连同缓存的 gzip 编码（每个 body 版本只压缩一次，`httpx.DataPrecompressed`）。节点首次启动或用户变动后才会这样拉 |
-| `node_push` | `POST /api/v1/server/UniProxy/push`，每次 1,000 个用户的流量 | 解析 JSON → 写入内存累加器（按 (节点, 用户) 聚合）；数据库写入由每 10 s 一次的 `traffic_flush` 在一个事务里批量完成 |
-| `login` | `POST /api/v1/passport/login` | 每 IP 限流 → 按邮箱查用户 → argon2id 校验（64 MiB、3 轮、4 线程，最多 `auth.argon2_concurrency` 个并发，默认 min(GOMAXPROCS, 4) = 4）→ 写 `last_login_*` → 签发 JWT |
-| `static_index` | `GET /`（`Accept-Encoding: br, gzip`） | 内嵌、构建时预渲染并预压缩的 `index.html.br`，`Cache-Control: no-cache` |
-| `static_asset` | `GET /assets/<name>-<hash>.js` | 首页引用的最大一个 JS 分块的预压缩 `.br`，`immutable` 缓存一年 |
+| `sub_v2ray` | `GET /api/v1/client/subscribe?token=…&flag=v2ray` | token check → user lookup by token (SQLite, one indexed query per request) → per-token rate-limit bucket → node list cache (5 s / group) → generate 50 share links and base64 them → subscription access log (in-memory buffer, written to the database in batches every 10 s) → gzip |
+| `sub_clash_rules` | same, `flag=clash-meta&profile=standard` | same, but generates the full mihomo YAML: 50 proxies, policy groups, the `standard` template's rule sets (rule-providers) and rules; the user's rule configuration is cached for 1 min |
+| `node_users_304` | `GET /api/v1/server/UniProxy/user` + `If-None-Match` | constant-time node token comparison → node lookup (cached) → user list body cache (60 s) → ETag hit, 304 with an empty body. This is the normal case for every XrayR / V2bX pull cycle |
+| `node_users_full` | same, without `If-None-Match` | same, but sends the full 10,000-user JSON every time: the cached body with its cached gzip encoding (each body version is compressed only once, `httpx.DataPrecompressed`). Nodes pull like this only on first start or after users change |
+| `node_push` | `POST /api/v1/server/UniProxy/push`, traffic for 1,000 users per request | parse the JSON → add to the in-memory accumulator (aggregated by (node, user)); the database writes are done in batch, in one transaction, by `traffic_flush` every 10 s |
+| `login` | `POST /api/v1/passport/login` | per-IP rate limit → user lookup by email → argon2id verification (64 MiB, 3 passes, 4 threads, at most `auth.argon2_concurrency` at once, default min(GOMAXPROCS, 4) = 4) → write `last_login_*` → issue the JWT |
+| `static_index` | `GET /` (`Accept-Encoding: br, gzip`) | the embedded `index.html.br`, prerendered and precompressed at build time, `Cache-Control: no-cache` |
+| `static_asset` | `GET /assets/<name>-<hash>.js` | the precompressed `.br` of the largest JS chunk the home page references, cached `immutable` for one year |
 
-每个场景开始前先发一个探测请求校验返回内容（base64 能解码且至少有 50 条链接、YAML 含 `proxies` / `rule-providers`
-和全部 50 个节点名、每个节点的用户列表都有 10,000 人且带 ETag、push 返回 `{"data":true}`、登录拿到 token、静态文件是 `br` 且资源带
-`immutable`），内容不对就直接失败，不会把错误页面的速度当成结果。
+Before each scenario, one probe request checks the response content (the base64 decodes and has at least 50 links; the
+YAML contains `proxies` / `rule-providers` and all 50 node names; every node's user list has 10,000 users and an ETag;
+push returns `{"data":true}`; login gets a token; static files are `br` and assets carry `immutable`). If the content is
+wrong, it fails right away, so the speed of an error page is never taken as a result.
 
-*Every scenario first checks one response for correctness (decodable links, YAML with proxies and rule providers,
-10,000 users plus an ETag, `{"data":true}`, a token, brotli with `immutable`), so an error page can never be measured as
-a result.*
+## Method
 
-## 方法 / Method
+- **Data**: through the admin API, the tool creates the group `Bench`, the plan `Bench 200 GB` (200 GB per user,
+  3 devices), 50 nodes (10 regions × vless REALITY / vmess WS / trojan / shadowsocks 2022 / hysteria2 / anytls in
+  rotation) and 10,000 users (`POST /admin/users/generate`, 500 per batch, expiring in one year), then reads back every
+  user's id, email and subscription token page by page.
+- **Load model**: closed loop. Each connection sends its next request only after it has read the previous response,
+  with no think time; so the throughput is "saturation throughput", and p50 / p95 / p99 are latencies at saturation, not
+  at a fixed arrival rate. By default 64 connections (login 16); each scenario starts with a 3 s warm-up that is not
+  counted, then 30 s measured, with 3 s idle between scenarios. Latency is measured from sending the request to having
+  read the response body; percentiles use the nearest-rank method over all successful responses.
+- **What counts as success**: only the expected status code counts as success (in the 304 scenario both 200 and 304
+  count, and the share of 304s is reported separately); every other status code and every transport error is recorded as
+  an error and written to `statuses` in `results.json`; req/s counts successful responses only.
+- **Subscription rate limit**: the server limits each subscription token to 120 requests / hour with a burst of 30. To
+  stay under the limit, the two subscription scenarios each use half of the users (5,000 tokens each) in rotation, and
+  each token is used at most 25 times in one run (warm-up and probe included). When the tokens' quota is used up, the
+  scenario ends early and the report gives the actual measured duration (marked † in the table).
+- **Login**: each request carries a different `X-Forwarded-For` address (the RFC 2544 benchmarking range
+  198.18.0.0/15), and the server is configured with `server.trusted_proxies: ["127.0.0.1"]`, as if deployed behind nginx
+  on the same host: each simulated client is still limited to 30 per minute.
+- **Traffic writes**: after the push scenario, the tool first waits for the accumulator to empty, then pushes one full
+  window between two `traffic_flush` runs (50 nodes × 10,000 users = 500,000 (node, user) pairs) and reads how long the
+  next `traffic_flush` took (`/admin/system/status`).
+- **CPU and memory**: `make bench` passes the server's process ID to the tool. Before and after each measured window the
+  tool reads the server's CPU time with `ps`, reads its RSS every 250 ms and reads its own CPU time with `getrusage`;
+  from these it reports the "average number of cores in use" on both sides and the server's peak RSS. `make bench` also
+  counts the WARN / ERROR lines in the server log by message and writes the counts into the report.
+- **Request headers**: subscription and node requests send `Accept-Encoding: gzip` (the default for clients written in
+  Go and for XrayR / V2bX), static files `br, gzip` (a browser). The tool reads the bytes on the wire without
+  decompressing them, and the `Body` column is the average compressed size.
 
-- **数据**：通过管理 API 创建分组 `Bench`、套餐 `Bench 200 GB`（每用户 200 GB、3 台设备）、50 个节点（10 个地区 ×
-  vless REALITY / vmess WS / trojan / shadowsocks 2022 / hysteria2 / anytls 轮换）、10,000 个用户（`POST /admin/users/generate`，
-  每批 500，一年后到期），然后分页读回每个用户的 id、邮箱和订阅令牌。
-- **负载模型**：闭环。每个连接读完上一个响应才发下一个请求，没有思考时间；因此吞吐是“饱和吞吐”，p50 / p95 / p99 是
-  饱和状态下的延迟，不是固定到达率下的延迟。默认 64 个连接（登录 16 个），每个场景先 3 s 不计入的预热，再计时 30 s，
-  场景之间空闲 3 s。延迟从发请求计到读完响应体，百分位数用最近秩法（nearest rank）对全部成功响应计算。
-- **成功的定义**：只有预期状态码算成功（304 场景里 200 和 304 都算，另外报告 304 比例），其他状态码和传输错误都记为
-  错误并写进 `results.json` 的 `statuses`；req/s 只按成功响应计算。
-- **订阅限流**：服务端对每个订阅令牌限流 120 次 / 小时、突发 30。为了不触发限流，两个订阅场景各用一半用户（各 5,000
-  个令牌），轮流使用，每个令牌在一次运行里最多用 25 次（含预热和探测）。令牌额度用完时场景提前结束，报告实际的测量
-  时长（表里标 †）。
-- **登录**：每个请求带一个不同的 `X-Forwarded-For` 地址（RFC 2544 压测网段 198.18.0.0/15），服务端配置
-  `server.trusted_proxies: ["127.0.0.1"]`，相当于部署在本机 nginx 之后：每个模拟客户端仍受 30 次 / 分钟的限制。
-- **流量写库**：push 场景结束后，工具先等累加器清空，再在两次 `traffic_flush` 之间推送一个完整窗口
-  （50 节点 × 10,000 用户 = 500,000 个 (节点, 用户) 对），读取下一次 `traffic_flush` 的耗时（`/admin/system/status`）。
-- **CPU 与内存**：`make bench` 把服务进程号传给工具，工具在每个计时窗口前后用 `ps` 读服务端 CPU 时间、每 250 ms 读一次
-  RSS，用 `getrusage` 读自己的 CPU 时间，得出两边“平均占用几个核”和服务端峰值 RSS。`make bench` 还把服务端日志里的
-  WARN / ERROR 按消息计数写进报告。
-- **请求头**：订阅和节点请求带 `Accept-Encoding: gzip`（Go 写的客户端与 XrayR / V2bX 默认如此），静态文件带
-  `br, gzip`（浏览器）。工具读取线上字节，不解压，`Body` 列是压缩后的平均大小。
+## Caveats
 
-*Closed loop, 3 s warm-up, 30 s measured, nearest-rank percentiles over successful responses, every other status
-counted as an error. Subscription tokens are rotated so none exceeds 25 requests (the server allows a burst of 30); login
-sends one X-Forwarded-For address per request through a trusted local proxy setting. A dedicated window of 500,000
-(node, user) pairs times the traffic flush. Server CPU and RSS come from `ps`, the load generator's CPU from `getrusage`,
-and the server log's WARN/ERROR lines are counted into the report.*
-
-## 注意事项 / Caveats
-
-- **同一台机器、回环网络**：压测工具和服务端共用同一台机器的 CPU（见表中“CPU”一列：完整用户列表场景里压测工具占 12.4 个核、
-  服务端只用 3.4 个核，304 和静态文件场景里服务端只用了 6–8 个核，这些场景的瓶颈更可能在压测端）；没有 TLS、没有反向代理、
-  没有真实网络延迟。生产环境前面还有 nginx / Caddy 和 TLS，数字会不同。
-- **单进程、SQLite**：默认配置（WAL、`synchronous=NORMAL`、8 个连接）。PostgreSQL / MySQL 没有测。
-- **日志照常输出**：服务端用默认的 `info` 级别，每个请求一行访问日志（写到临时目录的文件）。
-- **机器上其他进程没有停**：运行开始时的负载平均值记录在 `results.json` 的 `machine.load_average_at_start`。
-- **这是这台机器的数字**：换一台机器要重新跑；不要拿它和别的项目在别的机器上的数字直接比较。
-- 真实负载远低于这些上限：一万用户的客户端通常几小时刷新一次订阅，50 个节点每 60 s 拉一次用户列表（绝大多数是 304）、
-  推一次流量。
-
-*Same machine over loopback (the load generator uses up to 12.4 cores, so the full user list, 304 and static rows are
-likely limited by the client, not the server), no TLS, no proxy, one process, SQLite, info
-logging on, background processes not stopped. These are this machine's numbers; real traffic is far below them.*
+- **Same machine, loopback network**: the load generator and the server share the same machine's CPUs (see the “CPU”
+  column: in the full user list scenario the load generator takes 12.4 cores while the server uses only 3.4; in the 304
+  and static file scenarios the server uses only 6–8 cores, so in these scenarios the bottleneck is more likely on the
+  load generator side); no TLS, no reverse proxy, no real network latency. In production nginx / Caddy and TLS sit in
+  front, and the numbers will differ.
+- **One process, SQLite**: the default configuration (WAL, `synchronous=NORMAL`, 8 connections). PostgreSQL / MySQL
+  were not tested.
+- **Logging stays on**: the server uses the default `info` level, one access log line per request (written to a file in
+  the temporary directory).
+- **Other processes on the machine were not stopped**: the load average at the start of the run is recorded in
+  `machine.load_average_at_start` in `results.json`.
+- **These are this machine's numbers**: rerun them on another machine; do not compare them directly with other
+  projects' numbers from other machines.
+- Real load is far below these limits: the clients of 10,000 users usually refresh their subscription every few hours,
+  and the 50 nodes each pull the user list (almost always a 304) and push traffic once every 60 s.

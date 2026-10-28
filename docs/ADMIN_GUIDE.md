@@ -1,261 +1,282 @@
-# 管理员指南 / Admin guide
+# Admin guide
 
-面向站长：从第一次登录到接入节点、上架套餐、配置支付与分流规则、从 Xboard 迁移、登录安全策略、Telegram 通知以及订阅防泄露。
-安装与反向代理见 [DEPLOY.md](DEPLOY.md)；接口细节见 [API.md](API.md)。
+**English** · [简体中文](ADMIN_GUIDE.zh-CN.md)
 
-*For operators: first login, settings, nodes (XrayR / V2bX / soga), plans and payment gateways, rule sets,
-Xboard migration, 2FA / passkey policy, Telegram notifications and subscription leak protection. Installation lives in
-[DEPLOY.md](DEPLOY.md).*
+For operators: from the first login to adding nodes, putting plans on sale, setting up payments and routing rules, migrating from
+Xboard, the sign-in security policy, Telegram notifications and subscription leak protection.
+Installation and the reverse proxy are in [DEPLOY.md](DEPLOY.md); API details are in [API.md](API.md).
 
 ---
 
-## 1. 首次登录 / First login
+## 1. First login
 
 ```bash
-ggboard admin create --email admin@example.com              # 省略 --password 时自动生成并只打印一次
-ggboard admin create --email support@example.com --staff    # 客服（staff）账户
-ggboard admin reset-password --email admin@example.com      # 重置密码（同时注销该用户所有会话）
-ggboard admin promote --email user@example.com              # 把已有用户提升为管理员
-# Docker（预构建镜像）：docker compose -f docker-compose.prebuilt.yml exec ggboard ggboard admin create --email admin@example.com
-# Docker（源码构建）：docker compose -f deploy/docker-compose.yml exec ggboard ggboard admin create --email admin@example.com
+ggboard admin create --email admin@example.com              # without --password, a password is generated and printed once
+ggboard admin create --email support@example.com --staff    # support (staff) account
+ggboard admin reset-password --email admin@example.com      # reset the password (also ends all of the user's sessions)
+ggboard admin promote --email user@example.com              # make an existing user an admin
+# Docker (prebuilt image): docker compose -f docker-compose.prebuilt.yml exec ggboard ggboard admin create --email admin@example.com
+# Docker (built from source): docker compose -f deploy/docker-compose.yml exec ggboard ggboard admin create --email admin@example.com
 
 ```
 
-密码至少 8 位。数据库表在 `serve` / `admin` 等命令启动时自动迁移，无需先跑 `ggboard migrate`。
+Passwords need at least 8 characters. Database tables are migrated automatically when commands such as `serve` /
+`admin` start, so you do not need to run `ggboard migrate` first.
 
-1. 打开 `https://<面板域名>/login` 登录，然后访问 `/admin`（或在账户菜单中选择 **管理后台 / Admin**）。
-   管理员进入 `/admin/dashboard`，客服进入 `/admin/tickets`。
-2. 立即完成这几件事：
-   - **系统设置 → 站点**：填写 `app_url`（如 `https://panel.example.com`，不带结尾 `/`）。订阅链接、支付回调、
-     邮件链接和通行密钥都依赖它。
-   - **个人中心 → 安全**（`/profile?tab=security`）：为自己开启两步验证或添加通行密钥（见 §8）。
-   - **系统设置 → 邮件**：配置 SMTP 并点 **发送测试邮件**。
-   - **系统设置 → 节点通讯**：确认 `server_token`（首次启动自动生成 32 位随机值）。
+1. Open `https://<panel domain>/login`, sign in, then go to `/admin` (or choose **Admin** in the account menu).
+   Admins land on `/admin/dashboard`, staff on `/admin/tickets`.
+2. Do these right away:
+   - **Settings → Site**: fill in `app_url` (such as `https://panel.example.com`, without a trailing `/`). Subscription
+     links, payment callbacks, email links and passkeys all depend on it.
+   - **Profile → Security** (`/profile?tab=security`): turn on two-factor authentication or add a passkey for yourself
+     (see §8).
+   - **Settings → Email**: configure SMTP and click **Send test email**.
+   - **Settings → Node connection**: check `server_token` (a random 32-character value generated on first start).
 
-| 角色 | 可用功能 |
+| Role | Access |
 | --- | --- |
-| 管理员 `is_admin` | 全部后台页面 |
-| 客服 `is_staff` | 工单、公告、知识库；只读查看用户 |
+| Admin `is_admin` | Every admin page |
+| Staff `is_staff` | Tickets, notices, knowledge base; read-only view of users |
 
 ---
 
-## 2. 系统设置导览 / Settings tour
+## 2. Settings tour
 
-后台 **系统设置 / Settings**（`/admin/settings`）依次分为 **站点、注册与登录、订阅、订单、邀请与佣金、节点通讯、邮件、
-前端外观、客户端下载、安全、Telegram** 11 个分组，组内再按小节排列；依附于开关或下拉框的字段（白名单后缀、IP 注册次数、
-验证码密钥、SMTP 服务器、分销比例等）只在开关打开后出现。每组单独点 **保存**（⌘/Ctrl+S），切换分组时未保存的修改会保留。
-键名与默认值以 `internal/settings/defs.go` 为准；下表按界面顺序列出全部可见键，括号内为界面名称。
+The admin **Settings** page (`/admin/settings`) has 11 groups, in this order: **Site, Sign-up & sign-in, Subscription,
+Orders, Invites & commission, Node connection, Email, Appearance, Client apps, Security, Telegram**. Each group is
+divided into sections. Fields that depend on a switch or a drop-down (allowed email domains, sign-ups per IP, CAPTCHA
+keys, SMTP host, distribution rates and so on) only appear once the switch is on. Each group is saved on its own with
+**Save** (⌘/Ctrl+S); unsaved edits are kept when you switch groups.
+Key names and defaults are defined in `internal/settings/defs.go`. The tables below list every visible key in UI order,
+with the UI label in parentheses.
 
-### 站点 `site`
+### Site `site`
 
-| 键 | 默认 | 说明 |
+| Key | Default | Description |
 | --- | --- | --- |
-| `app_name` | `GG Bond` | 页面标题、邮件、订阅文件名 |
-| `app_description` / `logo` / `tos_url` | 空 | 首页描述、Logo、注册页服务条款链接 |
-| `app_url` | 空 | **必填**。站点地址，不含结尾 `/` |
-| `currency` / `currency_symbol` | `CNY` / `¥` | ISO 4217 代码与符号；金额全部按“分”存储 |
-| `default_locale` | `zh-CN` | `zh-CN` 或 `en` |
-| `show_info_to_user` | `true` | 关闭后用户节点列表不显示主机与端口 |
+| `app_name` | `GG Bond` | Page titles, emails, subscription file names |
+| `app_description` / `logo` / `tos_url` | empty | Landing-page description, logo, terms-of-service link on the sign-up page |
+| `app_url` | empty | **Required**. The site URL, without a trailing `/` |
+| `currency` / `currency_symbol` | `CNY` / `¥` | ISO 4217 code and symbol; all amounts are stored in cents |
+| `default_locale` | `zh-CN` | `zh-CN` or `en` |
+| `show_info_to_user` | `true` | When off, the user node list does not show hosts and ports |
 
-### 注册与登录 `register`
+### Sign-up and sign-in `register`
 
-界面分为 **注册**、**试用**、**防滥用**、**人机验证** 四个小节：
+The page has four sections: **Sign-up**, **Trial**, **Abuse protection** and **CAPTCHA**:
 
-| 键（界面名称） | 默认 | 说明 |
+| Key (UI label) | Default | Description |
 | --- | --- | --- |
-| `stop_register`（开放注册） | `false` | 界面是与键值相反的“开放注册”开关：关掉开关即 `stop_register: true`，新用户无法注册，已有账户不受影响 |
-| `email_verify`（邮箱验证） | `false` | 注册需邮箱验证码。验证码靠邮件发送：先在 **邮件** 组配好 SMTP 并发送测试邮件；发信方式仍是“仅记录日志”时这里会提示验证码不会真正发出。关闭时注册不证明邮箱所有权（任何人都能用别人的邮箱注册），这类账户第一次找回密码时按所有权变更处理：更换 UUID 与订阅 token，清除 Passkey、两步验证和 Telegram 绑定 |
-| `email_whitelist_enable` / `email_whitelist_suffix`（邮箱后缀白名单 / 允许的邮箱后缀） | `false` / `[]` | 打开后出现后缀输入框：只填域名（如 `gmail.com`，精确匹配），按回车或逗号添加，可一次粘贴多个；允许的后缀会显示在注册页邮箱输入框下方 |
-| `invite_force`（强制邀请码） | `false` | 没有有效邀请码时无法注册 |
-| `try_out_plan_id` / `try_out_hour`（试用套餐 / 试用时长） | 0 / 0 | 注册赠送的试用套餐与时长（小时）；选“不赠送试用”时不显示时长 |
-| `register_limit_by_ip_enable` / `_count` / `_expire`（IP 注册限制） | `false` / 3 / 60 | 同一 IP 在 N 分钟内最多注册的账户数 |
-| `password_limit_enable` / `_count` / `_expire`（密码错误锁定） | `true` / 5 / 60 | 允许错误次数与锁定分钟数（按邮箱计） |
-| `captcha_provider`（验证码服务） | `none` | `none` / `turnstile` / `recaptcha` / `hcaptcha`；用于注册、登录与发送邮箱验证码 |
-| `captcha_site_key` / `captcha_secret`（Site Key / Secret Key） | 空 | 选择服务商后出现：公开的站点密钥与只保存在服务器的服务端密钥 |
+| `stop_register` (Allow sign-ups) | `false` | The UI shows an "Allow sign-ups" switch that is the inverse of the key: turning the switch off means `stop_register: true`. New users cannot register; existing accounts are not affected |
+| `email_verify` (Email verification) | `false` | Sign-up requires an email code. Codes are sent by email: first configure SMTP in the **Email** group and send a test email; while the mail driver is still "Log only", a notice here says that codes will not actually be sent. When off, sign-up does not prove ownership of the address (anyone can register with someone else's email). The first password reset of such an account is treated as a change of ownership: the UUID and subscription token are replaced, and passkeys, two-factor authentication and the Telegram binding are cleared |
+| `email_whitelist_enable` / `email_whitelist_suffix` (Email domain allow-list / Allowed email domains) | `false` / `[]` | When on, a domain input appears: enter domains only (such as `gmail.com`, exact match), press Return or comma to add one, or paste several at once. The allowed domains are shown under the email field on the sign-up page |
+| `invite_force` (Require an invite code) | `false` | Without a valid invite code, sign-up is not possible |
+| `try_out_plan_id` / `try_out_hour` (Trial plan / Trial length) | 0 / 0 | Trial plan and length (hours) given at sign-up; the length is hidden when "No trial" is selected |
+| `register_limit_by_ip_enable` / `_count` / `_expire` (Limit sign-ups per IP) | `false` / 3 / 60 | The maximum number of accounts one IP can register within N minutes |
+| `password_limit_enable` / `_count` / `_expire` (Lock after failed logins) | `true` / 5 / 60 | Allowed failures and lock duration in minutes (counted per email) |
+| `captcha_provider` (CAPTCHA) | `none` | `none` / `turnstile` / `recaptcha` / `hcaptcha`; used for sign-up, sign-in and sending email codes |
+| `captcha_site_key` / `captcha_secret` (Site key / Secret key) | empty | Appear once a provider is selected: the public site key and the server-side key that is only stored on the server |
 
-### 订阅 `subscribe`
+### Subscription `subscribe`
 
-界面分为 **订阅地址**、**套餐变更**、**订阅内容与提醒**、**分流规则**、**防泄露**、**IP 归属地** 六个小节：
+The page has six sections: **Subscription hosts**, **Plan changes**, **Content & reminders**, **Routing rules**,
+**Leak protection** and **IP locations**:
 
-| 键（界面名称） | 默认 | 说明 |
+| Key (UI label) | Default | Description |
 | --- | --- | --- |
-| `subscribe_url`（订阅地址） | `[]` | 订阅域名列表；为空时用 `app_url`。**每次生成链接时随机取一个**（用于分散负载） |
-| `subscribe_update_interval`（订阅更新间隔） | 24 | 建议客户端更新间隔（小时，1–720，写入 `Profile-Update-Interval`） |
-| `plan_change_enable`（允许更换套餐） | `true` | 关闭后用户只能续费当前套餐 |
-| `surplus_enable`（升级折抵） | `true` | 更换套餐时折抵原套餐剩余价值 |
-| `reset_traffic_method`（默认流量重置方式） | 0 | 0 每月 1 日、1 按购买日每月、2 不重置、3 每年 1 月 1 日、4 按购买日每年；套餐可单独设置 |
-| `show_info_to_server_enable`（订阅中显示套餐信息） | `true` | 订阅节点列表顶部插入剩余流量 / 到期时间 |
-| `show_protocol_to_server_enable`（节点名称显示协议） | `false` | 节点名追加协议类型 |
-| `default_remind_expire` / `default_remind_traffic` | `true` | 新用户默认开启的到期 / 流量提醒 |
-| `allow_user_rule_profile`（允许用户自定义分流） | `true` | 关闭后所有用户使用默认模板，订阅配置、节点处理与链接里的规则参数都被忽略 |
-| `ruleset_default_template`（默认分流模板） | `standard` | `none` / `minimal` / `standard` / `full` |
-| `ruleset_default_source`（默认规则集来源） | `blackmatrix7` | 优先使用的规则仓库 |
-| `ruleset_mirror`（规则集镜像） | 空 | GitHub raw 加速前缀或镜像 id，空 = 直连 |
-| `subscribe_age_optional`（允许临时关闭加密） | `true` | 用户开启 age 加密后，链接加 `&age=0` 仍可取得明文 |
-| `subscribe_age_strict`（严格加密） | `false` | 用户开启加密后，不支持 age 的格式返回 406，而不是退回明文 |
-| `subscribe_leak_max_ips`（泄露检测阈值） | 0 | 24 小时内同一订阅 token 被超过 N 个不同 IP（IPv6 按 /64）获取时触发；0 = 关闭 |
-| `subscribe_leak_action`（触发后） | `notify` | 阈值大于 0 时出现：`notify` 或 `rotate`（轮换 token），详见 §10 |
-| `geoip_enable`（显示 IP 归属地） | `true` | 访问记录里显示 IP 的地区与运营商（纯真 IP 库，仅 IPv4），每天 05:23 自动检查更新 |
-| `geoip_download_url`（数据库下载地址） | metowolf/qqwry.dat 最新发布 | 访问不了 GitHub 时换成镜像；留空 = 不自动下载，只用手动放到 `<data_dir>/geoip/qqwry.dat` 的文件 |
-| `geoip_version_url`（版本信息地址） | metowolf/qqwry.dat 的 `version.json` | 版本没变就不下载；留空 = 每次检查都下载整个文件并比较校验和 |
+| `subscribe_url` (Subscription URLs) | `[]` | List of subscription domains; empty uses `app_url`. **One is picked at random every time a link is generated** (to spread the load) |
+| `subscribe_update_interval` (Update interval) | 24 | Suggested client update interval (hours, 1–720, sent as `Profile-Update-Interval`) |
+| `plan_change_enable` (Allow plan changes) | `true` | When off, users can only renew their current plan |
+| `surplus_enable` (Upgrade credit) | `true` | When changing plans, the remaining value of the old plan is credited |
+| `reset_traffic_method` (Default traffic reset) | 0 | 0 on the 1st of every month, 1 monthly on the purchase day, 2 never, 3 every year on January 1, 4 yearly on the purchase day; each plan can set its own |
+| `show_info_to_server_enable` (Show plan info in subscriptions) | `true` | Inserts remaining traffic / expiry at the top of the subscription node list |
+| `show_protocol_to_server_enable` (Show protocol in node names) | `false` | Appends the protocol type to node names |
+| `default_remind_expire` / `default_remind_traffic` | `true` | Expiry / traffic reminders that are on by default for new users |
+| `allow_user_rule_profile` (Allow custom routing) | `true` | When off, every user gets the default template; subscription profiles, node operations and rule parameters in the link are ignored |
+| `ruleset_default_template` (Default routing template) | `standard` | `none` / `minimal` / `standard` / `full` |
+| `ruleset_default_source` (Default rule-set source) | `blackmatrix7` | The preferred rule repository |
+| `ruleset_mirror` (Rule-set mirror) | empty | GitHub raw proxy prefix or mirror id; empty = direct |
+| `subscribe_age_optional` (Allow opting out of encryption) | `true` | After a user turns on age encryption, adding `&age=0` to the link still returns plaintext |
+| `subscribe_age_strict` (Strict encryption) | `false` | After a user turns on encryption, formats that do not support age return 406 instead of falling back to plaintext |
+| `subscribe_leak_max_ips` (Leak detection threshold) | 0 | Triggers when one subscription token is fetched from more than N distinct IPs (IPv6 per /64) within 24 hours; 0 = off |
+| `subscribe_leak_action` (When triggered) | `notify` | Appears when the threshold is above 0: `notify` or `rotate` (rotate the token); see §10 |
+| `geoip_enable` (Show IP locations) | `true` | Shows the region and network operator of each IP in the access log (the CZ88 / 纯真 IP database, IPv4 only); updates are checked automatically every day at 05:23 |
+| `geoip_download_url` (Database download URL) | latest release of metowolf/qqwry.dat | Switch to a mirror when GitHub is unreachable; empty = no automatic download, only a file you put at `<data_dir>/geoip/qqwry.dat` by hand is used |
+| `geoip_version_url` (Version file URL) | `version.json` of metowolf/qqwry.dat | Nothing is downloaded while the version is unchanged; empty = every check downloads the whole file and compares checksums |
 
-**IP 归属地** 小节下方的卡片显示数据库版本、IP 段数、大小、下载与检查时间、上次失败的原因，**立即更新** 马上检查一次
-（下载超过 60 秒会转到后台，卡片自动刷新）。设置有未保存的更改时按钮不可用。部署要求见 DEPLOY.md §6。
+The card under the **IP locations** section shows the database version, number of IP ranges, size, download and check
+times, and the reason for the last failure. **Update now** runs a check right away (a download that takes longer than 60
+seconds moves to the background, and the card refreshes by itself). The button is disabled while the settings have
+unsaved changes. Deployment requirements are in DEPLOY.md §6.
 
-### 订单 `order`、邀请与佣金 `invite`
+### Orders `order`, invites and commission `invite`
 
-| 键 | 默认 | 说明 |
+| Key | Default | Description |
 | --- | --- | --- |
-| `order_timeout_minutes` | 30 | 未支付订单自动取消（1–10080 分钟） |
-| `invite_commission` | 10 | 佣金比例 % |
-| `invite_gen_limit` | 5 | 每人未使用邀请码上限 |
-| `invite_never_expire` | `true` | 关闭后邀请码用一次即失效 |
-| `commission_first_time_enable` | `true` | 仅首单返佣 |
-| `commission_auto_check_enable` | `true` | 定时任务自动发放佣金 |
-| `commission_withdraw_limit` | 100 | 最低提现金额（站点货币单位） |
-| `commission_withdraw_method` | `["USDT","Alipay"]` | 允许的提现方式（后端校验） |
-| `withdraw_close_enable` | `false` | 关闭提现，佣金只能转入余额 |
-| `commission_distribution_enable` / `_l1` / `_l2` / `_l3` | `false` / 0 | 三级分销比例 % |
+| `order_timeout_minutes` | 30 | Unpaid orders are cancelled automatically (1–10080 minutes) |
+| `invite_commission` | 10 | Commission rate % |
+| `invite_gen_limit` | 5 | Maximum unused invite codes per user |
+| `invite_never_expire` | `true` | When off, an invite code stops working after one use |
+| `commission_first_time_enable` | `true` | Commission on the first order only |
+| `commission_auto_check_enable` | `true` | A scheduled job pays out commission automatically |
+| `commission_withdraw_limit` | 100 | Minimum withdrawal (in site currency units) |
+| `commission_withdraw_method` | `["USDT","Alipay"]` | Allowed withdrawal methods (checked by the backend) |
+| `withdraw_close_enable` | `false` | Turns withdrawals off; commission can only be moved to the balance |
+| `commission_distribution_enable` / `_l1` / `_l2` / `_l3` | `false` / 0 | Three-level distribution rates % |
 
-### 节点通讯 `server`
+### Node connection `server`
 
-| 键 | 默认 | 说明 |
+| Key | Default | Description |
 | --- | --- | --- |
-| `server_token` | 自动生成 | XrayR `ApiKey` / V2bX `ApiKey` / soga `webapi_key`。点 **重新生成密钥** 并保存后旧值立即失效 |
-| `server_pull_interval` / `server_push_interval` | 60 / 60 | 下发给后端的拉取 / 上报间隔（秒） |
-| `server_white_list` | `[]` | 下发给 soga 的白名单 |
-| `device_limit_mode` | 0 | 设备数统计：0 严格（按在线 IP）、1 宽松（IPv4 /24、IPv6 /64 算一台） |
+| `server_token` | generated automatically | XrayR `ApiKey` / V2bX `ApiKey` / soga `webapi_key`. After you click **Regenerate token** and save, the old value stops working immediately |
+| `server_pull_interval` / `server_push_interval` | 60 / 60 | Pull / push intervals sent to backends (seconds) |
+| `server_white_list` | `[]` | White list sent to soga |
+| `device_limit_mode` | 0 | How devices are counted: 0 strict (by online IP), 1 relaxed (an IPv4 /24 or IPv6 /64 counts as one device) |
 
-本页底部 **节点后端配置示例** 会用当前 `app_url` 与密钥生成 XrayR / V2bX / soga 片段。
+The **Node backend snippets** section at the bottom of this page generates XrayR / V2bX / soga snippets with the
+current `app_url` and token.
 
-### 邮件 `email`
+### Email `email`
 
-| 键 | 默认 | 说明 |
+| Key | Default | Description |
 | --- | --- | --- |
-| `email_driver` | `log` | `log` 只写日志不发送；`smtp` 真实发送 |
-| `email_host` / `email_port` / `email_encryption` | 空 / 465 / `ssl` | `ssl`、`tls`（STARTTLS）或 `none` |
-| `email_username` / `email_password` | 空 | SMTP 账户 |
-| `email_from_address` / `email_from_name` | 空 | 发件地址与名称 |
-| `remind_mail_enable` | `true` | 发送到期与流量提醒 |
+| `email_driver` | `log` | `log` only writes to the log and sends nothing; `smtp` really sends |
+| `email_host` / `email_port` / `email_encryption` | empty / 465 / `ssl` | `ssl`, `tls` (STARTTLS) or `none` |
+| `email_username` / `email_password` | empty | SMTP account |
+| `email_from_address` / `email_from_name` | empty | Sender address and name |
+| `remind_mail_enable` | `true` | Send expiry and traffic reminders |
 
-保存后点 **发送测试邮件**（`POST /api/v1/admin/settings/mail/test`，使用已保存的配置）。
+After saving, click **Send test email** (`POST /api/v1/admin/settings/mail/test`, which uses the saved configuration).
 
-旧设置 `email_template` 已不再显示：它只为兼容 Xboard 导入而保留，服务端从不读取。邮件内容改在下面的 **邮件模板** 页面里定制。
+The old `email_template` setting is no longer shown: it is only kept for compatibility with Xboard imports, and the server
+never reads it. Customise email content on the **Email templates** page below instead.
 
-### 邮件模板 `/admin/mail-templates`
+### Email templates `/admin/mail-templates`
 
-入口：侧边栏 **系统 → 邮件模板**，或 **系统设置 → 邮件** 右上角的 **邮件模板** 按钮；只有管理员可用（客服 403）。
-七封系统邮件 —— **邮箱验证码** `verify_code`、**到期提醒** `remind_expire`、**流量提醒** `remind_traffic`、
-**支付成功** `order_paid`、**工单回复** `ticket_reply`、**订阅已重置** `subscription_reset`、**通用通知** `notify`（群发邮件、订阅泄露提醒等）—— 都可以按
-**简体中文 / English** 分别改写 **邮件标题** 和 **Markdown 正文**。正文会套进站点统一的邮件外观（Logo 或站点名、白色卡片、
-页脚），只需写卡片里的内容；没有自定义的语言继续使用内置模板，左侧列表在每个模板下标出“中文 / 英文：已自定义 / 默认”。
+Open it from the sidebar under **System → Email templates**, or with the **Email templates** button in the top-right
+corner of **Settings → Email**. Admins only (staff get 403).
+All seven system emails — **Verification code** `verify_code`, **Expiry reminder** `remind_expire`, **Data usage alert**
+`remind_traffic`, **Payment received** `order_paid`, **Ticket reply** `ticket_reply`, **Subscription reset**
+`subscription_reset` and **General notice** `notify` (bulk emails, subscription leak alerts and so on) — can be
+rewritten separately for **简体中文 / English**: the **Subject** and the Markdown **Body**. The body is placed inside the
+site's standard email layout (logo or site name, white card, footer), so you only write what goes inside the card. A
+locale you have not customised keeps using the built-in template; the list on the left marks each template with
+"Chinese / English: Custom / Default".
 
-**变量**：和公告、知识库的 `{{siteName}}` 写法相同，点编辑器工具栏里的变量按钮即可在光标处插入，按钮下方列出每个变量的含义。
-写法是 `{{name}}`，区分大小写、不能有空格（`{{ code }}`、`{{Code}}` 都算未知变量，会原样出现在邮件里）；标题里同样可以用。
-带 ★（界面上是红色 `*`）的变量必须出现在 **正文** 里（写在标题里不算）。每个模板都能用 `{{siteName}}`（站点名称）、
-`{{siteUrl}}`（`app_url`，可能为空）和 `{{year}}`（当前年份）：
+**Variables**: written the same way as `{{siteName}}` in notices and the knowledge base. Click a variable button in the
+editor toolbar to insert it at the cursor; the meaning of each variable is listed under the buttons.
+The syntax is `{{name}}`, case-sensitive and without spaces (`{{ code }}` and `{{Code}}` both count as unknown variables
+and appear literally in the email). Variables work in the subject too.
+Variables marked ★ (a red `*` in the UI) must appear in the **body** (the subject does not count). Every template can use
+`{{siteName}}` (site name), `{{siteUrl}}` (`app_url`, may be empty) and `{{year}}` (current year):
 
-| 模板 | 变量（★ 必填） | 说明 |
+| Template | Variables (★ required) | Notes |
 | --- | --- | --- |
-| 邮箱验证码 `verify_code` | `code` ★、`minutes` | `minutes` 默认 10，与内置邮件一致 |
-| 到期提醒 `remind_expire` | `expiredAt` ★、`url` | `url` 是续费页面（未提供时为 `siteUrl`） |
-| 流量提醒 `remind_traffic` | `percent` ★、`used`、`total`、`url` | `percent` 是纯数字（如 `86`） |
-| 支付成功 `order_paid` | `tradeNo` ★、`amount` ★、`planName`、`period`、`url` | `amount` 带货币符号；`url` 是订单页面 |
-| 工单回复 `ticket_reply` | `ticketSubject` ★、`message`、`url` | `message` 是客服的回复（多行） |
-| 订阅已重置 `subscription_reset` | `url` | 管理员 **重置订阅密钥** 时发给用户；`url` 是用户的订阅页面（`app_url` + `/subscription`）。没有新链接的变量，请不要在邮件里写新链接 |
-| 通用通知 `notify` | `content` ★、`title`、`url` | `title` 是调用方给的标题，默认标题就是 `{{title}}`，群发邮件与泄露提醒保留各自的主题；`content` 可多行 |
+| Verification code `verify_code` | `code` ★, `minutes` | `minutes` defaults to 10, the same as the built-in email |
+| Expiry reminder `remind_expire` | `expiredAt` ★, `url` | `url` is the renewal page (`siteUrl` when not provided) |
+| Data usage alert `remind_traffic` | `percent` ★, `used`, `total`, `url` | `percent` is a bare number (such as `86`) |
+| Payment received `order_paid` | `tradeNo` ★, `amount` ★, `planName`, `period`, `url` | `amount` includes the currency symbol; `url` is the order page |
+| Ticket reply `ticket_reply` | `ticketSubject` ★, `message`, `url` | `message` is the support reply (multi-line) |
+| Subscription reset `subscription_reset` | `url` | Sent to the user when an admin uses **Reset subscription secret**; `url` is the user's subscription page (`app_url` + `/subscription`). There is no variable for the new link, so do not put a new link in the email |
+| General notice `notify` | `content` ★, `title`, `url` | `title` is the title given by the caller, and the default subject is just `{{title}}`, so bulk emails and leak alerts keep their own subjects; `content` may be multi-line |
 
-所有 `url` 在调用方没有提供时都回落到 `siteUrl`。
+Every `url` falls back to `siteUrl` when the caller does not provide one.
 
-**正文**：Markdown（GFM，可用表格、删除线、任务列表，裸链接自动变成链接，单个换行保留为换行，也允许原始 HTML）。
-单独成段的链接（例如 `[查看订单]({{url}})`）会渲染成邮件里的按钮；替换后地址为空的链接（没有配置 `app_url`）会被去掉。
-在原始 HTML 属性里使用变量时要加引号（`<a href="{{url}}">`）。变量的值会被转义，不会被当成 Markdown 或 HTML。
+**Body**: Markdown (GFM: tables, strikethrough and task lists work, bare URLs become links, a single line break is kept as
+a line break, and raw HTML is allowed).
+A link that stands alone as a paragraph (for example `[View order]({{url}})`) is rendered as a button in the email; a
+link whose address is empty after substitution (no `app_url` configured) is removed.
+Quote variables used in raw HTML attributes (`<a href="{{url}}">`). Variable values are escaped and are never treated as
+Markdown or HTML.
 
-**实时预览**：编辑时（停顿约 0.4 秒后）编辑器下方用示例数据渲染出真实的邮件，可在 **邮件 / 纯文本** 之间切换；预览中的链接
-不可点击。缺少的必填变量（黄色）和未知变量（红色）会以标签直接显示在预览上方，保存前就能改正。
+**Live preview**: while you edit (after a pause of about 0.4 seconds), the real email is rendered with sample data below
+the editor; you can switch between **Email / Plain text**. Links in the preview cannot be clicked. Missing required
+variables (yellow) and unknown variables (red) are shown as tags right above the preview, so you can fix them before
+saving.
 
-**保存、测试与恢复**：
+**Save, test and restore**:
 
-- **保存**（底部保存栏或 ⌘/Ctrl+S）：服务端再校验一次（标题 1–255 字、单行；正文不超过 64 KB；无未知变量；必填变量齐全），
-  出错会标在对应的输入框上。保存后立即生效，无需重启。
-- **发送测试邮件**：把 **当前编辑的内容**（包括还没保存的修改）用示例数据渲染后发到指定邮箱（默认是你自己的邮箱），
-  发信方式使用 **已保存** 的邮件设置；发送失败时邮箱输入框下会显示 SMTP 的错误信息。
-- **恢复默认**：确认后删除该语言的自定义内容，改回内置模板（只在已自定义时可用）。
-- 有未保存的修改时，切换模板、切换语言或离开页面都会先询问。
+- **Save** (the save bar at the bottom, or ⌘/Ctrl+S): the server checks again (subject 1–255 characters on one line;
+  body at most 64 KB; no unknown variables; all required variables present), and errors are marked on the matching
+  field. A saved template takes effect immediately, without a restart.
+- **Send test email**: renders **what you are editing** (unsaved changes included) with sample data and sends it to the
+  address you enter (your own by default), using the **saved** mail settings; if sending fails, the SMTP error is shown
+  under the address field.
+- **Restore default**: after you confirm, deletes the customisation for that locale and goes back to the built-in
+  template (only available when the template is customised).
+- With unsaved changes, switching template or locale, or leaving the page, asks you first.
 
-*Email templates (`/admin/mail-templates`, admins only): each of the six system emails can be rewritten per locale
-(zh-CN / en) as a subject plus a Markdown body inside the standard layout. Insert `{{variables}}` from the toolbar (★ =
-required in the body), watch the live preview (unknown / missing placeholders are flagged inline), send a test of the
-current draft, or restore the built-in template. The legacy `email_template` setting is gone from the UI.*
+### Appearance `frontend`, client apps `app`
 
-### 前端外观 `frontend`、客户端下载 `app`
+`frontend_accent`, `frontend_background_url`, `frontend_customer_service_url`, `frontend_footer_html` and
+`windows|macos|android|ios_download_url` / `_version` can be saved in the admin console. The download URLs appear in
+`downloads` of the public config `GET /api/v1/guest/config`; **the current frontend does not read these appearance and
+download settings yet**, so saving them changes nothing on the pages.
 
-`frontend_accent`、`frontend_background_url`、`frontend_customer_service_url`、`frontend_footer_html` 与
-`windows|macos|android|ios_download_url` / `_version` 可以在后台保存。下载地址会出现在公开配置
-`GET /api/v1/guest/config` 的 `downloads` 中；**当前版本的前端尚未读取这些外观与下载设置**，保存后页面不会变化。
+### Security `security`
 
-### 安全 `security`
-
-| 键（界面名称） | 默认 | 说明 |
+| Key (UI label) | Default | Description |
 | --- | --- | --- |
-| `passkey_rp_id`（通行密钥 RP ID） | 空 | WebAuthn RP ID（域名，不含端口），空 = `app_url` 的主机名；IP 地址无法使用通行密钥 |
-| `passkey_origins`（通行密钥额外来源） | `[]` | 额外允许的来源（`app_url` 的来源始终允许） |
-| `admin_mfa_required`（管理员必须启用两步验证） | `false` | 强制管理员 / 客服开启两步验证或通行密钥（§8） |
-| `mfa_issuer`（验证器显示名称） | 空 | 身份验证器中显示的发行方，空 = `app_name` |
+| `passkey_rp_id` (Passkey RP ID) | empty | WebAuthn RP ID (a domain, no port); empty = the host name of `app_url`; passkeys cannot be used on an IP address |
+| `passkey_origins` (Extra passkey origins) | `[]` | Extra allowed origins (the origin of `app_url` is always allowed) |
+| `admin_mfa_required` (Require 2FA for administrators) | `false` | Forces admins / staff to turn on two-factor authentication or add a passkey (§8) |
+| `mfa_issuer` (Authenticator issuer) | empty | The issuer shown in authenticator apps; empty = `app_name` |
 
 ### Telegram `telegram`
 
-界面分为 **机器人**、**管理员通知**、**用户** 三个小节，最下方的 **连接测试** 有 **发送测试消息** 与 **设置 Webhook** 两个按钮（§9）。
+The page has three sections, **Bot**, **Admin notifications** and **Users**. **Connection** at the bottom has two
+buttons, **Send test message** and **Set webhook** (§9).
 
-| 键（界面名称） | 默认 | 说明 |
+| Key (UI label) | Default | Description |
 | --- | --- | --- |
-| `telegram_bot_token`（Bot Token） | 空 | BotFather 给的机器人 token；为空时 Telegram 通知整体关闭 |
-| `telegram_webhook_secret`（Webhook 密钥） | 首次启动自动生成 | Webhook 地址的最后一段（至少 16 位）。点输入框旁的 **重新生成密钥** 并保存（或接口提交 `null`，由服务端生成 32 位新值）后，要重新 **设置 Webhook** |
-| `telegram_admin_chat_ids`（管理员 Chat ID） | `[]` | 接收管理员通知的会话：个人或群组的数字 ID（群组、频道为 `-100…`）或 `@频道名`，输入后按回车添加 |
-| `telegram_events`（通知事件） | 订单支付、管理员登录、新工单、提现申请、订阅泄露 | 推送给管理员会话的事件，见 §9.4 |
-| `telegram_user_notify`（用户通知） | `true` | 已绑定的用户收到自己的支付成功、工单回复、到期与流量提醒 |
-| `telegram_discuss_link`（交流群链接） | 空 | 显示在用户的 Telegram 卡片与机器人帮助里 |
+| `telegram_bot_token` (Bot token) | empty | The bot token from BotFather; when empty, Telegram notifications are off altogether |
+| `telegram_webhook_secret` (Webhook secret) | generated on first start | The last segment of the webhook URL (at least 16 characters). After you click **Regenerate secret** next to the field and save (or submit `null` through the API, so the server generates a new 32-character value), you have to **Set webhook** again |
+| `telegram_admin_chat_ids` (Admin chat IDs) | `[]` | Chats that receive admin notifications: the numeric ID of a person or group (groups and channels are `-100…`) or `@channel`; press Return after each one to add it |
+| `telegram_events` (Events) | Order paid, Admin sign-in, New ticket, Withdrawal request, Subscription leak | Events pushed to the admin chats; see §9.4 |
+| `telegram_user_notify` (User notifications) | `true` | Bound users receive their own payment confirmations, ticket replies, and expiry and traffic reminders |
+| `telegram_discuss_link` (Community link) | empty | Shown on the user's Telegram card and in the bot's help |
 
 ---
 
-## 3. 节点接入 / Adding nodes
+## 3. Adding nodes
 
-顺序：**权限组 → 路由规则（可选）→ 节点 → 在服务器上配置后端**。
+Order: **groups → routes (optional) → nodes → configure the backend on the server**.
 
-1. **权限组 / Groups**（`/admin/groups`）：用户购买套餐后获得套餐的权限组，只能使用该组的节点。
-2. **路由规则 / Routes**（`/admin/routes`）：下发给 XrayR / V2bX 的路由，动作 `block`（阻断，同时作为 soga
-   审计规则）或 `dns`（用指定 DNS 解析匹配的域名）。阻断规则每行一条，所有行用 `|` 连接后必须是合法的 Go 正则。
-3. **节点 / Nodes**（`/admin/nodes` → **新建节点**）：协议类型创建后不可更改。
+1. **Groups** (`/admin/groups`): a user who buys a plan gets the plan's group and can only use the nodes of that group.
+2. **Routes** (`/admin/routes`): routes sent to XrayR / V2bX, with the action `block` (block; also used as soga audit
+   rules) or `dns` (resolve matching domains with the given DNS). Block rules take one entry per line, and all lines
+   joined with `|` must form a valid Go regular expression.
+3. **Nodes** (`/admin/nodes` → **New node**): the protocol type cannot be changed after creation.
 
-| 字段 | 说明 |
+| Field | Description |
 | --- | --- |
-| 地址 / 连接端口 | 下发给客户端；Hysteria 端口跳跃可填范围 `20000-30000` |
-| 服务端口 | 后端实际监听的端口 |
-| 流量倍率 | 用户流量 × 倍率计费 |
-| 权限组 | 未选择则没有用户可用 |
-| 父节点 | 子节点用作中转入口：沿用父节点协议配置与凭据，流量计入父节点 |
-| 显示 | 关闭后不出现在用户订阅，但后端仍可拉取配置 |
-| 协议 / JSON | 协议参数（`protocol_settings`），字段见 [NODE_PROTOCOLS.md](NODE_PROTOCOLS.md) |
+| Address / Client port | Sent to clients; for Hysteria port hopping, enter a range such as `20000-30000` |
+| Server port | The port the backend actually listens on |
+| Traffic rate | User traffic × rate is billed |
+| Groups | With none selected, no user can use the node |
+| Parent node | A child node serves as a relay entrance: it reuses the parent's protocol settings and credentials, and its traffic counts on the parent |
+| Show | When off, the node does not appear in user subscriptions, but the backend can still pull its config |
+| Protocol / JSON | Protocol parameters (`protocol_settings`); the fields are in [NODE_PROTOCOLS.md](NODE_PROTOCOLS.md) |
 
-保存后节点有了 ID，编辑页的 **对接** 标签会生成该节点专用的后端片段。节点列表状态：**在线**（有流量上报）、
-**无流量**（仅心跳）、**离线**。
+Once saved, the node has an ID, and the **Backends** tab of the edit page generates backend snippets for that node. Node
+list statuses: **Online** (traffic reported), **Idle** (heartbeat only), **Offline**.
 
-### 3.1 协议与后端对应表
+### 3.1 Protocol to backend mapping
 
-| 面板协议 | XrayR `NodeType` | V2bX `NodeType` | soga `server_type` |
+| Panel protocol | XrayR `NodeType` | V2bX `NodeType` | soga `server_type` |
 | --- | --- | --- | --- |
 | vmess | `V2ray` | `vmess` | `v2ray` |
-| vless | `Vless`（加 `EnableVless: true`） | `vless` | `vless` |
+| vless | `Vless` (plus `EnableVless: true`) | `vless` | `vless` |
 | trojan | `Trojan` | `trojan` | `trojan` |
 | shadowsocks | `Shadowsocks` | `shadowsocks` | `ss` |
 | shadowsocksr | — | — | `ssr` |
-| hysteria（v1） | — | `hysteria` | — |
-| hysteria（v2） | — | `hysteria2` | `hysteria` |
+| hysteria (v1) | — | `hysteria` | — |
+| hysteria (v2) | — | `hysteria2` | `hysteria` |
 | tuic | — | `tuic` | — |
 | anytls | — | `anytls` | `anytls` |
 | mieru | — | — | `mieru` |
 
-### 3.2 XrayR（`PanelType: NewV2board`）
+### 3.2 XrayR (`PanelType: NewV2board`)
 
 ```yaml
 # /etc/XrayR/config.yml
@@ -266,19 +287,20 @@ Nodes:
       ApiKey: "<server_token>"
       NodeID: 1
       NodeType: Vless        # V2ray | Vless | Trojan | Shadowsocks
-      EnableVless: true      # 仅 vless 节点需要
+      EnableVless: true      # vless nodes only
       Timeout: 30
 ```
 
-XrayR 请求 `/api/v1/server/UniProxy/{config,user,push}`；它忽略面板下发的用户设备数，只使用本地 `DeviceLimit`，也没有连接数限制。它不读取面板下发的拉取间隔，请把
-`ControllerConfig.UpdatePeriodic` 设为不大于面板的上报间隔。
+XrayR requests `/api/v1/server/UniProxy/{config,user,push}`. It ignores the per-user device limit sent by the panel and
+only uses its local `DeviceLimit`, and it has no connection limit. It does not read the pull interval sent by the panel,
+so set `ControllerConfig.UpdatePeriodic` to no more than the panel's push interval.
 
 ### 3.3 V2bX
 
 ```jsonc
 // /etc/V2bX/config.json → "Nodes": [ … ]
 {
-  "Core": "sing",            // hysteria / tuic / anytls 用 sing，其余用 xray
+  "Core": "sing",            // sing for hysteria / tuic / anytls, xray for everything else
   "ApiHost": "https://panel.example.com",
   "ApiKey": "<server_token>",
   "NodeID": 1,
@@ -287,10 +309,11 @@ XrayR 请求 `/api/v1/server/UniProxy/{config,user,push}`；它忽略面板下�
 }
 ```
 
-V2bX 使用面板下发的拉取 / 上报间隔，并通过 `/api/v1/server/UniProxy/alivelist` 执行设备数限制；它不支持连接数限制
-（本地 `ConnLimit` 配置已不再生效）。节点前有中转时见 §3.5。
+V2bX uses the pull / push intervals sent by the panel and enforces device limits through
+`/api/v1/server/UniProxy/alivelist`. It does not support connection limits (the local `ConnLimit` setting no longer has
+any effect). For nodes behind a relay, see §3.5.
 
-### 3.4 soga（`type=soga-v1`）
+### 3.4 soga (`type=soga-v1`)
 
 ```ini
 # /etc/soga/soga.conf
@@ -303,297 +326,378 @@ webapi_url=https://panel.example.com/soga/
 webapi_key=<server_token>
 ```
 
-推荐 `webapi_url` 使用 `/soga/` 前缀（soga 许可证绑定完整的 `webapi_url`，也便于在反向代理单独限流）；
-soga 请求 `/soga/api/v1/{node,users,audit_rules,white_list,traffic,alive_ip,audit_log,status}`，
-不带前缀的 `/api/v1/...` 同样可用。soga 执行面板下发的限速、设备数与**连接数**（用户的 `conn_limit` 作为 `tcp_limit` 下发），
-与本地的 `user_speed_limit`、`user_conn_limit` 取较小值。
+We recommend the `/soga/` prefix for `webapi_url` (the soga license is bound to the full `webapi_url`, and the prefix
+also makes it easy to rate-limit soga separately on the reverse proxy). soga requests
+`/soga/api/v1/{node,users,audit_rules,white_list,traffic,alive_ip,audit_log,status}`; the unprefixed `/api/v1/...`
+works as well. soga enforces the speed limit, device limit and **connection limit** sent by the panel (the user's
+`conn_limit` is sent as `tcp_limit`), and uses the smaller of these and the local `user_speed_limit` and
+`user_conn_limit`.
 
-### 3.5 中转机后面的节点：设备数与连接数
+### 3.5 Nodes behind a relay: device and connection limits
 
-节点前面有中转机时，后端看到的所有连接都来自中转机的 IP：每个用户无论开几台设备都只算一台，**设备数限制失效**，
-节点“在线用户”里的 IP 也都是中转机的 IP。两种办法：
+When a relay sits in front of a node, every connection the backend sees comes from the relay's IP. Each user counts as
+one device no matter how many devices they use, so **the device limit stops working**, and the IPs under the node's
+"online users" are all the relay's IP. There are two ways out:
 
-- **让后端拿到真实 IP**：中转机发送 PROXY protocol，V2bX 节点开启 `EnableProxyProtocol`，设备数限制即恢复正常。
-- **改用连接数限制**：在套餐或用户上填写 **连接数**（`conn_limit`，每个用户同时的 TCP 连接数，留空或 0 = 不限）。
-  只有 soga 支持（`tcp_limit`）；XrayR 与 V2bX 都无法限制连接数。
+- **Let the backend see the real IP**: the relay sends PROXY protocol and the V2bX node turns on `EnableProxyProtocol`;
+  the device limit then works again.
+- **Use a connection limit instead**: fill in **Connection limit** on the plan or the user (`conn_limit`, the number of
+  simultaneous TCP connections per user; empty or 0 = unlimited). Only soga supports it (`tcp_limit`); neither XrayR nor
+  V2bX can limit connections.
 
-| 限制 | XrayR | V2bX | soga |
+| Limit | XrayR | V2bX | soga |
 | --- | --- | --- | --- |
-| 限速 `speed_limit` | 支持 | 支持 | 支持 |
-| 设备数 `device_limit` | 不支持（只用本地 `DeviceLimit`） | 支持（`alivelist`） | 支持 |
-| 连接数 `conn_limit` | 不支持 | 不支持 | 支持（`tcp_limit`） |
+| Speed limit `speed_limit` | Supported | Supported | Supported |
+| Device limit `device_limit` | Not supported (local `DeviceLimit` only) | Supported (`alivelist`) | Supported |
+| Connection limit `conn_limit` | Not supported | Not supported | Supported (`tcp_limit`) |
 
 ---
 
-## 4. 套餐、优惠券与支付 / Plans, coupons and payments
+## 4. Plans, coupons and payments
 
-### 4.1 套餐 `/admin/plans`
+### 4.1 Plans `/admin/plans`
 
-- **价格**：按周期填写（站点货币），留空表示不提供该周期。周期：`monthly`、`quarterly`、`half_yearly`、
-  `yearly`、`two_yearly`、`three_yearly`、`onetime`，以及 `reset_traffic`（流量重置包）。
-- **权限组**、每周期流量、限速、设备数、连接数（只有 soga 执行，见 §3.5）、容量上限（留空 = 不限）、流量重置方式（留空 = 跟随系统设置）。
-  购买（含续费）、试用、后台新建 / 批量生成用户时，套餐的限速、设备数、连接数会复制到用户上；修改套餐不会立即改变已有用户
-  （下次付费订单时才按新值），除非使用下面的 `force_update`。
-- **显示**（商店可见）/ **销售**（允许新购）/ **续费**（允许已有用户续费）：关闭“销售”的套餐只供老用户续费。
-- **同步到现有用户**：编辑有用户持有的套餐时，“流量与限制”末尾的开关打开后保存（确认对话框会写明影响人数），会把权限组、流量额度
-  和限制（限速、设备数、连接数）覆盖到所有持有该套餐的用户，含已过期的；单独为用户调整过的值会丢失，已用流量和到期时间不变。
-  对应 `PATCH /api/v1/admin/plans/:id` 的 `"force_update": true`。
+- **Prices**: entered per period (in the site currency); empty means the period is not offered. Periods: `monthly`,
+  `quarterly`, `half_yearly`, `yearly`, `two_yearly`, `three_yearly`, `onetime`, and `reset_traffic` (traffic reset
+  pack).
+- **Server group**, traffic per period, speed limit, device limit, connection limit (only soga enforces it, see §3.5),
+  max users (empty = unlimited), traffic reset method (empty = follow the system setting).
+  On purchase (renewals included), on trials, and when users are created or generated in bulk in the admin console, the
+  plan's speed limit, device limit and connection limit are copied to the user. Editing a plan does not change existing
+  users right away (they get the new values with their next paid order), unless you use `force_update` below.
+- **Show** (visible in the shop) / **Sell** (new purchases allowed) / **Renew** (existing users may renew): a plan with
+  "Sell" off is only available to existing users for renewal.
+- **Apply to current users**: when you edit a plan that users hold, turn on the switch at the end of "Traffic & limits"
+  and save (the confirmation dialog states how many users are affected). The group, traffic quota and limits (speed
+  limit, device limit, connection limit) are then written to every user holding the plan, expired ones included. Values
+  adjusted for individual users are lost; used traffic and expiry dates stay as they are.
+  This is `"force_update": true` on `PATCH /api/v1/admin/plans/:id`.
 
-### 4.2 优惠券 `/admin/coupons`
+### 4.2 Coupons `/admin/coupons`
 
-类型 **固定金额**（按站点货币的“元”填写，接口内部存为分）或 **百分比折扣**（1–100）；可限制总次数、每人次数、适用套餐与周期、
-有效期；一次最多批量生成 500 个，留空优惠码则随机生成。
+The type is **Fixed amount** (entered in whole units of the site currency, such as yuan; stored internally in cents) or
+**Percent off** (1–100). You can limit the total number of uses, uses per user, the plans and periods it applies to, and
+the validity period. Up to 500 can be generated at once; an empty code is generated at random.
 
-### 4.3 支付方式 `/admin/payments`
+### 4.3 Payment methods `/admin/payments`
 
-**添加支付方式** → 选择网关 → 填写网关配置 → 设置显示名称、图标、手续费（固定 + 百分比，由用户承担）→ 启用。
-网关创建后不可更换。
+**Add payment method** → choose a gateway → fill in the gateway settings → set the display name, icon and handling fee
+(fixed + percentage, paid by the user) → enable it.
+The gateway cannot be changed after creation.
 
-**图标**：在图标网格里点选内置图标，表单会实时预览用户在结算页看到的样子。内置图标保存为 `preset:<id>`：
+**Icon**: click a built-in icon in the icon grid; the form shows a live preview of what users see at checkout. Built-in
+icons are saved as `preset:<id>`:
 
-| 图标 | `<id>` | 图标 | `<id>` |
+| Icon | `<id>` | Icon | `<id>` |
 | --- | --- | --- | --- |
-| 支付宝 | `alipay` | 银行转账 | `bank` |
-| 微信支付 | `wechat` | 扫码支付 | `qrcode` |
-| Stripe | `stripe` | 余额 / 钱包 | `wallet` |
-| 银行卡 | `card` | 易支付 | `epay` |
+| Alipay | `alipay` | Bank transfer | `bank` |
+| WeChat Pay | `wechat` | QR code | `qrcode` |
+| Stripe | `stripe` | Wallet | `wallet` |
+| Card | `card` | EPay | `epay` |
 | PayPal | `paypal` | Epusdt | `epusdt` |
-| 加密货币 | `crypto` | BTCPay | `btcpay` |
-| 比特币 | `btc` | Coinbase | `coinbase` |
-| USDT | `usdt` | 以太坊 | `eth` |
+| Crypto | `crypto` | BTCPay | `btcpay` |
+| Bitcoin | `btc` | Coinbase | `coinbase` |
+| USDT | `usdt` | Ethereum | `eth` |
 
-新建时会按网关与配置自动选一个，手动点选后不再自动更换：
+When you create a payment method, an icon is picked automatically from the gateway and its settings; once you pick one by
+hand, it no longer changes automatically:
 
-- 易支付：`type` 为 `alipay` → 支付宝，`wxpay` / `wechat` → 微信支付，`usdt…` → USDT，其他或留空 → 易支付；
-- Stripe：`payment_methods` 为 `card` → 银行卡，`alipay` → 支付宝，`wechat_pay` → 微信支付，`auto` → Stripe；
-- Epusdt：`currency_type` 留空或 `usdt…` → USDT，其他（如 `tron.trx`）→ 加密货币；
-- 当面付 → 支付宝，Coinbase → Coinbase，BTCPay → BTCPay。
+- EPay: `type` `alipay` → Alipay, `wxpay` / `wechat` → WeChat Pay, `usdt…` → USDT, anything else or empty → EPay;
+- Stripe: `payment_methods` `card` → Card, `alipay` → Alipay, `wechat_pay` → WeChat Pay, `auto` → Stripe;
+- Epusdt: `currency_type` empty or `usdt…` → USDT, anything else (such as `tron.trx`) → Crypto;
+- Alipay F2F → Alipay, Coinbase → Coinbase, BTCPay → BTCPay.
 
-选 **自定义 URL** 可填图片地址（`https://…` 或站内 `/…` 路径，建议正方形 SVG/PNG）或单个 Emoji。完整格式见
-[API.md › Payment icons](API.md#payment-icons)；从 Xboard 导入的旧图标值不会妨碍修改其他字段。
+Choose **Custom URL** to enter an image URL (`https://…` or an on-site `/…` path; a square SVG/PNG works best) or a
+single emoji. The full format is in [API.md › Payment icons](API.md#payment-icons). Legacy icon values imported from
+Xboard do not get in the way of editing other fields.
 
-回调地址（Notify URL）在保存后显示，格式为：
+The notify URL is shown after saving, in this form:
 
 ```text
-<回调域名 notify_domain，或 app_url>/api/v1/guest/payment/notify/<gateway>/<uuid>
+<notify_domain, or app_url>/api/v1/guest/payment/notify/<gateway>/<uuid>
 ```
 
-`uuid` 每个支付方式唯一；支付完成后买家经 `/api/v1/guest/payment/return/<trade_no>` 回到订单页。
+`uuid` is unique per payment method. After paying, the buyer returns to the order page through
+`/api/v1/guest/payment/return/<trade_no>`.
 
-| 网关 `gateway` | 必填配置 | 回调设置 |
+| Gateway `gateway` | Required settings | Callback setup |
 | --- | --- | --- |
-| 易支付 `epay` | `url`（不含 `/submit.php`）、`pid`、`key`；可选 `type`（`alipay`/`wxpay`/`qqpay` 等） | 下单时自动携带，无需手动配置；仅人民币 |
-| Epusdt / BEpusdt `epusdt` | `api_url`、`api_token`；`currency_type` 默认 `usdt.trc20` | 自动携带 |
-| 支付宝当面付 `alipay_f2f` | `app_id`、`private_key`（RSA2 ≥ 2048）、`alipay_public_key`（支付宝公钥）；`sandbox` | 自动携带；仅公钥模式、仅人民币 |
-| Stripe `stripe` | `secret_key`、`webhook_secret`；可选 `currency`、`exchange_rate`、`payment_methods`（`auto`/`card`/`alipay`/`wechat_pay`） | Dashboard → Developers → Webhooks 添加端点，URL 填回调地址，至少订阅 `checkout.session.completed` 与 `checkout.session.async_payment_succeeded`（`async_payment_failed`、`expired` 可选，只做确认） |
-| Coinbase Business `coinbase` | `api_key_name`、`api_key_secret`（ECDSA P-256 PEM）、`webhook_secret`；`exchange_rate`（每单位站点货币对应 USDC） | 用 `cdp data webhooks subscriptions create` 为 `checkout.payment.*`（及可选 `checkout.refund.*`）创建订阅，目标为回调地址；仅以 `checkout.payment.success` 开通 |
-| BTCPay Server `btcpay` | `server_url`、`store_id`、`api_key`（`btcpay.store.cancreateinvoice` + `btcpay.store.canviewinvoices`）、`webhook_secret` | Store → Settings → Webhooks 新建，Payload URL 填回调地址；发票状态为 `Settled` 且带面板写入的绑定签名才开通（轮换 Webhook 密钥前创建的未付发票需人工确认） |
+| EPay `epay` | `url` (without `/submit.php`), `pid`, `key`; optional `type` (`alipay`/`wxpay`/`qqpay` and so on) | Sent automatically with each order, nothing to configure; CNY only |
+| Epusdt / BEpusdt `epusdt` | `api_url`, `api_token`; `currency_type` defaults to `usdt.trc20` | Sent automatically |
+| Alipay F2F `alipay_f2f` | `app_id`, `private_key` (RSA2 ≥ 2048), `alipay_public_key` (the Alipay public key); `sandbox` | Sent automatically; public-key mode only, CNY only |
+| Stripe `stripe` | `secret_key`, `webhook_secret`; optional `currency`, `exchange_rate`, `payment_methods` (`auto`/`card`/`alipay`/`wechat_pay`) | In Dashboard → Developers → Webhooks, add an endpoint with the notify URL and subscribe it at least to `checkout.session.completed` and `checkout.session.async_payment_succeeded` (`async_payment_failed` and `expired` are optional and only acknowledged) |
+| Coinbase Business `coinbase` | `api_key_name`, `api_key_secret` (ECDSA P-256 PEM), `webhook_secret`; `exchange_rate` (USDC per unit of site currency) | Create a subscription for `checkout.payment.*` (and optionally `checkout.refund.*`) with `cdp data webhooks subscriptions create`, targeting the notify URL; only `checkout.payment.success` activates an order |
+| BTCPay Server `btcpay` | `server_url`, `store_id`, `api_key` (`btcpay.store.cancreateinvoice` + `btcpay.store.canviewinvoices`), `webhook_secret` | Create a webhook in Store → Settings → Webhooks with the notify URL as the Payload URL; an order is activated only when the invoice is `Settled` and carries the binding signature written by the panel (unpaid invoices created before the webhook secret was rotated need manual confirmation) |
 
-Stripe / Coinbase / BTCPay 的回调地址必须是公网 HTTPS。各网关协议细节见 [PAYMENTS_GATEWAYS.md](PAYMENTS_GATEWAYS.md)。
+The notify URLs of Stripe / Coinbase / BTCPay must be public HTTPS. Protocol details for each gateway are in
+[PAYMENTS_GATEWAYS.md](PAYMENTS_GATEWAYS.md).
 
-### 4.4 订单 `/admin/orders`
+### 4.4 Orders `/admin/orders`
 
-- **筛选**：顶部分段控件按状态切换（全部 / 待支付 / 开通中 / 已取消 / 已完成 / 已折抵），另可按订单号、用户（邮箱或 ID）、
-  佣金状态、套餐、支付方式与日期筛选，筛选条件保存在地址栏里。
-- **标记为已支付**（立即开通并计算佣金，先在支付平台核实到账）、**取消订单**（退回已抵扣的余额与优惠券次数），仅限待支付订单。
-- **佣金状态**（订单详情）：待确认 → **发放中** 表示批准，`commission_settle` 每小时把它发放给邀请人并改为 **有效**；
-  **无效** 表示不发放。“有效”只能由定时任务写入（手动选择会被拒绝），已发放的佣金不能再改。
-- **分配订单**：为用户（邮箱或 ID）创建一笔待支付订单，金额留空按套餐价格；用户可自行支付，也可由你标记为已支付。
-
----
-
-## 5. 规则集与模板 / Rule sets and templates
-
-- **系统设置 → 订阅**：`ruleset_default_template`、`ruleset_default_source`、`ruleset_mirror`、
-  `allow_user_rule_profile`（见 §2）。
-- **规则集 / Rule sets**（`/admin/rulesets`）：标签页 **来源 / 分类 / 模板 / 镜像** 展示内置目录合并覆盖后的生效结果
-  （只读）。内置来源：blackmatrix7、MetaCubeX、Loyalsoldier、SagerNet、ACL4SSR、DustinWin；内置模板：
-  `none`（全局代理）、`minimal`（国内直连）、`standard`（标准分流）、`full`（精细分流）；内置镜像：`direct`、
-  `ghfast`、`gh-proxy`、`ghproxy-net`、`gh-llkk`。
-- **自定义覆盖**（第五个标签）：JSON 结构与内置目录相同，`sources` 按键、`categories` / `templates` / `mirrors` 按 `id` 合并，
-  同 id 替换、新 id 追加；保存（`PUT /api/v1/admin/rulesets`）后对新生成的订阅立即生效，提交 `null` 恢复内置目录。
-  表单可快速添加镜像或自定义分类；新分类的 id 会写进用户的规则配置，之后不要修改。
-
-目录与模板格式见 [RULESETS.md](RULESETS.md)，订阅输出见 [SUBSCRIPTION.md](SUBSCRIPTION.md)。
+- **Filters**: the segmented control at the top switches by status (All / Pending / Processing / Cancelled / Completed /
+  Credited); you can also filter by order number, user (email or ID), commission status, plan, payment method and date.
+  The filters are kept in the address bar.
+- **Mark as paid** (activates the plan right away and calculates commission; verify the payment with the payment
+  provider first) and **Cancel order** (returns the balance used and the coupon use) are only available for pending
+  orders.
+- **Commission status** (order details): Pending → **Paying out** means approved; `commission_settle` pays it to the
+  inviter every hour and changes it to **Valid**. **Invalid** means it is not paid. Only the scheduled job can set
+  "Valid" (choosing it by hand is refused), and commission that has been paid can no longer be changed.
+- **Assign order**: creates a pending order for a user (email or ID); an empty amount uses the plan price. The user can
+  pay it themselves, or you can mark it as paid.
 
 ---
 
-## 6. 用户与内容 / Users and content
+## 5. Rule sets and templates
 
-- **用户 / Users**：按邮箱搜索，分段控件筛选状态（全部状态 / 正常 / 已封禁），另有套餐、权限组、角色、到期筛选与
-  **更多筛选**（用户 ID、邀请人 ID、订阅 Token、备注）。工具栏：**新建用户**、**批量生成**（下载含密码的 CSV）、
-  **群发邮件**（发给当前筛选的用户；正文按纯文本发送，空行分段，后台队列异步发送）、**导出 CSV**。
-- **用户详情** 分 **概况 / 资料 / 订阅** 三个标签：概况显示套餐、流量、订阅 Token 与短链、绑定的 Telegram Chat ID；
-  资料可编辑全部字段；**订阅** 标签显示 age 加密状态与访问记录（见 §10）。每行的更多菜单：**以此用户登录**（一次性链接，
-  5 分钟有效，建议在隐私窗口打开；不能用于管理员或客服账户）、**重置订阅密钥**（UUID 与订阅 token 重新生成，用户需重新导入，
-  登录会话失效；系统会发邮件并在已绑定时发 Telegram 通知用户重新登录获取新链接，通知里不含新链接）、**重置流量**、**封禁 / 解除封禁**、删除（连带订单、工单、流量记录、订阅配置与密钥）。
-- **工单 / 公告 / 知识库**：客服也可使用。工单列表顶部的分段控件切换 **待回复 / 进行中 / 已关闭 / 全部**，可按用户邮箱或 ID 搜索，
-  ↑/↓ 在列表中移动；回复已关闭的工单会重新打开它。公告与知识库用 Markdown 编辑器（编辑 / 预览）。知识库正文支持占位符
-  `{{siteName}}`、`{{subscribeUrl}}`、`{{urlEncodeSubscribeUrl}}`、`{{safeBase64SubscribeUrl}}`；工具栏的 **付费可见** 插入的
-  `<!--access start-->…<!--access end-->` 之间的内容只对有有效套餐的用户显示。后三个订阅占位符会展开成每位读者自己的订阅地址
-  （含 token），**只有管理员可以写入**：客服保存含它们的新正文会被拒绝（403），但可以继续修改管理员文章的标题、分类与显示状态。
-- **系统状态 / System**（`/admin/system`）：运行状态、定时任务、邮件队列、缓存与运行日志，每 30 秒刷新。
+- **Settings → Subscription**: `ruleset_default_template`, `ruleset_default_source`, `ruleset_mirror`,
+  `allow_user_rule_profile` (see §2).
+- **Rule sets** (`/admin/rulesets`): the tabs **Sources / Categories / Templates / Mirrors** show the effective result of
+  the built-in catalog merged with your overrides (read-only). Built-in sources: blackmatrix7, MetaCubeX, Loyalsoldier,
+  SagerNet, ACL4SSR, DustinWin. Built-in templates: `none` (global proxy), `minimal` (China direct), `standard`
+  (standard routing), `full` (fine-grained routing). Built-in mirrors: `direct`, `ghfast`, `gh-proxy`, `ghproxy-net`,
+  `gh-llkk`.
+- **Custom overrides** (the fifth tab): the JSON has the same structure as the built-in catalog. `sources` merge by key,
+  and `categories` / `templates` / `mirrors` by `id`: an existing id is replaced, a new id is appended. Once saved
+  (`PUT /api/v1/admin/rulesets`), the overrides apply right away to newly generated subscriptions; submit `null` to go
+  back to the built-in catalog.
+  The form can quickly add a mirror or a custom category. A new category's id is stored in users' routing profiles, so do
+  not change it later.
+
+The catalog and template formats are in [RULESETS.md](RULESETS.md), the subscription output in
+[SUBSCRIPTION.md](SUBSCRIPTION.md).
 
 ---
 
-## 7. 从 Xboard 迁移 / Migrating from Xboard
+## 6. Users and content
+
+- **Users**: search by email; the segmented control filters by status (Any status / Active / Banned), and there are also
+  plan, group, role and expiry filters and **More filters** (User ID, Inviter ID, Subscription token, Remarks). Toolbar:
+  **New user**, **Generate** (downloads a CSV that includes the passwords), **Send mail** (to the users matching the
+  current filters; the body is sent as plain text with blank lines separating paragraphs, and a background queue sends it
+  asynchronously), **Export CSV**.
+- **User details** has three tabs, **Summary / Profile / Subscription**. Summary shows the plan, traffic, subscription
+  token and short link, and the bound Telegram chat ID; Profile edits every field; the **Subscription** tab shows the
+  age encryption status and the access log (see §10). The more menu of each row: **Log in as user** (a one-time link,
+  valid for 5 minutes, best opened in a private window; cannot be used for admin or staff accounts), **Reset
+  subscription secret** (the UUID and subscription token are regenerated, the user has to re-import, and their sign-in
+  sessions end; the system emails the user, and sends a Telegram message if they are bound, telling them to sign in again
+  to get the new link — the notice does not contain the new link), **Reset traffic**, **Ban / Unban**, and Delete (which
+  also removes their orders, tickets, traffic records, subscription profiles and keys).
+- **Tickets / Notices / Knowledge**: staff can use these too. The segmented control at the top of the ticket list
+  switches between **Awaiting / Open / Closed / All**; you can search by user email or ID, and ↑/↓ moves through the
+  list. Replying to a closed ticket reopens it. Notices and knowledge articles use a Markdown editor (Write / Preview).
+  Knowledge article bodies support the placeholders `{{siteName}}`, `{{subscribeUrl}}`, `{{urlEncodeSubscribeUrl}}` and
+  `{{safeBase64SubscribeUrl}}`. Content between `<!--access start-->…<!--access end-->`, which **Subscribers only** in
+  the toolbar inserts, is only shown to users with an active plan. The last three subscription placeholders expand to
+  each reader's own subscription URL (including the token), so **only admins can write them**: when staff save a new
+  body containing them, it is refused (403), but staff can still change the title, category and visibility of an
+  admin's article.
+- **System** (`/admin/system`): runtime status, scheduled jobs, mail queue, cache and logs, refreshed every 30 seconds.
+
+---
+
+## 7. Migrating from Xboard
 
 ```bash
-ggboard import xboard --dsn "mysql://user:pass@127.0.0.1:3306/xboard" --dry-run   # 先预演（全部回滚）
+ggboard import xboard --dsn "mysql://user:pass@127.0.0.1:3306/xboard" --dry-run   # rehearse first (everything is rolled back)
 ggboard import xboard --dsn "mysql://user:pass@127.0.0.1:3306/xboard" --with-stats
 ```
 
-| 参数 | 说明 |
+| Flag | Description |
 | --- | --- |
-| `--dsn` | 必填：`mysql://…`、`postgres://…` 或 `sqlite:///path` |
-| `--driver` | DSN 没有 scheme 时指定 `mysql` / `postgres` / `sqlite` |
-| `--dry-run` | 读写全部执行后回滚 |
-| `--force` | 先删除 ggboard 已有数据（用户、套餐、节点…）再导入 |
-| `--skip-banned` | 不导入被封禁的用户及只属于他们的数据（工单、邀请码、统计…），保留行里指向他们的引用会置空；汇总里显示 `skipped banned N`。注意封禁状态不会带过来，这些邮箱在 ggboard 里可以重新注册；预演、正式导入和 `--force` 重导都要带上这个开关。规则见 IMPORT_XBOARD.md §3.5 |
-| `--with-stats` / `--stats-days` | 同时导入统计，默认最近 90 天 |
-| `--source-tz` | Xboard 时区，默认 `Asia/Shanghai` |
+| `--dsn` | Required: `mysql://…`, `postgres://…` or `sqlite:///path` |
+| `--driver` | `mysql` / `postgres` / `sqlite`, when the DSN has no scheme |
+| `--dry-run` | Runs every read and write, then rolls back |
+| `--force` | Deletes existing ggboard data (users, plans, nodes…) before importing |
+| `--skip-banned` | Does not import banned users or the data that belongs only to them (tickets, invite codes, stats…); references to them in rows that are kept are set to null, and the summary shows `skipped banned N`. Note that the ban itself is not carried over, so these emails can register again in ggboard; pass this flag on the dry run, the real import and any `--force` re-import. The rules are in IMPORT_XBOARD.md §3.5 |
+| `--with-stats` / `--stats-days` | Also import stats, the last 90 days by default |
+| `--source-tz` | Xboard time zone, default `Asia/Shanghai` |
 
-**导入前**：暂停销售并等待待支付订单结束（订单不导入）；在 Xboard 结算佣金；先 `--dry-run` 并逐条阅读警告。
+**Before importing**: pause sales and wait until pending orders are finished (orders are not imported); settle
+commission in Xboard; run `--dry-run` first and read every warning.
 
-**导入后检查清单**：
+**Checklist after importing**:
 
-1. 重启 ggboard，让运行中的进程加载导入的设置。
-2. 后端：`server_token` 原样复制，XrayR / V2bX / soga 的密钥不变；把 `ApiHost` / `webapi_url` 指向 ggboard
-   （或迁移旧域名 DNS），并按警告修改被重新编号的 `NodeID`。
-3. 支付：EPay / Epusdt / 当面付无需改动；Stripe、Coinbase、BTCPay 需在服务商后台把 Webhook 改为新的回调地址后再启用。
-4. 订阅：`curl -sI "https://<host>/api/v1/client/subscribe?token=<真实 token>"` 应返回 200 并带
-   `subscription-userinfo`；`/s/<token>` 短链接同样可用；确认 `subscribe_url` 包含用户已在用的域名。
-5. 登录：分别用 bcrypt 与 md5/sha256 旧哈希用户登录一次（成功后自动升级为 argon2id）。
-6. 设置：发送测试邮件、复核人机验证密钥；Telegram 设置不导入，按 §9.5 重新填写并设置 Webhook；Xboard 的 `secure_path`
-   不再生效，如需隐藏 `/admin` 请在反向代理上限制。
-7. 保留 Xboard 数据库作为只读备份（导入器从不修改它）。
+1. Restart ggboard so the running process loads the imported settings.
+2. Backends: a `server_token` of at least 16 characters is copied as is, so the XrayR / V2bX / soga keys stay the same.
+   A shorter one (or an empty one) is not imported and ggboard keeps the token it generated: copy it from
+   **Settings → Node connection** into every backend, as the import report says. Point `ApiHost` /
+   `webapi_url` at ggboard (or move the old domain's DNS), and change any `NodeID` that was renumbered, as the warnings
+   say.
+3. Payments: EPay / Epusdt / Alipay F2F need no change; for Stripe, Coinbase and BTCPay, change the webhook to the new
+   notify URL in the provider's dashboard before enabling them.
+4. Subscriptions: `curl -sI "https://<host>/api/v1/client/subscribe?token=<real token>"` should return 200 with
+   `subscription-userinfo`; the `/s/<token>` short link works too. Make sure `subscribe_url` includes the domains users
+   already use.
+5. Sign-in: sign in once each as a user with a bcrypt hash and a user with an old md5/sha256 hash (after a successful
+   sign-in the hash is upgraded to argon2id automatically).
+6. Settings: send a test email and check the CAPTCHA keys again. Telegram settings are not imported: fill them in again
+   and set the webhook as in §9.5. Xboard's `secure_path` no longer has any effect; to hide `/admin`, restrict it on the
+   reverse proxy.
+7. Keep the Xboard database as a read-only backup (the importer never modifies it).
 
-完整映射与警告含义见 [IMPORT_XBOARD.md](IMPORT_XBOARD.md)。
-
----
-
-## 8. 两步验证与通行密钥策略 / 2FA and passkey policy
-
-- **强制管理员 MFA**：开启 `admin_mfa_required` 后，未开启两步验证且没有通行密钥的管理员与客服访问后台接口会得到
-  `403 mfa_setup_required`，前端提示并跳转到 **个人中心 → 安全** 完成设置（该页面不受限制）。建议先为自己开启再打开开关。
-  普通用户不受此开关影响，可自愿开启。
-- **通行密钥前提**：必须设置 `app_url`（或 `passkey_rp_id`），否则公开配置里 `passkey_enabled` 为 `false`，
-  前端隐藏通行密钥。用户须通过站点正式域名（HTTPS）访问。
-- **多个域名**：`passkey_rp_id` 设为共同的上级域名（如 `example.com`），并把其他来源（如 `https://www.example.com`）
-  加入 `passkey_origins`。通行密钥与注册时的 RP ID 绑定，修改 `passkey_rp_id` 后已有通行密钥将无法使用。
-- **TOTP 密钥加密**：身份验证器密钥用 `jwt.secret` 派生的密钥加密存储，轮换 `jwt.secret` 会让所有已绑定的身份验证器失效
-  （同时注销所有会话）。
-- **找回**：用户丢失身份验证器时，可用备用码登录，或用已添加的通行密钥直接登录。后台与 CLI **没有**重置他人两步验证的功能，
-  `ggboard admin reset-password` 也不会关闭两步验证；万不得已时由运维在数据库中删除该用户在 `user_mfa` 表中的行
-  （关闭 TOTP 与备用码），或删除 `passkeys` 表中对应的行。
+The full mappings and the meaning of each warning are in [IMPORT_XBOARD.md](IMPORT_XBOARD.md).
 
 ---
 
-## 9. Telegram 通知 / Telegram notifications
+## 8. 2FA and passkey policy
 
-面板通过 Telegram 机器人把关键事件推送给管理员，并让用户绑定自己的 Telegram 接收订单与工单通知。
-*The panel pushes key events to admin chats through a Telegram bot; users can bind their own Telegram account.*
+- **Require MFA for admins**: with `admin_mfa_required` on, admins and staff who have neither two-factor authentication
+  nor a passkey get `403 mfa_setup_required` from the admin API; the frontend tells them and sends them to
+  **Profile → Security** to set it up (that page is not restricted). Turn it on for yourself before you turn on the
+  switch.
+  Regular users are not affected by this switch and can turn it on if they want.
+- **Passkey prerequisites**: `app_url` (or `passkey_rp_id`) must be set; otherwise `passkey_enabled` is `false` in the
+  public config and the frontend hides passkeys. Users must visit the site through its official domain (HTTPS).
+- **Several domains**: set `passkey_rp_id` to the common parent domain (such as `example.com`) and add the other origins
+  (such as `https://www.example.com`) to `passkey_origins`. A passkey is bound to the RP ID it was registered with, so
+  existing passkeys stop working after you change `passkey_rp_id`.
+- **TOTP secret encryption**: authenticator secrets are stored encrypted with a key derived from `jwt.secret`. Rotating
+  `jwt.secret` invalidates every bound authenticator (and also ends every session).
+- **Recovery**: a user who loses their authenticator can sign in with a backup code, or directly with a passkey they
+  added. The admin console and the CLI have **no** way to reset another user's two-factor authentication, and
+  `ggboard admin reset-password` does not turn it off either. As a last resort, an operator deletes the user's row in
+  the `user_mfa` table (which turns off TOTP and backup codes), or the matching rows in the `passkeys` table.
 
-### 9.1 创建机器人
+---
 
-1. 在 Telegram 里打开 [@BotFather](https://t.me/BotFather)，发送 `/newbot`，按提示填写名称与用户名（必须以 `bot` 结尾）。
-2. BotFather 回复的 `123456789:AA…` 就是 token，填入 **系统设置 → Telegram → Bot Token**（`telegram_bot_token`）并保存。
-   token 等同于机器人密码：不要截图外传；泄露后在 BotFather 里 `/revoke` 换新。
-3. 可选：`/setdescription`、`/setuserpic` 设置简介与头像；`/setcommands` 填入
-   `start - 绑定面板账户`、`unbind - 解除绑定`、`id - 查看 Chat ID`。
+## 9. Telegram notifications
 
-### 9.2 设置 Webhook
+The panel pushes key events to admins through a Telegram bot, and lets users bind their own Telegram to receive order and
+ticket notifications.
 
-机器人通过 Webhook 接收命令。先确认 **站点 → `app_url`** 是可公网访问的 HTTPS 地址（Telegram 只接受 443、80、88、8443 端口），
-然后在 **系统设置 → Telegram → 连接测试** 点 **设置 Webhook**（`POST /api/v1/admin/settings/telegram/webhook`）。面板把
-`<app_url>/api/v1/guest/telegram/webhook/<telegram_webhook_secret>` 注册给 Telegram（只接收消息更新，并附带
-`secret_token`）：成功时显示“Webhook 已设置：<地址>”，失败时显示 Telegram 返回的错误码与描述；缺少 Bot Token 或
-`app_url` 时对应字段会标红。Telegram 设置有未保存的修改时两个按钮不可用，先保存。
-更换 `app_url`、重新生成 Webhook 密钥或更换 token 后要重新设置一次。同一个 token 同时只能有一个 Webhook：
-如果旧面板（如 Xboard）还在用这个机器人，设置后旧面板就收不到命令了。
+### 9.1 Create the bot
 
-### 9.3 获取 Chat ID 并测试
+1. In Telegram, open [@BotFather](https://t.me/BotFather), send `/newbot` and follow the prompts to enter a name and a
+   username (it must end in `bot`).
+2. The `123456789:AA…` that BotFather replies with is the token. Enter it in **Settings → Telegram → Bot token**
+   (`telegram_bot_token`) and save.
+   The token is the bot's password: do not share screenshots of it. If it leaks, `/revoke` it in BotFather to get a new
+   one.
+3. Optional: `/setdescription` and `/setuserpic` set the description and avatar; for `/setcommands`, enter
+   `start - Link your panel account`, `unbind - Unlink`, `id - Show the chat ID`.
 
-1. **个人**：私聊机器人发送 `/id`，机器人回复 `Chat ID：123456789`（`/id` 在任何会话都可用，绑定前也能用）。
-2. **群组**：把机器人拉进群，在群里发送 `/id`（多个机器人时发 `/id@你的机器人`），得到 `-100…` 开头的 ID。
-3. **频道**：把机器人设为频道管理员，**管理员 Chat ID** 直接填 `@频道用户名`。
-4. 把这些 ID 逐个填入 **管理员 Chat ID**（`telegram_admin_chat_ids`，输入后按回车）并保存，然后点 **发送测试消息**
-   （`POST …/telegram/test`，同步发送）。页面显示“已发送 N 条，失败 M 条”，并列出每个失败的 Chat 及原因（常见失败：
-   `chat not found` = ID 错误或机器人没进群；`bot was blocked` = 被拉黑）。
+### 9.2 Set the webhook
 
-### 9.4 事件
+The bot receives commands through a webhook. First make sure **Site → `app_url`** is a publicly reachable HTTPS address
+(Telegram only accepts ports 443, 80, 88 and 8443), then click **Set webhook** under **Settings → Telegram → Connection**
+(`POST /api/v1/admin/settings/telegram/webhook`). The panel registers
+`<app_url>/api/v1/guest/telegram/webhook/<telegram_webhook_secret>` with Telegram (message updates only, with a
+`secret_token`). On success it shows "Webhook set: <url>"; on failure it shows the error code and description returned
+by Telegram. When the bot token or `app_url` is missing, that field is marked red. Both buttons are disabled while the
+Telegram settings have unsaved changes, so save first.
+Set the webhook again after changing `app_url`, regenerating the webhook secret or changing the token. A token can only
+have one webhook at a time: if an old panel (such as Xboard) still uses this bot, it stops receiving commands once you
+set the webhook here.
 
-**通知事件**（`telegram_events`）决定管理员会话收到哪些事件：
+### 9.3 Get chat IDs and test
 
-| 消息标题 | 键（设置里的名称） | 内容 |
+1. **Person**: send `/id` to the bot in a private chat; it replies `Chat ID: 123456789` (`/id` works in any chat, even
+   before binding).
+2. **Group**: add the bot to the group and send `/id` in the group (`/id@your_bot` when there are several bots) to get
+   an ID starting with `-100…`.
+3. **Channel**: make the bot an admin of the channel and enter `@channel_username` directly in **Admin chat IDs**.
+4. Enter these IDs one by one in **Admin chat IDs** (`telegram_admin_chat_ids`, press Return after each) and save, then
+   click **Send test message** (`POST …/telegram/test`, sent synchronously). The page shows "Sent N, failed M" and lists
+   each failed chat with the reason (common failures: `chat not found` = wrong ID, or the bot is not in the group;
+   `bot was blocked` = the bot was blocked).
+
+### 9.4 Events
+
+**Events** (`telegram_events`) decides which events the admin chats receive:
+
+| Message title | Key (name in the settings) | Content |
 | --- | --- | --- |
-| 🧾 新订单 | `order_new`（新订单） | 用户下单：邮箱、套餐、周期、金额、订单号（后台手动分配的订单不推送） |
-| 💰 订单已支付 | `order_paid`（订单支付） | 以上 + 支付方式、流水号；**默认开启** |
-| 🧾 订单已取消 | `order_cancel`（订单取消） | 超时自动取消或管理员取消（用户自己取消不推送） |
-| 🔐 管理员登录 | `admin_login`（管理员登录） | 每次管理员 / 客服登录：邮箱、角色、方式（密码、密码 + 两步验证、密码 + 备用码、通行密钥）、IP、设备（UA）、时间；**默认开启** |
-| 🎫 新工单 | `ticket_new`（新工单） | 主题、优先级、用户与首条消息摘要；**默认开启** |
-| 🎫 工单有新回复 | `ticket_reply`（工单回复） | 客服的每条回复（本来就发给用户；管理员一般不需要） |
-| 💸 提现申请 | `withdraw`（提现申请） | 用户、金额、方式与打码后的账号；**默认开启** |
-| 🚨 订阅疑似泄露 | `subscription_leak`（订阅泄露） | 泄露检测命中的用户与不同 IP 数（§10）；**默认开启** |
+| 🧾 New order | `order_new` (New order) | A user placed an order: email, plan, period, amount, order number (orders assigned by hand in the admin console are not pushed) |
+| 💰 Order paid | `order_paid` (Order paid) | The above plus payment method and transaction ID; **on by default** |
+| 🧾 Order cancelled | `order_cancel` (Order cancelled) | Cancelled automatically on timeout or by an admin (cancellations by the user are not pushed) |
+| 🔐 Admin sign-in | `admin_login` (Admin sign-in) | Every admin / staff sign-in: email, role, method (password, password + 2FA code, password + backup code, passkey), IP, device (UA), time; **on by default** |
+| 🎫 New ticket | `ticket_new` (New ticket) | Subject, priority, user and a summary of the first message; **on by default** |
+| 🎫 New reply to your ticket | `ticket_reply` (Ticket reply) | Every reply from support (these go to the user anyway; admins usually do not need them) |
+| 💸 Withdrawal request | `withdraw` (Withdrawal request) | User, amount, method and the masked account; **on by default** |
+| 🚨 Possible subscription leak | `subscription_leak` (Subscription leak) | The user caught by leak detection and the number of distinct IPs (§10); **on by default** |
 
-**登录提醒**：保持 `admin_login` 开启，任何管理员或客服账户每次登录（包括通行密钥登录）都会推送一条消息；
-看到不认识的 IP 或设备时，立即修改该账户密码（会注销所有会话）并检查两步验证。普通用户登录不推送。
+**Sign-in alerts**: keep `admin_login` on, and every sign-in to any admin or staff account (passkey sign-ins included)
+sends a message. If you see an IP or device you do not recognise, change that account's password right away (which ends
+all of its sessions) and check its two-factor authentication. Sign-ins of regular users are not pushed.
 
-用户侧（`telegram_user_notify` 开启时，仅限已绑定的用户）：自己的订单支付成功、工单回复、到期提醒与流量提醒，
-以及管理员 **重置订阅密钥** 后的“🔄 订阅信息已重置”（`subscription_reset`，只发给该用户，不在上面的通知事件里）。
-到期 / 流量提醒随每天 10:00 的提醒任务一起发送，与邮件提醒共用“24 小时一次”的限制；关闭 `remind_mail_enable`
-只停邮件，已绑定 Telegram 的用户仍会收到 Telegram 提醒。
+User side (when `telegram_user_notify` is on, bound users only): their own successful order payments, ticket replies,
+expiry reminders and traffic reminders, the "🚨 Possible subscription leak" alert about their own link
+(`subscription_leak`, sent whether or not the admins subscribe to it above; §10), plus "🔄 Subscription reset" after an
+admin uses **Reset subscription secret** (`subscription_reset`, sent only to that user and not one of the events above).
+Expiry / traffic reminders are sent with the daily 10:00 reminder job and share the "once per 24 hours" limit with the
+email reminders. Turning off `remind_mail_enable` only stops the emails; users bound to Telegram still get the Telegram
+reminders.
 
-发送失败会自动重试 3 次（1 s / 2 s / 4 s，遇到 Telegram 限流按其要求等待），仍失败的记在 **系统状态 → 运行日志**
-（WARN 级别）；排队、成功、失败数与启用的渠道见 `GET /api/v1/admin/system/status` 的 `notify` 字段（后台页面暂不显示）。
-服务器无法直连 `api.telegram.org` 时通知无法送达，请为服务器配置可用的出站网络。
+A failed send is retried 3 times automatically (1 s / 2 s / 4 s; when Telegram rate-limits, the panel waits as long as
+Telegram asks). Sends that still fail are recorded in **System → Logs** (WARN level). Queued, sent and failed counts and
+the enabled channels are in the `notify` field of `GET /api/v1/admin/system/status` (not shown in the admin console
+yet).
+If the server cannot reach `api.telegram.org` directly, notifications cannot be delivered; give the server working
+outbound network access.
 
-### 9.5 从 Xboard 迁移
+### 9.5 Migrating from Xboard
 
-导入器保留每个用户的 `telegram_id`。若沿用 Xboard 原来的机器人 token，已绑定的用户无需重新绑定即可收到通知；
-记得按 §9.2 把 Webhook 改到 ggboard。Xboard 的 `telegram_*` 设置不会被导入，需要在这里重新填写：
+The importer keeps each user's `telegram_id`. If you keep Xboard's existing bot token, users who were already bound get
+notifications without binding again; remember to move the webhook to ggboard as in §9.2. Xboard's `telegram_*`
+settings are not imported and have to be filled in here again:
 
-- **Bot Token**：Xboard 的 `telegram_bot_token`（或在 BotFather 换新）；
-- **交流群链接**：Xboard 的 `telegram_discuss_link`；
-- **管理员 Chat ID**：Xboard 把管理员通知发给绑定了 Telegram 的管理员账户，ggboard 改为发到这里列出的会话。
-  管理员账户的 Chat ID 就是 **用户详情 → 概况** 里的 Telegram 一栏，也可以私聊机器人发 `/id` 获取；
-- 按需勾选 **通知事件**，保存后点 **设置 Webhook** 与 **发送测试消息**。
+- **Bot token**: Xboard's `telegram_bot_token` (or a new one from BotFather);
+- **Community link**: Xboard's `telegram_discuss_link`;
+- **Admin chat IDs**: Xboard sends admin notifications to the admin accounts that are bound to Telegram; ggboard sends
+  them to the chats listed here instead. An admin account's chat ID is the Telegram row in **User details → Summary**;
+  you can also get it by sending `/id` to the bot in a private chat;
+- Tick the **Events** you need, save, then click **Set webhook** and **Send test message**.
 
 ---
 
-## 10. 订阅防泄露 / Subscription protection
+## 10. Subscription protection
 
-在 **系统设置 → 订阅 → 防泄露** 配置（§2）。两项机制互相独立：
+Configured under **Settings → Subscription → Leak protection** (§2). The two mechanisms are independent of each other:
 
-**age 加密订阅**：由用户在订阅页自行生成密钥并开启（见 [USER_GUIDE.md](USER_GUIDE.md) §3.4）。开启后只有 Clash Meta（mihomo）
-格式会加密；其他格式默认仍给明文。
+**age-encrypted subscriptions**: users generate a key and turn encryption on themselves on the subscription page (see
+[USER_GUIDE.md](USER_GUIDE.md) §3.4). Once it is on, only the Clash Meta (mihomo) format is encrypted; other formats
+still get plaintext by default.
 
-| 设置 | 作用 |
+| Setting | Effect |
 | --- | --- |
-| **允许临时关闭加密** `subscribe_age_optional`（默认开） | 链接加 `&age=0` 时返回明文，便于临时排查 |
-| **严格加密** `subscribe_age_strict`（默认关） | 不支持 age 的格式（Stash、sing-box、Surge 等）返回 406，不再退回明文 |
+| **Allow opting out of encryption** `subscribe_age_optional` (on by default) | Returns plaintext when the link has `&age=0`, for quick troubleshooting |
+| **Strict encryption** `subscribe_age_strict` (off by default) | Formats that do not support age (Stash, sing-box, Surge and so on) return 406 instead of falling back to plaintext |
 
-默认组合偏向兼容：泄露的链接仍可以通过 `&age=0` 或换一种格式拿到明文。要真正防泄露，请开启 **严格加密** 并关闭
-**允许临时关闭加密**，并提醒已开启加密的用户只使用支持 age 的客户端。设置只影响已开启加密的用户。
+The defaults lean towards compatibility: a leaked link can still get plaintext with `&age=0` or by switching to another
+format. For real leak protection, turn on **Strict encryption**, turn off **Allow opting out of encryption**, and remind
+users who have encryption on to only use clients that support age. The settings only affect users who have encryption
+on.
 
-**泄露检测**：**泄露检测阈值** `subscribe_leak_max_ips` 大于 0 时生效。同一个订阅 token 在 24 小时内被超过 N 个不同 IP
-（IPv6 按 /64 计）获取，同一 token 每 24 小时最多触发一次：
+**Leak detection**: active when **Leak detection threshold** `subscribe_leak_max_ips` is above 0. It triggers when one
+subscription token is fetched from more than N distinct IPs (IPv6 counted per /64) within 24 hours, at most once every
+24 hours per token:
 
-- **触发后** = `notify`（界面“仅通知管理员”）：给用户发一封“订阅链接疑似泄露”邮件，订阅不受影响；
-- **触发后** = `rotate`（界面“通知并重置订阅”）：先轮换该用户的订阅 token（UUID 与登录会话不变，旧链接立即失效），
-  再把新链接发邮件给用户；
-- 两种情况都会写一条 WARN 日志，并在 **通知事件** 勾选了“订阅泄露”时推送到管理员 Telegram（§9.4）。
+- **When triggered** = `notify` ("Notify (email the user; Telegram to admins and the bound user)" in the UI): the user
+  gets a "Your subscription link may have leaked" email; the subscription is not affected;
+- **When triggered** = `rotate` ("Notify and rotate the link" in the UI): the user's subscription token is rotated first
+  (the UUID and sign-in sessions stay the same, the old link stops working immediately), then the new link is emailed to
+  the user;
+- In both cases a WARN log line is written, and when "Subscription leak" is ticked in **Events**, an alert is pushed to
+  the admin Telegram chats (§9.4). A user who has bound Telegram also gets the alert there while **User notifications**
+  is on, whatever **Events** says; that message does not contain the new link.
 
-阈值按家庭或多设备用户的正常 IP 数设置（例如 10–20），太低会误报。访问记录每 10 秒批量写入，保留每个用户最新 100 条、
-最长 30 天；按 token 计数，轮换或重置后的新链接重新计数。
+Set the threshold to the normal number of IPs of a household or multi-device user (for example 10–20); a threshold that
+is too low gives false alarms. Access records are written in batches every 10 seconds; the latest 100 per user are kept,
+for at most 30 days. Counting is per token, so the new link after a rotation or reset starts counting from zero.
 
-**查看单个用户**：**用户 → 用户详情 → 订阅** 标签显示：
+**Looking at one user**: the **Users → User details → Subscription** tab shows:
 
-- age 加密状态（已开启 / 未开启）与公钥（管理员看不到私钥）；**重置 age 密钥** 为该用户生成新密钥对，开关保持不变，
-  用户需要在订阅页查看新私钥并更新客户端（`POST /api/v1/admin/users/:id/subscription/age/reset`）；
-- 近 24 小时不同 IP 数与最新 100 条访问记录（完整 IP 与归属地、客户端、格式、Token 标识、时间；
-  `GET /api/v1/admin/users/:id/subscription/access-log`），Token 标识相同的行来自同一个订阅链接；
-- **轮换订阅链接**：管理端没有单独的 token 轮换接口，这个按钮调用 **重置订阅密钥**，UUID 与 token 一起更换，
-  用户需要重新导入订阅，登录会话也会失效，并会收到邮件（和已绑定的 Telegram）通知。只想换链接时，请让用户在订阅页自己 **轮换订阅链接**。
+- the age encryption status (On / Off) and the public key (admins cannot see the private key). **Reset age key**
+  generates a new key pair for the user and leaves the switch as it is; the user has to read the new private key on the
+  subscription page and update their clients (`POST /api/v1/admin/users/:id/subscription/age/reset`);
+- the number of distinct IPs in the last 24 hours and the latest 100 access records (full IP and location, client,
+  format, token tag, time; `GET /api/v1/admin/users/:id/subscription/access-log`). Rows with the same token tag come
+  from the same subscription link;
+- **Rotate link**: the admin side has no separate token rotation endpoint, so this button calls **Reset subscription
+  secret**. The UUID and token are replaced together, the user has to re-import the subscription, their sign-in sessions
+  end, and they are notified by email (and Telegram, if bound). If you only want to change the link, ask the user to use
+  **Rotate link** on their own subscription page.
 
-这些接口与标签仅管理员可用，客服看不到。
+These endpoints and the tab are admin-only; staff cannot see them.

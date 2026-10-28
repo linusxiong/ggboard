@@ -1,146 +1,192 @@
-# 安全策略 / Security Policy
+# Security Policy
 
-## 报告漏洞 / Reporting a vulnerability
+**English** · [简体中文](SECURITY.zh-CN.md)
 
-请**不要**用公开 Issue 报告安全问题。请通过 GitHub 私密漏洞报告提交：
-<https://github.com/linusxiong/ggboard/security/advisories/new>（仓库 **Security → Report a vulnerability**）。
+## Reporting a vulnerability
 
-请写明：受影响的版本或提交、复现步骤或 PoC、影响范围，以及你建议的修复（如果有）。我们会在私密通告里和你沟通，
-修复发布后再公开，并在你同意时致谢。这是业余维护的开源项目，响应尽力而为。
+Please **do not** report security issues in a public issue. Submit them through GitHub private vulnerability reporting:
+<https://github.com/linusxiong/ggboard/security/advisories/new> (**Security → Report a vulnerability** in the
+repository).
 
-*Report privately via GitHub Security Advisories, never in a public issue.*
+Include the affected version or commit, steps to reproduce or a PoC, the impact, and your suggested fix (if you have
+one). We will talk to you in the private advisory, publish it after the fix is released, and credit you if you agree.
+This is an open-source project maintained in spare time, so responses are best effort.
 
-## 支持的版本 / Supported versions
+## Supported versions
 
-| 版本 | 状态 |
+| Version | Status |
 | --- | --- |
-| 最新的 `1.x` 版本（与 `main`） | ✅ 接收安全修复 |
-| 更早的 `1.x` 版本、1.0 之前的提交 | ❌ 请升级到最新的 `1.x` 版本 |
+| The latest `1.x` release (and `main`) | ✅ Receives security fixes |
+| Older `1.x` releases, commits from before 1.0 | ❌ Upgrade to the latest `1.x` release |
 
-安全修复进 `main`，并随下一个补丁版本（`1.x.y`）发布；不向更早的版本做向后移植。
+Security fixes go into `main` and ship with the next patch release (`1.x.y`). They are not backported to older releases.
 
-## 加固清单 / Hardening checklist
+## Hardening checklist
 
-部署细节见 [docs/DEPLOY.md](docs/DEPLOY.md)。每一项都对应代码里的实际行为。
+Deployment details are in [docs/DEPLOY.md](docs/DEPLOY.md). Every item matches what the code actually does.
 
-### 网络与 TLS
+### Network and TLS
 
-- [ ] **只走 HTTPS**：面板自己不处理 TLS，也不发 HSTS。放在 nginx / Caddy 后面，80 跳 443，并由代理发
-      `Strict-Transport-Security`（`deploy/nginx.example.conf` 已包含）。
-- [ ] **只监听本机**：compose 只发布 `127.0.0.1:8080`，systemd 单元监听 `127.0.0.1:8080`，不要直接暴露 8080 端口。
-- [ ] **`server.trusted_proxies` 只填你的代理**（如 `127.0.0.1,::1`，Docker 填网桥网段）。不填时客户端 IP 全是代理 IP，
-      按 IP 的限流会变成全站共享；填 `0.0.0.0/0` 则任何人都能伪造 `X-Forwarded-For` 绕过限流。
-- [ ] **设置 `app_url`**（`https://...`）：支付回调、订阅链接、邮件链接和 Passkey 的 RP 都以它为准。不设时面板会根据请求的
-      `Host` 和 `X-Forwarded-Proto` 拼接绝对 URL。
-- [ ] **`server.cors_origins` 保持为空**（仅同源）。SPA 由二进制自己提供，不需要跨域；不要设置 `*`。
+- [ ] **HTTPS only**: the panel does not handle TLS itself and does not send HSTS. Put it behind nginx / Caddy, redirect
+      80 to 443, and have the proxy send `Strict-Transport-Security` (`deploy/nginx.example.conf` already does).
+- [ ] **Listen on localhost only**: compose only publishes `127.0.0.1:8080` and the systemd unit listens on
+      `127.0.0.1:8080`. Do not expose port 8080 directly.
+- [ ] **Put only your proxies in `server.trusted_proxies`** (e.g. `127.0.0.1,::1`; with Docker, the bridge network's
+      subnet). Without it, every client IP is the proxy's IP and the per-IP rate limits are shared by the whole site; with
+      `0.0.0.0/0`, anyone can forge `X-Forwarded-For` to get around the rate limits.
+- [ ] **Set `app_url`** (`https://...`): payment callbacks, subscription links, links in emails and the Passkey RP are
+      all based on it. Without it, the panel builds absolute URLs from the request's `Host` and `X-Forwarded-Proto`.
+- [ ] **Keep `server.cors_origins` empty** (same origin only). The binary serves the SPA itself, so no cross-origin
+      access is needed. Do not set `*`.
 
-### 密钥 / Secrets
+### Secrets
 
-- [ ] **`jwt.secret` 用 32+ 字节随机串**（`openssl rand -hex 32`；占位符、过短或单调的值会拒绝启动），并与数据库一起备份。它既签发会话，也派生 TOTP 密钥的 AES-256-GCM 加密密钥：
-      更换后所有会话失效，**已绑定的 TOTP 也全部失效**（备用码与 Passkey 不受影响）。留空时面板会生成
-      `<data_dir>/jwt.secret`（0600）。
-- [ ] **轮换 `server_token`**：首次启动自动生成 32 位随机值。后台 **设置 → 节点通讯 → 重新生成密钥**，保存后旧值立即失效，
-      需要同步更新所有节点的 XrayR / V2bX `ApiKey` 与 soga `webapi_key`。节点接口用常量时间比较，token 为空时拒绝一切请求。
-      从 Xboard 迁移时会沿用旧 token；如果旧面板可能已泄露，迁移后立即轮换。
-- [ ] **文件权限**：数据目录以 0700 创建，`jwt.secret` 为 0600；`/etc/ggboard` 用 0750，环境文件只给 root 读。
-- [ ] **Telegram 机器人密钥**：`telegram_bot_token` 与 `telegram_webhook_secret` 只有管理员接口返回，日志和 API 错误里不会出现
-      （Telegram 客户端会从传输错误里去掉含 token 的请求 URL）。webhook 密钥首次启动自动生成；怀疑泄露时在
-      **设置 → Telegram → 重新生成密钥**，保存后再点一次“设置 Webhook”。BotFather token 泄露时先在 BotFather 里 `/revoke`。
-- [ ] **加密备份**：数据库里有密码哈希、加密的 TOTP 密钥、加密的 age 私钥、订阅 token、`server_token`、SMTP 口令、验证码密钥、
-      Telegram 机器人 token 和支付网关密钥。
-- [ ] **不要提交机密**：`.gitignore` 已排除 `.env*`（`.env.example` 除外）、`config.yaml`、`config.local.yaml`、`*.pem`、`*.key`、`data/`、`*.db`。
+- [ ] **Use 32+ random bytes for `jwt.secret`** (`openssl rand -hex 32`; placeholders and values that are too short or
+      too repetitive are refused at startup), and back it up together with the database. It signs sessions and also
+      derives the AES-256-GCM key that encrypts TOTP secrets: changing it invalidates every session **and every enrolled
+      TOTP** (backup codes and Passkeys are not affected). When it is empty, the panel generates
+      `<data_dir>/jwt.secret` (0600).
+- [ ] **Rotate `server_token`**: a 32-character random value is generated on first start. In the admin console, use
+      **Settings → Node connection → Regenerate token**. Once you save, the old value stops working immediately, and the
+      XrayR / V2bX `ApiKey` and soga `webapi_key` must be updated on every node. The node APIs compare the token in
+      constant time and reject every request while it is empty. A migration from Xboard keeps the old token when it has at
+      least 16 characters (a shorter one is not imported and ggboard keeps its generated token); if the old panel may
+      have leaked it, rotate it right after migrating.
+- [ ] **File permissions**: the data directory is created as 0700 and `jwt.secret` as 0600. Use 0750 for `/etc/ggboard`,
+      and make the environment file readable by root only.
+- [ ] **Telegram bot secrets**: `telegram_bot_token` and `telegram_webhook_secret` are only returned by admin endpoints
+      and never appear in logs or API errors (the Telegram client strips the request URL, which contains the token, from
+      transport errors). The webhook secret is generated on first start. If you suspect it has leaked, use
+      **Settings → Telegram → Regenerate secret**, save, and click "Set webhook" again. If the BotFather token leaks,
+      `/revoke` it in BotFather first.
+- [ ] **Encrypt backups**: the database holds password hashes, encrypted TOTP secrets, encrypted age private keys,
+      subscription tokens, `server_token`, the SMTP password, CAPTCHA secrets, the Telegram bot token and payment
+      gateway secrets.
+- [ ] **Do not commit secrets**: `.gitignore` already excludes `.env*` (except `.env.example`), `config.yaml`, `config.local.yaml`, `*.pem`, `*.key`, `data/` and `*.db`.
 
-### 账户 / Accounts
+### Accounts
 
-- [ ] **强制管理员两步验证**：**设置 → 安全 → `admin_mfa_required`**。开启后，没有 TOTP 也没有 Passkey 的管理员 / 客服访问
-      `/api/v1/admin/*` 会得到 `403 mfa_setup_required`，但仍可在 `/user/security` 完成绑定。开启前先给自己绑定。
-- [ ] **Passkey**：RP ID 默认取 `app_url` 的主机名，可用 `passkey_rp_id` 覆盖；其他前端域名加到 `passkey_origins`。
-- [ ] **登录与注册防护**（**设置 → 注册与登录**）：`password_limit_enable`（默认开，同一邮箱 60 分钟内错 5 次锁定）、
-      `register_limit_by_ip_enable`、`email_verify`、`email_whitelist_*`、`invite_force`，以及 `captcha_provider`
-      （Turnstile / reCAPTCHA / hCaptcha）。
-- [ ] **生产环境使用 SMTP**：`email_driver=log` 只把邮件写进日志；`log.level=debug` 时连邮件正文（验证码、重置链接）也会写入日志。
-      用 SMTP 时**同时开启 `captcha_provider`**：`send-code` 是匿名接口，内置限流只按 IP 计（另有全进程每小时 300 封、突发 60 的
-      验证码总预算，超出后接口仍返回 `true` 但不再发信），能控制大量 IP 的人仍可以把总预算用完，让正常用户暂时收不到验证码。
-      验证码邮件最多占邮件队列的 75%，订单、工单、泄露提醒等事务邮件始终有余量；超过该水位时 `send-code` 返回 429。
-      没有账户、且注册已关闭（`stop_register`）或邮箱后缀不在白名单内时，验证码不会发送（接口照常返回 `true`）。
-      邮件被 SMTP 服务器以 5xx 拒收（或收件地址无法解析）时只尝试一次；4xx、超时、连接错误才重试，重试在后台等待，不阻塞其他邮件。
-- [ ] **配好 SMTP 后开启 `email_verify`**：关闭时任何人都能用别人的邮箱注册。面板记录 `users.email_verified_at`，未验证账户第一次
-      通过“找回密码”证明邮箱所有权时按**所有权变更**处理：新密码之外还会更换 UUID 与订阅 token、删除全部 Passkey 和
-      TOTP / 备用码、解除 Telegram 绑定（含未使用的绑定码），并写一条 `account: unverified account reclaimed` 审计日志；
-      这类账户的合法用户第一次找回密码时也需要重新导入订阅、重新绑定两步验证。开启 `email_verify` 时，没有正确验证码的
-      注册请求对已注册与未注册邮箱给出同样的 400（`email_code`），不会暴露邮箱是否已注册。管理员创建、Xboard 导入以及
-      升级前已存在的账户视为已验证。
-- [ ] **管理员登录提醒**：配置 Telegram 机器人并保留 `telegram_events` 里的 `admin_login`（默认开启）。每次管理员或客服登录
-      （口令、口令 + TOTP / 备用码、Passkey）都会把邮箱、角色、方式、IP、UA 和时间推送到 `telegram_admin_chat_ids`，
-      陌生登录能第一时间发现。管理员登录、订阅泄露、提现走独立的优先通道（256 条，单独的 worker），
-      用户触发的事件（工单、订单）刷满普通队列时也不会被丢弃或延后。
-- [ ] **客服账户**：客服只能处理工单、公告、知识库并只读用户（看不到 UUID 与订阅 token）。知识库占位符
-      `{{subscribeUrl}}`、`{{urlEncodeSubscribeUrl}}`、`{{safeBase64SubscribeUrl}}` 会展开成**每位读者自己的**订阅地址（含 token），
-      所以只有管理员可以写入：客服新建或修改的正文含这些占位符时返回 `403`（原样提交管理员写好的正文不算修改，客服仍可改标题、
-      分类与显示状态）。从旧版本升级后，请管理员检查一遍含这些占位符的文章，特别是带外部图片或链接的。
+- [ ] **Require two-factor authentication for admins**: **Settings → Security → `admin_mfa_required`**. Once it is on, an
+      admin or staff account with neither TOTP nor a Passkey gets `403 mfa_setup_required` on `/api/v1/admin/*`, but
+      can still enrol at `/user/security`. Enrol yourself before you turn it on.
+- [ ] **Passkey**: the RP ID defaults to the host name of `app_url` and can be overridden with `passkey_rp_id`. Add any
+      other frontend domains to `passkey_origins`.
+- [ ] **Sign-in and sign-up protection** (**Settings → Sign-up & sign-in**): `password_limit_enable` (on by default:
+      5 wrong passwords for the same email within 60 minutes lock it), `register_limit_by_ip_enable`, `email_verify`,
+      `email_whitelist_*`, `invite_force`, and `captcha_provider` (Turnstile / reCAPTCHA / hCaptcha).
+- [ ] **Use SMTP in production**: `email_driver=log` only writes emails to the log, and with `log.level=debug` even the
+      message bodies (verification codes, reset links) are written to the log. When you use SMTP, **turn on
+      `captcha_provider` as well**: `send-code` is an anonymous endpoint and its built-in rate limit only counts per IP
+      (there is also a process-wide budget for verification codes of 300 emails per hour with a burst of 60; past it the
+      endpoint still returns `true` but sends nothing), so someone who controls many IPs can still use up the whole
+      budget and keep legitimate users from receiving codes for a while. Verification-code emails take at most 75% of
+      the mail queue, so transactional emails (orders, tickets, leak alerts and so on) always have room; above that mark,
+      `send-code` returns 429. When there is no account and sign-up is closed (`stop_register`) or the email suffix is
+      not on the whitelist, no code is sent (the endpoint still returns `true`). An email that the SMTP server rejects
+      with a 5xx (or whose recipient address cannot be resolved) is tried only once. Only 4xx replies, timeouts and
+      connection errors are retried, and the retries wait in the background without blocking other emails.
+- [ ] **Turn on `email_verify` once SMTP is set up**: while it is off, anyone can sign up with someone else's email
+      address. The panel records `users.email_verified_at`. The first time someone proves ownership of an unverified
+      account's email through password reset, it is handled as a **change of ownership**: besides the new password, the
+      UUID and subscription token are replaced, all Passkeys and TOTP / backup codes are deleted, the Telegram link is
+      removed (including unused binding codes), and an `account: unverified account reclaimed` audit log entry is
+      written. The legitimate owner of such an account therefore also has to import the subscription again and set up
+      two-factor authentication again after their first password reset. With `email_verify` on, a sign-up request
+      without a correct code gets the same 400 (`email_code`) for registered and unregistered emails, so it does not
+      reveal whether an email is registered. Accounts created by an admin, imported from Xboard, or existing before the
+      upgrade count as verified.
+- [ ] **Admin sign-in alerts**: configure the Telegram bot and keep `admin_login` in `telegram_events` (on by default).
+      Every admin or staff sign-in (password, password + TOTP / backup code, Passkey) pushes the email, role, method,
+      IP, UA and time to `telegram_admin_chat_ids`, so you notice an unfamiliar sign-in right away. Admin sign-ins,
+      subscription leaks and withdrawals use a separate priority lane (256 entries, its own worker), so they are not
+      dropped or delayed even when user-triggered events (tickets, orders) fill the normal queue.
+- [ ] **Staff accounts**: staff can only handle tickets, notices and the knowledge base, and have read-only access to
+      users (they cannot see UUIDs or subscription tokens). The knowledge base placeholders `{{subscribeUrl}}`,
+      `{{urlEncodeSubscribeUrl}}` and `{{safeBase64SubscribeUrl}}` expand to **each reader's own** subscription URL
+      (token included), so only admins can write them: when staff create or edit a body that contains these
+      placeholders, the request gets `403` (resubmitting a body an admin wrote, unchanged, does not count as an edit, and
+      staff can still change the title, category and visibility). After upgrading from an older version, have an admin
+      review the articles that contain these placeholders, especially those with external images or links.
 
-### 订阅防泄露 / Subscription leak protection
+### Subscription leak protection
 
-- [ ] **泄露检测**：**设置 → 订阅** 里把 `subscribe_leak_max_ips` 设为大于 0（如 10）。同一订阅 token 24 小时内被超过该数量的
-      不同 IP（IPv6 按 /64 计）拉取时，用户会收到邮件，管理员收到 Telegram `subscription_leak`；`subscribe_leak_action=rotate`
-      还会立即更换 token（只换订阅链接，节点凭据与会话不变）。访问日志保留 30 天、每个用户最新 100 条。
-- [ ] **age 加密订阅**：用户可在订阅页生成 age 密钥（mihomo 1.19.27+、Clash Party、FlClash 可解密）。默认设置偏向兼容：
-      `subscribe_age_optional`（默认开）允许 `age=0` 取明文，`subscribe_age_strict`（默认关）时其他格式仍返回明文。
-      要让泄露的链接拿不到明文，需要**关闭 `subscribe_age_optional` 并开启 `subscribe_age_strict`**（其他格式改为 406）。
-      age 私钥用 `jwt.secret` 派生的密钥加密保存，更换 `jwt.secret` 后用户需重新生成密钥。
-- [ ] 提醒用户：链接泄露时优先用“轮换订阅链接”（只换 token）；只有怀疑节点凭据（UUID）也泄露时才“重置订阅”
-      （UUID 与 token 一起更换，所有设备都要重新导入）。
+- [ ] **Leak detection**: in **Settings → Subscription**, set `subscribe_leak_max_ips` above 0 (e.g. 10). When one
+      subscription token is fetched from more than that many distinct IPs within 24 hours (IPv6 counted per /64), the
+      user gets an email (and a Telegram message if they bound Telegram) and the admins get a Telegram
+      `subscription_leak` alert. `subscribe_leak_action=rotate` also
+      replaces the token at once (only the subscription link changes; node credentials and sessions stay the same).
+      Access logs are kept for 30 days, up to the latest 100 entries per user.
+- [ ] **age-encrypted subscriptions**: users can generate an age key on the Subscription page (mihomo 1.19.27+, Clash
+      Party and FlClash can decrypt it). The defaults favour compatibility: `subscribe_age_optional` (on by default)
+      allows `age=0` to get plaintext, and while `subscribe_age_strict` is off (the default), other formats still return
+      plaintext. To make sure a leaked link cannot get plaintext, **turn off `subscribe_age_optional` and turn on
+      `subscribe_age_strict`** (other formats then get 406). age private keys are stored encrypted with a key derived
+      from `jwt.secret`, so after `jwt.secret` changes, users have to generate a new key.
+- [ ] Remind users: when a link leaks, use "Rotate link" first (it only replaces the token). Use "Reset subscription"
+      only when the node credentials (UUID) may have leaked too (the UUID and token are replaced together, and every
+      device has to import the subscription again).
 
-### 内置限流 / Built-in rate limits
+### Built-in rate limits
 
-进程内令牌桶，超限返回 `429 rate_limited` 并带 `Retry-After`：
+In-process token buckets. A request over the limit gets `429 rate_limited` with `Retry-After`:
 
-| 范围 | 限额 | 维度 |
+| Scope | Limit | Keyed by |
 | --- | --- | --- |
-| `/api/v1/passport/*` | 30 次/分钟 | 客户端 IP |
-| `POST /api/v1/passport/email/send-code` | 另加 10 次/小时；IPv6 另加每个 /48 共 60 次/小时 | 客户端 IP（IPv6 按 /64 与 /48） |
-| 同上，全部客户端合计 | 300 封/小时，突发 60（超出后返回 `true` 但不发信，WARN 日志每分钟一条） | 全进程 |
-| `/api/v1/user/security/*` | 60 次/分钟 | 用户 |
-| `POST /api/v1/user/coupons/check`、`POST /api/v1/user/orders`、`POST /api/v1/user/orders/:trade_no/checkout` | 30 次/分钟，突发 10 | 用户 |
-| `PUT/POST/PATCH/DELETE /api/v1/user/rule-profile(s)…`、`GET /api/v1/user/subscription/preview` | 60 次/分钟，突发 30 | 用户 |
-| `/api/v1/user/subscription/age`（写操作）、`POST /api/v1/user/subscription/rotate-token` | 30 次/分钟，突发 10 | 用户 |
-| `POST /api/v1/user/telegram/bind-code` | 10 次/分钟，突发 5 | 用户 |
-| `POST /api/v1/user/tickets` | 30 次/小时，突发 10（每次创建都会通知管理员） | 用户 |
-| `POST /api/v1/user/tickets/:id/reply` | 120 次/小时，突发 30 | 用户 |
-| `POST /api/v1/guest/telegram/webhook/:secret` | 600 次/分钟，突发 120 | 客户端 IP |
-| `GET/HEAD /api/v1/client/subscribe`、`/s/:token` | 120 次/小时，突发 30 | 订阅 token |
-| 同上，未知或格式错误的 token | 60 次/小时，突发 30 | 客户端 IP（IPv6 按 /64） |
+| `/api/v1/passport/*` | 30 per minute | Client IP |
+| `POST /api/v1/passport/email/send-code` | Another 10 per hour on top; for IPv6, also 60 per hour per /48 in total | Client IP (IPv6 per /64 and /48) |
+| Same, all clients combined | 300 emails per hour, burst 60 (past it the endpoint returns `true` but sends nothing; one WARN log line per minute) | Whole process |
+| `/api/v1/user/security/*` | 60 per minute | User |
+| `POST /api/v1/user/coupons/check`, `POST /api/v1/user/orders`, `POST /api/v1/user/orders/:trade_no/checkout` | 30 per minute, burst 10 | User |
+| `PUT/POST/PATCH/DELETE /api/v1/user/rule-profile(s)…`, `GET /api/v1/user/subscription/preview` | 60 per minute, burst 30 | User |
+| `/api/v1/user/subscription/age` (writes), `POST /api/v1/user/subscription/rotate-token` | 30 per minute, burst 10 | User |
+| `POST /api/v1/user/telegram/bind-code` | 10 per minute, burst 5 | User |
+| `POST /api/v1/user/tickets` | 30 per hour, burst 10 (every new ticket notifies the admins) | User |
+| `POST /api/v1/user/tickets/:id/reply` | 120 per hour, burst 30 | User |
+| `POST /api/v1/guest/telegram/webhook/:secret` | 600 per minute, burst 120 | Client IP |
+| `GET/HEAD /api/v1/client/subscribe`, `/s/:token` | 120 per hour, burst 30 | Subscription token |
+| Same, unknown or malformed tokens | 60 per hour, burst 30 | Client IP (IPv6 per /64) |
 
-### 响应头 / Headers
+### Headers
 
-- 所有响应：`X-Content-Type-Options: nosniff`、`Referrer-Policy: strict-origin-when-cross-origin`、`X-Frame-Options: DENY`、
-  `Cross-Origin-Opener-Policy: same-origin`（跨源页面拿不到面板窗口的句柄，无法数 iframe 推断登录状态；验证码 iframe 不受影响）。
-- HTML 文档另加 CSP（`internal/static/static.go`）：
+- All responses: `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`,
+  `X-Frame-Options: DENY`, `Cross-Origin-Opener-Policy: same-origin` (a cross-origin page gets no handle to the panel's
+  window, so it cannot count iframes to infer the sign-in state; CAPTCHA iframes are not affected).
+- HTML documents also get a CSP (`internal/static/static.go`):
 
   ```text
   default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self';
   connect-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
   ```
 
-  `img-src` 放行 `https:`，因为 Gravatar 头像、公告封面（`img_url`）和支付方式的自定义图标都是外部 https 图片，知识库文章
-  也可以引用外部图片；正因如此，能展开成读者订阅地址的知识库占位符只允许管理员写入（见上文“客服账户”）。
-  不要在代理上放宽它。启用验证码时，`static.CSPFor` 只为**当前启用的那一个**服务追加 script / frame 来源（Turnstile：
-  `challenges.cloudflare.com`；reCAPTCHA：`www.recaptcha.net`、`www.google.com`、`www.gstatic.com`；hCaptcha 另加
-  connect / style），其他服务一律不放行。
+  `img-src` allows `https:` because Gravatar avatars, notice cover images (`img_url`) and custom payment method icons
+  are external https images, and knowledge base articles can reference external images too. That is exactly why the
+  knowledge base placeholders that expand to the reader's subscription URL can only be written by admins (see "Staff
+  accounts" above). Do not loosen it at the proxy. When a CAPTCHA is enabled, `static.CSPFor` adds script / frame
+  sources only for **the one service that is currently enabled** (Turnstile: `challenges.cloudflare.com`; reCAPTCHA:
+  `www.recaptcha.net`, `www.google.com`, `www.gstatic.com`; hCaptcha also adds connect / style); no other service is
+  allowed.
 
-### 支付回调 / Payment webhooks
+### Payment webhooks
 
-- 回调地址 `/api/v1/guest/payment/notify/<gateway>/<uuid>`，`uuid` 是每个支付方式独有的随机值。
-- 每个网关都会验签：EPay、Epusdt 用 MD5 签名，支付宝当面付用 RSA2（SHA256），Stripe 用 `Stripe-Signature`，
-  Coinbase 与 BTCPay 用 HMAC-SHA256（Coinbase 还检查 300 秒的时间窗）。验签失败返回 `400 fail` 并记 WARN 日志，订单不变。
-- BTCPay 商店的 POS、Pay Button、众筹等公开入口能让任何人用自选的 `orderId`、金额和币种建发票并付款，回调签名同样有效。
-  面板建发票时写入 `ggboardBinding`（以 webhook secret 为密钥，覆盖支付方式 uuid、订单号、金额、币种的 HMAC），
-  只认绑定匹配的已结算发票，其余只应答并记 WARN。轮换 webhook secret 前创建、之后才付款的发票需要人工确认。
-- 网关密钥（webhook secret、商户密钥）只填在后台的支付方式里，回调域名（`notify_domain`）用 HTTPS。
+- The callback URL is `/api/v1/guest/payment/notify/<gateway>/<uuid>`, where `uuid` is a random value unique to each
+  payment method.
+- Every gateway verifies the signature: EPay and Epusdt use MD5 signatures, Alipay F2F (Face-to-Face) uses RSA2
+  (SHA256), Stripe uses `Stripe-Signature`, and Coinbase and BTCPay use HMAC-SHA256 (Coinbase also checks a 300-second
+  time window). When verification fails, the callback gets `400 fail` and a WARN log entry is written; the order is not
+  changed.
+- Public entry points of a BTCPay store, such as POS, Pay Button and crowdfunding, let anyone create and pay an invoice
+  with an `orderId`, amount and currency of their choice, and its callback signature is just as valid. When the panel
+  creates an invoice, it writes `ggboardBinding` (an HMAC keyed with the webhook secret, covering the payment method
+  uuid, order number, amount and currency), and it only accepts settled invoices whose binding matches; anything else
+  is only acknowledged and logged as WARN. Invoices created before a webhook secret rotation and paid after it have to
+  be confirmed by hand.
+- Enter gateway secrets (webhook secret, merchant key) only in the payment method in the admin console, and use HTTPS
+  for the callback domain (`notify_domain`).
 
-### 日志 / Logs
+### Logs
 
-- 访问日志以及限流命中（`rate limited`）、5xx（`request failed`）与 panic 日志都只记录**路由模板**（如 `/s/:token`、
-  `/api/v1/guest/telegram/webhook/:secret`），不记录查询字符串，所以订阅 token 与 webhook 密钥不会进日志；只有未匹配
-  任何路由的 404 记录原始路径。订阅访问日志（`subscription_access`）只存 token 的 8 位哈希标签。
-- 生产环境用 `log.level=info`；日志会采集到别处时用 `log.format=json`。
+- The access log, as well as the logs for rate limit hits (`rate limited`), 5xx errors (`request failed`) and panics,
+  record only the **route template** (e.g. `/s/:token`, `/api/v1/guest/telegram/webhook/:secret`) and never the query
+  string, so subscription tokens and webhook secrets do not end up in the logs. Only 404s that match no route record the
+  raw path. The subscription access log (`subscription_access`) stores only an 8-character hash label of the token.
+- Use `log.level=info` in production. Use `log.format=json` when the logs are collected somewhere else.

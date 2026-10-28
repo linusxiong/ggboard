@@ -20,7 +20,7 @@ svg{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","He
 .grid{stroke:#2c2c2a}.base{stroke:#383835}.bar{fill:#3987e5}
 }`
 
-// groupHeading is the bilingual heading of a scenario group (Chinese first, like the README).
+// groupHeading is the bilingual heading of a scenario group, Chinese first.
 var groupHeading = map[string]string{
 	groupSub:    "订阅 · Subscription",
 	groupNode:   "节点接口 · Node API (UniProxy)",

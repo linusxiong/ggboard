@@ -151,6 +151,11 @@ scripts/                e2e.sh（冒烟）、e2e-full.sh（API 全流程，也�
 - **代码风格**：`gofmt`/`go vet` 必须干净；前端 `eslint` + `tsc --noEmit` 必须干净。
 - **测试命令**：`make test`（Go）、`pnpm -C web test`（前端单元）、`make e2e`（启动服务跑冒烟）。
 - **提交**：Conventional Commits（`feat: ...`、`fix: ...`、`docs: ...`）。
+- **文档中英两版**：面向用户的文档每篇两个文件，`X.md` 英文（GitHub 默认显示）、`X.zh-CN.md` 简体中文，顶部互相链接，
+  章节顺序与编号一致（代码里引用 `docs/DEPLOY.md §5` 这类编号）；改一份就在同一个提交里改另一份。包括 `README`、`CHANGELOG`
+  （Release 说明取两份里的同一版本小节，缺一份发布就失败）、`CONTRIBUTING`、`SECURITY`、`docs/DEPLOY`、`docs/ADMIN_GUIDE`、
+  `docs/USER_GUIDE`、`docs/MIGRATION_TERABIX`、`docs/perf/README`。英文版链接英文版，中文版链接 `.zh-CN.md`。
+  契约与开发文档（`docs/API.md`、`DATA_MODEL.md`、`ARCHITECTURE.md` 等、`web/README.md`）只有英文；本文件与 `MISTAKES.md` 只有中文。
 
 ---
 
