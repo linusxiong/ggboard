@@ -17,6 +17,7 @@ import (
 	"github.com/linusxiong/ggboard/internal/httpx"
 	"github.com/linusxiong/ggboard/internal/model"
 	nodesvc "github.com/linusxiong/ggboard/internal/service/node"
+	"github.com/linusxiong/ggboard/internal/settings"
 )
 
 // nodeOpt is a JSON field that remembers whether it was present (PATCH semantics); null sets the zero value.
@@ -64,6 +65,7 @@ type nodeInput struct {
 	Show             nodeOpt[bool]          `json:"show"`
 	Sort             nodeOpt[int]           `json:"sort"`
 	ProtocolSettings nodeOpt[model.JSONMap] `json:"protocol_settings"`
+	Token            nodeOpt[string]        `json:"token"`
 }
 
 func (in *nodeInput) apply(n *model.Node) {
@@ -107,6 +109,9 @@ func (in *nodeInput) apply(n *model.Node) {
 	if in.ProtocolSettings.Set {
 		n.ProtocolSettings = in.ProtocolSettings.V
 	}
+	if in.Token.Set {
+		n.Token = in.Token.V
+	}
 }
 
 type adminNodeRef struct {
@@ -114,15 +119,17 @@ type adminNodeRef struct {
 	Name string `json:"name"`
 }
 
-// adminNodeView is the admin Node shape: the node, its parent reference and the runtime status of P.
+// adminNodeView is the admin Node shape: the node, its own backend token ("" = server_token), its parent reference
+// and the runtime status of P.
 type adminNodeView struct {
 	*model.Node
+	Token  string             `json:"token"`
 	Parent *adminNodeRef      `json:"parent"`
 	Status nodesvc.StatusView `json:"status"`
 }
 
 func adminNodeViewOf(svc *nodesvc.Service, n *model.Node, names map[uint64]string) adminNodeView {
-	v := adminNodeView{Node: n, Status: svc.Status(nodesvc.EffectiveID(n))}
+	v := adminNodeView{Node: n, Token: n.Token, Status: svc.Status(nodesvc.EffectiveID(n))}
 	if n.ParentID != nil {
 		v.Parent = &adminNodeRef{ID: *n.ParentID, Name: names[*n.ParentID]}
 	}
@@ -332,6 +339,10 @@ func registerNodes(g *gin.RouterGroup, a *app.App) {
 			cp.ID, cp.Parent, cp.Show = 0, nil, false
 			cp.CreatedAt, cp.UpdatedAt = time.Time{}, time.Time{}
 			cp.Name = copyName(src.Name)
+			if cp.Token != "" {
+				// A copy is a new node: sharing the key would let either node's operator act as the other.
+				cp.Token = settings.RandomToken(32)
+			}
 			nodesvc.NormalizeNode(&cp)
 			if err := tx.Omit(clause.Associations).Create(&cp).Error; err != nil {
 				return err

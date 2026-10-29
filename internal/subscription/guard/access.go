@@ -157,10 +157,31 @@ func FlushAccess(ctx context.Context, a *app.App) error {
 	if len(rows) == 0 {
 		return nil
 	}
-	if err := a.DB.WithContext(ctx).CreateInBatches(&rows, flushBatch).Error; err != nil {
+	// One transaction for every batch: a failure leaves nothing written, so the whole set can go back.
+	if err := a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return tx.CreateInBatches(&rows, flushBatch).Error
+	}); err != nil {
+		r.requeue(rows)
 		return err
 	}
 	return detectLeaks(ctx, a, rows)
+}
+
+// requeue puts rows whose write failed back in front of the rows buffered meanwhile, so a transient database
+// error (or a cancelled request context) delays them to the next flush instead of losing the leak-detection input.
+// The buffer bound still holds: the newest rows beyond MaxBuffered are dropped and counted.
+func (r *recorder) requeue(rows []model.SubscriptionAccess) {
+	for i := range rows {
+		rows[i].ID = 0 // ids assigned inside the rolled-back transaction
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	merged := append(rows, r.buf...)
+	if over := len(merged) - MaxBuffered; over > 0 {
+		merged = merged[:MaxBuffered]
+		r.dropped += over
+	}
+	r.buf = merged
 }
 
 // PruneAccess deletes rows older than KeepFor and keeps the newest KeepPerUser rows of every user.

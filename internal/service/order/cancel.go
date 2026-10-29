@@ -46,20 +46,22 @@ func (s *Service) CancelBy(ctx context.Context, orderID uint64, by string) (*mod
 func (s *Service) cancelBy(ctx context.Context, orderID uint64, by string, actor *auth.Claims) (*model.Order, error) {
 	var o model.Order
 	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// A user's cancel matches only their own order, so another user's order is never touched, not even inside a
+		// transaction that the account check below would roll back (same shape and lock order as paid).
+		owned := func(q *gorm.DB) *gorm.DB { return q }
 		if actor != nil && by == CancelByUser {
-			if err := tx.Select("id", "user_id").First(&o, orderID).Error; err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					return httpx.NotFound("order not found")
-				}
-				return err
+			uid, err := actor.UserID()
+			if err != nil {
+				return httpx.Unauthorized("session expired, please sign in again")
 			}
+			owned = func(q *gorm.DB) *gorm.DB { return q.Where("user_id = ?", uid) }
 		}
-		res := tx.Model(&model.Order{}).Where("id = ? AND status = ?", orderID, model.OrderStatusPending).
+		res := owned(tx.Model(&model.Order{}).Where("id = ? AND status = ?", orderID, model.OrderStatusPending)).
 			Update("status", model.OrderStatusCancelled)
 		if res.Error != nil {
 			return res.Error
 		}
-		if err := tx.First(&o, orderID).Error; err != nil {
+		if err := owned(tx.Where("id = ?", orderID)).First(&o).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return httpx.NotFound("order not found")
 			}

@@ -9,9 +9,21 @@ import (
 	nodesvc "github.com/linusxiong/ggboard/internal/service/node"
 )
 
-// uniAuth authenticates XrayR/V2bX requests: query token, node_id, node_type (docs/NODE_PROTOCOLS.md §1.2).
+// uniAuth authenticates XrayR/V2bX requests: query token, node_id, node_type (docs/NODE_PROTOCOLS.md §1.2). The token
+// is checked twice: before anything is loaded (tokenCheck) and against the requested node (tokenFits).
 func (h *handler) uniAuth(c *gin.Context) {
-	if ok, limited := h.tokenCheck(c, c.Query("token")); limited {
+	token := c.Query("token")
+	invalid := func() {
+		if h.miss(c) {
+			httpx.Fail(c, httpx.RateLimited("too many invalid tokens, retry later"))
+		} else {
+			httpx.Fail(c, httpx.Forbidden("invalid token"))
+		}
+	}
+	if ok, limited, err := h.tokenCheck(c, token); err != nil {
+		httpx.Fail(c, err)
+		return
+	} else if limited {
 		httpx.Fail(c, httpx.RateLimited("too many invalid tokens, retry later"))
 		return
 	} else if !ok {
@@ -30,11 +42,19 @@ func (h *handler) uniAuth(c *gin.Context) {
 	}
 	r, err := h.svc.Resolve(c.Request.Context(), id)
 	if errors.Is(err, nodesvc.ErrNotFound) {
+		if !h.tokenOK(token) { // a node's own key does not learn which other node ids exist
+			invalid()
+			return
+		}
 		httpx.Fail(c, httpx.BadRequest("server is not exist"))
 		return
 	}
 	if err != nil {
 		httpx.Fail(c, err)
+		return
+	}
+	if !h.tokenFits(r, token) {
+		invalid()
 		return
 	}
 	if err := nodesvc.CheckUniProxy(r.Node, typ, hy2); err != nil {
@@ -93,7 +113,10 @@ func (h *handler) uniPush(c *gin.Context) {
 		httpx.Fail(c, httpx.BadRequest(msg))
 		return
 	}
-	h.svc.RecordTraffic(resolved(c), entries)
+	if err := h.svc.RecordTraffic(c.Request.Context(), resolved(c), entries); err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	writeJSON(c, dataTrue)
 }
 
@@ -109,7 +132,10 @@ func (h *handler) uniAlive(c *gin.Context) {
 		httpx.Fail(c, httpx.BadRequest(msg))
 		return
 	}
-	h.svc.RecordAlive(resolved(c), alive)
+	if err := h.svc.RecordAlive(c.Request.Context(), resolved(c), alive); err != nil {
+		httpx.Fail(c, err)
+		return
+	}
 	writeJSON(c, dataTrue)
 }
 

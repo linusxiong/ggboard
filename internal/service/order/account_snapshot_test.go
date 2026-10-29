@@ -123,3 +123,42 @@ func TestOldAccountSnapshotCannotReadCouponEligibility(t *testing.T) {
 		t.Fatalf("stale coupon check: %v", err)
 	}
 }
+
+// Security review 2026-10-29: a user's cancel used to flip any pending order to cancelled first and only then check the
+// owner, relying on the rollback. It now matches only the actor's own orders: another user's order is never updated.
+func TestCancelForUserNeverTouchesAnotherUsersOrder(t *testing.T) {
+	f := newFixture(t)
+	owner := f.user("owner@example.com")
+	other := f.user("other@example.com")
+	plan := f.plan("Pro", map[string]int64{model.PeriodMonthly: 1000})
+	o, err := f.svc.Create(ctx, owner.ID, CreateInput{PlanID: plan.ID, Period: model.PeriodMonthly})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var touched atomic.Int64
+	const cb = "test:count_order_updates"
+	if err := f.a.DB.Callback().Update().After("gorm:update").Register(cb, func(tx *gorm.DB) {
+		if tx.Statement.Table == "orders" {
+			touched.Add(tx.RowsAffected)
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = f.a.DB.Callback().Update().Remove(cb) })
+
+	if _, err := f.svc.CancelForUser(ctx, o.ID, testActor(other)); status(err) != 404 {
+		t.Fatalf("foreign cancel: %v, want 404", err)
+	}
+	if n := touched.Load(); n != 0 {
+		t.Fatalf("foreign cancel updated %d order rows before failing", n)
+	}
+	if got := f.order(o.TradeNo); got.Status != model.OrderStatusPending {
+		t.Fatalf("foreign cancel changed the order: %+v", got)
+	}
+	if _, err := f.svc.CancelForUser(ctx, o.ID, testActor(owner)); err != nil {
+		t.Fatalf("own cancel: %v", err)
+	}
+	if touched.Load() == 0 {
+		t.Fatal("the update counter never saw the owner's cancel; the assertion above proves nothing")
+	}
+}

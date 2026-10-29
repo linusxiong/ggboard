@@ -39,7 +39,10 @@ Rate limits (in-memory token buckets): every `/passport/*` route 30/min per IP, 
 user (burst 10); every `/user/security/*` route 60/min per user; rule-profile writes and the preview 60/min per user (burst
 30); age-key writes and `rotate-token` 30/min per user (burst 10); `POST /user/telegram/bind-code` 10/min per user (burst
 5); `POST /user/tickets` 30/h per user (burst 10) and `POST /user/tickets/:id/reply` 120/h per user (burst 30); the Telegram
-webhook 600/min per IP; subscriptions 120/h per token (burst 30), unknown tokens 60/h per IP (burst 30).
+webhook 600/min per IP; subscriptions 120/h per token (burst 30), unknown tokens 60/h per IP (burst 30); payment
+notifications that fail verification (unknown payment, gateway mismatch, disabled, bad signature) 60/min per IP (burst
+120), checked before the payment lookup once used up (429); verified callbacks are never charged. The buckets live in
+the process: run one instance (several instances would each keep their own).
 Account rules add per-email limits (code cooldown, password lockout), per-IP registrations and the second-factor failure
 counter.
 
@@ -65,7 +68,7 @@ PublicPlan {"id","name","content","tags","transfer_enable"(GB),"speed_limit","de
       "show","sell","renew","sort","sold_out"(capacity full; never for the holder),"is_current"(user's plan),"created_at","updated_at"}
       // no group_id / capacity_limit
 Node (admin) {"id","type","name","group_ids","route_ids","parent_id","host","port"(string),"server_port","tags","rate","show","sort",
-      "protocol_settings":{...},"parent":{"id","name"}|null,
+      "protocol_settings":{...},"token"(own backend key; "" = server_token; always "" on a child),"parent":{"id","name"}|null,
       "status":{"state":"online|idle|offline","online":3,"last_check_at":"..."|null,"last_push_at":"..."|null,
                 "load":{"cpu","mem","swap","disk","uptime"}|null,"version":"<backend User-Agent>"},
       "created_at","updated_at"}   // a child's status is its parent's (docs/NODE_PROTOCOLS.md §5.3)
@@ -80,6 +83,7 @@ Ticket {"id","user_id","subject","level"(0..2),"status"(0 open,1 closed),"reply_
         "messages":[{"id","user_id","is_me","message","created_at"}] /* detail responses only, oldest first */,
         "user":{"id","email"} /* staff responses only */}
         // is_me: user API = written by the owner; admin API = written by staff (anyone but the owner), as in Xboard
+        // user API: staff authors appear as user_id 0 in messages and last_reply_user_id (staff ids are internal)
 Passkey {"id":1,"name":"Laptop","created_at":"…","last_used_at":null,"backup_eligible":true,"transports":["internal","hybrid"]}
 ```
 
@@ -90,7 +94,7 @@ Passkey {"id":1,"name":"Laptop","created_at":"…","last_used_at":null,"backup_e
 | GET | `/guest/config` | — | `{app_name, app_description, app_url, logo, tos_url, currency, currency_symbol, register_enabled, email_verify, email_whitelist_suffix[], invite_force, captcha:{provider, site_key}, downloads:{windows:{url,version}, macos, android, ios}, locales:["zh-CN","en"], passkey_enabled, allow_user_rule_profile}` — `register_enabled` = `!stop_register`; `email_whitelist_suffix` is `[]` unless `email_whitelist_enable`; `captcha.provider` is one of `none`, `turnstile`, `recaptcha`, `hcaptcha` (the secret is never returned); `passkey_enabled` is true when a WebAuthn RP id can be derived (`passkey_rp_id` or the host of `app_url`) |
 | GET | `/guest/plans` | — | `[PublicPlan]` unpaginated: `show && sell` plans with capacity left, by `sort`, `id` (`sold_out`/`is_current` always false) |
 | GET | `/guest/rulesets/catalog` | — | public catalog `{sources, categories, templates, mirrors, clients, preferred_sources, defaults, editable}`, categories with `source_clients` (no URL templates; `Cache-Control: public, max-age=300`; see `docs/SUBSCRIPTION.md`) |
-| ANY | `/guest/payment/notify/:gateway/:uuid` | gateway-specific | status, content type and body chosen by the gateway plugin (`docs/PAYMENTS.md`) |
+| ANY | `/guest/payment/notify/:gateway/:uuid` | gateway-specific | status, content type and body chosen by the gateway plugin (`docs/PAYMENTS.md`); 429 + `Retry-After` once the address used up its unverified-notification bucket (§Conventions) |
 | GET | `/guest/payment/return/:trade_no` | — | 302 → `<app_url>/orders/<trade_no>` (gateway query parameters dropped; a relative `/orders/<trade_no>` when `app_url` is empty) |
 | POST | `/guest/telegram/webhook/:secret` | Telegram `Update` | the bot webhook (§Telegram); 403 unless `:secret` equals `telegram_webhook_secret` and a bot token is set |
 
@@ -230,7 +234,7 @@ Owner reads and updates return the key belonging to the authenticated account sn
 | GET | `/user/plans/:id` | — | `PublicPlan` (404 for hidden plans the user does not hold) |
 Both plan reads bind the response to the authenticated account UUID, email and password version in one transaction. A changed, banned or replaced account cannot reveal a hidden plan it no longer holds or receive stale `is_current`/`sold_out` flags.
 | GET | `/user/payment-methods` | — | unpaginated `[{id, name, icon, gateway, handling_fee_fixed, handling_fee_percent}]` (enabled payments, by `sort`; `icon` exactly as stored, see [payment icons](#payment-icons)) |
-| POST | `/user/coupons/check` | `{code*, plan_id*, period*}` | `{id, code, name, type, value, limit_plan_ids, limit_periods, ended_at}` or 400 on `code`, `plan_id` or `period`; 401 if the authenticated account snapshot changed before checking per-user coupon eligibility |
+| POST | `/user/coupons/check` | `{code*, plan_id*, period*}` | `{id, code, name, type, value, limit_plan_ids, limit_periods, ended_at}` or 400 on `code`, `plan_id` or `period`; 401 if the authenticated account snapshot changed before checking per-user coupon eligibility. A hidden plan (`show=false`) that is not the user's current plan answers exactly like an unknown id (400 `plan_id: plan not found`, checked before `period`), so the endpoint cannot enumerate hidden plans; `POST /user/orders` does the same with its 404 |
 | GET | `/user/orders` | `page`, `page_size`, `status?` (0..4), `sort` (`id created_at`) | paginated `[Order]` (default newest first); 401 if the authenticated account snapshot changed before the read |
 | POST | `/user/orders` | `{plan_id*, period*, coupon_code?}` | 201 `{trade_no, status}` (status 3 when nothing was left to pay: free or covered by balance). 401 if the authenticated account snapshot changed before the transaction; 409 when an unpaid order exists (`errors.trade_no` = its trade_no), the plan is sold out (`errors.plan_id`) or the balance changed meanwhile; 404 unknown or hidden plan; 403 upgrade while `plan_change_enable=false`; 400 on `period`, `plan_id` (invalid traffic GB, not for sale, renew disabled, expired legacy plan, reset without an active subscription) or `coupon_code` |
 | GET | `/user/orders/:trade_no` | — | `Order` (404 for other users' orders; 401 if the authenticated account snapshot changed before the read) |
@@ -492,11 +496,11 @@ Plan, group and route reads and writes recheck the current administrator account
 | PATCH | `/admin/groups/:id` | `{name*}` | group with counts |
 | DELETE | `/admin/groups/:id` | — | `true` (409 while users, plans or nodes reference it) |
 | GET | `/admin/nodes` | — | unpaginated `[Node]` (with status) by `sort`, `id` |
-| POST | `/admin/nodes` | Node fields (`type*`, `name*`, `host*`, `port*` as a number or a string `"443"`, `"20000-30000"`, `"443,8443"`; `server_port*` unless a child inherits its parent's; `rate` default 1) | 201 `Node` |
+| POST | `/admin/nodes` | Node fields (`type*`, `name*`, `host*`, `port*` as a number or a string `"443"`, `"20000-30000"`, `"443,8443"`; `server_port*` unless a child inherits its parent's; `rate` default 1; `token` `""` or 16–64 visible ASCII characters, trimmed, cleared on a child — docs/NODE_PROTOCOLS.md §1.1) | 201 `Node` |
 | GET | `/admin/nodes/:id` | — | `Node` |
 | PATCH | `/admin/nodes/:id` | any subset of Node fields (`parent_id: null` detaches; `protocol_settings` is replaced, not merged) | `Node` |
 | DELETE | `/admin/nodes/:id` | — | `true` (409 while the node has children; stats are kept) |
-| POST | `/admin/nodes/:id/copy` | — | 201 `Node` (`name + " (copy)"`, `show=false`) |
+| POST | `/admin/nodes/:id/copy` | — | 201 `Node` (`name + " (copy)"`, `show=false`; a node with its own `token` gets a fresh random 32-character one) |
 | POST | `/admin/nodes/sort` | `{ids}` | `true` (`sort` = 0-based position in `ids`) |
 | GET | `/admin/nodes/:id/stats` | `range?` (`7d` default or `30d`) | array `[{date, u, d}]` one point per day, oldest first, zero-filled (raw bytes of the parent P) |
 | GET | `/admin/nodes/:id/online` | — | array `[{user_id, email, ips[]}]`: the users online on P, by `user_id`; their number is P's `status.online` (docs/NODE_PROTOCOLS.md §5.1). `ips` is `[]` when P reported none |

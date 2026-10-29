@@ -128,7 +128,7 @@ unsaved changes. Deployment requirements are in DEPLOY.md §6.
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `server_token` | generated automatically | XrayR `ApiKey` / V2bX `ApiKey` / soga `webapi_key`. After you click **Regenerate token** and save, the old value stops working immediately |
+| `server_token` | generated automatically | The shared XrayR `ApiKey` / V2bX `ApiKey` / soga `webapi_key` of every node without its own **Node token** (§3). After you click **Regenerate token** and save, the old value stops working immediately |
 | `server_pull_interval` / `server_push_interval` | 60 / 60 | Pull / push intervals sent to backends (seconds) |
 | `server_white_list` | `[]` | White list sent to soga |
 | `device_limit_mode` | 0 | How devices are counted: 0 strict (by online IP), 1 relaxed (an IPv4 /24 or IPv6 /64 counts as one device) |
@@ -254,12 +254,18 @@ Order: **groups → routes (optional) → nodes → configure the backend on the
 | Server port | The port the backend actually listens on |
 | Traffic rate | User traffic × rate is billed |
 | Groups | With none selected, no user can use the node |
-| Parent node | A child node serves as a relay entrance: it reuses the parent's protocol settings and credentials, and its traffic counts on the parent |
+| Parent node | A child node serves as a relay entrance: it reuses the parent's protocol settings, credentials and node token, and its traffic counts on the parent |
+| Node token | Empty: the backend uses the shared `server_token`. Set one (the button generates 32 random characters) and the node accepts only it, while the token works for no other node: whoever runs this node can no longer read other nodes' users or report traffic for them. Several nodes may share one token (one soga serving `node_id=1,2,3`). Hidden for child nodes. A copied node gets a new token |
 | Show | When off, the node does not appear in user subscriptions, but the backend can still pull its config |
 | Protocol / JSON | Protocol parameters (`protocol_settings`); the fields are in [NODE_PROTOCOLS.md](NODE_PROTOCOLS.md) |
 
-Once saved, the node has an ID, and the **Backends** tab of the edit page generates backend snippets for that node. Node
-list statuses: **Online** (traffic reported), **Idle** (heartbeat only), **Offline**.
+Once saved, the node has an ID, and the **Backends** tab of the edit page generates backend snippets for that node
+(`<node_token>` stands for the node token when the node, or its parent, has one). Node list statuses: **Online**
+(traffic reported), **Idle** (heartbeat only), **Offline**.
+
+When nodes are run by different people, give each node (or each backend instance) its own node token. With one shared
+`server_token`, anyone holding it can change `node_id` and read every node's users and keys. Whatever the token,
+traffic and online reports only count for users of the node's own groups.
 
 ### 3.1 Protocol to backend mapping
 

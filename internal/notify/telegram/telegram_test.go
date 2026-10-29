@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/model"
@@ -263,3 +265,28 @@ func setTelegram(t *testing.T, a *app.App, id uint64, chat int64) {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// Security review 2026-10-29: budgets counted unescaped characters, so a ticket subject or body of "&" and "<" grew
+// about fivefold when escaped, passed Telegram's 4096-character limit and the alert was dropped as a permanent error.
+func TestRenderBudgetsCountEscapedText(t *testing.T) {
+	ev := notify.Event{
+		Type: notify.TypeTicketNew, Title: strings.Repeat("<", 400), Body: strings.Repeat("&", 3000),
+	}
+	for range 20 {
+		ev.Fields = append(ev.Fields, notify.Field{Key: "subject", Value: strings.Repeat("&<", 128)})
+	}
+	got := telegram.Render(ev, "en")
+	if n := utf8.RuneCountInString(got); n > 4096 {
+		t.Fatalf("rendered %d characters, over Telegram's 4096", n)
+	}
+	if !strings.Contains(got, "\nSubject: ") {
+		t.Fatalf("no field fits at all:\n%s", got)
+	}
+	// Cuts never split an entity: without the complete entities no "&" is left.
+	if rest := regexp.MustCompile(`&(amp|lt|gt|quot|#39);`).ReplaceAllString(got, ""); strings.Contains(rest, "&") {
+		t.Fatalf("split entity in:\n%s", got)
+	}
+	if !strings.HasSuffix(strings.SplitN(got, "\n", 3)[1], "…") {
+		t.Fatal("the cut body must end in an ellipsis")
+	}
+}

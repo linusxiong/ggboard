@@ -6,6 +6,10 @@ GG Bond is **one Go binary**: the SPA, scheduled jobs, mail queue and in-process
 default, and it needs no Redis and no extra workers. In production you only need the binary and a reverse proxy that
 handles TLS.
 
+Run **one instance** per database. Rate limits, node online state, buffered traffic and caches live in the process,
+and scheduled jobs run in every instance: two instances behind a load balancer would each allow the full rate
+limits, show different node status and run every job twice.
+
 Paths and commands in this document match `deploy/`, `config.example.yaml`, `internal/config` and `internal/cli` in the
 repository one to one. `panel.example.com` stands in for your domain throughout.
 
@@ -300,6 +304,12 @@ The panel does not terminate TLS itself and does not send HSTS. The proxy must:
 4. Put the proxy's address in `server.trusted_proxies`. **Without it, the client IP of every request is the proxy's
    IP**: the login/sign-up rate limits (`/api/v1/passport/*` at 30 per minute per IP, sending verification codes at 10
    per hour per IP), the sign-up IP limit and the IPs in the logs all become "one IP for the whole site".
+5. **Keep secrets out of its access log.** Node backends send their key in the URL
+   (`/api/v1/server/UniProxy/*?token=…`, fixed by the XrayR / V2bX protocol), and so do subscription links
+   (`/api/v1/client/subscribe?token=…`, `/s/<token>`). The panel's own log never records query strings and redacts the
+   short link, but a proxy's default access log keeps the full URL. Log the path without its query string and redact
+   `/s/`: `deploy/nginx.example.conf` does both. nginx's error log also quotes the full request line when an upstream
+   request fails, so keep it readable by root only.
 
 The panel does not use WebSocket, so no `Upgrade` header is needed. Responses are already gzip/br-compressed by the
 panel, so the proxy does not need to compress them again.

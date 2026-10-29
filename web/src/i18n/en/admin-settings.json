@@ -252,7 +252,7 @@
     },
     "server_token": {
       "label": "Server token",
-      "hint": "Shared secret node backends (XrayR / V2bX / soga) use to connect."
+      "hint": "Shared secret node backends (XrayR / V2bX / soga) use to connect. A node with its own node token no longer accepts it."
     },
     "server_pull_interval": {
       "label": "Pull interval",
@@ -492,7 +492,7 @@
   "server": {
     "regenerate": "Regenerate token",
     "regenerateTitle": "Regenerate the server token?",
-    "regenerateHint": "Once saved, the old token stops working: update every node backend (XrayR / V2bX / soga) or they will disconnect.",
+    "regenerateHint": "Once saved, the old token stops working: update every node backend (XrayR / V2bX / soga) that uses the shared token, or it will disconnect. Nodes with their own node token are not affected.",
     "snippetsTitle": "Node backend snippets",
     "snippetsHint": "Replace NodeID / node_id with the node’s ID from the Nodes page; the copy button includes the real token."
   },

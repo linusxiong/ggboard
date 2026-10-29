@@ -2,6 +2,8 @@ package guard_test
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"io"
 	"strings"
 	"sync"
@@ -374,6 +376,59 @@ func TestAccessLogWritesCapsAndMasks(t *testing.T) {
 	}
 	if err := a.Scheduler.RunNow(guard.JobAccessFlush); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// A failed flush puts its rows back (ahead of rows recorded meanwhile) instead of losing them; batches are written in
+// one transaction, so a failure in a later batch leaves nothing half-written to be duplicated by the retry.
+func TestAccessLogFlushFailureKeepsRows(t *testing.T) {
+	a := testutil.NewTestApp(t)
+	u := testutil.CreateUser(t, a, "alice@example.com")
+	now := time.Now()
+	for i := range 700 { // two batches of flushBatch (500)
+		record(a, u.ID, u.Token, "198.51.100.9", now.Add(time.Duration(i-700)*time.Second))
+	}
+
+	var batches atomic.Int32
+	const cb = "test:fail_second_access_batch"
+	if err := a.DB.Callback().Create().Before("gorm:create").Register(cb, func(tx *gorm.DB) {
+		if tx.Statement.Table == "subscription_access" && batches.Add(1) == 2 {
+			_ = tx.AddError(errors.New("injected write failure"))
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := guard.FlushAccess(t.Context(), a); err == nil {
+		t.Fatal("flush must report the write failure")
+	}
+	var n int64
+	a.DB.Model(&model.SubscriptionAccess{}).Count(&n)
+	if n != 0 || guard.Pending(a) != 700 {
+		t.Fatalf("after failure: rows = %d, pending = %d; want 0 and 700", n, guard.Pending(a))
+	}
+	if err := a.DB.Callback().Create().Remove(cb); err != nil {
+		t.Fatal(err)
+	}
+
+	// A cancelled request context (listAccess flushes with it) fails the same way.
+	cancelled, cancel := context.WithCancel(t.Context())
+	cancel()
+	if err := guard.FlushAccess(cancelled, a); err == nil || guard.Pending(a) != 700 {
+		t.Fatalf("cancelled flush: err = %v, pending = %d", err, guard.Pending(a))
+	}
+
+	record(a, u.ID, u.Token, "203.0.113.7", now)
+	if err := guard.FlushAccess(t.Context(), a); err != nil {
+		t.Fatal(err)
+	}
+	a.DB.Model(&model.SubscriptionAccess{}).Count(&n)
+	if n != 701 || guard.Pending(a) != 0 {
+		t.Fatalf("retry: rows = %d, pending = %d; want 701 and 0", n, guard.Pending(a))
+	}
+	var newest model.SubscriptionAccess
+	a.DB.Order("id DESC").First(&newest)
+	if newest.IP != "203.0.113.7" {
+		t.Fatalf("requeued rows must stay ahead of newer ones; newest = %+v", newest)
 	}
 }
 

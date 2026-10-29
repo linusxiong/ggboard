@@ -1,12 +1,14 @@
 /**
  * `/admin/nodes` through the real route tree (guards, i18n, React Query) with a mocked `fetch`:
- * the show/hide eye toggle and drag-to-reorder through the row handle.
+ * the show/hide eye toggle, drag-to-reorder through the row handle and the per-node token.
  */
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Node, User } from '@/lib/api/types'
+import { queryClient } from '@/lib/queryClient'
+import { toastStore } from '@/lib/toast'
 import { routeTree } from '@/routeTree.gen'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
@@ -16,7 +18,7 @@ import fixtureUser from '../../../../scripts/fixtures/user.json'
 const TOKEN = `eyJhbGciOiJub25lIn0.${btoa(JSON.stringify({ sub: 1, exp: 4102444800 })).replace(/=+$/, '')}.test`
 const admin = { ...(fixtureUser as User), is_admin: true }
 
-function node(id: number, name: string, show: boolean): Node {
+function node(id: number, name: string, show: boolean, extra: Partial<Node> = {}): Node {
   return {
     id,
     type: 'shadowsocks',
@@ -33,10 +35,15 @@ function node(id: number, name: string, show: boolean): Node {
     sort: id,
     protocol_settings: { cipher: 'aes-128-gcm' },
     status: { online: 0, last_check_at: null, last_push_at: null, load: null },
+    token: '',
     created_at: '2026-10-01T00:00:00Z',
     updated_at: '2026-10-01T00:00:00Z',
+    ...extra,
   }
 }
+
+/** A fixed, obviously fake token (32 alphanumerics). */
+const FAKE_TOKEN = 'exampleNodeToken0123456789abcdef'
 
 let nodes: Node[] = []
 const writes: { method: string; path: string; body: unknown }[] = []
@@ -61,6 +68,19 @@ function route(url: URL, init: RequestInit | undefined): Response {
     const body = jsonBody<Partial<Node>>(init)
     nodes = nodes.map((n) => (n.id === Number(patch[1]) ? { ...n, ...body } : n))
     return respond(nodes.find((n) => n.id === Number(patch[1])))
+  }
+  const copy = /^\/admin\/nodes\/(\d+)\/copy$/.exec(p)
+  if (copy && method === 'POST') {
+    const source = nodes.find((n) => n.id === Number(copy[1]))!
+    const id = Math.max(...nodes.map((n) => n.id)) + 1
+    const dup = {
+      ...source,
+      id,
+      name: `${source.name} (副本)`,
+      token: source.token ? 'freshCopyToken0123456789abcdefgh' : '',
+    }
+    nodes = [...nodes, dup]
+    return respond(dup)
   }
   if (p === '/admin/nodes/sort' && method === 'POST') {
     const { ids } = jsonBody<{ ids: number[] }>(init)
@@ -92,6 +112,9 @@ function renderAt(url: string) {
 beforeEach(() => {
   nodes = [node(1, 'HK01', true), node(2, 'JP02', true), node(3, 'SG03', false)]
   writes.length = 0
+  // Each test sets its own node list: drop the previous test's cached `/admin/nodes`.
+  queryClient.clear()
+  toastStore.clear()
   useUiStore.setState({ locale: 'zh-CN', theme: 'system' })
   useAuthStore.setState({ token: TOKEN, user: admin })
   fetchMock.mockImplementation((input, init) => {
@@ -115,6 +138,12 @@ beforeEach(() => {
   )
 })
 afterEach(() => vi.unstubAllGlobals())
+
+/** Integration snippets (the intro sentence also names the placeholder). */
+const CODE = { selector: 'code' }
+
+/** Body of the last PATCH to `path` (the sheet sends the whole node). */
+const lastPatch = (path: string) => writes.filter((w) => w.method === 'PATCH' && w.path === path).at(-1)?.body
 
 const nameOrder = () =>
   within(screen.getByRole('grid', { name: '节点' }))
@@ -194,5 +223,110 @@ describe('admin nodes page', () => {
     expect(handle).toBeDisabled()
     expect(screen.getByRole('button', { name: '拖动以排序：SG03' })).toBeDisabled()
     expect(handle.closest('[role="row"]')).not.toHaveAttribute('draggable', 'true')
+  })
+
+  it(
+    'generates a node token, shows <node_token> in the snippets and sends it in the PATCH',
+    { timeout: 30_000 },
+    async () => {
+      const user = userEvent.setup()
+      renderAt('/admin/nodes')
+      await user.click(await screen.findByRole('button', { name: '编辑节点 HK01' }, { timeout: 15_000 }))
+      const sheet = await screen.findByRole('dialog', { name: /编辑节点「HK01」/ })
+
+      // Empty = the shared server_token; a masked, never-autofilled input.
+      const input = within(sheet).getByLabelText('节点密钥')
+      expect(input).toHaveAttribute('type', 'password')
+      expect(input).toHaveAttribute('autocomplete', 'new-password')
+      expect(input).toHaveAttribute('name', 'token')
+      expect(input).toHaveValue('')
+      expect(input).toHaveAttribute('placeholder', '使用共享通讯密钥')
+      expect(within(sheet).queryByRole('button', { name: '改用共享通讯密钥' })).not.toBeInTheDocument()
+      // The explanation sits behind the label's ⓘ (only an sr-only copy on the page).
+      expect(within(sheet).getByText(/共享通讯密钥对本节点失效/)).toHaveClass('sr-only')
+      expect(within(sheet).getByRole('button', { name: '关于「节点密钥」的说明' })).toBeInTheDocument()
+      expect(within(sheet).getAllByText(/<server_token>/, CODE)).toHaveLength(3)
+      expect(within(sheet).queryByText(/<node_token>/, CODE)).not.toBeInTheDocument()
+
+      await user.click(within(sheet).getByRole('button', { name: '生成随机密钥' }))
+      const token = (input as HTMLInputElement).value
+      expect(token).toMatch(/^[A-Za-z0-9]{32}$/)
+      expect(input).toHaveAttribute('type', 'text') // revealed after generating
+      expect(within(sheet).getByRole('button', { name: '改用共享通讯密钥' })).toBeInTheDocument()
+
+      await user.click(within(sheet).getByRole('tab', { name: '对接' }))
+      expect(within(sheet).getAllByText(/<node_token>/, CODE)).toHaveLength(3)
+      expect(within(sheet).queryByText(/<server_token>/, CODE)).not.toBeInTheDocument()
+      expect(within(sheet).getByText(/<node_token> 为本节点的节点密钥/)).toBeInTheDocument()
+      expect(sheet.textContent).not.toContain(token) // placeholders only, never the secret
+
+      await user.click(within(sheet).getByRole('button', { name: '保存' }))
+      await waitFor(() => expect(lastPatch('/admin/nodes/1')).toMatchObject({ parent_id: null, token }))
+    },
+  )
+
+  it('rejects a malformed token and clears back to the shared one', { timeout: 30_000 }, async () => {
+    nodes[0] = node(1, 'HK01', true, { token: FAKE_TOKEN })
+    const user = userEvent.setup()
+    renderAt('/admin/nodes')
+    await user.click(await screen.findByRole('button', { name: '编辑节点 HK01' }, { timeout: 15_000 }))
+    const sheet = await screen.findByRole('dialog', { name: /编辑节点「HK01」/ })
+    const input = within(sheet).getByLabelText('节点密钥')
+    expect(input).toHaveValue(FAKE_TOKEN)
+    expect(within(sheet).getAllByText(/<node_token>/, CODE)).toHaveLength(3)
+
+    await user.clear(input)
+    await user.type(input, 'too short')
+    await user.click(within(sheet).getByRole('button', { name: '保存' }))
+    expect(await within(sheet).findByText(/需为 16–64 个可见 ASCII 字符/)).toBeInTheDocument()
+    expect(writes.filter((w) => w.method === 'PATCH')).toHaveLength(0)
+
+    await user.click(within(sheet).getByRole('button', { name: '改用共享通讯密钥' }))
+    expect(input).toHaveValue('')
+    expect(within(sheet).getAllByText(/<server_token>/, CODE)).toHaveLength(3)
+    await user.click(within(sheet).getByRole('button', { name: '保存' }))
+    await waitFor(() => expect(lastPatch('/admin/nodes/1')).toMatchObject({ token: '' }))
+  })
+
+  it(
+    "hides the token for child nodes, sends '' and points the snippets at the parent's token",
+    {
+      timeout: 30_000,
+    },
+    async () => {
+      nodes[0] = node(1, 'HK01', true, { token: FAKE_TOKEN })
+      nodes[2] = node(3, 'SG03', false, { token: 'standaloneToken0123456789' })
+      const user = userEvent.setup()
+      renderAt('/admin/nodes')
+      await user.click(await screen.findByRole('button', { name: '编辑节点 SG03' }, { timeout: 15_000 }))
+      const sheet = await screen.findByRole('dialog', { name: /编辑节点「SG03」/ })
+      expect(within(sheet).getByLabelText('节点密钥')).toHaveValue('standaloneToken0123456789')
+
+      // The parent Select's trigger shows the current choice.
+      await user.click(within(sheet).getByRole('button', { name: /无（独立节点）/ }))
+      await user.click(await screen.findByRole('option', { name: 'HK01 (#1)' }))
+      await waitFor(() => expect(within(sheet).queryByLabelText('节点密钥')).not.toBeInTheDocument())
+      expect(within(sheet).getAllByText(/<node_token>/, CODE)).toHaveLength(3)
+      expect(
+        within(sheet).getByText('在后端填写以下配置。<node_token> 为父节点「HK01」的节点密钥。'),
+      ).toBeInTheDocument()
+
+      await user.click(within(sheet).getByRole('button', { name: '保存' }))
+      await waitFor(() => expect(lastPatch('/admin/nodes/3')).toMatchObject({ parent_id: 1, token: '' }))
+    },
+  )
+
+  it('says when a copy got a fresh node token', { timeout: 30_000 }, async () => {
+    nodes[0] = node(1, 'HK01', true, { token: FAKE_TOKEN })
+    const user = userEvent.setup()
+    renderAt('/admin/nodes')
+    for (const [name, toast] of [
+      ['HK01', '已复制为「HK01 (副本)」，副本使用新的节点密钥'],
+      ['JP02', '已复制为「JP02 (副本)」'],
+    ] as const) {
+      await user.click(await screen.findByRole('button', { name: `${name} 的更多操作` }, { timeout: 15_000 }))
+      await user.click(await screen.findByRole('menuitem', { name: '复制节点' }))
+      await waitFor(() => expect(toastStore.getSnapshot().map((t) => t.message)).toContain(toast))
+    }
   })
 })

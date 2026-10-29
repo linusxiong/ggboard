@@ -73,14 +73,37 @@ func (h *handler) tokenOK(given string) bool {
 	return want != "" && subtle.ConstantTimeCompare([]byte(given), []byte(want)) == 1
 }
 
-// tokenCheck compares the token first (the right token is never limited, whatever its address did); a failed
-// comparison is charged to the per-IP failure bucket and limited is true once that bucket is empty (429, like the
-// subscription miss bucket in internal/api/client/subscribe.go).
-func (h *handler) tokenCheck(c *gin.Context, given string) (ok, limited bool) {
+// tokenCheck is the first, node-independent check: the key must be server_token or some node's own token
+// (docs/NODE_PROTOCOLS.md §1.1). The token is compared first (the right token is never limited, whatever its
+// address did); a failed comparison is charged to the per-IP failure bucket and limited is true once that bucket
+// is empty (429, like the subscription miss bucket in internal/api/client/subscribe.go).
+func (h *handler) tokenCheck(c *gin.Context, given string) (ok, limited bool, err error) {
 	if h.tokenOK(given) {
-		return true, false
+		return true, false, nil
 	}
-	return false, !h.fails.Allow(httpx.KeyByIP(c))
+	if given != "" {
+		idx, err := h.svc.NodeTokens(c.Request.Context())
+		if err != nil {
+			return false, false, err
+		}
+		if idx.Has(given) {
+			return true, false, nil
+		}
+	}
+	return false, h.miss(c), nil
+}
+
+// miss charges a failed check to the client's address; true once its bucket is empty.
+func (h *handler) miss(c *gin.Context) bool { return !h.fails.Allow(httpx.KeyByIP(c)) }
+
+// tokenFits is the second check, once the node is loaded: a node with its own token (a child: its parent's) accepts
+// only that token, any other node only server_token. A key that passed tokenCheck as another node's token is
+// refused here, so one node's key never reads another node's users or reports for them.
+func (h *handler) tokenFits(r *nodesvc.Resolved, given string) bool {
+	if want := r.P.Token; want != "" {
+		return subtle.ConstantTimeCompare([]byte(given), []byte(want)) == 1
+	}
+	return h.tokenOK(given)
 }
 
 // parseNodeID parses a node id (decimal uint64 > 0).

@@ -149,7 +149,8 @@ export function NodesPage() {
   })
   const copy = useAdminMutation({
     mutationFn: (id: number) => adminApi.copyNode(id),
-    success: (n) => t('nodes.copied', { name: n.name }),
+    // A copy of a node with its own token gets a fresh one (its backend needs the new token).
+    success: (n) => t(n.token ? 'nodes.copiedNewToken' : 'nodes.copied', { name: n.name }),
     invalidate: [qk.admin.nodes()],
   })
   const remove = useAdminMutation({

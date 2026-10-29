@@ -19,7 +19,16 @@ import { FormDrawer } from '../shared/FormDrawer'
 import { MultiSelectField } from '../shared/fields'
 import { useAdminMutation } from '../shared/useAdminMutation'
 import { NodeIntegration } from './NodeIntegration'
-import { NO_PARENT, nodeToValues, portError, splitNodeErrors, valuesToNodeInput } from './nodeForm'
+import { NodeTokenField } from './NodeTokenField'
+import {
+  NO_PARENT,
+  nodeToValues,
+  portError,
+  splitNodeErrors,
+  tokenError,
+  tokenOwner,
+  valuesToNodeInput,
+} from './nodeForm'
 import { defaultSettings, type Settings, validateSettings } from './protocol'
 import { ProtocolForm } from './ProtocolForm'
 import { RawJsonEditor } from './RawJsonEditor'
@@ -38,6 +47,7 @@ const BASIC_FIELDS = new Set([
   'rate',
   'show',
   'sort',
+  'token',
 ])
 
 interface NodeSheetProps {
@@ -333,6 +343,21 @@ export function NodeSheet({ node, nodes, isOpen, onOpenChange }: NodeSheetProps)
                   </form.AppField>
                 )}
               </form.Subscribe>
+              {/* Child nodes authenticate with their parent's token: no field, `token: ''` is sent. */}
+              <form.Subscribe selector={(s) => s.values.parent_id === NO_PARENT}>
+                {(standalone) =>
+                  standalone ? (
+                    <form.AppField
+                      name="token"
+                      validators={{
+                        onSubmit: ({ value }) => (tokenError(value) ? t('nodes.errors.token') : undefined),
+                      }}
+                    >
+                      {() => <NodeTokenField saved={node?.token ?? ''} />}
+                    </form.AppField>
+                  ) : null
+                }
+              </form.Subscribe>
               <div className="grid gap-4 sm:grid-cols-2">
                 <form.AppField name="sort">
                   {(f) => (
@@ -390,15 +415,21 @@ export function NodeSheet({ node, nodes, isOpen, onOpenChange }: NodeSheetProps)
           <SegmentedTabs.Panel id="integration" shouldForceMount className={panelClass}>
             <form.Subscribe
               selector={(s) =>
-                [s.values.type, s.values.protocol_settings.version, s.values.parent_id] as const
+                [
+                  s.values.type,
+                  s.values.protocol_settings.version,
+                  s.values.parent_id,
+                  s.values.token,
+                ] as const
               }
             >
-              {([type, version, parent]) => (
+              {([type, version, parent, token]) => (
                 <NodeIntegration
                   type={type}
                   nodeId={node?.id ?? null}
                   version={version}
                   isChild={parent !== NO_PARENT}
+                  tokenOwner={tokenOwner(parent, token, nodes)}
                 />
               )}
             </form.Subscribe>

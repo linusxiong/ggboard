@@ -2,6 +2,7 @@ package guest_test
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -72,5 +73,57 @@ func TestGuestPlansAndPaymentRoutes(t *testing.T) {
 	q.Set("sign", "00000000000000000000000000000000")
 	if rec = testutil.Do(t, r, http.MethodPost, "/api/v1/guest/payment/notify/epay/"+pay.UUID, q, ""); rec.Code != http.StatusBadRequest {
 		t.Fatalf("bad sign = %d", rec.Code)
+	}
+}
+
+// Security review 2026-10-29: the notify endpoint was the only unauthenticated route without a limit, and it hits the
+// database before verifying. Unverified notifications are charged to a per-IP miss bucket (429 before any lookup once
+// it is empty); verified callbacks are never charged, so a gateway's retries keep working.
+func TestGuestPaymentNotifyMissesLimited(t *testing.T) {
+	a := testutil.NewTestApp(t)
+	r := testutil.NewRouterWith(t, a, guest.Register)
+	pay := &model.Payment{UUID: strings.Repeat("e", 32), Gateway: epay.Name, Name: "EPay", Enabled: true,
+		Config: model.JSONObject[string]{"url": "https://pay.example.com", "pid": "1", "key": "k"}}
+	if err := a.DB.Create(pay).Error; err != nil {
+		t.Fatal(err)
+	}
+	params := map[string]string{"pid": "1", "out_trade_no": "x", "trade_status": "WAIT_BUYER_PAY"}
+	signed := url.Values{}
+	for k, v := range params {
+		signed.Set(k, v)
+	}
+	signed.Set("sign", epay.Sign(params, "k"))
+	path := "/api/v1/guest/payment/notify/epay/" + pay.UUID
+
+	// Verified callbacks: never charged, however many.
+	for i := range guest.NotifyMissBurst + 10 {
+		if rec := testutil.Do(t, r, http.MethodPost, path, signed, ""); rec.Code != http.StatusOK {
+			t.Fatalf("verified callback %d = %d", i+1, rec.Code)
+		}
+	}
+	// Misses: the burst answers 400 "fail", then 429 with Retry-After.
+	codes := map[int]int{}
+	var limited *httptest.ResponseRecorder
+	for range guest.NotifyMissBurst + 5 {
+		rec := testutil.Do(t, r, http.MethodPost, "/api/v1/guest/payment/notify/epay/"+strings.Repeat("0", 32), url.Values{"pid": {"1"}}, "")
+		codes[rec.Code]++
+		if rec.Code == http.StatusTooManyRequests {
+			limited = rec
+		}
+	}
+	if codes[http.StatusBadRequest] != guest.NotifyMissBurst || codes[http.StatusTooManyRequests] != 5 || limited.Header().Get("Retry-After") == "" {
+		t.Fatalf("miss codes = %v", codes)
+	}
+	// An exhausted address is refused before the lookup, verified or not; another address is unaffected.
+	if rec := testutil.Do(t, r, http.MethodPost, path, signed, ""); rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("exhausted address = %d, want 429", rec.Code)
+	}
+	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(signed.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.RemoteAddr = "198.51.100.20:443"
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("other address = %d %s", rec.Code, rec.Body.String())
 	}
 }

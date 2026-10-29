@@ -43,50 +43,58 @@ func internalFail() *payment.NotifyResponse {
 //
 //   - unknown/disabled payment, gateway mismatch or failed verification → 400 "fail" (WARN);
 //   - verified non-payment events → the gateway's acknowledgement;
-//   - verified payments: unknown order, payment_id or amount mismatch → ERROR + admin alert, acknowledged but
-//     not paid; an already-paid order with another callback number → WARN (possible double payment); a
+//   - verified payments: unknown order or amount mismatch → ERROR + admin alert, acknowledged but not paid (a
+//     payment through an earlier checkout's method is charged at that method's fee and re-points the order); an already-paid order with another callback number → WARN (possible double payment); a
 //     cancelled order → callback_no stored, ERROR + admin alert; otherwise the order is paid and fulfilled
 //     (idempotent). Database failures → 500 so the gateway retries.
 func (s *Service) HandleNotify(ctx context.Context, gatewayParam, uuid string, r *http.Request) *payment.NotifyResponse {
+	resp, _ := s.HandleNotifyVerified(ctx, gatewayParam, uuid, r)
+	return resp
+}
+
+// HandleNotifyVerified is HandleNotify that also reports whether the request passed the gateway's verification. It
+// is false for unknown or disabled payments, gateway mismatches and failed signatures: requests anyone can send,
+// which the guest route charges to its per-IP miss bucket (a verified callback, retried or not, never is).
+func (s *Service) HandleNotifyVerified(ctx context.Context, gatewayParam, uuid string, r *http.Request) (resp *payment.NotifyResponse, verified bool) {
 	log := s.a.Log.With("component", "payment_notify", "gateway", gatewayParam, "payment_uuid", uuid)
 	var p model.Payment
 	if err := s.a.DB.WithContext(ctx).Where("uuid = ?", uuid).First(&p).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			log.Warn("payment notify for unknown payment")
-			return payment.FailResponse()
+			return payment.FailResponse(), false
 		}
 		log.Error("payment notify: load payment", "err", err)
-		return internalFail()
+		return internalFail(), false
 	}
 	log = log.With("payment_id", p.ID)
 	if !GatewayMatches(gatewayParam, p.Gateway) {
 		log.Warn("payment notify gateway mismatch", "expected", p.Gateway)
-		return payment.FailResponse()
+		return payment.FailResponse(), false
 	}
 	if !p.Enabled {
 		log.Warn("payment notify for disabled payment")
-		return payment.FailResponse()
+		return payment.FailResponse(), false
 	}
 	gw, ok := payment.Get(p.Gateway)
 	if !ok {
 		log.Error("payment notify: gateway not registered", "expected", p.Gateway)
-		return payment.FailResponse()
+		return payment.FailResponse(), false
 	}
 	res, resp, err := gw.Notify(ctx, map[string]string(p.Config), r)
 	if err != nil {
 		log.Warn("payment notify verification failed", "err", err)
-		return payment.FailResponse()
+		return payment.FailResponse(), false
 	}
 	if resp == nil {
 		resp = &payment.NotifyResponse{Status: http.StatusOK, Body: "success", ContentType: "text/plain; charset=utf-8"}
 	}
 	if res == nil {
 		log.Info("payment notify acknowledged (not a payment)")
-		return resp
+		return resp, true
 	}
 	if res.Amount <= 0 {
 		log.Warn("payment notify without a positive amount")
-		return payment.FailResponse()
+		return payment.FailResponse(), true
 	}
 	log = log.With("trade_no", res.TradeNo, "callback_no", res.CallbackNo, "reported_amount", res.Amount)
 	var o model.Order
@@ -96,28 +104,30 @@ func (s *Service) HandleNotify(ctx context.Context, gatewayParam, uuid string, r
 			s.alertAdmin("Payment received for an unknown order",
 				fmt.Sprintf("Payment method %q (#%d) confirmed a payment for order %s (gateway transaction %s), but the order does not exist. Check the payment provider and refund or credit the customer manually.",
 					p.Name, p.ID, res.TradeNo, res.CallbackNo))
-			return resp
+			return resp, true
 		}
 		log.Error("payment notify: load order", "err", err)
-		return internalFail()
+		return internalFail(), true
 	}
 	switch o.Status {
 	case model.OrderStatusCompleted, model.OrderStatusDiscounted, model.OrderStatusProcessing:
 		if o.CallbackNo != res.CallbackNo {
 			log.Warn("payment notify for an already paid order with another transaction: possible double payment", "order_callback_no", o.CallbackNo)
 		}
-		return resp
+		return resp, true
 	case model.OrderStatusCancelled:
-		return s.paidAfterCancel(ctx, log, &p, &o, res, resp)
+		return s.paidAfterCancel(ctx, log, &p, &o, res, resp), true
 	}
+	handling := o.HandlingAmount
 	if o.PaymentID == nil || *o.PaymentID != p.ID {
-		log.Error("verified payment through a payment method the order was not checked out with", "order_payment_id", o.PaymentID)
-		s.alertAdmin("Payment received through an unexpected payment method",
-			fmt.Sprintf("Order %s was paid through payment method %q (#%d), gateway transaction %s, but the order was checked out with another method. It was NOT fulfilled; verify the payment and confirm the order manually.",
-				o.TradeNo, p.Name, p.ID, res.CallbackNo))
-		return resp
+		// The buyer paid the page of an earlier checkout with another method: they switched methods, or two checkouts
+		// raced, and the order now points at the later one. Only a checkout can open a page for this order at p's
+		// merchant account, so the verified payment counts, charged at p's own fee; the claiming update re-points the
+		// order to p. A fee that changed since that checkout fails the amount check below (alert, not fulfilled).
+		handling = HandlingAmount(&p, o.TotalAmount)
+		log.Warn("verified payment through an earlier checkout's payment method; charging it at that method's fee", "order_payment_id", o.PaymentID)
 	}
-	expected, validCharge := chargeAmount(o.TotalAmount, o.HandlingAmount)
+	expected, validCharge := chargeAmount(o.TotalAmount, handling)
 	var amountErr error
 	if !validCharge {
 		amountErr = errors.New("invalid stored payment charge")
@@ -133,18 +143,18 @@ func (s *Service) HandleNotify(ctx context.Context, gatewayParam, uuid string, r
 		s.alertAdmin("Payment amount mismatch",
 			fmt.Sprintf("Order %s expected a charge for %s %s but payment method %q reported %s (gateway transaction %s). It was NOT fulfilled; verify the payment and confirm the order manually.",
 				o.TradeNo, payment.FormatAmount(expected), s.a.Settings.String("currency"), p.Name, notifyAmount(res), res.CallbackNo))
-		return resp
+		return resp, true
 	}
-	if _, already, err := s.paid(ctx, o.TradeNo, res.CallbackNo, &o); err != nil {
+	if _, already, err := s.paidVia(ctx, o.TradeNo, res.CallbackNo, &o, p.ID, handling); err != nil {
 		if errors.Is(err, ErrOrderCancelled) {
-			return s.paidAfterCancel(ctx, log, &p, &o, res, resp)
+			return s.paidAfterCancel(ctx, log, &p, &o, res, resp), true
 		}
 		log.Error("payment notify: fulfil failed", "err", err)
-		return internalFail()
+		return internalFail(), true
 	} else if !already {
 		log.Info("order paid through gateway")
 	}
-	return resp
+	return resp, true
 }
 
 // paidAfterCancel records a verified payment for an order that order_timeout (or the user) already

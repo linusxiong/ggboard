@@ -28,12 +28,37 @@ Conventions:
 | soga (`type=soga-v1`) | headers `API-KEY`, `NODE-ID`, `NODE-TYPE` | `/api/v1/{node,users,audit_rules,white_list,traffic,alive_ip,audit_log,status}` **and** the same handlers under `/soga/api/v1/...` |
 
 The settings key `server_token` is the shared secret for both clients (XrayR/V2bX `ApiKey`, soga `webapi_key`).
+A node may also have **its own token** (`nodes.token`, admin node form; empty = the shared `server_token`):
+
+| node (P = the node, or the parent of a child) | accepted key |
+| --- | --- |
+| P has its own token | **only** P's token: `server_token` is refused for P and its children |
+| P has no own token | only `server_token` |
+
+So a node's own token works for that node (and its children) and for no other node. With every node on its own token,
+the operator of one node can no longer change `node_id` to pull another node's users, keys (REALITY `private_key`,
+SS2022 server keys) or report traffic for them; with one shared `server_token` (the Xboard model, still the default) any
+holder can. Several nodes may share one own token on purpose (one soga instance serving `node_id=1,2,3` sends one
+`webapi_key`). A child never stores a token: it authenticates with its parent's (§5.3). Own tokens are 16–64 visible
+ASCII characters; copying a node gives the copy a fresh random one. Backends need nothing new: each XrayR/V2bX node entry
+and each soga instance already has its own key setting.
+
+The check runs in two steps, so a wrong key costs no node lookup: (1) before anything is loaded, the key must be
+`server_token` or the token of *some* node (looked up by SHA-256 in a cached index, `nodesvc.NodeTokens`); (2) once the
+node is resolved, the key must be the one the table above names for P. A key that passes (1) but not (2) is answered
+like a wrong token (403, charged to the failure bucket), and so is an unknown `node_id` unless the key is `server_token`:
+an own token does not learn which other node ids exist.
+
 Node endpoints use no JWT, no CORS and no user rate limiters. Only failed token checks are limited: the token is compared
-first and the right `server_token` is always accepted; each wrong one is charged to its client address (IPv6 per /64,
+first and the right key is always accepted; each wrong one is charged to its client address (IPv6 per /64,
 30 failures refilled at 60/h), and once that is used up further wrong tokens get 429 (soga: `{"code":429,...}` shape).
 A backend that shares an address with failing clients (NAT, a proxy without `server.trusted_proxies`, the Docker bridge)
-therefore keeps working. Guessing is defeated by the token's length: admins can only save a `server_token` of at least
-16 characters (first start generates 32).
+therefore keeps working. Guessing is defeated by the token's length: admins can only save a `server_token` (or an own
+token) of at least 16 characters (first start generates 32).
+
+UniProxy clients send the key as the `token` **query parameter** (protocol-fixed). ggboard's own access log never
+records query strings, but a reverse proxy's default access log does: drop or redact query strings for
+`/api/v1/server/UniProxy/*` there (DEPLOY.md §3, `deploy/nginx.example.conf`).
 POST bodies are capped at `httpx.NodeBodyLimit` (8 MiB, about 250k users per push). `httpx.NewEngine` sets gin `engine.RemoveExtraSlash = true` as a defensive measure: then `.../soga//api/v1/node` still routes if a client joins
 `webapi_url` naively. It also turns gin's trailing-slash and fixed-path redirects off (`RedirectTrailingSlash`/`RedirectFixedPath = false`):
 with `RemoveExtraSlash` they echoed the raw path, so `//evil.example%2f..%2fhealthz/` became `301 Location: //evil.example/../healthz`
@@ -72,8 +97,8 @@ mount) works too.
 Query parameters: `token`, `node_id`, `node_type`. XrayR and V2bX send all three on every call, in alphabetical order.
 Check them in this order:
 
-1. **token**: required. Compare it with `server_token` using `crypto/subtle.ConstantTimeCompare`. If `server_token` is empty,
-   reject everything (the Xboard fork does the same).
+1. **token**: required. It must be `server_token` (compared with `crypto/subtle.ConstantTimeCompare`) or some node's own
+   token (§1.1, step 1). If `server_token` is empty, only own tokens can pass (the Xboard fork rejects everything).
 2. **node_id**: required, a decimal uint64.
 3. **node_type**: optional (upstream allows null). Normalise it: `strings.ToLower(strings.TrimSpace(v))`, then apply aliases
    `v2ray→vmess`, `ss`/`shadowsocks-plugin→shadowsocks`, `ssr→shadowsocksr` and `hysteria2→hysteria` (record that
@@ -81,14 +106,15 @@ Check them in this order:
    Values accepted after aliasing: `vmess vless trojan shadowsocks hysteria tuic anytls mieru`; anything else is
    400 `unsupported node_type "<v>"`. `shadowsocksr` is not a UniProxy type: a shadowsocksr node is "not found" with
    `node <id> is shadowsocksr, which UniProxy does not support`.
-4. Load the node by id. If the node is missing, or `node_type` was given and `node.type` differs, the node is "not found".
-   If `hysteria2` was requested and `ps.version != 2`, the node is also "not found" (Xboard has no version check; ggboard
-   adds it).
-5. Resolve P (§5.3), set `LastCheckAt(P) = now` (§5.1), and continue.
+4. Load the node by id and resolve P (§5.3). If the node is missing it is "not found", except that a key other than
+   `server_token` gets the invalid-token answer instead. Then the key must fit P (§1.1, step 2), else invalid token.
+   If `node_type` was given and `node.type` differs, the node is "not found". If `hysteria2` was requested and
+   `ps.version != 2`, the node is also "not found" (Xboard has no version check; ggboard adds it).
+5. Set `LastCheckAt(P) = now` (§5.1), and continue.
 
 | failure | Xboard (reference) | **ggboard** |
 | --- | --- | --- |
-| token missing or wrong, or `server_token` unset | 422 `{"message":"Invalid token","errors":{"token":["Invalid token"]}}` (Laravel validation under ForceJson) | **403** `{"code":"forbidden","message":"invalid token"}` |
+| token missing or wrong (including another node's own token, `server_token` for a node with its own token, and an own token with an unknown `node_id`), or `server_token` unset | 422 `{"message":"Invalid token","errors":{"token":["Invalid token"]}}` (Laravel validation under ForceJson) | **403** `{"code":"forbidden","message":"invalid token"}` |
 | node_id missing or not a uint64 > 0; bad node_type | 422 | **400** `{"code":"validation_failed","message":"node_id must be a positive integer"}` (or `unsupported node_type …`) |
 | node not found / type mismatch | `ApiException` default code 400 → `Handler::render` → `fail([400,msg])` → **HTTP 400** `{"status":"fail","message":"Server does not exist","data":null,"error":null}` (not 500) | **400** `{"code":"validation_failed","message":"server is not exist"}`, or `"node 3 is vless, requested vmess"` |
 
@@ -101,7 +127,7 @@ soga sends these request headers on every call: `API-KEY` (= `webapi_key`), `NOD
 carry `If-None-Match` once soga has an ETag. Go canonicalises them as `Api-Key`, `Node-Id`, `Node-Type`; read them with
 `r.Header.Get`.
 
-Validation is the same as §1.2, using the headers:
+Validation is the same as §1.2 (including both token steps of §1.1), using the headers:
 
 - Documented `NODE-TYPE` values: `vmess vless shadowsocks shadowsocksr trojan hysteria anytls mieru`.
 - Also accept `v2ray→vmess`, `ss`/`shadowsocks-plugin→shadowsocks`, `ssr→shadowsocksr`, `hysteria2→hysteria`.
@@ -403,6 +429,11 @@ XrayR and V2bX send it only when at least one user has traffic [XrayR controller
   - `stat_users(user, P, rate)` += the rated values
   - `stat_nodes(P)` += the raw values (Xboard: TrafficFetchJob, StatUserJob, StatServerJob)
   - Writes are buffered and flushed every 10 s (ARCHITECTURE). Unknown uids are ignored at flush.
+- **Only users P serves are kept** (`nodesvc.Served`): the uids of P's `/user` list (§2.2), plus users whose `group_id`
+  is in `groups(P) ∪ groups(children of P)` but who became unavailable since the backend last pulled (traffic used up,
+  expired, banned: they still pay for what they used). Any other uid is dropped and counted in one `slog.Warn`
+  (`node report names users the node does not serve; ignored`). Xboard charges any existing uid, so a key holder could
+  exhaust anyone's traffic and skew the statistics.
 - Set `LastPushAt(P) = now` and replace P's traffic users with the kept uids (§5.1). Do this even for an empty body.
 - Response: 200 `{"data":true}`. Invalid JSON, or a body that is neither an object nor `[]`, gets 400
   `{"code":"validation_failed","message":"invalid data format"}` (upstream answers 422).
@@ -412,7 +443,8 @@ XrayR and V2bX send it only when at least one user has traffic [XrayR controller
 Body: `{"<uid>":["1.2.3.4","2001:db8::1"], ...}`. V2bX sends it every push interval, only for users above
 `DeviceOnlineMinTraffic`.
 
-For each uid:
+For each uid P serves (the same filter as §2.3: alive IPs count against a user's device limit on every node, so other
+users are dropped):
 
 1. Normalise each IP: strip `:port`, and turn `[v6]:port` into `v6`. Addresses longer than 64 bytes are dropped.
 2. Deduplicate; keep at most 256 addresses per user and node (memory bound of the online store).
@@ -546,13 +578,13 @@ Returns the settings value `server_white_list` ([]string) verbatim, `[]` if unse
 
 ### 3.5 `POST /api/v1/traffic`
 
-Body: `[{"id":uid,"u":bytes,"d":bytes}]`. Uses the **same pipeline as §2.3**: the same rate and stats, `LastPushAt`, and
-the distinct kept ids become P's traffic users. Entries with `id <= 0` or negative values are dropped; duplicate ids are summed.
+Body: `[{"id":uid,"u":bytes,"d":bytes}]`. Uses the **same pipeline as §2.3**: the same served-users filter, rate and
+stats, `LastPushAt`, and the distinct kept ids become P's traffic users. Entries with `id <= 0` or negative values are dropped; duplicate ids are summed.
 soga may skip users below `submit_traffic_min_traffic` KB.
 
 ### 3.6 `POST /api/v1/alive_ip`
 
-Body: `[{"id":uid,"ips":["1.2.3.4"]}]`. Same handling as §2.4.
+Body: `[{"id":uid,"ips":["1.2.3.4"]}]`. Same handling as §2.4 (including the served-users filter).
 
 IPs may arrive CIDR-masked, e.g. `192.168.1.0`, when soga sets `user_ip_limit_cidr_prefix_v4/v6` without `submit_real_ip`.
 Store them as given. soga skips users below `submit_alive_ip_min_traffic` KB.
@@ -560,7 +592,7 @@ Store them as given. soga skips users below `submit_alive_ip_min_traffic` KB.
 ### 3.7 `POST /api/v1/audit_log`
 
 Body: `[{"user_id":int,"audit_id":int}]`. soga already deduplicates repeated hits of the same rule by the same user.
-Malformed entries are dropped.
+Malformed entries and entries of users P does not serve (§2.3) are dropped.
 
 For each entry, call `slog.Warn("audit rule hit", "node_id",P.id, "user_id",…, "route_id",audit_id/1000, "rule",<entry text>)`.
 Also keep the hit in an in-memory ring buffer of the last 1000 hits across all nodes. `GET /api/v1/admin/nodes/:id/audit`
@@ -673,7 +705,8 @@ their next poll.
 ### 5.3 Child nodes (`parent_id`)
 
 - A child is a relay entrance shown in subscriptions. Validate on save: same `type` as the parent, and the parent has no
-  `parent_id` itself.
+  `parent_id` itself. A child has no own token (saving one with `parent_id` set clears it): requests with the child's id
+  need P's key (§1.1).
 - Effective node `P = parent` (or the node itself). A backend that authenticates with a child id is answered **as P**:
   - P's `server_port`, `protocol_settings`, routes, and SS2022 node key (from P's `created_at`/`server_key`; Xboard
     `generateServerPassword` also uses the parent's `created_at`)
@@ -700,7 +733,7 @@ their next poll.
      until XrayR restarts.
 
    Document this in the admin UI. V2bX and soga handle `[]` correctly.
-5. **`server_token` unset**: every node request gets 403. The first boot generates the token (API.md).
+5. **`server_token` unset**: every node request without an own token gets 403. The first boot generates the token (API.md).
 6. **ETag**:
    - `tag = hex(sha1(body))`, where `body` is the exact uncompressed bytes sent. Header: `ETag: "<tag>"` (quoted, 40
      lowercase hex characters).
@@ -718,12 +751,12 @@ their next poll.
      substring comparison still matches, so the tag itself never changes. The encoding is cached with the body
      (`nodesvc.Body.Gzip`, sent by `httpx.DataPrecompressed`): one deflate per body version, not per response, and the
      encoded `Content-Length` is sent. Clients without `Accept-Encoding: gzip` get the plain JSON as before.
-7. **Bad push/traffic entries**: non-numeric, negative or wrong-length entries are dropped. Unknown uids are ignored.
-   Traffic from banned or expired users is still charged (Xboard does the same).
+7. **Bad push/traffic entries**: non-numeric, negative or wrong-length entries are dropped. Unknown uids and users P does
+   not serve are ignored (§2.3). Traffic from banned or expired users of P's groups is still charged (Xboard does the same).
 8. **Several backends with one node id**: traffic is summed. `Online` reflects the latest pusher. The Xboard fork's
    per-backend sum via an `id` query param is not implemented.
 9. **Secrets in logs**: the access log records route patterns only (no query strings, no headers), so neither `token`
-   nor `API-KEY` is logged.
+   nor `API-KEY` is logged. A reverse proxy in front logs query strings by default: redact them (§1.1).
 10. **uuid reset or user ban**: the user list body changes, so the ETag changes. Backends then drop the user within one
     pull interval plus the cache TTL.
 
@@ -866,6 +899,8 @@ With the wrong key, the response is 403 `{"code":403,"message":"invalid API-KEY"
   - shadowsocksr `password` (node password)
   - optional `server_key` already exists for shadowsocks
 - Node config ETag is `sha1(body)`, not "per node `updated_at`" as ARCHITECTURE currently says.
+- Optional per-node tokens bound to their node (§1.1); traffic, alive and audit reports only count for users the node
+  serves (§2.3). Xboard has one shared token and charges any existing uid.
 - Alive-IP TTL is `max(300, 2×push_interval)`. This reconciles DATA_MODEL (2× push) with ARCHITECTURE (600 s).
 - Online status follows the three-state model in §5.1. `device_limit_mode` follows §5.2.
 - Admin validation (`nodesvc.ValidateRoute`, `nodesvc.CheckNode`): route `match` must compile as a Go regexp when joined

@@ -244,3 +244,36 @@ func TestShopCapacityConflict(t *testing.T) {
 		t.Fatalf("capacity = %+v", e)
 	}
 }
+
+// A hidden plan must answer a coupon check exactly like an unknown id: the period check used to tell "exists but
+// not for this period" apart from "plan not found", which enumerated hidden plans and their periods.
+func TestShopCouponCheckHidesHiddenPlans(t *testing.T) {
+	a, r := shopFixture(t)
+	hidden := shopCreate(t, a, &model.Plan{Name: "Hidden", Show: false, Sell: true, Renew: true, Prices: model.JSONObject[int64]{"monthly": 500}})
+	shopCreate(t, a, &model.Coupon{Code: "TENOFF", Name: "Ten", Type: model.CouponTypePercent, Value: 10, Show: true,
+		StartedAt: time.Now().Add(-time.Hour), EndedAt: time.Now().Add(time.Hour)})
+	future := time.Now().Add(time.Hour)
+	shopper := testutil.Login(t, a, testutil.CreateUser(t, a, "shopper@example.com"))
+	holder := testutil.Login(t, a, testutil.CreateUser(t, a, "holder@example.com", usersvc.CreateOptions{PlanID: &hidden.ID, ExpiredAt: &future}))
+
+	check := func(tok string, planID uint64, period string) (int, string) {
+		rec := testutil.Do(t, r, http.MethodPost, "/api/v1/user/coupons/check", map[string]any{"code": "TENOFF", "plan_id": planID, "period": period}, tok)
+		return rec.Code, rec.Body.String()
+	}
+	missingCode, missingBody := check(shopper, hidden.ID+1000, "yearly")
+	if missingCode != http.StatusBadRequest || !strings.Contains(missingBody, "plan not found") {
+		t.Fatalf("unknown plan: %d %s", missingCode, missingBody)
+	}
+	for _, period := range []string{"yearly", "monthly"} {
+		if code, body := check(shopper, hidden.ID, period); code != missingCode || body != missingBody {
+			t.Fatalf("hidden plan (%s): %d %s, want the unknown-plan answer %d %s", period, code, body, missingCode, missingBody)
+		}
+	}
+	// The holder of the hidden plan still sees it (renewals keep working).
+	if code, body := check(holder, hidden.ID, "monthly"); code != http.StatusOK {
+		t.Fatalf("holder: %d %s", code, body)
+	}
+	if code, body := check(holder, hidden.ID, "yearly"); code != http.StatusBadRequest || !strings.Contains(body, "period") {
+		t.Fatalf("holder, missing period: %d %s", code, body)
+	}
+}

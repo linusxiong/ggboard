@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -264,6 +265,12 @@ func TestProfilesAndOverrides(t *testing.T) {
 	rec := e.get(t, e.sub("&flag=surge&profile=nope&cats=x"), nil)
 	if err := testutil.DecodeError(t, rec); err.Status != http.StatusBadRequest || len(err.Errors["cats"]) == 0 {
 		t.Fatalf("bad override = %+v", err)
+	}
+	// cats is bounded like types and filter: one short error instead of an error line per unknown entry.
+	rec = e.get(t, e.sub("&flag=surge&cats="+strings.Repeat("x,", 3000)), nil)
+	if err := testutil.DecodeError(t, rec); err.Status != http.StatusBadRequest ||
+		!slices.Equal(err.Errors["cats"], []string{"at most 64 entries"}) || rec.Body.Len() > 512 {
+		t.Fatalf("oversized cats = %d bytes %+v", rec.Body.Len(), err)
 	}
 	// An unknown ?profile= (neither one of the user's slugs nor a template) selects the default profile.
 	body = e.get(t, e.sub("&flag=clash-meta&profile=nope"), nil).Body.String()

@@ -124,8 +124,21 @@ func TestTicketLifecycle(t *testing.T) {
 	if !uv.Messages[0].IsMe || uv.Messages[1].IsMe || uv.Messages[2].IsMe || !uv.Messages[3].IsMe {
 		t.Fatalf("owner is_me = %+v", uv.Messages)
 	}
+	// Staff authors are anonymous to the owner: their internal user ids never reach the user API.
+	if uv.Messages[0].UserID != alice.ID || uv.Messages[1].UserID != ticketsvc.StaffAuthorID || uv.Messages[2].UserID != ticketsvc.StaffAuthorID {
+		t.Fatalf("owner message authors = %+v", uv.Messages)
+	}
+	rec = testutil.Do(t, r, http.MethodGet, tpath, nil, ut)
+	if dv := testutil.Decode[ticketsvc.View](t, rec); dv.LastReplyUserID == nil || *dv.LastReplyUserID != alice.ID {
+		t.Fatalf("owner detail = %+v", dv)
+	}
 	// The owner's reply re-arms the notification.
 	testutil.ExpectStatus(t, testutil.Do(t, r, http.MethodPost, apath+"/reply", map[string]any{"message": "Try now."}, st), http.StatusOK)
+	rec = testutil.Do(t, r, http.MethodGet, tpath, nil, ut)
+	if dv := testutil.Decode[ticketsvc.View](t, rec); dv.LastReplyUserID == nil || *dv.LastReplyUserID != ticketsvc.StaffAuthorID ||
+		strings.Contains(rec.Body.String(), fmt.Sprintf(`"user_id":%d`, staff.ID)) {
+		t.Fatalf("owner detail after a staff reply leaks the staff id: %s", rec.Body.String())
+	}
 	if n := len(testutil.Mails(t, a)); n != 2 {
 		t.Fatalf("mails after owner reply = %d, want 2", n)
 	}

@@ -269,10 +269,10 @@ func TestUniProxyPushValidation(t *testing.T) {
 		t.Fatalf("empty push status %+v, online %d", st, e.online(3))
 	}
 	expectBody(t, e.do(http.MethodPost, uniURL("push", 3, "vless"), `{"1":[100,200],"2":[-1,5],"x":[1,1],"999":[10,10]}`, nil), http.StatusOK, `{"data":true}`)
-	if got := e.online(3); got != 2 {
-		t.Fatalf("online = %d, want 2 (users 1 and 999)", got)
+	if got := e.online(3); got != 1 {
+		t.Fatalf("online = %d, want 1 (user 1; unknown uid 999 is not a user the node serves)", got)
 	}
-	e.flush() // unknown uid 999 is ignored at flush
+	e.flush()
 	if u, d := e.userUD(1); u != 150 || d != 300 {
 		t.Fatalf("user 1 u=%d d=%d", u, d)
 	}

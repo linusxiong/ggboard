@@ -183,7 +183,9 @@ include lists ≤ 2048 bytes whose tokens must be groups, DIRECT/REJECT, `*` or 
 all groups, each compiling to ≤ 256 instructions and ≤ 4096 rune ranges, since they are matched against every proxy on every render;
 expressions past a count limit are refused without being compiled, and the size is bounded from the parse tree before compiling),
 no self-inclusion and no include loops; targets and `final` must be DIRECT, REJECT or a group; valid dns; a custom mirror must be an
-`https://` prefix ending in "/". `types`/`filter` query lists accept at most 64 entries.
+`https://` prefix ending in "/". The `types`, `filter` and `cats` query lists accept at most 64 entries each (checked
+before the profile is loaded; more → 400 with one `at most 64 entries` error for the field, instead of one error line per
+unknown category).
 Group resolution at render time: tokens that match nothing are dropped, references that would loop are dropped, an empty group
 gets `Proxy` (or DIRECT when that would loop, and always for `Proxy` itself). A category whose target group is missing routes to `final`.
 
@@ -455,8 +457,10 @@ mihomo v1.19.33 source `component/age/age.go`, `adapter/provider/provider.go` (`
   hex digits of SHA-256 of the token used), `client` (first product token of the User-Agent, ≤ 64 printable ASCII
   bytes, `unknown` when empty), the format and the time. Requests never wait for the database: rows are buffered in
   memory (at most 10 000; more are dropped and counted in a WARN line) and written in batches of 500 by the
-  `subscription_access_flush` job every 10 s (and before the access-log endpoints answer). Rows still buffered at
-  shutdown are lost (≤ 10 s).
+  `subscription_access_flush` job every 10 s (and before the access-log endpoints answer). All batches of one flush are
+  written in one transaction; when it fails (a database error, or the request context of an access-log read going away)
+  the rows go back to the front of the buffer for the next flush (still bounded by 10 000, the newest beyond it dropped
+  and counted). Rows still buffered at shutdown are lost (≤ 10 s).
 - `subscription_access_prune` (daily 04:37) deletes rows older than 30 days and keeps the newest 100 per user.
 - `GET /user/subscription/access-log`: newest 50, IP masked (`203.0.113.*`, `2001:db8:1:2:*`).
   `GET /admin/users/:id/subscription/access-log`: newest 100, unmasked, with `ip_bucket` and `token_tag`.

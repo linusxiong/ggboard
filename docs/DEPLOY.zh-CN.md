@@ -5,6 +5,9 @@
 GG Bond 是**一个 Go 二进制**：内嵌 SPA、定时任务、邮件队列、进程内缓存，默认 SQLite，不需要 Redis 或额外的 worker。
 生产环境只需要它和一个负责 TLS 的反向代理。
 
+一个数据库只运行**一个实例**。限流、节点在线状态、待写入的流量和缓存都在进程内，定时任务也在每个实例里各跑一份：
+负载均衡后面放两个实例，限流阈值会按实例数放大、节点状态各不相同、每个任务都会执行两次。
+
 文中路径、命令都与仓库里的 `deploy/`、`config.example.yaml`、`internal/config`、`internal/cli` 一一对应。
 域名一律用 `panel.example.com` 占位。
 
@@ -258,6 +261,10 @@ sudo systemd-run --uid=ggboard --gid=ggboard --pty --wait --collect \
 3. 允许 **8 MiB** 请求体：普通接口上限 1 MiB，节点上报接口（`/api/v1/server/UniProxy/{push,alive,status}`、soga 的 POST）为 8 MiB。
 4. 把代理地址写进 `server.trusted_proxies`。**不配置时所有请求的客户端 IP 都是代理 IP**：登录/注册限流
    （`/api/v1/passport/*` 每 IP 30 次/分钟，发验证码每 IP 10 次/小时）、注册 IP 限制和日志里的 IP 都会变成"全站共用一个 IP"。
+5. **访问日志里不要留密钥。** 节点后端把密钥放在 URL 里（`/api/v1/server/UniProxy/*?token=…`，XrayR / V2bX 协议规定），
+   订阅链接也是（`/api/v1/client/subscribe?token=…`、`/s/<token>`）。面板自己的日志从不记录查询串、短链接也会脱敏，
+   但代理默认的访问日志会记下完整 URL。让代理只记录不带查询串的路径，并把 `/s/` 脱敏：`deploy/nginx.example.conf`
+   两样都做了。nginx 的错误日志在上游请求失败时也会带上完整的请求行，请只让 root 可读。
 
 面板不使用 WebSocket，无需 `Upgrade` 头；响应已由面板自己 gzip/br 压缩，代理不必再压。
 

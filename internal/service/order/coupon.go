@@ -105,10 +105,9 @@ func (s *Service) CheckCouponForUser(ctx context.Context, userID uint64, code st
 func (s *Service) checkCoupon(ctx context.Context, userID uint64, code string, planID uint64, period string, actor *auth.Claims) (*model.Coupon, error) {
 	var coupon *model.Coupon
 	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if actor != nil {
-			if _, err := LockActor(tx, userID, actor); err != nil {
-				return err
-			}
+		u, err := LockActor(tx, userID, actor)
+		if err != nil {
+			return err
 		}
 		var p model.Plan
 		if err := tx.First(&p, planID).Error; err != nil {
@@ -117,10 +116,13 @@ func (s *Service) checkCoupon(ctx context.Context, userID uint64, code string, p
 			}
 			return err
 		}
+		// A hidden plan answers like an unknown id: the period check below would otherwise confirm it exists.
+		if !planVisibleTo(&p, u) {
+			return httpx.FieldError("plan_id", "plan not found")
+		}
 		if _, ok := p.Price(period); !ok {
 			return httpx.FieldError("period", "this period is not available for the plan")
 		}
-		var err error
 		coupon, err = findCoupon(tx, code, "code")
 		if err != nil {
 			return err

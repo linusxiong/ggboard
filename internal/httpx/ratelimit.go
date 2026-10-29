@@ -75,6 +75,10 @@ func (l *Limiter) get(key string) *rate.Limiter {
 // Allow consumes one token for key.
 func (l *Limiter) Allow(key string) bool { return l.get(key).Allow() }
 
+// Exhausted reports whether key has no token left, without consuming one: for buckets charged only after the work
+// (misses), checked before it.
+func (l *Limiter) Exhausted(key string) bool { return key != "" && l.get(key).Tokens() < 1 }
+
 // RetryAfter estimates when the next token for key becomes available (without consuming it).
 func (l *Limiter) RetryAfter(key string) time.Duration {
 	lim := l.get(key)

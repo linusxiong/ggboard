@@ -9,6 +9,7 @@
  *
  * Demo login: any e-mail / password (an admin account). Data is fake (example.com).
  */
+import { randomBytes } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import path from 'node:path'
@@ -370,8 +371,15 @@ const groupWithCount = (g: Json) => ({
 const nodeView = (n: Json) => {
   const parent = n.parent_id ? find(nodes, n.parent_id as number) : undefined
   const index = nodes.indexOf(n)
-  return { ...n, parent: parent ? parent.name : null, status: status(parent ? nodes.indexOf(parent) : index) }
+  return {
+    ...n,
+    token: n.parent_id ? '' : ((n.token as string | undefined) ?? ''),
+    parent: parent ? parent.name : null,
+    status: status(parent ? nodes.indexOf(parent) : index),
+  }
 }
+/** Fresh per-node token for copies (32 characters, like the server). */
+const nodeToken = () => randomBytes(16).toString('hex')
 
 function filterUsers(q: URLSearchParams | Json): Json[] {
   const get = (k: string) =>
@@ -425,6 +433,9 @@ function validateNode(body: Json, selfId?: number): Record<string, string[]> {
       errors['protocol_settings.tls_settings.public_key'] = ['Reality 需要公钥（mock 校验）']
   }
   if (body.type === 'shadowsocks' && !ps.cipher) errors['protocol_settings.cipher'] = ['请选择加密方式']
+  const token = typeof body.token === 'string' ? body.token : ''
+  if (token && !body.parent_id && !/^[\x21-\x7E]{16,64}$/.test(token))
+    errors.token = ['节点密钥需为 16–64 个可见 ASCII 字符（mock 校验）']
   return errors
 }
 
@@ -760,6 +771,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
         id: id(),
         name: `${String(node.name)} (副本)`,
         sort: nodes.length + 1,
+        ...(node.token ? { token: nodeToken() } : {}),
       }
       nodes.push(copy)
       return ok(res, nodeView(copy))

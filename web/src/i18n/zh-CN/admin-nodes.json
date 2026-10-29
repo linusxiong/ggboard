@@ -182,12 +182,21 @@
       "sort": "排序",
       "sortHint": "数字越小越靠前；留空自动排在末尾",
       "show": "显示",
-      "showHint": "关闭后用户订阅中不显示，但后端仍可拉取配置"
+      "showHint": "关闭后用户订阅中不显示，但后端仍可拉取配置",
+      "token": "节点密钥",
+      "tokenShared": "使用共享通讯密钥",
+      "tokenHint": "本节点后端（XrayR / V2bX / soga）连接面板使用的专属密钥。留空则使用「系统设置 → 节点通讯」中的共享通讯密钥（server_token）。\n设置后，共享通讯密钥对本节点失效；本密钥只能用于本节点及其子节点。子节点没有自己的密钥，始终使用父节点的密钥。\n多个节点可以填写同一个密钥，例如一个 soga 同时对接 node_id=1,2,3 时共用一个 webapi_key。",
+      "tokenGenerate": "生成随机密钥",
+      "tokenClear": "改用共享通讯密钥",
+      "tokenReplaceTitle": "重新生成节点密钥？",
+      "tokenReplaceHint": "保存后旧密钥立即失效，使用该密钥的后端需要更新为新密钥，否则会断开连接。",
+      "tokenReplace": "重新生成"
     },
     "errors": {
       "required": "必填",
       "port": "端口应为 1–65535，或升序范围如 20000-30000",
-      "serverPort": "服务端口应为 1–65535 的整数"
+      "serverPort": "服务端口应为 1–65535 的整数",
+      "token": "需为 16–64 个可见 ASCII 字符，不含空格；留空则使用共享通讯密钥"
     },
     "json": {
       "label": "protocol_settings（JSON）",
@@ -204,7 +213,9 @@
       "xrayrHint": "XrayR 不读取面板的拉取间隔，请把 UpdatePeriodic 设为不大于面板的上报间隔；节点没有可用用户时 XrayR 会报错并保留旧用户列表。",
       "v2bxHint": "V2bX 使用面板下发的拉取/上报间隔，并通过 alivelist 限制设备数。",
       "sogaHint": "webapi_url 推荐使用 /soga/ 前缀；soga 许可证会绑定完整的 webapi_url。",
-      "childSubject": "子节点"
+      "childSubject": "子节点",
+      "nodeTokenIntro": "在后端填写以下配置。<node_token> 为本节点的节点密钥（「基本」→ 节点密钥）。",
+      "parentTokenIntro": "在后端填写以下配置。<node_token> 为父节点「{name}」的节点密钥。"
     },
     "ps": {
       "sections": {
@@ -363,6 +374,7 @@
       }
     },
     "rateShort": "倍率 ×{rate}",
-    "onlineCount": "{count} 人在线"
+    "onlineCount": "{count} 人在线",
+    "copiedNewToken": "已复制为「{name}」，副本使用新的节点密钥"
   }
 }

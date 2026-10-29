@@ -182,12 +182,21 @@
       "sort": "Order",
       "sortHint": "Lower comes first; empty = append",
       "show": "Show",
-      "showHint": "Hidden nodes stay out of subscriptions but backends can still pull them"
+      "showHint": "Hidden nodes stay out of subscriptions but backends can still pull them",
+      "token": "Node token",
+      "tokenShared": "Uses the shared server token",
+      "tokenHint": "Secret this node's backend (XrayR / V2bX / soga) uses to connect. Empty = the shared server token (server_token) from Settings → Node connection.\nOnce set, the shared token no longer works for this node, and this token works only for this node and its children. Child nodes have no token of their own: they always use their parent's.\nSeveral nodes may share one token, e.g. one soga instance serving node_id=1,2,3 with a single webapi_key.",
+      "tokenGenerate": "Generate a random token",
+      "tokenClear": "Use the shared server token",
+      "tokenReplaceTitle": "Generate a new node token?",
+      "tokenReplaceHint": "Once saved, the old token stops working: update the backend that uses it or it will disconnect.",
+      "tokenReplace": "Generate"
     },
     "errors": {
       "required": "Required",
       "port": "Use 1–65535 or an ascending range such as 20000-30000",
-      "serverPort": "Server port must be an integer from 1 to 65535"
+      "serverPort": "Server port must be an integer from 1 to 65535",
+      "token": "Use 16–64 visible ASCII characters without spaces, or leave empty for the shared server token"
     },
     "json": {
       "label": "protocol_settings (JSON)",
@@ -204,7 +213,9 @@
       "xrayrHint": "XrayR ignores the panel's intervals: set UpdatePeriodic to at most the panel's push interval. With no eligible users XrayR logs an error and keeps the previous user list.",
       "v2bxHint": "V2bX uses the panel's pull/push intervals and enforces device limits through alivelist.",
       "sogaHint": "Use the /soga/ prefix for webapi_url; the soga licence binds to the full webapi_url.",
-      "childSubject": "Child nodes"
+      "childSubject": "Child nodes",
+      "nodeTokenIntro": "Configure the backend with the snippet below. <node_token> is this node's own token (Basics → Node token).",
+      "parentTokenIntro": "Configure the backend with the snippet below. <node_token> is the node token of the parent “{name}”."
     },
     "ps": {
       "sections": {
@@ -363,6 +374,7 @@
       }
     },
     "rateShort": "Rate ×{rate}",
-    "onlineCount": "{count} online"
+    "onlineCount": "{count} online",
+    "copiedNewToken": "Copied as “{name}” with a new node token"
   }
 }

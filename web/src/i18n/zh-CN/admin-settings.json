@@ -252,7 +252,7 @@
     },
     "server_token": {
       "label": "通讯密钥",
-      "hint": "节点后端（XrayR / V2bX / soga）连接面板使用的密钥。"
+      "hint": "节点后端（XrayR / V2bX / soga）连接面板使用的共享密钥。设置了自己节点密钥的节点不再接受它，只认自己的密钥。"
     },
     "server_pull_interval": {
       "label": "拉取间隔",
@@ -492,7 +492,7 @@
   "server": {
     "regenerate": "重新生成密钥",
     "regenerateTitle": "重新生成通讯密钥？",
-    "regenerateHint": "保存后旧密钥立即失效，所有节点后端（XrayR / V2bX / soga）都需要更新为新密钥，否则会断开连接。",
+    "regenerateHint": "保存后旧密钥立即失效，所有使用共享密钥的节点后端（XrayR / V2bX / soga）都需要更新为新密钥，否则会断开连接。有自己节点密钥的节点不受影响。",
     "snippetsTitle": "节点后端配置示例",
     "snippetsHint": "把 NodeID / node_id 改成“节点”页面中对应节点的 ID；复制按钮会包含真实密钥。"
   },

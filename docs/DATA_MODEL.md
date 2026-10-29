@@ -113,6 +113,7 @@ Derived credentials (`model.UserCredentials(u, node)`):
 | show | bool | |
 | sort | int | |
 | protocol_settings | json object | per type, below |
+| token | varchar(64) not null default '' | the node's own backend key; `''` = the shared `server_token`. When set, only it authenticates the node and its children (docs/NODE_PROTOCOLS.md §1.1). 16–64 visible ASCII; always `''` on a child; a copy gets a fresh random 32 characters. Never serialized with the model (`json:"-"`); only the admin node view returns it |
 | created_at, updated_at | time | `created_at` also seeds the derived SS2022 / SSR node keys |
 
 `protocol_settings` by `type`. Every key is optional: `model.<Type>Settings.Decode` applies the defaults from

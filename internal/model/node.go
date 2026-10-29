@@ -19,8 +19,12 @@ type Node struct {
 	Show             bool              `gorm:"not null;default:false" json:"show"`
 	Sort             int               `gorm:"not null;default:0" json:"sort"`
 	ProtocolSettings JSONMap           `json:"protocol_settings"`
-	CreatedAt        time.Time         `json:"created_at"`
-	UpdatedAt        time.Time         `json:"updated_at"`
+	// Token is the node's own backend key ("" = the shared server_token). Once set, server_token no longer works for
+	// the node and this key works for no other node (docs/NODE_PROTOCOLS.md §1.1). Children use their parent's.
+	// Never serialized with the node: the admin view adds it explicitly.
+	Token     string    `gorm:"size:64;not null;default:''" json:"-"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // InGroup reports whether the node is visible to server group id.

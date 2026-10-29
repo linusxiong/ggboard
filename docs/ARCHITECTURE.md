@@ -119,8 +119,10 @@ tables (lipgloss) on a terminal. `serve` prints a startup summary unless `log.fo
   reading users adds `RequireAdmin`.
 - Pagination query: `page` (1-based), `page_size` (default 20, max 200), `sort` (`field` or `-field`); filters are
   query params.
-- Node APIs authenticate with the `server_token` setting, compared in constant time. An empty token rejects everything.
-  UniProxy sends the `token` query parameter; soga sends the `API-KEY` header.
+- Node APIs authenticate with the `server_token` setting or a node's own `nodes.token`, compared in constant time; a node
+  with its own token accepts only that one, and an own token works for no other node (docs/NODE_PROTOCOLS.md §1.1).
+  Reports (traffic, alive, audit) only count for users the node serves. UniProxy sends the `token` query parameter;
+  soga sends the `API-KEY` header.
 
 Middleware chain: request id (`X-Request-ID`, reused when sane) → access log → security headers → CORS (only when
 `server.cors_origins` is set) → gzip → recovery → body limit.
@@ -270,6 +272,10 @@ maintenance / subscription leak hook ──Emit──▶ 2 lanes (256+1024) ─�
   - Rule-profile writes and preview, age-key writes and `rotate-token`, Telegram bind codes: per user; the Telegram
     webhook: per IP (numbers in docs/API.md §Conventions).
   - Subscriptions: 120 requests/h per token, burst 30; unknown tokens 60/h per IP, burst 30.
+  - Payment notifications that fail verification: 60/min per IP, burst 120 (429 before the lookup once used up);
+    verified callbacks are never charged.
+  - Every bucket, like the online state, buffered traffic and caches, lives in the process: ggboard runs as one
+    instance.
   - An optional captcha (turnstile, recaptcha, hcaptcha).
 - **Subscriptions**: a malformed or unknown token gets 403 without revealing whether it exists. A banned, expired or
   over-quota user gets a valid document with only the info entries and no nodes.

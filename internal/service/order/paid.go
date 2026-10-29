@@ -25,12 +25,34 @@ func (s *Service) Paid(ctx context.Context, tradeNo, callbackNo string) (order *
 	return s.paid(ctx, tradeNo, callbackNo, nil)
 }
 
-// verified binds the callback checks to the same update that claims fulfilment.
-func (s *Service) paid(ctx context.Context, tradeNo, callbackNo string, verified *model.Order) (order *model.Order, alreadyPaid bool, err error) {
-	return s.paidWithActor(ctx, tradeNo, callbackNo, verified, 0, nil, nil)
+// claimCheck binds a gateway callback's checks to the update that claims fulfilment: the update requires the
+// payment_id, total_amount and handling_amount of seen (the row the checks ran against) unchanged, and stores the
+// payment method and fee the payment was actually charged with.
+type claimCheck struct {
+	seen      *model.Order
+	paymentID uint64
+	handling  int64
 }
 
-func (s *Service) paidWithActor(ctx context.Context, tradeNo, callbackNo string, verified *model.Order, userID uint64, actor, admin *auth.Claims) (order *model.Order, alreadyPaid bool, err error) {
+// verified binds the callback checks to the same update that claims fulfilment.
+func (s *Service) paid(ctx context.Context, tradeNo, callbackNo string, verified *model.Order) (order *model.Order, alreadyPaid bool, err error) {
+	var check *claimCheck
+	if verified != nil {
+		check = &claimCheck{seen: verified, handling: verified.HandlingAmount}
+		if verified.PaymentID != nil {
+			check.paymentID = *verified.PaymentID
+		}
+	}
+	return s.paidWithActor(ctx, tradeNo, callbackNo, check, 0, nil, nil)
+}
+
+// paidVia is paid for a payment charged through paymentID with fee handling, which the claiming update stores
+// (an earlier checkout's page paid after the order switched to another method).
+func (s *Service) paidVia(ctx context.Context, tradeNo, callbackNo string, seen *model.Order, paymentID uint64, handling int64) (order *model.Order, alreadyPaid bool, err error) {
+	return s.paidWithActor(ctx, tradeNo, callbackNo, &claimCheck{seen: seen, paymentID: paymentID, handling: handling}, 0, nil, nil)
+}
+
+func (s *Service) paidWithActor(ctx context.Context, tradeNo, callbackNo string, verified *claimCheck, userID uint64, actor, admin *auth.Claims) (order *model.Order, alreadyPaid bool, err error) {
 	now := s.now()
 	var (
 		o     model.Order
@@ -43,11 +65,18 @@ func (s *Service) paidWithActor(ctx context.Context, tradeNo, callbackNo string,
 		if actor != nil {
 			q = q.Where("user_id = ?", userID)
 		}
+		set := map[string]any{"status": model.OrderStatusCompleted, "paid_at": now, "callback_no": callbackNo}
 		if verified != nil {
-			q = q.Where("payment_id = ? AND total_amount = ? AND handling_amount = ?",
-				verified.PaymentID, verified.TotalAmount, verified.HandlingAmount)
+			seen := verified.seen
+			if seen.PaymentID == nil {
+				q = q.Where("payment_id IS NULL")
+			} else {
+				q = q.Where("payment_id = ?", *seen.PaymentID)
+			}
+			q = q.Where("total_amount = ? AND handling_amount = ?", seen.TotalAmount, seen.HandlingAmount)
+			set["payment_id"], set["handling_amount"] = verified.paymentID, verified.handling
 		}
-		res := q.Updates(map[string]any{"status": model.OrderStatusCompleted, "paid_at": now, "callback_no": callbackNo})
+		res := q.Updates(set)
 		if res.Error != nil {
 			return res.Error
 		}

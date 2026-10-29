@@ -22,13 +22,23 @@ type CreateInput struct {
 	Actor      *auth.Claims
 }
 
-func loadPlan(tx *gorm.DB, id uint64) (*model.Plan, error) {
+// planVisibleTo reports whether u may see plan p: shown plans, and the plan u holds even when it is hidden.
+func planVisibleTo(p *model.Plan, u *model.User) bool {
+	return p.Show || (u.PlanID != nil && *u.PlanID == p.ID)
+}
+
+// loadPlan loads plan id. With a buyer u, a plan u may not see is "plan not found" like an unknown id, so its
+// errors never reveal hidden plans; the admin path passes nil.
+func loadPlan(tx *gorm.DB, id uint64, u *model.User) (*model.Plan, error) {
 	var p model.Plan
 	if err := tx.First(&p, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, httpx.NotFound("plan not found")
 		}
 		return nil, err
+	}
+	if u != nil && !planVisibleTo(&p, u) {
+		return nil, httpx.NotFound("plan not found")
 	}
 	if p.TransferEnable < 0 || p.TransferEnable > model.MaxPlanTransferGB {
 		return nil, httpx.FieldError("plan_id", "plan traffic is invalid; contact support")
@@ -55,14 +65,11 @@ func (s *Service) Create(ctx context.Context, userID uint64, in CreateInput) (*m
 		} else if p != nil {
 			return pendingConflict(p)
 		}
-		plan, err := loadPlan(tx, in.PlanID)
+		plan, err := loadPlan(tx, in.PlanID, u)
 		if err != nil {
 			return err
 		}
 		email, planName = u.Email, plan.Name
-		if !plan.Show && (u.PlanID == nil || *u.PlanID != plan.ID) {
-			return httpx.NotFound("plan not found")
-		}
 		price, err := validatePurchase(ctx, tx, u, plan, in.Period, now)
 		if err != nil {
 			return err
@@ -205,7 +212,7 @@ func (s *Service) Assign(ctx context.Context, in AssignInput) (*model.Order, err
 		} else if p != nil {
 			return httpx.Conflict("the user has an unpaid order").WithField("trade_no", p.TradeNo)
 		}
-		plan, err := loadPlan(tx, in.PlanID)
+		plan, err := loadPlan(tx, in.PlanID, nil)
 		if err != nil {
 			return err
 		}

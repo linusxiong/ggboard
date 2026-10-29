@@ -125,18 +125,23 @@ generated from it and pre-fills `Field.Default`); every admin payment response c
    (Xboard class names are accepted as `:gateway` aliases, case-insensitive: `EPay`, `EpusdtPay`, `AlipayF2F`,
    `StripeALLInOne` (and the older `StripeAlipay`/`StripeWepay`/`StripeCredit`/`StripeCheckout`), `Coinbase`, `BTCPay`),
    that it is enabled and its gateway registered → `Notify` → `ordersvc.HandleNotify`:
-   - unknown/disabled payment, gateway mismatch, unregistered gateway, verification failure → 400 `fail` (WARN/ERROR);
+   - unknown/disabled payment, gateway mismatch, unregistered gateway, verification failure → 400 `fail` (WARN/ERROR),
+     charged to the caller's per-IP miss bucket (60/min, burst 120; once it is empty the address gets 429 before the
+     payment lookup). Verified callbacks are never charged, so gateway retries are not limited;
    - unknown order → acknowledged, ERROR + admin alert;
    - every successful result must report `Amount > 0`; missing/zero/negative amounts fail verification (400);
-   - the order's `payment_id` must equal the resolved payment; its `total_amount + handling_amount` must match the
-     reported amount, using `ValidateAmount` when implemented; otherwise the order is NOT paid, ERROR + admin
-     alert, acknowledged;
+   - the charge is `total_amount + handling_amount`. When the order's `payment_id` is another method (the buyer paid
+     the page of an earlier checkout after switching methods, or two checkouts raced), the payment is charged at the
+     resolved payment's own fee (`HandlingAmount(p, total)`): only a checkout can open a page for the order at p's
+     merchant account. The reported amount must match the charge, using `ValidateAmount` when implemented; otherwise
+     the order is NOT paid, ERROR + admin alert, acknowledged;
    - an already-paid order with a different `CallbackNo` is logged WARN (possible double payment) and acknowledged;
    - a verified payment for a cancelled order is NOT dropped: `callback_no` stored, ERROR, admin alerted (once per
      gateway transaction: replays of the same notification are acknowledged without a new alert);
    - otherwise `Paid(tradeNo, callbackNo)` (conditional `status 0 → 3` update + fulfilment in one transaction, idempotent);
-     callback fulfilment also compares the verified `payment_id`, `total_amount` and `handling_amount` in that update,
-     so a concurrent checkout cannot change the charge after verification (a change returns 500 for retry);
+     callback fulfilment also compares the `payment_id`, `total_amount` and `handling_amount` read before verification
+     in that update and stores the paying method and its fee (`paidVia`), so a concurrent checkout cannot change the
+     charge after verification (a change returns 500; the gateway's retry is checked again);
      database errors answer 500 so the gateway retries. The gateway's `NotifyResponse` is written verbatim.
    Admin alerts use the `notify` mail template and go to the first administrator (lowest id).
    `GET /guest/payment/return/:trade_no` drops the gateway's query string and 302s to `<app_url>/orders/<trade_no>`.
@@ -149,7 +154,8 @@ generated from it and pre-fills `Field.Default`); every admin payment response c
 5. `order_timeout` job (every minute) cancels pending orders older than `order_timeout_minutes`, except orders checked
    out (payment_id set) within the last `ordersvc.CheckoutGrace` (31 min: Stripe sessions live ≥ 30 min, so a payment
    page opened just before the deadline would otherwise turn into "paid after cancel"); checkout refuses (409) orders
-   past `created_at + order_timeout_minutes`. User cancellation rechecks the authenticated account snapshot before changing the order or balance. Cancel (user, admin or job) returns `balance_amount` to the balance and
+   past `created_at + order_timeout_minutes`. User cancellation matches only the user's own order (`user_id` in the
+   update) and rechecks the authenticated account snapshot before the balance is touched. Cancel (user, admin or job) returns `balance_amount` to the balance and
    the coupon use; only pending orders can be cancelled (409). Admin `POST /admin/orders/:id/paid` fulfils a pending
    order with `callback_no = "manual"`; `POST /admin/orders` assigns a pending order without discounts, coupon, surplus or balance.
    Administrator order writes recheck the JWT account snapshot and administrator role in their write transaction; a demoted or replaced in-flight session gets 401.

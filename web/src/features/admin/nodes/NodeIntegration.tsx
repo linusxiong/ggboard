@@ -5,6 +5,7 @@ import { useT } from '@/i18n'
 import type { NodeType } from '@/lib/api/types'
 import { useSite } from '../shared/useSite'
 import { integrationSnippets } from './integration'
+import type { TokenOwner } from './nodeForm'
 
 function Snippet({
   title,
@@ -36,29 +37,42 @@ function Snippet({
   )
 }
 
-/** How to connect XrayR / V2bX / soga to this node (placeholders only; the token is in Settings → server). */
+/**
+ * How to connect XrayR / V2bX / soga to this node (placeholders only): `<server_token>` from
+ * Settings → server, or `<node_token>` when the node (a child: its parent) has its own token.
+ */
 export function NodeIntegration({
   type,
   nodeId,
   version,
   isChild,
+  tokenOwner = null,
 }: {
   type: NodeType
   nodeId: number | null
   version?: unknown
   isChild: boolean
+  tokenOwner?: TokenOwner
 }) {
   const t = useT('admin-nodes')
   const { appUrl } = useSite()
-  const snippets = integrationSnippets({ type, nodeId, version, appUrl })
+  const snippets = integrationSnippets({ type, nodeId, version, appUrl, nodeToken: tokenOwner !== null })
   const unsupported = t('nodes.integration.unsupported')
   return (
     <div className="flex flex-col gap-4">
       <p className="text-subhead text-label-secondary">
-        {t('nodes.integration.intro')}{' '}
-        <Link to="/admin/settings" className="text-label-blue underline underline-offset-2">
-          {t('nodes.integration.settingsLink')}
-        </Link>
+        {tokenOwner?.kind === 'node' ? (
+          t('nodes.integration.nodeTokenIntro')
+        ) : tokenOwner?.kind === 'parent' ? (
+          t('nodes.integration.parentTokenIntro', { name: tokenOwner.name })
+        ) : (
+          <>
+            {t('nodes.integration.intro')}{' '}
+            <Link to="/admin/settings" className="text-label-blue underline underline-offset-2">
+              {t('nodes.integration.settingsLink')}
+            </Link>
+          </>
+        )}
         {isChild ? (
           <HelpTip subject={t('nodes.integration.childSubject')} className="ms-1 align-middle">
             {t('nodes.integration.child')}

@@ -52,6 +52,10 @@ Deployment details are in [docs/DEPLOY.md](docs/DEPLOY.md). Every item matches w
       constant time and reject every request while it is empty. A migration from Xboard keeps the old token when it has at
       least 16 characters (a shorter one is not imported and ggboard keeps its generated token); if the old panel may
       have leaked it, rotate it right after migrating.
+- [ ] **Give nodes run by other people their own node token** (**Nodes → edit → Node token**). Anyone holding the shared
+      `server_token` can change `node_id` and pull every node's users and keys (REALITY private keys, SS2022 server
+      keys), as in Xboard. A node with its own token accepts only that token, and the token works for no other node.
+      Whatever the key, traffic, online and audit reports only count for users of the node's own groups.
 - [ ] **File permissions**: the data directory is created as 0700 and `jwt.secret` as 0600. Use 0750 for `/etc/ggboard`,
       and make the environment file readable by root only.
 - [ ] **Telegram bot secrets**: `telegram_bot_token` and `telegram_webhook_secret` are only returned by admin endpoints
@@ -145,6 +149,10 @@ In-process token buckets. A request over the limit gets `429 rate_limited` with 
 | `POST /api/v1/guest/telegram/webhook/:secret` | 600 per minute, burst 120 | Client IP |
 | `GET/HEAD /api/v1/client/subscribe`, `/s/:token` | 120 per hour, burst 30 | Subscription token |
 | Same, unknown or malformed tokens | 60 per hour, burst 30 | Client IP (IPv6 per /64) |
+| Node APIs, wrong keys (including another node's own token) | 30, refilled at 60 per hour; the right key is never limited | Client IP (IPv6 per /64) |
+| `ANY /api/v1/guest/payment/notify/…`, notifications that fail verification | 60 per minute, burst 120; once used up, 429 before the payment lookup; verified callbacks are never charged | Client IP (IPv6 per /64) |
+
+The buckets are per process. Run one instance: behind a load balancer every instance would allow the full limits.
 
 ### Headers
 
@@ -180,6 +188,10 @@ In-process token buckets. A request over the limit gets `429 rate_limited` with 
   uuid, order number, amount and currency), and it only accepts settled invoices whose binding matches; anything else
   is only acknowledged and logged as WARN. Invoices created before a webhook secret rotation and paid after it have to
   be confirmed by hand.
+- A verified payment through another payment method than the order's latest checkout (the buyer switched methods and
+  then paid the older page, or two checkouts raced) is charged at that method's own fee and fulfils the order when the
+  amount matches; otherwise it is acknowledged, not fulfilled, and the admins are alerted. Only a checkout can open a
+  page for an order at a merchant account, which makes such a payment genuine.
 - Enter gateway secrets (webhook secret, merchant key) only in the payment method in the admin console, and use HTTPS
   for the callback domain (`notify_domain`).
 
@@ -189,4 +201,7 @@ In-process token buckets. A request over the limit gets `429 rate_limited` with 
   record only the **route template** (e.g. `/s/:token`, `/api/v1/guest/telegram/webhook/:secret`) and never the query
   string, so subscription tokens and webhook secrets do not end up in the logs. Only 404s that match no route record the
   raw path. The subscription access log (`subscription_access`) stores only an 8-character hash label of the token.
+- The reverse proxy in front logs full URLs by default, including node keys (`/api/v1/server/UniProxy/*?token=`) and
+  subscription tokens: log paths without query strings and redact `/s/` there ([DEPLOY.md §3](docs/DEPLOY.md#3-reverse-proxy),
+  `deploy/nginx.example.conf`).
 - Use `log.level=info` in production. Use `log.format=json` when the logs are collected somewhere else.

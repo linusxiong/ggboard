@@ -6,6 +6,10 @@ Notable changes to GG Bond (ggboard), per version. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- Nodes can have their own **node token** (Nodes → edit → Node token; `token` on the admin node API, new column `nodes.token`, added automatically on start). Empty keeps the shared `server_token`. Once set, the node accepts only its own token and the token works for no other node, so whoever runs one node can no longer change `node_id` to read other nodes' users and keys. Child nodes use their parent's token, several nodes may share one (one soga with `node_id=1,2,3`), and a copied node gets a fresh one. XrayR, V2bX and soga need no change: each node entry already has its own key setting.
+
 ### Changed
 
 - The README and the user-facing docs (deployment, admin and user guides, the Xboard cutover runbook, the benchmark write-up, contributing guide, security policy and this changelog) now come in two files each: English in `X.md`, shown by default, and Simplified Chinese in `X.zh-CN.md`, linked from the top of each. Release archives ship both READMEs, and release notes carry the English and the Chinese section of the changelog.
@@ -13,8 +17,21 @@ Notable changes to GG Bond (ggboard), per version. The format follows [Keep a Ch
 ### Fixed
 
 - The bulk mail form no longer says the content supports Markdown: it is sent as plain text, with line breaks kept.
+- A payment made on the page of an earlier checkout with another payment method (the buyer switched methods, or two checkouts raced) now fulfils the order when the amount matches that method's own fee, instead of waiting for an admin to confirm it by hand.
+- A failed write of the subscription access log (a database error, or the request of an access-log read going away) puts the rows back for the next flush instead of losing them, along with the input of leak detection.
+- Telegram messages are cut to size by their escaped length: an admin alert for a ticket whose subject or body is full of `&` or `<` was too long for Telegram and dropped.
 - The settings link on the Nodes page and the checklist of the Xboard import report now name the settings tab as it is called, Settings → Node connection.
 - Docs: an Xboard `server_token` is kept on import only when it has at least 16 characters; suspected-leak alerts also reach users on Telegram when they have bound it; the admin guide names the leak action as the console does.
+
+### Security
+
+- Node traffic, online and audit reports only count for users the node serves (its groups and its children's groups). Before, anyone holding the node key could report traffic for any user and use up their allowance.
+- `POST /user/coupons/check` answers a hidden plan exactly like an unknown one, so plan IDs and periods of hidden plans can no longer be enumerated; order creation checks visibility before anything else too.
+- The `cats` subscription query list is limited to 64 entries like `types` and `filter`, instead of answering an error line per unknown category.
+- Payment notifications that fail verification are limited per IP (60 per minute, burst 120; 429 before the payment lookup once used up). Verified callbacks are never limited.
+- Ticket messages shown to the user no longer carry the staff account's ID (staff authors appear as `0`).
+- A user's order cancellation only ever updates that user's own order, rather than relying on a rollback.
+- Docs: how to keep node keys and subscription tokens out of the reverse proxy's access log (`deploy/nginx.example.conf` now does it), and that ggboard runs as a single instance (rate limits and online state are per process).
 
 ## [1.0.1] - 2026-10-28
 

@@ -1672,3 +1672,14 @@ export interface GeoIPStatus {
 export interface GeoIPUpdateResult extends GeoIPStatus {
   updated: boolean
 }
+
+// ---- Per-node token (admin) — docs/NODE_PROTOCOLS.md, docs/API.md "Nodes"
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- merged declaration must repeat the type parameter
+export interface Node<T extends NodeType = NodeType> {
+  /**
+   * The node's own backend secret (admin view). `""` = the shared `server_token`. Child nodes never
+   * have one: they authenticate with their parent's token (the server clears it when `parent_id` is set).
+   * Optional only for older servers; the admin API always returns it.
+   */
+  token?: string
+}

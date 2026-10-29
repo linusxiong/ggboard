@@ -2,6 +2,7 @@ package nodesvc
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/linusxiong/ggboard/internal/app/online"
 	"github.com/linusxiong/ggboard/internal/model"
+	usersvc "github.com/linusxiong/ggboard/internal/service/user"
 )
 
 // ErrBadReport is returned for report bodies that are not valid JSON of the expected top-level shape.
@@ -334,22 +336,94 @@ func ParseStatus(body []byte, strict bool) (online.Load, error) {
 	return load, nil
 }
 
-// RecordTraffic charges a report to P (docs/NODE_PROTOCOLS.md §2.3/§5.3): raw bytes go to the traffic
-// accumulator at P.rate, LastPushAt(P) = now and the kept uids become P's traffic users (also for empty reports).
-func (s *Service) RecordTraffic(r *Resolved, entries map[uint64]Traffic) {
+// servedChunk bounds the ids of one fallback query in Served (below every dialect's bound-parameter limit).
+const servedChunk = 500
+
+// Served returns the subset of ids that P serves (docs/NODE_PROTOCOLS.md §5.3): the users of P's /user list, plus
+// users of groups(P) that stopped being available since the backend last pulled it (traffic used up, expired,
+// banned), who still pay for what they used. Reports name any uid they like, and the node token proves only
+// which node is calling, so every report is cut down to Served before it touches traffic or online state.
+func (s *Service) Served(ctx context.Context, r *Resolved, ids []uint64) (map[uint64]bool, error) {
+	out := make(map[uint64]bool, len(ids))
+	if len(ids) == 0 || len(r.Groups) == 0 {
+		return out, nil
+	}
+	users, err := s.AvailableUsers(ctx, r) // cached, ordered by id
+	if err != nil {
+		return nil, err
+	}
+	var rest []uint64
+	for _, id := range ids {
+		if _, ok := slices.BinarySearchFunc(users, id, func(u usersvc.NodeUser, id uint64) int { return cmp.Compare(u.ID, id) }); ok {
+			out[id] = true
+		} else if id <= math.MaxInt64 { // larger ids cannot be bound as query parameters (and no row has one)
+			rest = append(rest, id)
+		}
+	}
+	slices.Sort(rest)
+	rest = slices.Compact(rest)
+	for i := 0; i < len(rest); i += servedChunk {
+		var found []uint64
+		if err := s.a.DB.WithContext(ctx).Model(&model.User{}).
+			Where("id IN ? AND group_id IN ?", rest[i:min(i+servedChunk, len(rest))], r.Groups).
+			Pluck("id", &found).Error; err != nil {
+			return nil, err
+		}
+		for _, id := range found {
+			out[id] = true
+		}
+	}
+	return out, nil
+}
+
+// keepServed drops the entries of users P does not serve, logging how many were dropped.
+func keepServed[V any](ctx context.Context, s *Service, r *Resolved, report string, m map[uint64]V) (map[uint64]V, error) {
+	served, err := s.Served(ctx, r, slices.Collect(maps.Keys(m)))
+	if err != nil {
+		return nil, err
+	}
+	if len(served) == len(m) {
+		return m, nil
+	}
+	kept := make(map[uint64]V, len(served))
+	for uid, v := range m {
+		if served[uid] {
+			kept[uid] = v
+		}
+	}
+	s.a.Log.Warn("node report names users the node does not serve; ignored", "report", report, "node_id", r.P.ID,
+		"ignored", len(m)-len(kept), "kept", len(kept))
+	return kept, nil
+}
+
+// RecordTraffic charges a report to P (docs/NODE_PROTOCOLS.md §2.3/§5.3): entries of users P does not serve are
+// dropped, raw bytes go to the traffic accumulator at P.rate, LastPushAt(P) = now and the kept uids become P's
+// traffic users (also for empty reports).
+func (s *Service) RecordTraffic(ctx context.Context, r *Resolved, entries map[uint64]Traffic) error {
+	entries, err := keepServed(ctx, s, r, "traffic", entries)
+	if err != nil {
+		return err
+	}
 	for uid, t := range entries {
 		s.a.Traffic.Add(r.P.ID, uid, r.P.Rate, t.Up, t.Down)
 	}
 	s.a.Online.TouchPush(r.P.ID)
 	s.a.Online.SetTrafficUsers(r.P.ID, slices.Collect(maps.Keys(entries)))
+	return nil
 }
 
-// RecordAlive replaces the alive IPs of every reported user on P; users not in the report keep their entries
-// until the alive TTL expires (docs/NODE_PROTOCOLS.md §2.4).
-func (s *Service) RecordAlive(r *Resolved, alive map[uint64][]string) {
+// RecordAlive replaces the alive IPs of every reported user P serves; users not in the report keep their entries
+// until the alive TTL expires (docs/NODE_PROTOCOLS.md §2.4). Other users are dropped: their alive IPs would count
+// against their device limit on every node.
+func (s *Service) RecordAlive(ctx context.Context, r *Resolved, alive map[uint64][]string) error {
+	alive, err := keepServed(ctx, s, r, "alive", alive)
+	if err != nil {
+		return err
+	}
 	for uid, ips := range alive {
 		s.a.Online.SetAliveIPs(r.P.ID, uid, ips)
 	}
+	return nil
 }
 
 // RecordLoad stores the machine load reported by P.
@@ -449,6 +523,15 @@ func (s *Service) RecordAudit(ctx context.Context, r *Resolved, entries []AuditE
 		s.a.Log.Warn("audit log report truncated", "node_id", r.P.ID, "entries", len(entries), "kept", AuditRingSize)
 		entries = entries[len(entries)-AuditRingSize:]
 	}
+	ids := make([]uint64, len(entries))
+	for i, e := range entries {
+		ids[i] = e.UserID
+	}
+	served, err := s.Served(ctx, r, ids)
+	if err != nil {
+		return err
+	}
+	entries = slices.DeleteFunc(entries, func(e AuditEntry) bool { return !served[e.UserID] })
 	routes, err := s.Routes(ctx, r.P.RouteIDs)
 	if err != nil {
 		return err

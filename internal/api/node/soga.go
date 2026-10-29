@@ -24,9 +24,21 @@ func sogaError(c *gin.Context, err error) {
 	sogaFail(c, e.Status, e.Message)
 }
 
-// sogaAuth authenticates soga requests: headers API-KEY, NODE-ID, NODE-TYPE (docs/NODE_PROTOCOLS.md §1.3).
+// sogaAuth authenticates soga requests: headers API-KEY, NODE-ID, NODE-TYPE (docs/NODE_PROTOCOLS.md §1.3), with the
+// same two token checks as uniAuth.
 func (h *handler) sogaAuth(c *gin.Context) {
-	if ok, limited := h.tokenCheck(c, c.GetHeader("API-KEY")); limited {
+	key := c.GetHeader("API-KEY")
+	invalid := func() {
+		if h.miss(c) {
+			sogaFail(c, http.StatusTooManyRequests, "too many invalid API-KEY attempts, retry later")
+		} else {
+			sogaFail(c, http.StatusForbidden, "invalid API-KEY")
+		}
+	}
+	if ok, limited, err := h.tokenCheck(c, key); err != nil {
+		sogaError(c, err)
+		return
+	} else if limited {
 		sogaFail(c, http.StatusTooManyRequests, "too many invalid API-KEY attempts, retry later")
 		return
 	} else if !ok {
@@ -45,11 +57,19 @@ func (h *handler) sogaAuth(c *gin.Context) {
 	}
 	r, err := h.svc.Resolve(c.Request.Context(), id)
 	if errors.Is(err, nodesvc.ErrNotFound) {
+		if !h.tokenOK(key) { // a node's own key does not learn which other node ids exist
+			invalid()
+			return
+		}
 		sogaFail(c, http.StatusBadRequest, "node not found")
 		return
 	}
 	if err != nil {
 		sogaError(c, err)
+		return
+	}
+	if !h.tokenFits(r, key) {
+		invalid()
 		return
 	}
 	if err := nodesvc.CheckSoga(r.Node, typ, hy2); err != nil {
@@ -119,7 +139,10 @@ func (h *handler) sogaTraffic(c *gin.Context) {
 		sogaFail(c, http.StatusBadRequest, "invalid traffic data")
 		return
 	}
-	h.svc.RecordTraffic(resolved(c), entries)
+	if err := h.svc.RecordTraffic(c.Request.Context(), resolved(c), entries); err != nil {
+		sogaError(c, err)
+		return
+	}
 	writeJSON(c, sogaOK)
 }
 
@@ -134,7 +157,10 @@ func (h *handler) sogaAlive(c *gin.Context) {
 		sogaFail(c, http.StatusBadRequest, "invalid alive_ip data")
 		return
 	}
-	h.svc.RecordAlive(resolved(c), alive)
+	if err := h.svc.RecordAlive(c.Request.Context(), resolved(c), alive); err != nil {
+		sogaError(c, err)
+		return
+	}
 	writeJSON(c, sogaOK)
 }
 

@@ -37,9 +37,24 @@ type View struct {
 	Messages        []MessageView           `json:"messages,omitempty"`
 }
 
-// ForOwner renders t for its owner: is_me marks the owner's own messages.
+// StaffAuthorID stands in for the author of staff messages in owner responses: a user never learns staff
+// accounts' internal ids.
+const StaffAuthorID uint64 = 0
+
+// ForOwner renders t for its owner: is_me marks the owner's own messages, and staff authors (message user_id and
+// last_reply_user_id) are reported as StaffAuthorID.
 func ForOwner(t *model.Ticket) View {
-	return view(t, func(m *model.TicketMessage) bool { return m.UserID == t.UserID })
+	v := view(t, func(m *model.TicketMessage) bool { return m.UserID == t.UserID })
+	for i := range v.Messages {
+		if !v.Messages[i].IsMe {
+			v.Messages[i].UserID = StaffAuthorID
+		}
+	}
+	if v.LastReplyUserID != nil && *v.LastReplyUserID != t.UserID {
+		staff := StaffAuthorID
+		v.LastReplyUserID = &staff
+	}
+	return v
 }
 
 // ForStaff renders t for staff with the owner's e-mail: is_me marks staff messages (anyone but the owner), as

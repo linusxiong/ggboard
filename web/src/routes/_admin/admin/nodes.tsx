@@ -8,6 +8,7 @@ import { requireAdmin } from '@/lib/guards'
 export const Route = createFileRoute('/_admin/admin/nodes')({
   validateSearch: (search: Partial<NodeSearch> & SearchSchemaInput) => parseNodeSearch(search),
   beforeLoad: requireAdmin,
-  loader: () => loadNamespaces(['admin-nodes', 'admin-stats', 'common']),
+  // admin-settings: the node token field reuses the settings SecretInput.
+  loader: () => loadNamespaces(['admin-nodes', 'admin-stats', 'admin-settings', 'common']),
   component: NodesPage,
 })

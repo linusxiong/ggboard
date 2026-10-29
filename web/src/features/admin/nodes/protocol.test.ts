@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import type { NodeType } from '@/lib/api/types'
+import type { Node, NodeType } from '@/lib/api/types'
+import { randomToken } from '../settings/settingsMeta'
 import { integrationSnippets, sogaServerType, v2bxNodeType, xrayrNodeType } from './integration'
-import { NO_PARENT, nodeToValues, portError, splitNodeErrors, valuesToNodeInput } from './nodeForm'
+import {
+  NO_PARENT,
+  NODE_TOKEN_LENGTH,
+  nodeToValues,
+  portError,
+  splitNodeErrors,
+  tokenError,
+  tokenOwner,
+  valuesToNodeInput,
+} from './nodeForm'
 import { defaultSettings, finalizeSettings, type Settings, updateSetting, validateSettings } from './protocol'
 
 type Edit = [path: string, value: unknown]
@@ -369,8 +379,64 @@ describe('node form helpers', () => {
       tags: ['a', 'b'],
       rate: 1,
       show: true,
+      token: '',
       protocol_settings: { network: 'tcp', allow_insecure: false },
     })
+  })
+
+  it('sends the node token trimmed, and always empty for child nodes', () => {
+    const base = { ...nodeToValues(null, 'vless'), name: 'N', host: 'n.example.com', port: '443' }
+    const token = 'abcdefghijklmnop0123456789ABCDEF'
+    expect(valuesToNodeInput({ ...base, token: ` ${token} ` })).toMatchObject({ parent_id: null, token })
+    expect(valuesToNodeInput({ ...base, token, parent_id: '5' })).toMatchObject({ parent_id: 5, token: '' })
+    expect(nodeToValues({ token } as Node).token).toBe(token)
+    expect(nodeToValues(null).token).toBe('')
+  })
+
+  it('validates node tokens like the server (empty or 16–64 visible ASCII, no spaces)', () => {
+    expect(tokenError('')).toBeUndefined()
+    expect(tokenError('   ')).toBeUndefined()
+    expect(tokenError('a'.repeat(16))).toBeUndefined()
+    expect(tokenError('!#$%&()*+,-./:;<=>?@[]^_`{|}~0123')).toBeUndefined()
+    expect(tokenError('a'.repeat(64))).toBeUndefined()
+    expect(tokenError('a'.repeat(15))).toBe('token')
+    expect(tokenError('a'.repeat(65))).toBe('token')
+    expect(tokenError('abcdefgh ijklmnop')).toBe('token')
+    expect(tokenError('密钥密钥密钥密钥密钥密钥密钥密钥')).toBe('token')
+  })
+
+  it('generates 32-character alphanumeric node tokens', () => {
+    const token = randomToken(NODE_TOKEN_LENGTH)
+    expect(token).toMatch(/^[A-Za-z0-9]{32}$/)
+    expect(tokenError(token)).toBeUndefined()
+    expect(randomToken(NODE_TOKEN_LENGTH)).not.toBe(token)
+  })
+
+  it('knows whose token a node authenticates with', () => {
+    const nodes = [
+      { id: 1, name: 'HK', token: 'parentTokenparentToken' },
+      { id: 2, name: 'JP', token: '' },
+    ] as Node[]
+    expect(tokenOwner(NO_PARENT, '', nodes)).toBeNull()
+    expect(tokenOwner(NO_PARENT, '  ', nodes)).toBeNull()
+    expect(tokenOwner(NO_PARENT, 'x'.repeat(16), nodes)).toEqual({ kind: 'node' })
+    // A child uses its parent's token, whatever its own form value says.
+    expect(tokenOwner('1', '', nodes)).toEqual({ kind: 'parent', name: 'HK' })
+    expect(tokenOwner('2', 'x'.repeat(16), nodes)).toBeNull()
+    expect(tokenOwner('9', '', nodes)).toBeNull()
+  })
+
+  it('uses the <node_token> placeholder when the node has its own token', () => {
+    const input = { type: 'vless', nodeId: 3, appUrl: 'https://panel.example.com' } as const
+    const shared = integrationSnippets(input)
+    const own = integrationSnippets({ ...input, nodeToken: true })
+    for (const s of [shared, own]) expect(Object.values(s).every((code) => code !== null)).toBe(true)
+    expect(`${shared.xrayr}${shared.v2bx}${shared.soga}`).not.toContain('<node_token>')
+    expect(shared.xrayr).toContain('ApiKey: "<server_token>"')
+    expect(own.xrayr).toContain('ApiKey: "<node_token>"')
+    expect(own.v2bx).toContain('"ApiKey": "<node_token>"')
+    expect(own.soga).toContain('webapi_key=<node_token>')
+    expect(`${own.xrayr}${own.v2bx}${own.soga}`).not.toContain('<server_token>')
   })
 
   it('maps node types to backend types', () => {

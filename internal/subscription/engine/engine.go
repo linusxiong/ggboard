@@ -52,8 +52,23 @@ type Result struct {
 	Proxies     int // number of proxies rendered (info nodes included)
 }
 
-// MaxQueryList bounds the entries of the types and filter query lists (400 above).
+// MaxQueryList bounds the entries of the types, filter and cats query lists (400 above).
 const MaxQueryList = 64
+
+// checkQueryLists rejects oversized query lists before any work: keywords are matched against every proxy name
+// and tag (an unbounded list costs seconds of CPU), and every unknown category adds an error line to the answer.
+func checkQueryLists(q url.Values) error {
+	errs := rulesets.FieldErrors{}
+	for _, key := range []string{"types", "filter", "cats"} {
+		if len(subscription.ParseList(q.Get(key))) > MaxQueryList {
+			errs[key] = []string{fmt.Sprintf("at most %d entries", MaxQueryList)}
+		}
+	}
+	if len(errs) > 0 {
+		return errs
+	}
+	return nil
+}
 
 // OverridesFromQuery reads profile, source, cats, final and mirror.
 func OverridesFromQuery(q url.Values) rulesets.Overrides {
@@ -114,24 +129,15 @@ func Generate(ctx context.Context, a *app.App, u *model.User, req Request) (*Res
 		f, _ = subscription.GetFormat(subscription.FormatV2ray)
 	}
 
+	if err := checkQueryLists(q); err != nil {
+		return nil, err
+	}
 	cat := rulesets.Current(a.Settings)
 	profile, err := EffectiveProfile(ctx, a, cat, u, OverridesFromQuery(q))
 	if err != nil {
 		return nil, err
 	}
-
 	types, keywords := subscription.ParseList(q.Get("types")), subscription.ParseList(q.Get("filter"))
-	if len(types) > MaxQueryList || len(keywords) > MaxQueryList {
-		// Keywords are matched against every proxy name and tag: an unbounded list costs seconds of CPU.
-		errs := rulesets.FieldErrors{}
-		if len(types) > MaxQueryList {
-			errs["types"] = []string{fmt.Sprintf("at most %d entries", MaxQueryList)}
-		}
-		if len(keywords) > MaxQueryList {
-			errs["filter"] = []string{fmt.Sprintf("at most %d entries", MaxQueryList)}
-		}
-		return nil, errs
-	}
 
 	locale := a.Settings.String("default_locale")
 	var proxies []subscription.Proxy

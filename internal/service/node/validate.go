@@ -116,9 +116,36 @@ func NormalizeNode(n *model.Node) {
 	if n.ParentID != nil && *n.ParentID == 0 {
 		n.ParentID = nil
 	}
+	n.Token = strings.TrimSpace(n.Token)
+	if n.ParentID != nil {
+		n.Token = "" // a child authenticates with its parent's token
+	}
 	if n.ProtocolSettings == nil {
 		n.ProtocolSettings = model.JSONMap{}
 	}
+}
+
+// Node token length bounds: the minimum matches server_token's, the maximum the column.
+const (
+	MinNodeTokenLen = 16
+	MaxNodeTokenLen = 64
+)
+
+// ValidNodeToken reports whether t is "" (use server_token) or 16-64 visible ASCII characters: it travels in a query
+// string (UniProxy) and a header (soga).
+func ValidNodeToken(t string) bool {
+	if t == "" {
+		return true
+	}
+	if len(t) < MinNodeTokenLen || len(t) > MaxNodeTokenLen {
+		return false
+	}
+	for i := 0; i < len(t); i++ {
+		if t[i] <= 0x20 || t[i] >= 0x7f {
+			return false
+		}
+	}
+	return true
 }
 
 func uniqueIDs(ids []uint64) []uint64 {
@@ -157,6 +184,9 @@ func (s *Service) CheckNode(ctx context.Context, n *model.Node) error {
 	}
 	if math.IsNaN(n.Rate) || math.IsInf(n.Rate, 0) || n.Rate < 0 || n.Rate > MaxNodeRate {
 		errs.Add("rate", fmt.Sprintf("must be between 0 and %d", MaxNodeRate))
+	}
+	if !ValidNodeToken(n.Token) {
+		errs.Add("token", fmt.Sprintf("must be empty or %d-%d visible ASCII characters without spaces", MinNodeTokenLen, MaxNodeTokenLen))
 	}
 	if len(n.Tags) > MaxNodeTags {
 		errs.Add("tags", fmt.Sprintf("at most %d tags", MaxNodeTags))

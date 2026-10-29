@@ -184,7 +184,8 @@ settings such as the site name, mail and payments are edited under Settings in t
 ## Connecting node backends
 
 The `server_token` is under **Settings → Node connection** in the admin console. Create the node on the **Nodes**
-page first to get its node ID.
+page first to get its node ID. A node can also have its own **Node token**, which then replaces `server_token` for
+that node only (recommended when nodes are run by different people; see the [admin guide](docs/ADMIN_GUIDE.md#3-adding-nodes)).
 
 **XrayR** (panel type `NewV2board`, i.e. the `UniProxy` API):
 

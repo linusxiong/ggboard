@@ -1,6 +1,7 @@
 /**
  * Backend snippets for a node (docs/NODE_PROTOCOLS.md §1.1). Only placeholders for secrets:
- * the shared token lives in Settings → server (`server_token`).
+ * the shared token lives in Settings → server (`server_token`); a node with its own token (or a
+ * child whose parent has one) shows `<node_token>` instead, since the shared one no longer works there.
  */
 import type { NodeType } from '@/lib/api/types'
 
@@ -11,9 +12,12 @@ export interface IntegrationInput {
   /** Hysteria version (1 | 2). */
   version?: unknown
   appUrl: string
+  /** The node (for a child: its parent) has its own token instead of the shared `server_token`. */
+  nodeToken?: boolean
 }
 
-const TOKEN = '<server_token>'
+export const SERVER_TOKEN_PLACEHOLDER = '<server_token>'
+export const NODE_TOKEN_PLACEHOLDER = '<node_token>'
 
 /** XrayR `NodeType` (NewV2board panel). XrayR serves vmess, vless, trojan and shadowsocks only. */
 export function xrayrNodeType(type: NodeType): string | null {
@@ -66,7 +70,8 @@ export function sogaServerType(type: NodeType, version?: unknown): string | null
   }
 }
 
-export function integrationSnippets({ type, nodeId, version, appUrl }: IntegrationInput) {
+export function integrationSnippets({ type, nodeId, version, appUrl, nodeToken }: IntegrationInput) {
+  const token = nodeToken ? NODE_TOKEN_PLACEHOLDER : SERVER_TOKEN_PLACEHOLDER
   const id = nodeId === null ? '<node_id>' : String(nodeId)
   const xrayr = xrayrNodeType(type)
   const v2bx = v2bxNodeType(type, version)
@@ -78,7 +83,7 @@ export function integrationSnippets({ type, nodeId, version, appUrl }: Integrati
           'PanelType: "NewV2board"',
           'ApiConfig:',
           `  ApiHost: "${appUrl}"`,
-          `  ApiKey: "${TOKEN}"`,
+          `  ApiKey: "${token}"`,
           `  NodeID: ${id}`,
           `  NodeType: ${xrayr}`,
           ...(type === 'vless' ? ['  EnableVless: true'] : []),
@@ -89,7 +94,7 @@ export function integrationSnippets({ type, nodeId, version, appUrl }: Integrati
           {
             Core: core,
             ApiHost: appUrl,
-            ApiKey: TOKEN,
+            ApiKey: token,
             NodeID: nodeId ?? '<node_id>',
             NodeType: v2bx,
             Timeout: 30,
@@ -106,7 +111,7 @@ export function integrationSnippets({ type, nodeId, version, appUrl }: Integrati
           'soga_key=<soga license>',
           'api=webapi',
           `webapi_url=${appUrl}/soga/`,
-          `webapi_key=${TOKEN}`,
+          `webapi_key=${token}`,
         ].join('\n')
       : null,
   }

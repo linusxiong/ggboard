@@ -307,3 +307,73 @@ func TestAdminNodeStatsOnlineAudit(t *testing.T) {
 	}
 	testutil.ExpectStatus(t, e.do(http.MethodGet, "/nodes/999/online", nil), http.StatusNotFound)
 }
+
+// Security review 2026-10-29: a node can have its own backend token (docs/NODE_PROTOCOLS.md §1.1). The admin view
+// returns it, a child never keeps one (it uses its parent's), a copy gets a fresh one, and the shared token stops
+// working for the node as soon as the edit is saved.
+func TestAdminNodeOwnToken(t *testing.T) {
+	e := newNodesAdminEnv(t)
+	g := e.group("g")
+	type tokenView struct {
+		ID    uint64 `json:"id"`
+		Token string `json:"token"`
+	}
+	const own = "admin-node-own-token-0123456789"
+	uni := func(id uint64, token string) int {
+		t.Helper()
+		return testutil.Do(t, e.r, http.MethodGet, fmt.Sprintf("/api/v1/server/UniProxy/user?node_id=%d&node_type=vless&token=%s", id, token), nil, "").Code
+	}
+
+	n := e.createNode(nodesAdminVless("HK 01", []uint64{g}))
+	if v := testutil.Decode[tokenView](t, e.do(http.MethodGet, fmt.Sprintf("/nodes/%d", n.ID), nil)); v.Token != "" {
+		t.Fatalf("new node token = %q, want empty (shared server_token)", v.Token)
+	}
+	if code := uni(n.ID, nodesAdminServerToken); code != http.StatusOK {
+		t.Fatalf("shared token before = %d", code)
+	}
+	for _, bad := range []string{"short", strings.Repeat("x", 65), "has space inside 0123456789", "tab\tinside-0123456789", "非ASCII-token-0123456789"} {
+		if f := nodesAdminFields(t, e.do(http.MethodPatch, fmt.Sprintf("/nodes/%d", n.ID), map[string]any{"token": bad})); len(f) != 1 || f[0] != "token" {
+			t.Fatalf("token %q: fields %v", bad, f)
+		}
+	}
+
+	rec := e.do(http.MethodPatch, fmt.Sprintf("/nodes/%d", n.ID), map[string]any{"token": "  " + own + " "})
+	testutil.ExpectStatus(t, rec, http.StatusOK)
+	if v := testutil.Decode[tokenView](t, rec); v.Token != own {
+		t.Fatalf("saved token = %q", v.Token)
+	}
+	if uni(n.ID, nodesAdminServerToken) != http.StatusForbidden || uni(n.ID, own) != http.StatusOK {
+		t.Fatal("after the edit, only the node's own token may serve it")
+	}
+	// The list carries the token too; no other node field leaks it under another name.
+	rec = e.do(http.MethodGet, "/nodes", nil)
+	if strings.Count(rec.Body.String(), own) != 1 {
+		t.Fatalf("list must carry the token exactly once: %s", rec.Body.String())
+	}
+
+	// A child never stores a token of its own: it authenticates with its parent's.
+	child := e.createNode(map[string]any{"type": "vless", "name": "relay", "host": "relay.example.com", "port": "443", "parent_id": n.ID, "token": "child-own-token-0123456789"})
+	if v := testutil.Decode[tokenView](t, e.do(http.MethodGet, fmt.Sprintf("/nodes/%d", child.ID), nil)); v.Token != "" {
+		t.Fatalf("child token = %q, want empty", v.Token)
+	}
+	if uni(child.ID, own) != http.StatusOK || uni(child.ID, "child-own-token-0123456789") != http.StatusForbidden {
+		t.Fatal("a child must accept its parent's token only")
+	}
+
+	// A copy is a separate node with a fresh token.
+	rec = e.do(http.MethodPost, fmt.Sprintf("/nodes/%d/copy", n.ID), nil)
+	testutil.ExpectStatus(t, rec, http.StatusCreated)
+	cp := testutil.Decode[tokenView](t, rec)
+	if len(cp.Token) != 32 || cp.Token == own {
+		t.Fatalf("copy token = %q", cp.Token)
+	}
+	if uni(cp.ID, own) != http.StatusForbidden || uni(cp.ID, cp.Token) != http.StatusOK {
+		t.Fatal("the copy must accept its own token only")
+	}
+
+	// Clearing the token hands the node back to the shared server_token.
+	testutil.ExpectStatus(t, e.do(http.MethodPatch, fmt.Sprintf("/nodes/%d", n.ID), map[string]any{"token": ""}), http.StatusOK)
+	if uni(n.ID, nodesAdminServerToken) != http.StatusOK || uni(n.ID, own) != http.StatusForbidden {
+		t.Fatal("after clearing, the shared token serves the node again")
+	}
+}

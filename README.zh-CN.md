@@ -167,7 +167,8 @@ make web && make build          # 构建前端并嵌入，产物 bin/ggboard
 
 ## 节点后端接入
 
-后台 **设置 → 节点通讯** 可看到 `server_token`；先在 **节点** 页创建节点，拿到节点 ID。
+后台 **设置 → 节点通讯** 可看到 `server_token`；先在 **节点** 页创建节点，拿到节点 ID。节点也可以设置自己的 **节点密钥**，
+设置后只对这个节点替代 `server_token`（节点由不同的人运营时建议这样做，见[管理员指南](docs/ADMIN_GUIDE.zh-CN.md#3-节点接入)）。
 
 **XrayR**（面板类型 `NewV2board`，即 `UniProxy` 接口）：
 

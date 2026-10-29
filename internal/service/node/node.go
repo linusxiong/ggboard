@@ -5,6 +5,7 @@ package nodesvc
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"slices"
@@ -198,6 +199,33 @@ func (s *Service) Resolve(ctx context.Context, id uint64) (*Resolved, error) {
 		}
 		slices.Sort(groups)
 		return &Resolved{Node: n, P: p, Groups: slices.Compact(groups)}, nil
+	})
+}
+
+// TokenIndex holds SHA-256 digests of the nodes' own tokens: a key is looked up by its digest, so the lookup's
+// timing says nothing about the secret.
+type TokenIndex map[[sha256.Size]byte]struct{}
+
+// Has reports whether token is some node's own token.
+func (x TokenIndex) Has(token string) bool {
+	_, ok := x[sha256.Sum256([]byte(token))]
+	return ok
+}
+
+// NodeTokens returns the index of every node's own token (cached for CacheTTL; Invalidate drops it). The node
+// APIs check a presented key against it before loading the requested node, so a wrong key costs no query.
+func (s *Service) NodeTokens(ctx context.Context) (TokenIndex, error) {
+	ctx = context.WithoutCancel(ctx) // singleflight, as in Resolve
+	return cache.GetOrLoad(s.a.Cache, s.key("tokens"), CacheTTL, func() (TokenIndex, error) {
+		var tokens []string
+		if err := s.a.DB.WithContext(ctx).Model(&model.Node{}).Where("token <> ?", "").Pluck("token", &tokens).Error; err != nil {
+			return nil, err
+		}
+		x := make(TokenIndex, len(tokens))
+		for _, t := range tokens {
+			x[sha256.Sum256([]byte(t))] = struct{}{}
+		}
+		return x, nil
 	})
 }
 
