@@ -126,7 +126,7 @@ command line takes precedence over `name:` in the file), for example
 ### Build from source
 
 `deploy/Dockerfile` is a three-stage build: `node:24-alpine` (pnpm builds the frontend) → `golang:1.27-alpine`
-(compiles with `CGO_ENABLED=0` and embeds `web/dist`) → `gcr.io/distroless/static-debian12:nonroot` (no shell; runs as
+(compiles with `CGO_ENABLED=0` and embeds `web/dist`) → `gcr.io/distroless/static-debian13:nonroot` (no shell; runs as
 `nonroot` (UID 65532)).
 
 ```bash

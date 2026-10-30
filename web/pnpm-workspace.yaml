@@ -3,3 +3,16 @@ packages:
   - .
 minimumReleaseAgeExclude:
   - vite@8.3.5
+overrides:
+  # LHCI 0.15.1 still pins an older toolchain; remove its vulnerable browser downloader and Zod 3.
+  'puppeteer-core@<25.16.0': 25.16.0
+  # Keep the CommonJS API used by LHCI; uuid 12+ is ESM-only.
+  '@lhci/cli>uuid': 11.1.1
+  'tmp@<0.2.7': 0.2.7
+  'get-uri>basic-ftp': 6.2.3
+  'body-parser@<1.20.9': 1.20.9
+packageExtensions:
+  # Browsers 3 needs the ESM proxy agent; LHCI's CommonJS fetch keeps its own 6.x dependency.
+  '@puppeteer/browsers@3.2.6':
+    dependencies:
+      proxy-agent: 8.0.2

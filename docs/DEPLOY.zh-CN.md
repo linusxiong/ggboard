@@ -114,7 +114,7 @@ docker image prune -f                      # 可选：清理旧镜像
 ### 方式 B：从源码构建
 
 `deploy/Dockerfile` 是三段构建：`node:24-alpine`（pnpm 构建前端）→ `golang:1.27-alpine`（`CGO_ENABLED=0` 编译并内嵌 `web/dist`）
-→ `gcr.io/distroless/static-debian12:nonroot`（无 shell，以 `nonroot`（UID 65532）运行）。
+→ `gcr.io/distroless/static-debian13:nonroot`（无 shell，以 `nonroot`（UID 65532）运行）。
 
 ```bash
 git clone https://github.com/linusxiong/ggboard.git && cd ggboard

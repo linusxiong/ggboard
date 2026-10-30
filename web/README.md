@@ -426,3 +426,6 @@ MISTAKES #138 / #145); the single-select segmented control is a `radio` group.
   type-aware lint works (see `docs/FRONTEND.md` §1).
 - `pnpm-workspace.yaml` (pnpm ≥ 10 settings; standalone project). New packages younger than pnpm's minimum release age are
   held back (`minimumReleaseAgeExclude` lists the exceptions). Node ≥ 22 (`engines`).
+- Security overrides in that file update LHCI's transitive tools without changing its Lighthouse scoring version.
+  Keep uuid on its patched CommonJS-compatible 11.x line while LHCI requires it. Remove overrides when upstream
+  dependencies provide safe versions; validate with `pnpm audit` (including dev dependencies), build and Lighthouse.

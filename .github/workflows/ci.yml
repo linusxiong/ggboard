@@ -31,6 +31,8 @@ jobs:
         run: CGO_ENABLED=0 go build ./...
       - name: Vet
         run: go vet ./...
+      - name: Vulnerability scan
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
       - name: Test
         run: go test ./... -race -count=1
 
@@ -57,6 +59,9 @@ jobs:
       - name: Install
         if: steps.detect.outputs.present == 'true'
         run: pnpm -C web install --frozen-lockfile
+      - name: Vulnerability scan (including development tools)
+        if: steps.detect.outputs.present == 'true'
+        run: pnpm -C web audit
       - name: Lint
         if: steps.detect.outputs.present == 'true'
         run: pnpm -C web lint

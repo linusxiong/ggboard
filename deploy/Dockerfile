@@ -35,7 +35,7 @@ RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 	&& mkdir -p /out/data
 
 # ---- runtime ----
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gcr.io/distroless/static-debian13:nonroot
 COPY --from=build /out/ggboard /usr/local/bin/ggboard
 COPY --from=build --chown=65532:65532 /out/data /data
 ENV GGBOARD_DATA_DIR=/data \

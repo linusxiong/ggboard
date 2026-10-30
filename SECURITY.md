@@ -25,6 +25,19 @@ Security fixes go into `main` and ship with the next patch release (`1.x.y`). Th
 
 Deployment details are in [docs/DEPLOY.md](docs/DEPLOY.md). Every item matches what the code actually does.
 
+### Host kernel and dependency updates
+
+- [ ] **Patch the host kernel, including Docker hosts.** Containers share the host kernel; upgrading GGBoard,
+      its Go dependencies or its container image does not patch that kernel.
+      [CVE-2026-98432](https://www.cve.org/CVERecord?id=CVE-2026-98432) affects Linux IPv4/TCP memory handling.
+      As of 2026-10-30, upstream fixes are in 5.10.272, 5.15.223, 6.1.190, 6.6.159, 6.12.113, 6.18.56 and 7.2.10
+      (and mainline 7.3). Use the latest supported kernel for your distribution, or a vendor release explicitly
+      containing the backport; version numbers alone cannot identify vendor patches. Reboot into the patched kernel
+      and check `uname -r` on the host. WSL2 kernels must be updated through WSL, not the guest's Linux package manager.
+- [ ] **Check both application and development dependencies.** CI runs `govulncheck ./...` and `pnpm -C web audit`
+      (including development dependencies). Rebuild releases with a patched Go toolchain and fresh base images.
+      See the [2026-10-30 dependency review](docs/SECURITY_REVIEW_2026-10-30.md) for findings and scope.
+
 ### Network and TLS
 
 - [ ] **HTTPS only**: the panel does not handle TLS itself and does not send HSTS. Put it behind nginx / Caddy, redirect
