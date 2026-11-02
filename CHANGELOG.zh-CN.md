@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-11-02
+
 ### 新增
 
 - 节点可以设置自己的**节点密钥**（节点 → 编辑 → 节点密钥；后台节点接口的 `token` 字段，新增 `nodes.token` 列，启动时自动添加）。留空则继续使用共享的 `server_token`；设置后本节点只接受自己的密钥，这个密钥也不能用于其他节点，运营某个节点的人无法再改 `node_id` 读取其他节点的用户与密钥。子节点使用父节点的密钥；多个节点可以共用一个密钥（例如一个 soga 对接 `node_id=1,2,3`）；复制节点会生成新密钥。XrayR、V2bX、soga 无需改动：每个节点配置本来就有自己的密钥项。
@@ -114,6 +116,7 @@
 - 定时任务：订单超时、佣金结算、流量重置、到期与流量提醒、每日统计；`GET /healthz` 用于存活探针。
 - `make bench`：可复现的压测（10,000 个用户、50 个节点），结果见 `docs/perf/`。
 
-[Unreleased]: https://github.com/linusxiong/ggboard/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/linusxiong/ggboard/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.2
 [1.0.1]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.1
 [1.0.0]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.0

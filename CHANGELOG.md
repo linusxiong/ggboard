@@ -6,6 +6,8 @@ Notable changes to GG Bond (ggboard), per version. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-11-02
+
 ### Added
 
 - Nodes can have their own **node token** (Nodes → edit → Node token; `token` on the admin node API, new column `nodes.token`, added automatically on start). Empty keeps the shared `server_token`. Once set, the node accepts only its own token and the token works for no other node, so whoever runs one node can no longer change `node_id` to read other nodes' users and keys. Child nodes use their parent's token, several nodes may share one (one soga with `node_id=1,2,3`), and a copied node gets a fresh one. XrayR, V2bX and soga need no change: each node entry already has its own key setting.
@@ -114,6 +116,7 @@ The first stable release: a single Go binary with the React frontend, scheduled 
 - Scheduled jobs: order timeout, commission settlement, traffic reset, expiry and traffic reminders, daily statistics; `GET /healthz` for liveness probes.
 - `make bench`: a reproducible load test (10,000 users, 50 nodes); results in `docs/perf/`.
 
-[Unreleased]: https://github.com/linusxiong/ggboard/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/linusxiong/ggboard/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.2
 [1.0.1]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.1
 [1.0.0]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.0

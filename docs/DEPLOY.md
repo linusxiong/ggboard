@@ -54,7 +54,7 @@ curl -fsSL https://raw.githubusercontent.com/linusxiong/ggboard/main/.env.exampl
 **2. Pick a version.** Write the image tag into `.env`:
 
 ```bash
-echo 'GGBOARD_VERSION=1.0.1' >> .env
+echo 'GGBOARD_VERSION=1.0.2' >> .env
 ```
 
 | `GGBOARD_VERSION` | Meaning |
@@ -235,12 +235,12 @@ Each archive holds one directory of the same name containing `ggboard` (`ggboard
 `ggboard.service`.
 
 ```bash
-VERSION=1.0.1 ARCH=amd64                     # on arm64 machines use ARCH=arm64
+VERSION=1.0.2 ARCH=amd64                     # on arm64 machines use ARCH=arm64
 curl -fsSLO "https://github.com/linusxiong/ggboard/releases/download/v$VERSION/ggboard_${VERSION}_linux_${ARCH}.tar.gz"
 curl -fsSLO "https://github.com/linusxiong/ggboard/releases/download/v$VERSION/SHA256SUMS"
 sha256sum --ignore-missing -c SHA256SUMS     # must print "…: OK"; on macOS use shasum -a 256 --ignore-missing -c SHA256SUMS
 tar xzf "ggboard_${VERSION}_linux_${ARCH}.tar.gz" && cd "ggboard_${VERSION}_linux_${ARCH}"
-./ggboard version                            # ggboard v1.0.1 (go1.27.x linux/amd64)
+./ggboard version                            # ggboard v1.0.2 (go1.27.x linux/amd64)
 
 sudo useradd --system --home /var/lib/ggboard --shell /usr/sbin/nologin ggboard
 sudo install -m 0755 ggboard /usr/local/bin/ggboard
