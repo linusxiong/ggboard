@@ -506,7 +506,7 @@ Plan, group and route reads and writes recheck the current administrator account
 | GET | `/admin/nodes/:id/online` | — | array `[{user_id, email, ips[]}]`: the users online on P, by `user_id`; their number is P's `status.online` (docs/NODE_PROTOCOLS.md §5.1). `ips` is `[]` when P reported none |
 | GET | `/admin/nodes/:id/audit` | — | array `[{at, node_id, user_id, audit_id, route_id, rule}]`: soga audit hits of P, newest first (in memory, last 1000 overall) |
 | GET | `/admin/routes` | — | unpaginated `[Route]` by `id` |
-| POST | `/admin/routes` | `{remarks?, match* (1..999 entries), action* (block or dns), action_value}` | 201 `Route` (block: `match` joined by a pipe must compile as a Go regexp; dns: `action_value` required unless `match[0]=="main"`) |
+| POST | `/admin/routes` | `{remarks?, match* (1..999 entries), action* (block or dns), action_value}` | 201 `Route` (block: `match` joined by a pipe must compile as a Go regexp; dns: `action_value` required unless `match[0]=="main"`). `match` is cleaned before it is validated: entries are trimmed, blank ones dropped, and a pasted list works as it is — entries wrapped in single, double or curly quotes, followed by a comma, several quoted items on one line, and the whole list between `[` and `]` (a JSON array). Order and repeats are kept. A dns route starting with `main` holds raw DNS JSON and is only trimmed |
 | PATCH | `/admin/routes/:id` | any POST field | `Route` |
 | DELETE | `/admin/routes/:id` | — | `true` (409 while a node references it) |
 

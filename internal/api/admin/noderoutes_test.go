@@ -65,3 +65,21 @@ func TestAdminNodeRoutesCRUD(t *testing.T) {
 	testutil.ExpectStatus(t, e.do(http.MethodDelete, fmt.Sprintf("/routes/%d", dns.ID), nil), http.StatusOK)
 	testutil.ExpectStatus(t, e.do(http.MethodDelete, fmt.Sprintf("/routes/%d", dns.ID), nil), http.StatusNotFound)
 }
+
+// A list pasted straight from a JSON array (quotes, trailing commas) is stored as clean entries, on create and edit.
+func TestAdminNodeRoutesAcceptPastedList(t *testing.T) {
+	e := newNodesAdminEnv(t)
+	pasted := "\"geosite:falungong\",\n\"geosite:bbc\",\n\"domain:rfa.org\",\n'domain:rsf.org',\nregexp:.*\\.example\\.net,\n\"domain:landofhope.tv\""
+	rec := e.do(http.MethodPost, "/routes", map[string]any{"remarks": "news", "match": []string{pasted}, "action": "block"})
+	testutil.ExpectStatus(t, rec, http.StatusCreated)
+	r := testutil.Decode[model.NodeRoute](t, rec)
+	want := []string{"geosite:falungong", "geosite:bbc", "domain:rfa.org", "domain:rsf.org", "regexp:.*\\.example\\.net", "domain:landofhope.tv"}
+	if strings.Join(r.Match, "|") != strings.Join(want, "|") {
+		t.Fatalf("created %q", r.Match)
+	}
+
+	rec = e.do(http.MethodPatch, fmt.Sprintf("/routes/%d", r.ID), map[string]any{"match": []string{"[", `"a.example.com",`, `"b.example.com"`, "]"}})
+	if got := testutil.Decode[model.NodeRoute](t, rec); strings.Join(got.Match, "|") != "a.example.com|b.example.com" {
+		t.Fatalf("patched %q", got.Match)
+	}
+}

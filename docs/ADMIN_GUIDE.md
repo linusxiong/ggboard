@@ -245,7 +245,11 @@ Order: **groups → routes (optional) → nodes → configure the backend on the
 1. **Groups** (`/admin/groups`): a user who buys a plan gets the plan's group and can only use the nodes of that group.
 2. **Routes** (`/admin/routes`): routes sent to XrayR / V2bX, with the action `block` (block; also used as soga audit
    rules) or `dns` (resolve matching domains with the given DNS). Block rules take one entry per line, and all lines
-   joined with `|` must form a valid Go regular expression.
+   joined with `|` must form a valid Go regular expression. To add many at once, paste the whole list into the match
+   box: quotes and trailing commas (`"domain:rfa.org",`) and JSON arrays are accepted, and are tidied up, with repeats
+   dropped, when you leave the box. The prefixes (`domain:`, `geosite:`, `full:`, `ip:`) are only understood by soga;
+   XrayR and V2bX treat an entry as a regular expression, so use plain regexps (`(.*\.)?rfa\.org`) for those; the editor warns
+   when a block route uses such a prefix. `geosite:` / `geoip:` in a node's own routing file still work.
 3. **Nodes** (`/admin/nodes` → **New node**): the protocol type cannot be changed after creation.
 
 | Field | Description |

@@ -10,6 +10,8 @@ Notable changes to GG Bond (ggboard), per version. The format follows [Keep a Ch
 
 - Nodes can have their own **node token** (Nodes → edit → Node token; `token` on the admin node API, new column `nodes.token`, added automatically on start). Empty keeps the shared `server_token`. Once set, the node accepts only its own token and the token works for no other node, so whoever runs one node can no longer change `node_id` to read other nodes' users and keys. Child nodes use their parent's token, several nodes may share one (one soga with `node_id=1,2,3`), and a copied node gets a fresh one. XrayR, V2bX and soga need no change: each node entry already has its own key setting.
 
+- Routes: paste a whole list into the match box and it is added in one go. Quotes and trailing commas (`"geosite:bbc",`, `'domain:rfa.org'`), several quoted items on one line and JSON arrays are all accepted; the box tidies the text and drops repeats when you leave it, and the admin API cleans `match` the same way. Raw DNS JSON routes (`main` first) are left alone. A block route that uses a prefix only soga understands (`geosite:`, `geoip:`, `domain:`, `full:`, `ip:`, `port:`) now shows a note that XrayR and V2bX cannot take it from the panel.
+
 ### Changed
 
 - The README and the user-facing docs (deployment, admin and user guides, the Xboard cutover runbook, the benchmark write-up, contributing guide, security policy and this changelog) now come in two files each: English in `X.md`, shown by default, and Simplified Chinese in `X.zh-CN.md`, linked from the top of each. Release archives ship both READMEs, and release notes carry the English and the Chinese section of the changelog.

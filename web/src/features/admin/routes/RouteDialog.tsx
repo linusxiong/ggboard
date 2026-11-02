@@ -7,7 +7,15 @@ import * as adminApi from '@/lib/api/admin'
 import { qk } from '@/lib/api/queries'
 import type { NodeRoute } from '@/lib/api/types'
 import { useAdminMutation } from '../shared/useAdminMutation'
-import { checkMatch, MAX_MATCH, routeToValues, valuesToRouteInput } from './routeForm'
+import {
+  checkMatch,
+  MAX_MATCH,
+  normalizeMatchText,
+  parseMatchList,
+  routeToValues,
+  sogaOnlyPrefixes,
+  valuesToRouteInput,
+} from './routeForm'
 import { ModalClose } from '@/components/feedback/ModalClose'
 
 interface RouteDialogProps {
@@ -100,6 +108,7 @@ export function RouteDialog({ route, isOpen, onOpenChange }: RouteDialogProps) {
                         <f.TextAreaField
                           label={t('routes.match')}
                           rows={6}
+                          normalize={(text) => normalizeMatchText(text, action)}
                           placeholder={
                             action === 'dns'
                               ? 'netflix.com\nnflxvideo.net'
@@ -112,6 +121,22 @@ export function RouteDialog({ route, isOpen, onOpenChange }: RouteDialogProps) {
                         />
                       )}
                     </form.AppField>
+                    {action === 'block' ? (
+                      <form.Subscribe
+                        selector={(s) => sogaOnlyPrefixes(parseMatchList(s.values.match, 'block')).join(' ')}
+                      >
+                        {(prefixes) =>
+                          prefixes ? (
+                            <p
+                              role="status"
+                              className="rounded-[10px] bg-warning-soft px-3 py-2 text-footnote text-label-orange-soft"
+                            >
+                              {t('routes.sogaOnly', { prefixes: prefixes.split(' ').join(' / ') })}
+                            </p>
+                          ) : null
+                        }
+                      </form.Subscribe>
+                    ) : null}
                     {action === 'dns' ? (
                       <form.AppField
                         name="action_value"

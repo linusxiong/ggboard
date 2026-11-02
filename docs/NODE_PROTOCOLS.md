@@ -566,8 +566,17 @@ soga rule syntax:
 - `full:` matches the exact domain
 - `geosite:`, `ip:` (CIDR), `geoip:`, `port:a-b,c`
 
-The same route rows reach XrayR as Go regexps (§2.1.9). Plain domain strings behave sensibly under both clients; prefixed
-forms only work on soga and V2bX.
+The same route rows reach XrayR as Go regexps (§2.1.9). Plain domain strings behave sensibly under both clients. The
+prefixes are not shared: soga reads all of them; V2bX reads only `regexp:` (stripped) and `protocol:`, and matches every
+other entry, `domain:` and `geosite:` included, as a plain regexp; XrayR reads none and matches the whole entry as a regexp,
+so a `geosite:` or `domain:` entry never matches there. This is about the rules the panel delivers: `geosite:` / `geoip:`
+in a node's own routing file (`RouteConfigPath`, an Xray routing config) are handled by Xray and work. The route editor
+warns when a `block` route uses a soga-only prefix (`geosite:`, `geoip:`, `domain:`, `full:`, `ip:`, `port:`).
+
+Where the rules apply: XrayR and V2bX check a connection's destination against the rules the panel delivered (V2bX also
+its protocol blocks) in the dispatcher, **before** the node's own routing (`route.json` / `custom_outbound.json`) picks
+an outbound, and reject on a hit. XrayR checks its own `RuleListPath` file first, in the same list: a hit there is never
+reported to the panel. The panel's rules do not replace the local ones; both reject.
 
 `dns` routes are not sent to soga, which configures DNS locally in `dns.yml`.
 

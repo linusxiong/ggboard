@@ -121,6 +121,8 @@ export interface TextAreaFieldProps extends BaseFieldProps {
   placeholder?: string
   rows?: number
   maxLength?: number
+  /** Rewrites the text when the field loses focus (tidy a pasted list); skipped when it returns the same text. */
+  normalize?: (value: string) => string
 }
 
 export function TextAreaField({
@@ -132,6 +134,7 @@ export function TextAreaField({
   placeholder,
   rows = 4,
   maxLength,
+  normalize,
 }: TextAreaFieldProps) {
   const field = useFieldContext<string>()
   const error = fieldErrorMessage(field.state.meta)
@@ -144,7 +147,12 @@ export function TextAreaField({
         field.handleChange(value)
         clearServerError(field)
       }}
-      onBlur={field.handleBlur}
+      onBlur={() => {
+        const value = field.state.value ?? ''
+        const next = normalize?.(value)
+        if (next !== undefined && next !== value) field.handleChange(next)
+        field.handleBlur()
+      }}
       isInvalid={Boolean(error)}
       isRequired={isRequired}
       isDisabled={isDisabled}

@@ -46,8 +46,9 @@
     "actionValue": "Action value",
     "dnsServer": "DNS server",
     "dnsHint": "e.g. 1.1.1.1 or https://dns.example.com/dns-query",
-    "matchHintBlock": "One per line, up to {max}.\nAll lines joined with | must form a valid Go regexp (XrayR crashes on an invalid one).\nsoga also understands domain:, full:, regexp:, geosite:, ip: prefixes.",
-    "matchHintDns": "One domain per line, up to {max}.",
+    "matchHintBlock": "One per line, up to {max}. You can paste a list with quotes and commas (a JSON array works too); quotes and commas are removed and repeats dropped when you leave the field.\nAll lines joined with | must form a valid Go regexp (XrayR crashes on an invalid one).\nIn rules delivered by the panel, prefixes depend on the backend: soga understands domain:, full:, regexp:, geosite:, ip: and more; V2bX only regexp: and protocol:; XrayR none, it matches the whole line as a regexp.",
+    "matchHintDns": "One domain per line, up to {max}. You can paste a list with quotes and commas; it is tidied when you leave the field.",
+    "sogaOnly": "Contains {prefixes}: XrayR and V2bX cannot take these prefixes from the panel, they match the whole line as a regexp and never hit. Only soga applies them. geosite / geoip in a node's own routing config are not affected.",
     "errors": {
       "required": "Add at least one match rule",
       "tooMany": "At most {max} rules",

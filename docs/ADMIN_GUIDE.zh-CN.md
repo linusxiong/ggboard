@@ -218,6 +218,10 @@ ggboard admin promote --email user@example.com              # 把已有用户提
 1. **权限组**（`/admin/groups`）：用户购买套餐后获得套餐的权限组，只能使用该组的节点。
 2. **路由规则**（`/admin/routes`）：下发给 XrayR / V2bX 的路由，动作 `block`（阻断，同时作为 soga
    审计规则）或 `dns`（用指定 DNS 解析匹配的域名）。阻断规则每行一条，所有行用 `|` 连接后必须是合法的 Go 正则。
+   要批量添加，把整份列表粘贴进匹配框即可：带引号、带结尾逗号的写法（`"domain:rfa.org",`）和 JSON 数组都可以，
+   离开输入框时会自动去掉引号和逗号并去重。前缀（`domain:`、`geosite:`、`full:`、`ip:`）只有 soga 认；
+   XrayR 和 V2bX 把每条当正则匹配，请改用普通正则（`(.*\.)?rfa\.org`），编辑器遇到这类前缀会提示；
+   节点本地路由配置里的 `geosite:` / `geoip:` 仍然可用。
 3. **节点**（`/admin/nodes` → **新建节点**）：协议类型创建后不可更改。
 
 | 字段 | 说明 |

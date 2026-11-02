@@ -61,3 +61,50 @@ describe('useAppForm + HeroUI fields', () => {
     expect(input).toHaveAttribute('aria-invalid', 'true')
   })
 })
+
+describe('TextAreaField normalize', () => {
+  function ListDemo({ onSubmit }: { onSubmit: (v: { list: string }) => void }) {
+    const form = useAppForm({ defaultValues: { list: '' }, onSubmit: ({ value }) => onSubmit(value) })
+    return (
+      <form
+        noValidate
+        onSubmit={(e) => {
+          e.preventDefault()
+          void form.handleSubmit()
+        }}
+      >
+        <form.AppField name="list">
+          {(field) => (
+            <field.TextAreaField
+              label="List"
+              normalize={(text) =>
+                text
+                  .split('\n')
+                  .map((line) => line.replace(/^"|",?$/g, '').trim())
+                  .filter(Boolean)
+                  .join('\n')
+              }
+            />
+          )}
+        </form.AppField>
+        <form.AppForm>
+          <form.SubmitButton>Save</form.SubmitButton>
+        </form.AppForm>
+      </form>
+    )
+  }
+
+  it('rewrites the text when the field loses focus and leaves clean text alone', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(<ListDemo onSubmit={onSubmit} />)
+    const area = screen.getByLabelText('List')
+    await user.click(area)
+    await user.paste('"geosite:bbc",\n"domain:rfa.org"\n')
+    expect(area).toHaveValue('"geosite:bbc",\n"domain:rfa.org"\n')
+    await user.tab()
+    expect(area).toHaveValue('geosite:bbc\ndomain:rfa.org')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSubmit).toHaveBeenCalledWith({ list: 'geosite:bbc\ndomain:rfa.org' })
+  })
+})

@@ -184,7 +184,9 @@ Reality `tls_settings.dest` is stored as `host:port`. The node APIs split it int
 `id, remarks varchar(191), match json []string, action varchar(16) not null, action_value varchar(255), created_at, updated_at`.
 
 - `action` is `block` or `dns`.
-- `match` holds 1–999 entries. `block` entries joined with `|` must compile as one Go regexp.
+- `match` holds 1–999 entries. `block` entries joined with `|` must compile as one Go regexp. On write, entries are cleaned
+  (`nodesvc.CleanMatch`): trimmed, blank ones dropped, surrounding quotes and a trailing comma removed, so a list pasted
+  from a JSON array is stored as plain entries. Raw DNS JSON (a dns route whose first entry is `main`) is only trimmed.
 - A `dns` route needs `action_value` (the DNS server) unless `match[0]` is `main`.
 - Routes are delivered to XrayR/V2bX as `routes[]`; `block` routes become soga `audit_rules`.
 

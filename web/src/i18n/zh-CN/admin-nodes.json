@@ -46,8 +46,9 @@
     "actionValue": "动作参数",
     "dnsServer": "DNS 服务器",
     "dnsHint": "例如 1.1.1.1 或 https://dns.example.com/dns-query",
-    "matchHintBlock": "每行一条，最多 {max} 条。\n所有行以 | 连接后必须是合法的 Go 正则（XrayR 遇到非法正则会崩溃）。\nsoga 另支持 domain:、full:、regexp:、geosite:、ip: 等前缀。",
-    "matchHintDns": "每行一个域名，最多 {max} 条。",
+    "matchHintBlock": "每行一条，最多 {max} 条。可以直接粘贴带引号、带逗号的列表（含 JSON 数组），离开输入框时自动去掉引号和逗号并去重。\n所有行以 | 连接后必须是合法的 Go 正则（XrayR 遇到非法正则会崩溃）。\n面板下发的规则里，前缀只有部分后端识别：soga 支持 domain:、full:、regexp:、geosite:、ip: 等；V2bX 只支持 regexp: 和 protocol:；XrayR 不识别任何前缀，整行按正则匹配。",
+    "matchHintDns": "每行一个域名，最多 {max} 条。可以直接粘贴带引号、带逗号的列表，离开输入框时自动整理。",
+    "sogaOnly": "含 {prefixes}：XrayR / V2bX 不支持下发这些前缀，会把整行当正则、永远匹配不到，只有 soga 生效。节点本地路由配置里的 geosite / geoip 不受影响。",
     "errors": {
       "required": "至少填写一条匹配规则",
       "tooMany": "最多 {max} 条",

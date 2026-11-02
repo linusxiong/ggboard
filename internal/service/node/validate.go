@@ -454,18 +454,87 @@ func ValidateSettings(nodeType string, ps model.JSONMap, errs ValidationError) {
 	}
 }
 
-// NormalizeRoute trims a node route in place (empty match lines are dropped).
+// NormalizeRoute trims a node route in place and cleans its match list (see CleanMatch).
 func NormalizeRoute(r *model.NodeRoute) {
 	r.Remarks = strings.TrimSpace(r.Remarks)
 	r.Action = strings.ToLower(strings.TrimSpace(r.Action))
 	r.ActionValue = strings.TrimSpace(r.ActionValue)
-	match := make([]string, 0, len(r.Match))
-	for _, m := range r.Match {
+	r.Match = CleanMatch(r.Action, r.Match)
+}
+
+const quotedToken = `(?:"[^"]*"|'[^']*')`
+
+var (
+	quotedRun  = regexp.MustCompile(`^` + quotedToken + `(?:\s*[,，]\s*` + quotedToken + `)*\s*[,，]?$`)
+	quotedItem = regexp.MustCompile(`"([^"]*)"|'([^']*)'`)
+	straighten = strings.NewReplacer("“", `"`, "”", `"`, "„", `"`, "‘", "'", "’", "'")
+)
+
+// CleanMatch turns a pasted rule list into match entries, so a list copied from a JSON array, a Xray/sing-box config
+// or a chat message works as it is: each line may be wrapped in single, double or curly quotes and followed by a
+// comma ("geosite:bbc", / 'domain:rfa.org' / domain:rsf.org,), several quoted items may share a line, and the whole
+// list may sit between [ and ]. Entries are trimmed and blank ones dropped; order and repeats are kept.
+//
+// A dns route whose first entry is "main" holds raw DNS JSON, where quotes, commas and repeated lines are
+// significant: its lines are only trimmed.
+func CleanMatch(action string, in []string) []string {
+	trimmed := make([]string, 0, len(in))
+	for _, m := range in {
 		if m = strings.TrimSpace(m); m != "" {
-			match = append(match, m)
+			trimmed = append(trimmed, m)
 		}
 	}
-	r.Match = match
+	if action == model.RouteActionDNS && len(trimmed) > 0 && trimmed[0] == "main" {
+		return trimmed
+	}
+	out := make([]string, 0, len(trimmed))
+	var lines []string
+	for _, m := range in {
+		lines = append(lines, strings.Split(m, "\n")...)
+	}
+	if body := strings.TrimSpace(strings.Join(lines, "\n")); strings.HasPrefix(body, "[") && strings.HasSuffix(body, "]") {
+		if inner := trimmedLines([]string{body[1 : len(body)-1]}); allQuotedRuns(inner) {
+			lines = inner
+		}
+	}
+	add := func(v string) {
+		if v = strings.TrimSpace(v); v != "" {
+			out = append(out, v)
+		}
+	}
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if flat := straighten.Replace(line); quotedRun.MatchString(flat) {
+			for _, sub := range quotedItem.FindAllStringSubmatch(flat, -1) {
+				add(sub[1] + sub[2])
+			}
+			continue
+		}
+		add(strings.TrimRight(line, ", \t，"))
+	}
+	return out
+}
+
+// trimmedLines splits each element at line breaks and keeps the trimmed, non-blank lines.
+func trimmedLines(in []string) []string {
+	out := make([]string, 0, len(in))
+	for _, m := range in {
+		for _, line := range strings.Split(m, "\n") {
+			if line = strings.TrimSpace(line); line != "" {
+				out = append(out, line)
+			}
+		}
+	}
+	return out
+}
+
+func allQuotedRuns(lines []string) bool {
+	for _, l := range lines {
+		if !quotedRun.MatchString(straighten.Replace(l)) {
+			return false
+		}
+	}
+	return true
 }
 
 // ValidateRoute checks a (normalised) node route: action block|dns, 1..999 match lines, block patterns that
