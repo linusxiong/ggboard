@@ -427,5 +427,7 @@ MISTAKES #138 / #145); the single-select segmented control is a `radio` group.
 - `pnpm-workspace.yaml` (pnpm ≥ 10 settings; standalone project). New packages younger than pnpm's minimum release age are
   held back (`minimumReleaseAgeExclude` lists the exceptions). Node ≥ 22 (`engines`).
 - Security overrides in that file update LHCI's transitive tools without changing its Lighthouse scoring version.
-  Keep uuid on its patched CommonJS-compatible 11.x line while LHCI requires it. Remove overrides when upstream
+  Keep uuid on its patched CommonJS-compatible 11.x line while LHCI requires it. `minimatch` is forced to 11.x (the
+  only patched line) for eslint; LHCI's old `chrome-launcher` 0.13 is replaced by 0.15.2 because glob 7 (via rimraf 3)
+  breaks on minimatch 11. Remove overrides when upstream
   dependencies provide safe versions; validate with `pnpm audit` (including dev dependencies), build and Lighthouse.

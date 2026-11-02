@@ -11,6 +11,12 @@ overrides:
   'tmp@<0.2.7': 0.2.7
   'get-uri>basic-ftp': 6.2.3
   'body-parser@<1.20.9': 1.20.9
+  # LHCI 0.15.1 only calls chrome-launcher's static Launcher.getInstallations(), but 0.13.4 pulls in rimraf 3 -> glob 7 ->
+  # minimatch 3, and glob 7 breaks on minimatch 11. 0.15.2 is the last CommonJS release and has none of them.
+  'chrome-launcher@0.13.4': 0.15.2
+  # GHSA-g3hv-75wg-m249 (globparts amplification): only 11.0.1+ is patched, and eslint 10 and typescript-eslint still
+  # ask for 10.x. 11 exports the same named API.
+  'minimatch@<11.0.1': 11.0.3
 packageExtensions:
   # Browsers 3 needs the ESM proxy agent; LHCI's CommonJS fetch keeps its own 6.x dependency.
   '@puppeteer/browsers@3.2.6':

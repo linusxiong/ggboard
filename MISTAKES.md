@@ -2303,3 +2303,10 @@ worktree 守卫拒绝复合命令 203 / 236 / 241。
 - **根因**：把“用户没要求的行为”（去重）塞进了会改变既有契约的函数，没先搜谁依赖它；zsh 下 `*`、`=` 开头的词都会被展开。
 - **修复**：后端只做用户要的清理（去引号、去结尾逗号、拆行、JSON 数组），保持顺序与重复；去重只放在前端粘贴整理那一层。没有改既有测试。shell 里通配符一律加引号，分隔线用 `printf '%s\n' --`。
 - **规则**：改共享的 Normalize/Validate 函数前先 `grep` 它的调用方与测试，新增行为只做被要求的那部分；不要为了让自己的代码通过去改别人的用例。zsh 里 `--include='*.go'`、`echo` 的分隔线不要以 `=` 开头。
+
+### 291. （CI audit·新公告）一个全局 override 修好了公告，却会弄坏另一条依赖链里的 glob 7
+
+- **现象**：发布 1.0.2 后 CI #31 的 `pnpm audit` 失败：minimatch 公告 GHSA-g3hv-75wg-m249（2026-10-30 公布，只有 ≥11.0.1 已修复），45 条路径来自 eslint / typescript-eslint（10.x）和 LHCI 的 `chrome-launcher@0.13.4 → rimraf@3 → glob@7 → minimatch@3`。直接写 `'minimatch@<11.0.1': …` 后 audit 变绿，但用 glob 7 做一次 `**/*.js` 展开就抛 `Cannot read properties of undefined (reading 'charAt')`。
+- **根因**：glob 7 依赖 minimatch 3 的内部结构，minimatch 11 不兼容；audit 变绿不代表工具还能用。pnpm 还会因为 11.0.4 发布不足两天而要求写进 `minimumReleaseAgeExclude`。
+- **修复**：LHCI 只用 `chrome-launcher` 的静态 `Launcher.getInstallations()`，所以把 `chrome-launcher@0.13.4` 覆盖成最后一个 CommonJS 版本 0.15.2（不再依赖 rimraf / glob），再把 `minimatch@<11.0.1` 覆盖到已发布 5 天的 11.0.3，不动豁免名单。验证：`pnpm audit`、`peers check`、`lint`（含一个故意违规的探针文件仍被报错）、`build`、`tsc`、`lhci healthcheck` 全部通过。
+- **规则**：延续 #289：公告修复后要用真实工具执行验证每条受影响的依赖链，而不只看 audit；覆盖到大版本之前先用最小脚本调用旧调用方的 API；优先选已过供应链冷却期的版本，不加豁免。
