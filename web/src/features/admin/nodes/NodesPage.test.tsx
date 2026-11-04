@@ -289,7 +289,7 @@ describe('admin nodes page', () => {
   })
 
   it(
-    "hides the token for child nodes, sends '' and points the snippets at the parent's token",
+    "hides the token and routes for child nodes, sends them empty and points the snippets at the parent's token",
     {
       timeout: 30_000,
     },
@@ -301,20 +301,51 @@ describe('admin nodes page', () => {
       await user.click(await screen.findByRole('button', { name: '编辑节点 SG03' }, { timeout: 15_000 }))
       const sheet = await screen.findByRole('dialog', { name: /编辑节点「SG03」/ })
       expect(within(sheet).getByLabelText('节点密钥')).toHaveValue('standaloneToken0123456789')
+      expect(within(sheet).getByText('选择路由规则')).toBeInTheDocument()
 
       // The parent Select's trigger shows the current choice.
       await user.click(within(sheet).getByRole('button', { name: /无（独立节点）/ }))
       await user.click(await screen.findByRole('option', { name: 'HK01 (#1)' }))
       await waitFor(() => expect(within(sheet).queryByLabelText('节点密钥')).not.toBeInTheDocument())
+      expect(within(sheet).queryByText('选择路由规则')).toBeNull()
       expect(within(sheet).getAllByText(/<node_token>/, CODE)).toHaveLength(3)
       expect(
         within(sheet).getByText('在后端填写以下配置。<node_token> 为父节点「HK01」的节点密钥。'),
       ).toBeInTheDocument()
 
       await user.click(within(sheet).getByRole('button', { name: '保存' }))
-      await waitFor(() => expect(lastPatch('/admin/nodes/3')).toMatchObject({ parent_id: 1, token: '' }))
+      await waitFor(() =>
+        expect(lastPatch('/admin/nodes/3')).toMatchObject({ parent_id: 1, token: '', route_ids: [] }),
+      )
     },
   )
+
+  it("names a child node's parent in the list", { timeout: 30_000 }, async () => {
+    nodes[2] = node(3, 'SG03', true, { parent_id: 1, parent: { id: 1, name: 'HK01' } })
+    renderAt('/admin/nodes')
+    expect(await screen.findByText('子节点 · 父节点 HK01', {}, { timeout: 15_000 })).toBeInTheDocument()
+  })
+
+  it('edits tags as chips and offers the tags of other nodes', { timeout: 30_000 }, async () => {
+    nodes[0] = node(1, 'HK01', true, { tags: ['沪日', '日本'] })
+    nodes[1] = node(2, 'JP02', true, { tags: ['Premium', '日本'] })
+    const user = userEvent.setup()
+    renderAt('/admin/nodes')
+    await user.click(await screen.findByRole('button', { name: '编辑节点 HK01' }, { timeout: 15_000 }))
+    const sheet = await screen.findByRole('dialog', { name: /编辑节点「HK01」/ })
+
+    expect(within(sheet).getByRole('button', { name: '移除标签 沪日' })).toBeInTheDocument()
+    expect(within(sheet).queryByRole('button', { name: '添加 日本' })).toBeNull()
+
+    await user.click(within(sheet).getByRole('button', { name: '添加 Premium' }))
+    await user.click(within(sheet).getByRole('button', { name: '移除标签 沪日' }))
+    await user.type(within(sheet).getByRole('textbox', { name: '标签' }), 'IEPL{Enter}BGP,')
+
+    await user.click(within(sheet).getByRole('button', { name: '保存' }))
+    await waitFor(() =>
+      expect(lastPatch('/admin/nodes/1')).toMatchObject({ tags: ['日本', 'Premium', 'IEPL', 'BGP'] }),
+    )
+  })
 
   it('says when a copy got a fresh node token', { timeout: 30_000 }, async () => {
     nodes[0] = node(1, 'HK01', true, { token: FAKE_TOKEN })

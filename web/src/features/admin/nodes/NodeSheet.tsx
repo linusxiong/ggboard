@@ -25,6 +25,7 @@ import {
   nodeToValues,
   portError,
   splitNodeErrors,
+  tagSuggestions,
   tokenError,
   tokenOwner,
   valuesToNodeInput,
@@ -147,6 +148,8 @@ export function NodeSheet({ node, nodes, isOpen, onOpenChange }: NodeSheetProps)
     [routes.data, t],
   )
 
+  const tagOptions = useMemo(() => tagSuggestions(nodes), [nodes])
+
   const panelClass = 'data-[inert=true]:hidden'
 
   return (
@@ -222,24 +225,15 @@ export function NodeSheet({ node, nodes, isOpen, onOpenChange }: NodeSheetProps)
 
           <SegmentedTabs.Panel id="basic" shouldForceMount className={panelClass}>
             <div className="flex flex-col gap-4">
+              <form.AppField
+                name="name"
+                validators={{
+                  onSubmit: ({ value }) => (value.trim() ? undefined : t('nodes.errors.required')),
+                }}
+              >
+                {(f) => <f.TextField label={t('nodes.fields.name')} isRequired />}
+              </form.AppField>
               <div className="grid gap-4 sm:grid-cols-2">
-                <form.AppField
-                  name="name"
-                  validators={{
-                    onSubmit: ({ value }) => (value.trim() ? undefined : t('nodes.errors.required')),
-                  }}
-                >
-                  {(f) => <f.TextField label={t('nodes.fields.name')} isRequired />}
-                </form.AppField>
-                <form.AppField name="tags">
-                  {(f) => (
-                    <f.TextField
-                      label={t('nodes.fields.tags')}
-                      placeholder="HK, Netflix"
-                      description={t('nodes.fields.tagsHint')}
-                    />
-                  )}
-                </form.AppField>
                 <form.AppField
                   name="host"
                   validators={{
@@ -305,6 +299,19 @@ export function NodeSheet({ node, nodes, isOpen, onOpenChange }: NodeSheetProps)
                   )}
                 </form.AppField>
               </div>
+              <form.AppField name="tags">
+                {(f) => (
+                  <f.TagsField
+                    label={t('nodes.fields.tags')}
+                    placeholder={t('nodes.fields.tagsPlaceholder')}
+                    description={t('nodes.fields.tagsHint')}
+                    suggestions={tagOptions}
+                    validate={(tag) => ([...tag].length > 64 ? t('nodes.errors.tagLength') : undefined)}
+                    addLabel={t('nodes.fields.tagAdd')}
+                    removeLabel={(item) => t('nodes.fields.tagRemove', { item })}
+                  />
+                )}
+              </form.AppField>
               <form.AppField name="group_ids">
                 {() => (
                   <MultiSelectField
@@ -315,16 +322,23 @@ export function NodeSheet({ node, nodes, isOpen, onOpenChange }: NodeSheetProps)
                   />
                 )}
               </form.AppField>
-              <form.AppField name="route_ids">
-                {() => (
-                  <MultiSelectField
-                    label={t('nodes.fields.routes')}
-                    options={routeOptions}
-                    placeholder={t('nodes.fields.routesPlaceholder')}
-                    description={t('nodes.fields.routesHint')}
-                  />
-                )}
-              </form.AppField>
+              {/* Child nodes use their parent's routes: no field, `route_ids: []` is sent. */}
+              <form.Subscribe selector={(s) => s.values.parent_id === NO_PARENT}>
+                {(standalone) =>
+                  standalone ? (
+                    <form.AppField name="route_ids">
+                      {() => (
+                        <MultiSelectField
+                          label={t('nodes.fields.routes')}
+                          options={routeOptions}
+                          placeholder={t('nodes.fields.routesPlaceholder')}
+                          description={t('nodes.fields.routesHint')}
+                        />
+                      )}
+                    </form.AppField>
+                  ) : null
+                }
+              </form.Subscribe>
               <form.Subscribe selector={(s) => s.values.type}>
                 {(type) => (
                   <form.AppField name="parent_id">
@@ -371,7 +385,11 @@ export function NodeSheet({ node, nodes, isOpen, onOpenChange }: NodeSheetProps)
                 </form.AppField>
                 <form.AppField name="show">
                   {(f) => (
-                    <f.SwitchField label={t('nodes.fields.show')} description={t('nodes.fields.showHint')} />
+                    <f.SwitchField
+                      label={t('nodes.fields.show')}
+                      description={t('nodes.fields.showHint')}
+                      className="min-h-(--field-h) self-end"
+                    />
                   )}
                 </form.AppField>
               </div>

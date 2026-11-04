@@ -27,7 +27,7 @@
     "editNamed": "Edit route {name}",
     "deleteNamed": "Delete route {name}",
     "deleteTitle": "Delete route “{name}”?",
-    "deleteHint": "Routes still referenced by nodes cannot be deleted; remove them from the nodes first.",
+    "deleteHint": "Routes still used by nodes cannot be deleted; withdraw them with Push first.",
     "created": "Route created",
     "updated": "Route saved",
     "deleted": "Route deleted",
@@ -54,6 +54,31 @@
       "tooMany": "At most {max} rules",
       "regexp": "The joined regexp is invalid: {detail}",
       "dnsRequired": "Enter a DNS server"
+    },
+    "nodes": "Pushed to",
+    "notPushed": "Not pushed",
+    "push": {
+      "open": "Push",
+      "openNamed": "Push route {name}",
+      "title": "Push route “{name}”",
+      "helpSubject": "Pushing a route",
+      "help": "Nodes pick it up on their next config pull.\nChild nodes use their parent's routes, so only standalone and parent nodes are listed.\nA node you untick loses this route. Nodes created later do not get it by themselves: push it again.",
+      "scope": "Push to",
+      "all": "All nodes",
+      "some": "Some nodes",
+      "applied": "On {count} of {total} nodes",
+      "search": "Search nodes",
+      "searchPlaceholder": "Name, address or tag",
+      "selectAll": "Select all",
+      "clear": "Clear",
+      "nodes": "Nodes ({count} of {total} selected)",
+      "noMatch": "No matching nodes",
+      "noNodes": "No nodes yet",
+      "withdrawNote": "This route will be withdrawn from {count} nodes",
+      "submit": "Push to {count} nodes",
+      "withdraw": "Withdraw from {count} nodes",
+      "done": "Pushed to {count} nodes; they pick it up on their next config pull",
+      "withdrawn": "Withdrawn from all nodes; they pick it up on their next config pull"
     }
   },
   "nodes": {
@@ -162,7 +187,10 @@
       "typeHint": "Cannot be changed later",
       "name": "Name",
       "tags": "Tags",
-      "tagsHint": "Comma separated; shown in subscription node names",
+      "tagsPlaceholder": "Japan, Premium…",
+      "tagsHint": "Press Return or comma to add; paste several at once. Tags appear in the users' node list and are read by subscription keyword filters and region detection.",
+      "tagAdd": "Add",
+      "tagRemove": "Remove tag {item}",
       "host": "Address",
       "hostHint": "Domain or IP sent to clients",
       "port": "Client port",
@@ -197,7 +225,8 @@
       "required": "Required",
       "port": "Use 1–65535 or an ascending range such as 20000-30000",
       "serverPort": "Server port must be an integer from 1 to 65535",
-      "token": "Use 16–64 visible ASCII characters without spaces, or leave empty for the shared server token"
+      "token": "Use 16–64 visible ASCII characters without spaces, or leave empty for the shared server token",
+      "tagLength": "A tag can have at most 64 characters"
     },
     "json": {
       "label": "protocol_settings (JSON)",

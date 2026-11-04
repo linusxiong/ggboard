@@ -6,6 +6,21 @@ Notable changes to GG Bond (ggboard), per version. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- Routes: a **Push** button on each route puts it on all nodes or a chosen set in one go, instead of editing every node (`POST /admin/routes/:id/apply`). A new column shows how many nodes have the route. The dialog sets exactly the nodes you pick, so unticking a node withdraws the route from it. Nodes pick the change up on their next config pull; child nodes keep using their parent's routes.
+
+### Changed
+
+- Node tags are now edited as chips: press Return or comma to add, paste several at once, and pick from the tags other nodes already use. The tag field has its own full-width row in the node sheet, and the name field moved to one as well.
+
+### Fixed
+
+- The **Show** switch in the node sheet lines up with its ⓘ and with the Sort field. Every switch placed next to a taller field gets the same fix.
+- The node list names a child node's parent instead of showing `[object Object]`.
+- The node sheet no longer offers routes on a child node, where they had no effect because a child uses its parent's routes. Saving a child clears any routes of its own.
+- The help on the node tag field no longer says tags appear in subscription node names. They do not: they appear in the users' node list and are read by keyword filters and region detection.
+
 ## [1.0.2] - 2026-11-02
 
 ### Added

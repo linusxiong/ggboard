@@ -1,7 +1,7 @@
 /** `/admin/routes` — node routes (XrayR routes / soga audit rules). */
 import { Button, Chip } from '@heroui/react'
 import { useQuery } from '@tanstack/react-query'
-import { Pencil, Plus, Route, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Route, Send, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { EmptyState } from '@/components/EmptyState'
 import { createDataTableColumns, DataTable } from '@/components/data-table'
@@ -9,17 +9,22 @@ import { confirm } from '@/components/feedback/confirm'
 import { PageShell } from '@/components/PageShell'
 import { useT } from '@/i18n'
 import * as adminApi from '@/lib/api/admin'
-import { adminRoutesQuery, qk } from '@/lib/api/queries'
+import { adminNodesQuery, adminRoutesQuery, qk } from '@/lib/api/queries'
 import type { NodeRoute } from '@/lib/api/types'
 import { useAdminMutation } from '../shared/useAdminMutation'
 import { RouteDialog } from './RouteDialog'
+import { pushTargets } from './routePush'
+import { RoutePushDialog } from './RoutePushDialog'
 
 const col = createDataTableColumns<NodeRoute>()
 
 export function RoutesPage() {
   const t = useT(['admin-nodes', 'common'])
   const routes = useQuery(adminRoutesQuery())
+  const nodes = useQuery(adminNodesQuery())
+  const targets = useMemo(() => pushTargets(nodes.data ?? []), [nodes.data])
   const [dialog, setDialog] = useState<{ route: NodeRoute | null } | null>(null)
+  const [pushing, setPushing] = useState<NodeRoute | null>(null)
   const remove = useAdminMutation({
     mutationFn: (id: number) => adminApi.deleteRoute(id),
     success: t('routes.deleted'),
@@ -78,8 +83,24 @@ export function RoutesPage() {
           enableSorting: false,
           cell: (c) => (c.getValue() ? <code className="font-mono text-footnote">{c.getValue()}</code> : '—'),
         }),
+        col.display({
+          id: 'nodes',
+          header: t('routes.nodes'),
+          cell: (c) => {
+            const count = targets.filter((n) => n.route_ids.includes(c.row.original.id)).length
+            return count ? (
+              <span className="tabular whitespace-nowrap">
+                {count} / {targets.length}
+              </span>
+            ) : (
+              <span className="whitespace-nowrap text-footnote text-label-secondary">
+                {t('routes.notPushed')}
+              </span>
+            )
+          },
+        }),
       ]),
-    [t],
+    [t, targets],
   )
 
   return (
@@ -103,6 +124,16 @@ export function RoutesPage() {
         emptyState={<EmptyState compact icon={<Route />} title={t('routes.empty')} />}
         rowActions={(r) => (
           <>
+            <Button
+              size="sm"
+              variant="secondary"
+              isDisabled={!nodes.data}
+              aria-label={t('routes.push.openNamed', { name: r.remarks || `#${r.id}` })}
+              onPress={() => setPushing(r)}
+            >
+              <Send className="size-4" aria-hidden="true" />
+              {t('routes.push.open')}
+            </Button>
             <Button
               size="sm"
               variant="ghost"
@@ -138,6 +169,17 @@ export function RoutesPage() {
           isOpen
           onOpenChange={(open) => {
             if (!open) setDialog(null)
+          }}
+        />
+      ) : null}
+      {pushing && nodes.data ? (
+        <RoutePushDialog
+          key={pushing.id}
+          route={pushing}
+          nodes={nodes.data}
+          isOpen
+          onOpenChange={(open) => {
+            if (!open) setPushing(null)
           }}
         />
       ) : null}

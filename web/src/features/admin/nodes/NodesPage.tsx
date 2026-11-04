@@ -203,7 +203,7 @@ export function NodesPage() {
                 </span>
                 {n.parent_id ? (
                   <span className="text-footnote text-label-secondary">
-                    {t('nodes.childOf', { name: n.parent ?? `#${n.parent_id}` })}
+                    {t('nodes.childOf', { name: n.parent?.name ?? `#${n.parent_id}` })}
                   </span>
                 ) : null}
                 {n.tags.length ? (

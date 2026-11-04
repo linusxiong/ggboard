@@ -27,7 +27,7 @@
     "editNamed": "编辑规则 {name}",
     "deleteNamed": "删除规则 {name}",
     "deleteTitle": "删除规则「{name}」？",
-    "deleteHint": "仍被节点引用的规则无法删除，请先在节点中移除。",
+    "deleteHint": "仍被节点使用的规则无法删除，请先通过“下发”撤回。",
     "created": "规则已创建",
     "updated": "规则已保存",
     "deleted": "规则已删除",
@@ -54,6 +54,31 @@
       "tooMany": "最多 {max} 条",
       "regexp": "合并后的正则无效：{detail}",
       "dnsRequired": "请填写 DNS 服务器"
+    },
+    "nodes": "已下发",
+    "notPushed": "未下发",
+    "push": {
+      "open": "下发",
+      "openNamed": "下发规则 {name}",
+      "title": "下发规则「{name}」",
+      "helpSubject": "下发规则",
+      "help": "节点在下次拉取配置时生效。\n子节点沿用父节点的规则，这里只列出独立节点和父节点。\n取消选中的节点会撤回这条规则。之后新建的节点不会自动带上，需要再下发一次。",
+      "scope": "下发范围",
+      "all": "所有节点",
+      "some": "部分节点",
+      "applied": "已下发 {count} / {total} 个节点",
+      "search": "搜索节点",
+      "searchPlaceholder": "名称、地址或标签",
+      "selectAll": "全选",
+      "clear": "清空",
+      "nodes": "节点（已选 {count} / {total}）",
+      "noMatch": "没有匹配的节点",
+      "noNodes": "还没有节点",
+      "withdrawNote": "将从 {count} 个节点撤回这条规则",
+      "submit": "下发到 {count} 个节点",
+      "withdraw": "从 {count} 个节点撤回",
+      "done": "已下发到 {count} 个节点，下次拉取配置时生效",
+      "withdrawn": "已从所有节点撤回，下次拉取配置时生效"
     }
   },
   "nodes": {
@@ -162,7 +187,10 @@
       "typeHint": "创建后不可更改",
       "name": "名称",
       "tags": "标签",
-      "tagsHint": "用逗号分隔，显示在订阅节点名中",
+      "tagsPlaceholder": "日本、Premium…",
+      "tagsHint": "按回车或逗号添加，可以一次粘贴多个。标签显示在用户的节点列表里，订阅的关键词筛选和地区识别也会读取。",
+      "tagAdd": "添加",
+      "tagRemove": "移除标签 {item}",
       "host": "地址",
       "hostHint": "下发给客户端的域名或 IP",
       "port": "连接端口",
@@ -197,7 +225,8 @@
       "required": "必填",
       "port": "端口应为 1–65535，或升序范围如 20000-30000",
       "serverPort": "服务端口应为 1–65535 的整数",
-      "token": "需为 16–64 个可见 ASCII 字符，不含空格；留空则使用共享通讯密钥"
+      "token": "需为 16–64 个可见 ASCII 字符，不含空格；留空则使用共享通讯密钥",
+      "tagLength": "每个标签最多 64 个字符"
     },
     "json": {
       "label": "protocol_settings（JSON）",

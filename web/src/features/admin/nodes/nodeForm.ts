@@ -3,7 +3,6 @@
  * `protocol_settings` object is edited by `ProtocolForm` (see protocol.ts).
  */
 import type { Node, NodeInput, NodeType } from '@/lib/api/types'
-import { joinList, parseList } from '../shared/units'
 import { defaultSettings, finalizeSettings, type Settings } from './protocol'
 
 export const NO_PARENT = '0'
@@ -19,8 +18,7 @@ export interface NodeFormValues {
   /** Client port: `443` or a hopping range `20000-30000`. */
   port: string
   server_port: number | null
-  /** Comma separated. */
-  tags: string
+  tags: string[]
   rate: number | null
   show: boolean
   sort: number | null
@@ -39,7 +37,7 @@ export function nodeToValues(node: Node | null | undefined, type: NodeType = 'vl
     host: node?.host ?? '',
     port: node?.port ?? '',
     server_port: node?.server_port ?? null,
-    tags: joinList(node?.tags),
+    tags: [...(node?.tags ?? [])],
     rate: node?.rate ?? 1,
     show: node?.show ?? true,
     sort: node?.sort ?? null,
@@ -54,12 +52,13 @@ export function valuesToNodeInput(values: NodeFormValues): NodeInput {
     type: values.type,
     name: values.name.trim(),
     group_ids: values.group_ids.map(Number),
-    route_ids: values.route_ids.map(Number),
+    // Child nodes use their parent's routes, so their own are cleared (it would only block deleting the route).
+    route_ids: parentId === null ? values.route_ids.map(Number) : [],
     parent_id: parentId,
     host: values.host.trim(),
     port: values.port.trim(),
     server_port: values.server_port ?? 0,
-    tags: parseList(values.tags),
+    tags: values.tags,
     rate: values.rate ?? 1,
     show: values.show,
     // Child nodes authenticate with their parent's token (the server clears theirs anyway).
@@ -68,6 +67,16 @@ export function valuesToNodeInput(values: NodeFormValues): NodeInput {
   }
   if (values.sort !== null) input.sort = Math.trunc(values.sort)
   return input
+}
+
+/** Tags already on other nodes, most used first: quick-add chips under the tag field. */
+export function tagSuggestions(nodes: readonly Node[], limit = 12): string[] {
+  const counts = new Map<string, number>()
+  for (const node of nodes) for (const tag of node.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1)
+  return [...counts]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([tag]) => tag)
 }
 
 /** `443`, `20000-30000` (1–65535, ascending range). */

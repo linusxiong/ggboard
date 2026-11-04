@@ -35,6 +35,8 @@ import type {
   NodeRanking,
   NodeRoute,
   NodeRouteInput,
+  RouteApplyInput,
+  RouteApplyResult,
   NodeTrafficPoint,
   NoticeInput,
   Order,
@@ -178,6 +180,9 @@ export const createRoute = (input: NodeRouteInput) => api.post<NodeRoute>('/admi
 /** `PATCH /admin/routes/:id` */
 export const updateRoute = (id: ID, input: Partial<NodeRouteInput>) =>
   api.patch<NodeRoute>(`/admin/routes/${id}`, input)
+/** `POST /admin/routes/:id/apply` */
+export const applyRoute = (id: ID, input: RouteApplyInput) =>
+  api.post<RouteApplyResult>(`/admin/routes/${id}/apply`, input)
 /** `DELETE /admin/routes/:id` */
 export const deleteRoute = (id: ID) => api.delete(`/admin/routes/${id}`)
 

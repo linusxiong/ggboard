@@ -36,6 +36,13 @@ func (in *nodeRouteInput) apply(r *model.NodeRoute) {
 	}
 }
 
+// routeApplyInput is the body of POST /admin/routes/:id/apply: all, or the exact node_ids ([] takes the route off every
+// node).
+type routeApplyInput struct {
+	All     bool     `json:"all"`
+	NodeIDs []uint64 `json:"node_ids" binding:"max=10000"`
+}
+
 // registerRoutes mounts /admin/routes* (admin only).
 // Owner: BE-B nodes. Implement in this file; do not add routes elsewhere.
 func registerRoutes(g *gin.RouterGroup, a *app.App) {
@@ -101,6 +108,36 @@ func registerRoutes(g *gin.RouterGroup, a *app.App) {
 		}
 		svc.Invalidate()
 		httpx.OK(c, r)
+	})
+
+	gr.POST("/:id/apply", func(c *gin.Context) {
+		id, err := httpx.ParamID(c, "id")
+		if err != nil {
+			httpx.Fail(c, err)
+			return
+		}
+		var in routeApplyInput
+		if err := httpx.Bind(c, &in); err != nil {
+			httpx.Fail(c, err)
+			return
+		}
+		if in.All == (in.NodeIDs != nil) {
+			httpx.Fail(c, httpx.FieldError("node_ids", "send either all or node_ids"))
+			return
+		}
+		var res nodesvc.RouteApplied
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			var applyErr error
+			res, applyErr = nodesvc.ApplyRoute(tx, id, in.All, in.NodeIDs)
+			return applyErr
+		})
+		if err != nil {
+			httpx.Fail(c, err)
+			return
+		}
+		svc.Invalidate()
+		httpx.Logger(c).Info("route applied", "route_id", id, "nodes", res.NodeCount, "added", res.Added, "removed", res.Removed)
+		httpx.OK(c, res)
 	})
 
 	gr.DELETE("/:id", func(c *gin.Context) {

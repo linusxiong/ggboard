@@ -155,6 +155,7 @@
   .switch.switch-row {
     position: relative;
     display: block;
+    align-self: center;
     width: 100%;
     padding-inline-end: 60px;
   }
@@ -206,7 +207,16 @@
   .switch-help {
     position: relative;
   }
+  /* A grid row can stretch this box past the switch: centre both, so the ⓘ stays on the switch's line. */
+  .switch-help--row {
+    display: flex;
+    align-self: center;
+    align-items: center;
+    width: 100%;
+  }
   .switch-help--row > .switch.switch-row {
+    flex: 1;
+    min-width: 0;
     padding-inline-end: 88px;
   }
   .switch-help--row > .help-tip {

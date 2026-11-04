@@ -364,7 +364,7 @@ describe('node form helpers', () => {
       port: '443',
       server_port: 443,
       group_ids: ['1', '2'],
-      tags: 'a, b',
+      tags: ['a', 'b'],
       parent_id: NO_PARENT,
     }
     expect(valuesToNodeInput(values)).toEqual({
@@ -389,6 +389,8 @@ describe('node form helpers', () => {
     const token = 'abcdefghijklmnop0123456789ABCDEF'
     expect(valuesToNodeInput({ ...base, token: ` ${token} ` })).toMatchObject({ parent_id: null, token })
     expect(valuesToNodeInput({ ...base, token, parent_id: '5' })).toMatchObject({ parent_id: 5, token: '' })
+    expect(valuesToNodeInput({ ...base, route_ids: ['7'] })).toMatchObject({ route_ids: [7] })
+    expect(valuesToNodeInput({ ...base, route_ids: ['7'], parent_id: '5' })).toMatchObject({ route_ids: [] })
     expect(nodeToValues({ token } as Node).token).toBe(token)
     expect(nodeToValues(null).token).toBe('')
   })

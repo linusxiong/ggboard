@@ -250,6 +250,11 @@ Order: **groups → routes (optional) → nodes → configure the backend on the
    dropped, when you leave the box. The prefixes (`domain:`, `geosite:`, `full:`, `ip:`) are only understood by soga;
    XrayR and V2bX treat an entry as a regular expression, so use plain regexps (`(.*\.)?rfa\.org`) for those; the editor warns
    when a block route uses such a prefix. `geosite:` / `geoip:` in a node's own routing file still work.
+   To put a route on nodes, press **Push** on its row and choose **All nodes**, or **Some nodes** and pick them (search
+   by name, address or tag). The **Pushed to** column shows how many nodes have it. The dialog sets exactly the nodes you
+   pick, so a node you untick loses the route; untick all of them to withdraw it. Nodes pick the change up on their next
+   config pull. Child nodes use their parent's routes and are not listed, and nodes created later do not get the route
+   by themselves, so push it again. The node's edit sheet can still set routes for a single node.
 3. **Nodes** (`/admin/nodes` → **New node**): the protocol type cannot be changed after creation.
 
 | Field | Description |
@@ -258,7 +263,7 @@ Order: **groups → routes (optional) → nodes → configure the backend on the
 | Server port | The port the backend actually listens on |
 | Traffic rate | User traffic × rate is billed |
 | Groups | With none selected, no user can use the node |
-| Parent node | A child node serves as a relay entrance: it reuses the parent's protocol settings, credentials and node token, and its traffic counts on the parent |
+| Parent node | A child node serves as a relay entrance: it reuses the parent's protocol settings, routes, credentials and node token, and its traffic counts on the parent |
 | Node token | Empty: the backend uses the shared `server_token`. Set one (the button generates 32 random characters) and the node accepts only it, while the token works for no other node: whoever runs this node can no longer read other nodes' users or report traffic for them. Several nodes may share one token (one soga serving `node_id=1,2,3`). Hidden for child nodes. A copied node gets a new token |
 | Show | When off, the node does not appear in user subscriptions, but the backend can still pull its config |
 | Protocol / JSON | Protocol parameters (`protocol_settings`); the fields are in [NODE_PROTOCOLS.md](NODE_PROTOCOLS.md) |

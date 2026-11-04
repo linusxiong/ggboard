@@ -508,6 +508,7 @@ Plan, group and route reads and writes recheck the current administrator account
 | GET | `/admin/routes` | — | unpaginated `[Route]` by `id` |
 | POST | `/admin/routes` | `{remarks?, match* (1..999 entries), action* (block or dns), action_value}` | 201 `Route` (block: `match` joined by a pipe must compile as a Go regexp; dns: `action_value` required unless `match[0]=="main"`). `match` is cleaned before it is validated: entries are trimmed, blank ones dropped, and a pasted list works as it is — entries wrapped in single, double or curly quotes, followed by a comma, several quoted items on one line, and the whole list between `[` and `]` (a JSON array). Order and repeats are kept. A dns route starting with `main` holds raw DNS JSON and is only trimmed |
 | PATCH | `/admin/routes/:id` | any POST field | `Route` |
+| POST | `/admin/routes/:id/apply` | `{all: true}` or `{node_ids: [...]}` (0..10000; exactly one of the two) | `{node_count, added, removed}`, counted over top-level nodes. The route ends up on all top-level nodes, or on exactly `node_ids` (`[]` takes it off every node); other routes on those nodes are untouched, and backends get it on their next config pull. `node_ids` must exist and must not be child nodes, which take their parent's routes (a leftover reference on a child is cleared). A node created later does not get the route by itself |
 | DELETE | `/admin/routes/:id` | — | `true` (409 while a node references it) |
 
 Node validation (400 per field): `type` ∈ vmess, vless, shadowsocks, shadowsocksr, trojan, hysteria, anytls, mieru, tuic;

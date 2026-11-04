@@ -32,6 +32,7 @@ func TestCatalogEndpointsRejectDemotedAdminAfterMiddleware(t *testing.T) {
 		{"routes write", http.MethodPost, "/routes", registerRoutes, func(uint64) any {
 			return map[string]any{"match": []string{"example.com"}, "action": "block"}
 		}, &model.NodeRoute{}},
+		{"routes apply", http.MethodPost, "/routes/1/apply", registerRoutes, func(uint64) any { return map[string]any{"all": true} }, nil},
 		{"coupons read", http.MethodGet, "/coupons", registerCoupons, nil, nil},
 		{"coupons write", http.MethodPost, "/coupons", registerCoupons, func(uint64) any {
 			return map[string]any{"name": "New coupon", "code": "NEWCODE", "type": 1, "value": 100, "started_at": start, "ended_at": end}

@@ -380,6 +380,13 @@ export interface NodeRoute {
   updated_at: ISODateTime
 }
 export type NodeRouteInput = Pick<NodeRoute, 'remarks' | 'match' | 'action' | 'action_value'>
+/** Every top-level node, or exactly `node_ids` (`[]` takes the route off every node). */
+export type RouteApplyInput = { all: true } | { node_ids: ID[] }
+export interface RouteApplyResult {
+  node_count: number
+  added: number
+  removed: number
+}
 
 export interface NodeTrafficPoint {
   date: ISODate
@@ -1238,8 +1245,8 @@ export interface NodeStatus {
 }
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- merged declaration must repeat the type parameter
 export interface Node<T extends NodeType = NodeType> {
-  /** Parent node name for child (relay) nodes, `null` otherwise. */
-  parent?: string | null
+  /** Parent of a child (relay) node, `null` otherwise. */
+  parent?: { id: ID; name: string } | null
 }
 export interface AdminUser {
   /** Inviter e-mail (admin view), `null` when the user was not invited. */

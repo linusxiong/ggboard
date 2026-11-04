@@ -43,11 +43,6 @@ export function parseList(text: string): string[] {
   return out
 }
 
-/** Inverse of `parseList` for single-line inputs. */
-export function joinList(list: readonly string[] | null | undefined): string {
-  return (list ?? []).join(', ')
-}
-
 /** Non-empty lines of a textarea (trimmed, order kept, duplicates kept). */
 export function parseLines(text: string): string[] {
   return text
