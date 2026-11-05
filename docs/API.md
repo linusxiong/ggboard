@@ -819,7 +819,7 @@ admins only and masked in logs; `server_token` and `telegram_webhook_secret` are
 | security | `mfa_issuer` | string | `""` | TOTP issuer; empty → `app_name` |
 | telegram | `telegram_bot_token` | string (secret) | `""` | BotFather token; empty = Telegram off |
 | telegram | `telegram_admin_chat_ids` | strings | `[]` | chats receiving administrator events (numeric ids, `-100…` groups/channels or `@channel`) |
-| telegram | `telegram_events` | strings | `["order_paid","admin_login","ticket_new","withdraw","subscription_leak"]` | administrator events; each element one of `order_new`, `order_paid`, `order_cancel`, `admin_login`, `ticket_new`, `ticket_reply`, `withdraw`, `subscription_leak` (anything else → 400) |
+| telegram | `telegram_events` | strings | `["order_paid","admin_login","ticket_new","ticket_user_reply","withdraw","subscription_leak"]` | administrator events; each element one of `order_new`, `order_paid`, `order_cancel`, `admin_login`, `ticket_new`, `ticket_reply`, `withdraw`, `subscription_leak` (anything else → 400) |
 | telegram | `telegram_user_notify` | bool | `true` | bound users get their own `order_paid`, `ticket_reply`, expiry and traffic reminders and `subscription_reset` |
 | telegram | `telegram_discuss_link` | string | `""` | community link shown to users (`/user/telegram`, bot help) |
 | telegram | `telegram_webhook_secret` | string (secret, ≥ 16) | generated | last path segment of the webhook URL and Telegram `secret_token`; generated (32 chars) on first boot; `null` regenerates it |
@@ -865,6 +865,7 @@ retried.
 | `order_cancel` | admins | email, plan, period, amount, trade_no, reason (timeout job or administrator; a user cancelling their own order is silent) |
 | `admin_login` | admins | email, role (admin or staff), method (password, password + TOTP, password + backup code, passkey), ip, ua (≤ 80 chars), time |
 | `ticket_new` | admins | subject, level, user; body = the first message (≤ 200 chars) |
+| `ticket_user_reply` | admins | subject, level, user; body = the reply (≤ 200 chars); at most one per ticket in 30 minutes, and a staff reply starts over |
 | `ticket_reply` | ticket owner, admins when subscribed | subject; body = the staff reply (≤ 200 chars); sent for every staff reply |
 | `withdraw` | admins | user, amount, method, account (masked `abc***xyz`) |
 | `subscription_leak` | admins | user, distinct (number of client IPs); `notify.EmitSubscriptionLeak` has the shape of `subscription.LeakHook` |

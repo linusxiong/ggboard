@@ -6,6 +6,15 @@ Notable changes to GG Bond (ggboard), per version. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- Administrators get a Telegram alert when a user replies to a ticket (`ticket_user_reply`, on by default). Each ticket alerts at most once in 30 minutes, and a staff reply starts over, so a reply to an answer is never missed. Sites that already saved their event list get the event added once on upgrade. The existing event **Ticket reply** is now called **Staff replied to a ticket**.
+
+### Fixed
+
+- The plain subscription link works in Quantumult X, which answered it with "response invalid". Quantumult X now gets the node list by default, as with the one-tap import. Add `&list=0` to get its whole configuration.
+- The whole Quantumult X configuration calls its main group `Proxies`, because `proxy` is a built-in policy there, and a health-checked group with one server becomes `static`.
+
 ## [1.0.3] - 2026-11-05
 
 ### Added

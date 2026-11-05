@@ -164,7 +164,7 @@ func AdminLogin(a *app.App, in Login) Event {
 	return ev
 }
 
-// Ticket describes a ticket for ticket_new / ticket_reply.
+// Ticket describes a ticket for ticket_new / ticket_user_reply / ticket_reply.
 type Ticket struct {
 	ID      uint64
 	UserID  uint64
@@ -178,6 +178,13 @@ type Ticket struct {
 func TicketNew(a *app.App, t Ticket) Event {
 	l := Locale(a)
 	return New(a, TypeTicketNew, excerpt(t.Message),
+		F("subject", t.Subject), F("level", T(l, "level."+strconv.Itoa(t.Level))), F("user", t.Email))
+}
+
+// TicketUserReply is ticket_user_reply (administrators): subject, level, user; Body quotes the reply.
+func TicketUserReply(a *app.App, t Ticket) Event {
+	l := Locale(a)
+	return New(a, TypeTicketUserReply, excerpt(t.Message),
 		F("subject", t.Subject), F("level", T(l, "level."+strconv.Itoa(t.Level))), F("user", t.Email))
 }
 

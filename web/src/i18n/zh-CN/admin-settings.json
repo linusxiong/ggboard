@@ -464,7 +464,8 @@
       "order_cancel": "订单取消",
       "admin_login": "管理员登录",
       "ticket_new": "新工单",
-      "ticket_reply": "工单回复",
+      "ticket_user_reply": "用户回复工单",
+      "ticket_reply": "客服回复工单",
       "withdraw": "提现申请",
       "subscription_leak": "订阅泄露"
     },

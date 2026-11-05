@@ -232,7 +232,7 @@ buttons, **Send test message** and **Set webhook** (§9).
 | `telegram_bot_token` (Bot token) | empty | The bot token from BotFather; when empty, Telegram notifications are off altogether |
 | `telegram_webhook_secret` (Webhook secret) | generated on first start | The last segment of the webhook URL (at least 16 characters). After you click **Regenerate secret** next to the field and save (or submit `null` through the API, so the server generates a new 32-character value), you have to **Set webhook** again |
 | `telegram_admin_chat_ids` (Admin chat IDs) | `[]` | Chats that receive admin notifications: the numeric ID of a person or group (groups and channels are `-100…`) or `@channel`; press Return after each one to add it |
-| `telegram_events` (Events) | Order paid, Admin sign-in, New ticket, Withdrawal request, Subscription leak | Events pushed to the admin chats; see §9.4 |
+| `telegram_events` (Events) | Order paid, Admin sign-in, New ticket, User replied to a ticket, Withdrawal request, Subscription leak | Events pushed to the admin chats; see §9.4 |
 | `telegram_user_notify` (User notifications) | `true` | Bound users receive their own payment confirmations, ticket replies, and expiry and traffic reminders |
 | `telegram_discuss_link` (Community link) | empty | Shown on the user's Telegram card and in the bot's help |
 
@@ -629,7 +629,8 @@ set the webhook here.
 | 🧾 Order cancelled | `order_cancel` (Order cancelled) | Cancelled automatically on timeout or by an admin (cancellations by the user are not pushed) |
 | 🔐 Admin sign-in | `admin_login` (Admin sign-in) | Every admin / staff sign-in: email, role, method (password, password + 2FA code, password + backup code, passkey), IP, device (UA), time; **on by default** |
 | 🎫 New ticket | `ticket_new` (New ticket) | Subject, priority, user and a summary of the first message; **on by default** |
-| 🎫 New reply to your ticket | `ticket_reply` (Ticket reply) | Every reply from support (these go to the user anyway; admins usually do not need them) |
+| 🎫 User replied to a ticket | `ticket_user_reply` (User replied to a ticket) | Subject, priority, user and a summary of the reply. At most one alert per ticket in 30 minutes, and a staff reply starts over; **on by default** |
+| 🎫 New reply to your ticket | `ticket_reply` (Staff replied to a ticket) | Every reply from support (these go to the user anyway; admins usually do not need them) |
 | 💸 Withdrawal request | `withdraw` (Withdrawal request) | User, amount, method and the masked account; **on by default** |
 | 🚨 Possible subscription leak | `subscription_leak` (Subscription leak) | The user caught by leak detection and the number of distinct IPs (§10); **on by default** |
 

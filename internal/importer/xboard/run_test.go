@@ -60,7 +60,7 @@ func dump(t *testing.T, a *app.App, mask func(table string, r map[string]any)) s
 // (users 9 and 11), ggboard's own server_token (kept when Xboard has none) and the telegram_webhook_secret every
 // app generates on first boot (it differs between two target apps).
 func maskRegenerated(table string, r map[string]any) {
-	if table == "settings" && (r["key"] == "server_token" || r["key"] == "telegram_webhook_secret") {
+	if table == "settings" && (r["key"] == "server_token" || r["key"] == "telegram_webhook_secret" || r["key"] == "upgrade_ticket_user_reply_event") {
 		r["value"], r["updated_at"] = "generated", nil
 	}
 	if table != "users" {

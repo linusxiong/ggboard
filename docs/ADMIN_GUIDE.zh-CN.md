@@ -205,7 +205,7 @@ ggboard admin promote --email user@example.com              # 把已有用户提
 | `telegram_bot_token`（Bot Token） | 空 | BotFather 给的机器人 token；为空时 Telegram 通知整体关闭 |
 | `telegram_webhook_secret`（Webhook 密钥） | 首次启动自动生成 | Webhook 地址的最后一段（至少 16 位）。点输入框旁的 **重新生成密钥** 并保存（或接口提交 `null`，由服务端生成 32 位新值）后，要重新 **设置 Webhook** |
 | `telegram_admin_chat_ids`（管理员 Chat ID） | `[]` | 接收管理员通知的会话：个人或群组的数字 ID（群组、频道为 `-100…`）或 `@频道名`，输入后按回车添加 |
-| `telegram_events`（通知事件） | 订单支付、管理员登录、新工单、提现申请、订阅泄露 | 推送给管理员会话的事件，见 §9.4 |
+| `telegram_events`（通知事件） | 订单支付、管理员登录、新工单、用户回复工单、提现申请、订阅泄露 | 推送给管理员会话的事件，见 §9.4 |
 | `telegram_user_notify`（用户通知） | `true` | 已绑定的用户收到自己的支付成功、工单回复、到期与流量提醒 |
 | `telegram_discuss_link`（交流群链接） | 空 | 显示在用户的 Telegram 卡片与机器人帮助里 |
 
@@ -537,7 +537,8 @@ ggboard import xboard --dsn "mysql://user:pass@127.0.0.1:3306/xboard" --with-sta
 | 🧾 订单已取消 | `order_cancel`（订单取消） | 超时自动取消或管理员取消（用户自己取消不推送） |
 | 🔐 管理员登录 | `admin_login`（管理员登录） | 每次管理员 / 客服登录：邮箱、角色、方式（密码、密码 + 两步验证、密码 + 备用码、通行密钥）、IP、设备（UA）、时间；**默认开启** |
 | 🎫 新工单 | `ticket_new`（新工单） | 主题、优先级、用户与首条消息摘要；**默认开启** |
-| 🎫 工单有新回复 | `ticket_reply`（工单回复） | 客服的每条回复（本来就发给用户；管理员一般不需要） |
+| 🎫 用户回复了工单 | `ticket_user_reply`（用户回复工单） | 主题、优先级、用户与回复摘要。同一工单 30 分钟内最多提醒一次，客服回复后重新计时；**默认开启** |
+| 🎫 工单有新回复 | `ticket_reply`（客服回复工单） | 客服的每条回复（本来就发给用户；管理员一般不需要） |
 | 💸 提现申请 | `withdraw`（提现申请） | 用户、金额、方式与打码后的账号；**默认开启** |
 | 🚨 订阅疑似泄露 | `subscription_leak`（订阅泄露） | 泄露检测命中的用户与不同 IP 数（§10）；**默认开启** |
 

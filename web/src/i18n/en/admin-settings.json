@@ -464,7 +464,8 @@
       "order_cancel": "Order cancelled",
       "admin_login": "Admin sign-in",
       "ticket_new": "New ticket",
-      "ticket_reply": "Ticket reply",
+      "ticket_user_reply": "User replied to a ticket",
+      "ticket_reply": "Staff replied to a ticket",
       "withdraw": "Withdrawal request",
       "subscription_leak": "Subscription leak"
     },

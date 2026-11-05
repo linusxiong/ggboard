@@ -17,11 +17,11 @@ func TestTelegramSettings(t *testing.T) {
 		len(s.Strings("telegram_admin_chat_ids")) != 0 {
 		t.Fatal("telegram defaults")
 	}
-	if got := s.Strings("telegram_events"); strings.Join(got, ",") != "order_paid,admin_login,ticket_new,withdraw,subscription_leak" {
+	if got := s.Strings("telegram_events"); strings.Join(got, ",") != "order_paid,admin_login,ticket_new,ticket_user_reply,withdraw,subscription_leak" {
 		t.Fatalf("telegram_events default = %v", got)
 	}
 	def, _ := Lookup("telegram_events")
-	if strings.Join(def.Options, " ") != "order_new order_paid order_cancel admin_login ticket_new ticket_reply withdraw subscription_leak" {
+	if strings.Join(def.Options, " ") != "order_new order_paid order_cancel admin_login ticket_new ticket_user_reply ticket_reply withdraw subscription_leak" {
 		t.Fatalf("options = %v", def.Options)
 	}
 	for _, k := range []string{"telegram_bot_token", "telegram_webhook_secret"} {

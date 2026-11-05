@@ -4,12 +4,78 @@ import (
 	"strings"
 	"testing"
 
+	"gorm.io/gorm"
+
 	"github.com/linusxiong/ggboard/internal/model"
 	"github.com/linusxiong/ggboard/internal/notify"
 	"github.com/linusxiong/ggboard/internal/notify/notifytest"
 	ticketsvc "github.com/linusxiong/ggboard/internal/service/ticket"
 	"github.com/linusxiong/ggboard/internal/testutil"
 )
+
+// Administrators hear about an owner's reply at most once per ticket within NotifyThrottle. A staff answer starts
+// over, so a reply to that answer always alerts.
+func TestTicketUserReplyNotification(t *testing.T) {
+	a := testutil.NewTestApp(t)
+	rec := notifytest.Attach(t, a)
+	u := testutil.CreateUser(t, a, "alice@example.com")
+	other := testutil.CreateUser(t, a, "bob@example.com")
+	staff := testutil.CreateStaff(t, a, "staff@example.com")
+	svc := ticketsvc.New(a)
+	open := func(id uint64) *model.Ticket {
+		t.Helper()
+		tk, err := svc.Create(t.Context(), id, "VPN down", model.TicketLevelHigh, "first message")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return tk
+	}
+	tk, otherTicket := open(u.ID), open(other.ID)
+	reply := func(tk *model.Ticket, owner uint64, msg string) {
+		t.Helper()
+		if _, err := svc.ReplyAsOwner(t.Context(), tk.ID, owner, msg); err != nil {
+			t.Fatal(err)
+		}
+	}
+	count := func() int {
+		t.Helper()
+		return len(rec.Events(t, notify.TypeTicketUserReply))
+	}
+
+	reply(tk, u.ID, "first follow-up")
+	reply(tk, u.ID, "second follow-up")
+	got := rec.Events(t, notify.TypeTicketUserReply)
+	if len(got) != 1 || got[0].Body != "first follow-up" || got[0].UserID != nil || !got[0].Admin {
+		t.Fatalf("burst = %+v", got)
+	}
+	fs := notifytest.Fields(got[0])
+	if fs["subject"] != "VPN down" || fs["level"] != "高" || fs["user"] != "alice@example.com" {
+		t.Fatalf("fields = %v", fs)
+	}
+
+	reply(otherTicket, other.ID, "another ticket has its own limit")
+	if n := count(); n != 2 {
+		t.Fatalf("after a second ticket: %d events", n)
+	}
+
+	if _, err := svc.ReplyAsStaff(t.Context(), tk.ID, staff.ID, "please retry"); err != nil {
+		t.Fatal(err)
+	}
+	reply(tk, u.ID, "still broken")
+	if n := count(); n != 3 {
+		t.Fatalf("after a staff answer: %d events", n)
+	}
+	allow := func(*gorm.DB) error { return nil }
+	if _, _, err := svc.ReplyAsStaffIf(t.Context(), tk.ID, staff.ID, "and now?", allow); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ReplyForOwner(t.Context(), tk.ID, u, "works, thanks"); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(); n != 4 {
+		t.Fatalf("after the authorized staff answer: %d events", n)
+	}
+}
 
 func TestTicketNotifications(t *testing.T) {
 	a := testutil.NewTestApp(t)
@@ -28,7 +94,7 @@ func TestTicketNotifications(t *testing.T) {
 		t.Fatalf("ticket_new = %+v", ev)
 	}
 
-	// The owner's own replies are not notified; every staff reply is (to the owner, and to subscribed admins).
+	// Every staff reply is notified to the owner (and to subscribed admins); the owner's own replies are not.
 	if _, err := svc.ReplyAsOwner(t.Context(), tk.ID, u.ID, "any news?"); err != nil {
 		t.Fatal(err)
 	}

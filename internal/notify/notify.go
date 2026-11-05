@@ -23,7 +23,7 @@ import (
 // Type identifies an event.
 type Type string
 
-// Event types. The first eight can be delivered to administrators (setting telegram_events); the reminders,
+// Event types. The first nine can be delivered to administrators (setting telegram_events); the reminders,
 // TypeTest and TypeSubscriptionReset are only ever sent to one recipient.
 const (
 	TypeOrderNew         Type = "order_new"         // a user placed an order
@@ -31,6 +31,7 @@ const (
 	TypeOrderCancel      Type = "order_cancel"      // a pending order was cancelled by timeout or by an administrator
 	TypeAdminLogin       Type = "admin_login"       // an administrator or staff member signed in
 	TypeTicketNew        Type = "ticket_new"        // a user opened a ticket
+	TypeTicketUserReply  Type = "ticket_user_reply" // a user replied to their ticket
 	TypeTicketReply      Type = "ticket_reply"      // staff replied to a ticket (sent to its user)
 	TypeWithdraw         Type = "withdraw"          // a user requested a commission withdrawal
 	TypeSubscriptionLeak Type = "subscription_leak" // a subscription token looks shared or leaked
@@ -45,7 +46,7 @@ const (
 // telegram_events).
 var AdminTypes = []Type{
 	TypeOrderNew, TypeOrderPaid, TypeOrderCancel, TypeAdminLogin,
-	TypeTicketNew, TypeTicketReply, TypeWithdraw, TypeSubscriptionLeak,
+	TypeTicketNew, TypeTicketUserReply, TypeTicketReply, TypeWithdraw, TypeSubscriptionLeak,
 }
 
 // Field is one labelled value of an event. Key is a stable identifier ("email", "trade_no"); drivers show

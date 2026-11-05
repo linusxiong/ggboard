@@ -66,6 +66,12 @@ func TestBuildersZH(t *testing.T) {
 		t.Fatalf("excerpt = %d runes", n)
 	}
 
+	ev = notify.TicketUserReply(a, notify.Ticket{UserID: 9, Email: "u@example.com", Subject: "Help", Level: 2, Message: "Still down"})
+	if f := fieldMap(ev); f["level"] != "高" || f["user"] != "u@example.com" || f["subject"] != "Help" ||
+		ev.Body != "Still down" || ev.UserID != nil || !ev.Admin || ev.Title != "🎫 用户回复了工单" {
+		t.Fatalf("ticket_user_reply = %+v", ev)
+	}
+
 	ev = notify.TicketReply(a, notify.Ticket{UserID: 9, Subject: "Help", Message: "Fixed"})
 	if ev.UserID == nil || *ev.UserID != 9 || ev.Body != "Fixed" || ev.Title != "🎫 工单有新回复" {
 		t.Fatalf("ticket_reply = %+v", ev)

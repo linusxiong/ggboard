@@ -55,6 +55,9 @@ var generated = []string{"server_token", "telegram_webhook_secret"}
 // New loads all settings and generates server_token and telegram_webhook_secret on first boot.
 func New(db *gorm.DB) (*Service, error) {
 	s := &Service{db: db}
+	if err := addTicketUserReplyEvent(db); err != nil {
+		return nil, err
+	}
 	if err := s.Reload(context.Background()); err != nil {
 		return nil, err
 	}

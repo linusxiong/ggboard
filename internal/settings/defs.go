@@ -188,8 +188,8 @@ var defs = []Def{
 	// receive the events listed in telegram_events; telegram_webhook_secret is generated on first boot.
 	secret(GroupTelegram, "telegram_bot_token"),
 	ss(GroupTelegram, "telegram_admin_chat_ids"),
-	withOptions(ss(GroupTelegram, "telegram_events", "order_paid", "admin_login", "ticket_new", "withdraw", "subscription_leak"),
-		"order_new", "order_paid", "order_cancel", "admin_login", "ticket_new", "ticket_reply", "withdraw", "subscription_leak"),
+	withOptions(ss(GroupTelegram, "telegram_events", "order_paid", "admin_login", "ticket_new", "ticket_user_reply", "withdraw", "subscription_leak"),
+		"order_new", "order_paid", "order_cancel", "admin_login", "ticket_new", "ticket_user_reply", "ticket_reply", "withdraw", "subscription_leak"),
 	b(GroupTelegram, "telegram_user_notify", true),
 	s(GroupTelegram, "telegram_discuss_link", ""),
 	withMinLen(secret(GroupTelegram, "telegram_webhook_secret"), 16),

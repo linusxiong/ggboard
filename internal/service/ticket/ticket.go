@@ -27,8 +27,9 @@ var (
 	ErrSessionExpired = errors.New("ticket: session expired")
 )
 
-// NotifyThrottle is the minimum delay between two reply e-mails for the same ticket. A reply by the owner resets
-// it, so every staff answer to a new user message is notified while bursts of staff messages send one e-mail.
+// NotifyThrottle is the minimum delay between two reply e-mails for the same ticket, and between two alerts to
+// administrators about its owner's replies. A reply from the other side resets it, so every answer to a new message
+// is notified while a burst of messages from one side sends one.
 const NotifyThrottle = 30 * time.Minute
 
 // Limits on user input (characters).
@@ -193,7 +194,8 @@ func (s *Service) get(db *gorm.DB, id, ownerID uint64) (*model.Ticket, error) {
 	return &t, nil
 }
 
-// ReplyAsOwner appends a message by the ticket owner. The ticket then awaits a staff reply. Closed tickets
+// ReplyAsOwner appends a message by the ticket owner. The ticket then awaits a staff reply and administrators are
+// alerted (ticket_user_reply, see NotifyThrottle). Closed tickets
 // cannot be replied to (ErrClosed); tickets of other users are ErrNotFound.
 func (s *Service) ReplyAsOwner(ctx context.Context, id, userID uint64, message string) (*model.Ticket, error) {
 	return s.replyAsOwner(ctx, id, userID, nil, message)
@@ -208,7 +210,7 @@ func (s *Service) ReplyForOwner(ctx context.Context, id uint64, session *model.U
 }
 
 func (s *Service) replyAsOwner(ctx context.Context, id, userID uint64, session *model.User, message string) (*model.Ticket, error) {
-	var out *model.Ticket
+	var out, replied *model.Ticket
 	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if session != nil {
 			if _, err := LockOwner(tx, session); err != nil {
@@ -231,6 +233,7 @@ func (s *Service) replyAsOwner(ctx context.Context, id, userID uint64, session *
 		}); err != nil {
 			return err
 		}
+		replied = t
 		if session != nil {
 			out, err = s.get(tx, id, userID)
 			return err
@@ -241,6 +244,7 @@ func (s *Service) replyAsOwner(ctx context.Context, id, userID uint64, session *
 		return nil, wrap(err)
 	}
 	s.a.KV.Delete(notifyKey(id))
+	s.notifyStaff(ctx, replied, message)
 	if session != nil {
 		return out, nil
 	}
@@ -271,6 +275,7 @@ func (s *Service) ReplyAsStaff(ctx context.Context, id, staffID uint64, message 
 		return nil, wrap(err)
 	}
 	if staffID != t.UserID {
+		s.a.KV.Delete(staffNotifyKey(t.ID))
 		s.notify(ctx, t, message)
 		notify.Emit(s.a, notify.TicketReply(s.a, notify.Ticket{
 			ID: t.ID, UserID: t.UserID, Subject: t.Subject, Level: int(t.Level), Message: message,
@@ -314,6 +319,7 @@ func (s *Service) ReplyAsStaffIf(ctx context.Context, id, staffID uint64, messag
 		return nil, "", wrap(err)
 	}
 	if staffID != t.UserID {
+		s.a.KV.Delete(staffNotifyKey(t.ID))
 		s.notify(ctx, t, message)
 		notify.Emit(s.a, notify.TicketReply(s.a, notify.Ticket{
 			ID: t.ID, UserID: t.UserID, Subject: t.Subject, Level: int(t.Level), Message: message,
@@ -491,6 +497,28 @@ func (s *Service) notify(ctx context.Context, t *model.Ticket, message string) {
 	}); err != nil {
 		s.a.Log.Warn("ticket: reply notification not queued", "ticket_id", t.ID, "err", err)
 	}
+}
+
+func staffNotifyKey(id uint64) string { return "ticket:staff-notified:" + strconv.FormatUint(id, 10) }
+
+// notifyStaff alerts administrators to an owner's reply unless it did for this ticket within NotifyThrottle.
+func (s *Service) notifyStaff(ctx context.Context, t *model.Ticket, message string) {
+	send := false
+	s.a.KV.Update(staffNotifyKey(t.ID), NotifyThrottle, true, func(_ any, ok bool) any {
+		send = !ok
+		return true
+	})
+	if !send {
+		return
+	}
+	var owner model.User
+	if err := s.a.DB.WithContext(ctx).Select("id", "email").Where("id = ?", t.UserID).First(&owner).Error; err != nil {
+		s.a.Log.Warn("ticket: reply alert skipped", "ticket_id", t.ID, "err", err)
+		return
+	}
+	notify.Emit(s.a, notify.TicketUserReply(s.a, notify.Ticket{
+		ID: t.ID, UserID: t.UserID, Email: owner.Email, Subject: t.Subject, Level: int(t.Level), Message: message,
+	}))
 }
 
 func wrap(err error) error {

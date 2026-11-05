@@ -384,6 +384,7 @@ describe('SettingsPage → Telegram', () => {
     'order_cancel',
     'admin_login',
     'ticket_new',
+    'ticket_user_reply',
     'ticket_reply',
     'withdraw',
     'subscription_leak',
