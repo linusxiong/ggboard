@@ -20,6 +20,7 @@ Notable changes to GG Bond (ggboard), per version. The format follows [Keep a Ch
 - The node list names a child node's parent instead of showing `[object Object]`.
 - The node sheet no longer offers routes on a child node, where they had no effect because a child uses its parent's routes. Saving a child clears any routes of its own.
 - The help on the node tag field no longer says tags appear in subscription node names. They do not: they appear in the users' node list and are read by keyword filters and region detection.
+- Opening the site while signed in shows the console button from the first paint. The landing page is a prerendered copy of the signed-out page, so **Log in** used to stay on screen until the app had loaded, for over a second on a slow connection.
 
 ## [1.0.2] - 2026-11-02
 

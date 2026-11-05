@@ -1,3 +1,6 @@
+/** True while `scripts/prerender.mjs` renders a public route into its snapshot. */
+export const isPrerendering = () => (window as { __GG_PRERENDER__?: boolean }).__GG_PRERENDER__ === true
+
 /** Values typed into a prerendered snapshot before the app replaced it (see components/FirstCommit.tsx). */
 export interface Carried {
   values: Map<string, string>

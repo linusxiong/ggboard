@@ -387,11 +387,15 @@ No hex colors in components. Dark mode follows the OS; `useUiStore().setTheme('l
   `dist/<route>/index.html`; the plain shell becomes `dist/spa.html` (deep links). Snapshot pages load only CSS and
   `assets/boot-*.js`, which imports the app after the snapshot's LCP entry — Lighthouse's simulation counts every
   request started before the first paint, and React replacing nodes before Chrome reports them moves LCP to the swap.
+  The boot script is a blocking classic script (no inline script: the CSP is `script-src 'self'`): before the first
+  paint it sets `<html data-session="member">` for a live session (`scripts/session-mark.mjs`).
   The client never hydrates (a client snapshot has client `useId`s): it renders the complete route in its first commit
   (`router.load()` first), carries typed values over (`lib/snapshot.ts`) and replaces the snapshot in one frame.
   Rules: keep the first commit of a public route free of Suspense fallbacks and data that differs from a fresh install
   (the fixture `scripts/fixtures/guest-config.json` = backend defaults); anything visible in the first phone viewport
   must be in the route chunk (a lazily revealed block becomes a later LCP candidate — hence `-landing/Features.tsx`).
+  The snapshot is taken signed out, so anything in that first commit that depends on the session goes through
+  `BySession` (`routes/index.tsx`), which prerenders both variants; `theme.css` shows the one matching `data-session`.
 - Route loaders and route-option code stay in the entry chunk: import query factories / API modules lazily there and
   never import the `@/lib/api` barrel in a route file (the code splitter leaves a bare import behind → React Query in
   every page). Check `grep -o 'import"./[^"]*"' dist/assets/index-*.js` after adding a loader.

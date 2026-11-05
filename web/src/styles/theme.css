@@ -457,6 +457,17 @@
     min-width: 0;
   }
 
+  /* Session-dependent parts of a prerendered snapshot come in both variants; `<html data-session>` from the boot
+     script shows one before the first paint. `contents` keeps the wrappers out of the layout, so nothing moves
+     when the app swaps them for the bare element (scripts/session-mark.mjs, `routes/index.tsx`). */
+  [data-session-only] {
+    display: contents;
+  }
+  :root:not([data-session='member']) [data-session-only='member'],
+  :root[data-session='member'] [data-session-only='guest'] {
+    display: none;
+  }
+
   /* SF Symbols weight: lucide icons at 1.75 (CSS beats the `stroke-width` presentation attribute). */
   svg.lucide {
     stroke-width: 1.75;

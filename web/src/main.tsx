@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { RouterProvider } from '@tanstack/react-router'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { FirstCommit } from '@/components/FirstCommit'
-import { carryInputs } from '@/lib/snapshot'
+import { carryInputs, isPrerendering } from '@/lib/snapshot'
 import { loadNamespaces, syncDocumentLanguage } from '@/i18n'
 import { syncTheme } from '@/lib/theme'
 import { useAuthStore } from '@/stores/auth'
@@ -28,11 +28,13 @@ if (!container) throw new Error('#root missing')
  * (`useId` values differ) — it waits for the matched route instead (loader data, route chunk,
  * dictionaries) so the first commit is the complete page, and `createRoot` swaps the snapshot for an
  * identical tree in one frame: no blank flash, no Suspense fallback, no layout shift.
- * The snapshot page loads the app through a tiny boot module only after its first paint has been reported
+ * The snapshot page loads the app through a tiny boot script only after its first paint has been reported
  * (FCP/LCP stay on the static paint); fields typed into before the swap are carried over.
+ * A snapshot knows no visitor: session-dependent parts ship in both variants, and the boot script picks one
+ * before that paint (scripts/session-mark.mjs), so a signed-in visitor never sees the signed-out page.
  * `window.__GG_PRERENDER__` is set by the prerender script: same path, then it reads the snapshot.
  */
-const prerendering = (window as { __GG_PRERENDER__?: boolean }).__GG_PRERENDER__ === true
+const prerendering = isPrerendering()
 const hasSnapshot = container.firstElementChild !== null
 
 async function boot(root: HTMLElement) {

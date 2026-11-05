@@ -8,6 +8,7 @@ import { useCssVar } from '@/hooks/useCssVar'
 import { loadNamespaces, useT } from '@/i18n'
 import { getGuestConfig, getGuestPlans, withDeadline } from '@/lib/publicData'
 import { buttonClass } from '@/lib/button'
+import { isPrerendering } from '@/lib/snapshot'
 import { Features } from './-landing/Features'
 import { useAuthStore } from '@/stores/auth'
 
@@ -57,15 +58,19 @@ function LandingPage() {
             </a>
             <LocaleToggle compact />
             <ThemeToggle />
-            {signedIn ? (
-              <Link to="/dashboard" className={buttonClass({ size: 'sm' })}>
-                {t('nav.console')}
-              </Link>
-            ) : (
-              <Link to="/login" className={buttonClass({ size: 'sm', variant: 'secondary' })}>
-                {t('nav.login')}
-              </Link>
-            )}
+            <BySession
+              signedIn={signedIn}
+              guest={
+                <Link to="/login" className={buttonClass({ size: 'sm', variant: 'secondary' })}>
+                  {t('nav.login')}
+                </Link>
+              }
+              member={
+                <Link to="/dashboard" className={buttonClass({ size: 'sm' })}>
+                  {t('nav.console')}
+                </Link>
+              }
+            />
           </nav>
         </div>
       </header>
@@ -96,10 +101,25 @@ function LandingPage() {
   )
 }
 
+/**
+ * The variant for the current session. A snapshot cannot know the visitor, so it carries both and
+ * `<html data-session>`, set by the boot script before the first paint, shows one (theme.css).
+ */
+function BySession({ signedIn, guest, member }: { signedIn: boolean; guest: ReactNode; member: ReactNode }) {
+  if (!isPrerendering()) return signedIn ? member : guest
+  return (
+    <>
+      <span data-session-only="guest">{guest}</span>
+      <span data-session-only="member">{member}</span>
+    </>
+  )
+}
+
 function Hero({ signedIn }: { signedIn: boolean }) {
   const t = useT('landing')
   const shine = useCssVar('--label-secondary', '#636369')
   const shineHighlight = useCssVar('--label', '#000000')
+  const primary = buttonClass({ size: 'lg', className: 'px-6' })
   return (
     <section className="mx-auto flex max-w-4xl flex-col items-center px-4 pt-20 pb-16 text-center sm:px-6 sm:pt-28 sm:pb-24">
       <p className="mb-5 rounded-full bg-fill-quaternary px-3.5 py-1 text-footnote font-semibold">
@@ -120,17 +140,27 @@ function Hero({ signedIn }: { signedIn: boolean }) {
         {t('hero.subtitle')}
       </p>
       <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-        <Link
-          to={signedIn ? '/dashboard' : '/register'}
-          className={buttonClass({ size: 'lg', className: 'px-6' })}
-        >
-          {t('hero.ctaPrimary')}
-        </Link>
-        {signedIn ? null : (
-          <Link to="/login" className={buttonClass({ size: 'lg', variant: 'secondary', className: 'px-6' })}>
-            {t('hero.ctaSecondary')}
-          </Link>
-        )}
+        <BySession
+          signedIn={signedIn}
+          guest={
+            <>
+              <Link to="/register" className={primary}>
+                {t('hero.ctaPrimary')}
+              </Link>
+              <Link
+                to="/login"
+                className={buttonClass({ size: 'lg', variant: 'secondary', className: 'px-6' })}
+              >
+                {t('hero.ctaSecondary')}
+              </Link>
+            </>
+          }
+          member={
+            <Link to="/dashboard" className={primary}>
+              {t('hero.ctaPrimary')}
+            </Link>
+          }
+        />
       </div>
     </section>
   )
