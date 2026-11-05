@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-11-05
+
 ### 新增
 
 - 路由规则：每条规则新增 **下发** 按钮，一次用到所有节点或选中的部分节点，不用再逐个编辑节点（`POST /admin/routes/:id/apply`）。新增一列显示有多少节点在用这条规则。下发结果就是你选中的节点，取消选中即从该节点撤回。节点在下次拉取配置时生效；子节点继续沿用父节点的规则。
@@ -136,7 +138,8 @@
 - 定时任务：订单超时、佣金结算、流量重置、到期与流量提醒、每日统计；`GET /healthz` 用于存活探针。
 - `make bench`：可复现的压测（10,000 个用户、50 个节点），结果见 `docs/perf/`。
 
-[Unreleased]: https://github.com/linusxiong/ggboard/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/linusxiong/ggboard/compare/v1.0.3...HEAD
+[1.0.3]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.3
 [1.0.2]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.2
 [1.0.1]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.1
 [1.0.0]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.0

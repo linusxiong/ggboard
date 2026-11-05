@@ -138,7 +138,7 @@ screenshots is in Chinese; only `example.com` demo accounts appear, and subscrip
 mkdir ggboard && cd ggboard
 curl -fsSLO https://raw.githubusercontent.com/linusxiong/ggboard/main/deploy/docker-compose.prebuilt.yml
 curl -fsSL https://raw.githubusercontent.com/linusxiong/ggboard/main/.env.example -o .env
-echo 'GGBOARD_VERSION=1.0.2' >> .env       # image tag: pin a release; main is a rolling build of the main branch
+echo 'GGBOARD_VERSION=1.0.3' >> .env       # image tag: pin a release; main is a rolling build of the main branch
 docker compose -f docker-compose.prebuilt.yml up -d
 docker compose -f docker-compose.prebuilt.yml exec ggboard ggboard admin create --email admin@example.com
 ```

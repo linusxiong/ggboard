@@ -6,6 +6,8 @@ Notable changes to GG Bond (ggboard), per version. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-11-05
+
 ### Added
 
 - Routes: a **Push** button on each route puts it on all nodes or a chosen set in one go, instead of editing every node (`POST /admin/routes/:id/apply`). A new column shows how many nodes have the route. The dialog sets exactly the nodes you pick, so unticking a node withdraws the route from it. Nodes pick the change up on their next config pull; child nodes keep using their parent's routes.
@@ -136,7 +138,8 @@ The first stable release: a single Go binary with the React frontend, scheduled 
 - Scheduled jobs: order timeout, commission settlement, traffic reset, expiry and traffic reminders, daily statistics; `GET /healthz` for liveness probes.
 - `make bench`: a reproducible load test (10,000 users, 50 nodes); results in `docs/perf/`.
 
-[Unreleased]: https://github.com/linusxiong/ggboard/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/linusxiong/ggboard/compare/v1.0.3...HEAD
+[1.0.3]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.3
 [1.0.2]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.2
 [1.0.1]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.1
 [1.0.0]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.0
