@@ -85,7 +85,7 @@ func TestUserAgentDetection(t *testing.T) {
 			return strings.Contains(b, "= tuic-v5,") && strings.HasPrefix(b, "#!MANAGED-CONFIG")
 		}},
 		{"Surfboard/2.24", "", "text/plain", func(b string) bool { return strings.HasPrefix(b, "#!MANAGED-CONFIG") && !strings.Contains(b, "tuic") }},
-		{"Quantumult%20X/1.4.1", "", "text/plain", func(b string) bool { return strings.Contains(b, "[server_local]") }},
+		{"Quantumult%20X/1.4.1", "", "text/plain", func(b string) bool { return strings.Contains(b, "vmess=") && !strings.Contains(b, "[server_local]") }},
 		{"Loon/3.2.4", "", "text/plain", func(b string) bool { return strings.Contains(b, "[Remote Rule]") }},
 		{"Mozilla/5.0", "loon", "text/plain", func(b string) bool { return strings.Contains(b, "[Remote Rule]") }},
 		{"Mozilla/5.0", "singbox", "application/json", func(b string) bool { return json.Valid([]byte(b)) }},

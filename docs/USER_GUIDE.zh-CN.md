@@ -73,6 +73,7 @@ https://<订阅域名>/api/v1/client/subscribe?token=<你的 token>
 | `filter=香港,HK` | 只输出名称或标签包含任一关键字的节点（不区分大小写） |
 | `emoji=0` | 去掉节点名中的 emoji |
 | `list=1` | Surge / Surfboard / Loon / Quantumult X 只输出节点行 |
+| `list=0` | Quantumult X 输出完整配置（默认只输出节点行） |
 | `age=0` | 开启了加密订阅时临时获取明文（站点允许时才有效，见 3.4） |
 
 站点关闭“自定义分流”时，规则相关参数会被忽略。在默认配置下，订阅链接旁的 **分流规则** 下拉框选择“临时使用模板”时，

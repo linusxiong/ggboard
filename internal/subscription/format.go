@@ -47,6 +47,12 @@ type ProxyFilter interface {
 	SupportsProxy(p *Proxy) bool
 }
 
+// NodeListClient is implemented by formats whose clients add a pasted subscription link as a node list and reject a
+// whole configuration. Their requests get ListOnly unless ?list= says otherwise.
+type NodeListClient interface {
+	NodeListByDefault()
+}
+
 // ClientProxyFilter is a ProxyFilter whose answer also depends on the client version named by the User-Agent.
 // Render prefers it over SupportsProxy.
 type ClientProxyFilter interface {

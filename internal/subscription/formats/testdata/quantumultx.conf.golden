@@ -6,12 +6,12 @@ server=223.5.5.5
 server=119.29.29.29
 
 [policy]
-static=Proxy, auto, 剩余流量：97 GB, 套餐到期：2027-01-01, 距离下次重置剩余：10 天, 🇭🇰 HK VMess WS, JP VMess TCP, 🇺🇸 US VLESS Reality, TW VLESS WS, HK SS obfs, JP SS2022， Premium, HK SSR, US Trojan, US Trojan WS, HK AnyTLS, JP AnyTLS Reality, 🇺🇸 US Relay, IPv6 SS, VMess HTTP Header
-static=AI, Proxy, JP VMess TCP, 🇺🇸 US VLESS Reality, TW VLESS WS, JP SS2022， Premium, US Trojan, US Trojan WS, JP AnyTLS Reality, 🇺🇸 US Relay
-static=Streaming, Proxy, 🇭🇰 HK VMess WS, JP VMess TCP, 🇺🇸 US VLESS Reality, TW VLESS WS, HK SS obfs, JP SS2022， Premium, HK SSR, US Trojan, US Trojan WS, HK AnyTLS, JP AnyTLS Reality, 🇺🇸 US Relay, IPv6 SS, VMess HTTP Header
-static=Telegram, Proxy, 🇭🇰 HK VMess WS, JP VMess TCP, 🇺🇸 US VLESS Reality, TW VLESS WS, HK SS obfs, JP SS2022， Premium, HK SSR, US Trojan, US Trojan WS, HK AnyTLS, JP AnyTLS Reality, 🇺🇸 US Relay, IPv6 SS, VMess HTTP Header
-static=Microsoft, direct, Proxy
-static=Apple, direct, Proxy
+static=Proxies, auto, 剩余流量：97 GB, 套餐到期：2027-01-01, 距离下次重置剩余：10 天, 🇭🇰 HK VMess WS, JP VMess TCP, 🇺🇸 US VLESS Reality, TW VLESS WS, HK SS obfs, JP SS2022， Premium, HK SSR, US Trojan, US Trojan WS, HK AnyTLS, JP AnyTLS Reality, 🇺🇸 US Relay, IPv6 SS, VMess HTTP Header
+static=AI, Proxies, JP VMess TCP, 🇺🇸 US VLESS Reality, TW VLESS WS, JP SS2022， Premium, US Trojan, US Trojan WS, JP AnyTLS Reality, 🇺🇸 US Relay
+static=Streaming, Proxies, 🇭🇰 HK VMess WS, JP VMess TCP, 🇺🇸 US VLESS Reality, TW VLESS WS, HK SS obfs, JP SS2022， Premium, HK SSR, US Trojan, US Trojan WS, HK AnyTLS, JP AnyTLS Reality, 🇺🇸 US Relay, IPv6 SS, VMess HTTP Header
+static=Telegram, Proxies, 🇭🇰 HK VMess WS, JP VMess TCP, 🇺🇸 US VLESS Reality, TW VLESS WS, HK SS obfs, JP SS2022， Premium, HK SSR, US Trojan, US Trojan WS, HK AnyTLS, JP AnyTLS Reality, 🇺🇸 US Relay, IPv6 SS, VMess HTTP Header
+static=Microsoft, direct, Proxies
+static=Apple, direct, Proxies
 url-latency-benchmark=auto, 🇭🇰 HK VMess WS, JP VMess TCP, 🇺🇸 US VLESS Reality, TW VLESS WS, HK SS obfs, JP SS2022， Premium, HK SSR, US Trojan, US Trojan WS, HK AnyTLS, JP AnyTLS Reality, 🇺🇸 US Relay, IPv6 SS, VMess HTTP Header, check-interval=300, tolerance=50
 
 [server_remote]
@@ -29,7 +29,7 @@ https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Quant
 https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/QuantumultX/Spotify/Spotify.list, tag=spotify-classical, force-policy=Streaming, update-interval=86400, opt-parser=false, enabled=true
 https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/QuantumultX/Microsoft/Microsoft.list, tag=microsoft-classical, force-policy=Microsoft, update-interval=86400, opt-parser=false, enabled=true
 https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/QuantumultX/Apple/Apple.list, tag=apple-classical, force-policy=Apple, update-interval=86400, opt-parser=false, enabled=true
-https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/QuantumultX/Proxy/Proxy.list, tag=gfw-classical, force-policy=Proxy, update-interval=86400, opt-parser=false, enabled=true
+https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/QuantumultX/Proxy/Proxy.list, tag=gfw-classical, force-policy=Proxies, update-interval=86400, opt-parser=false, enabled=true
 https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/QuantumultX/ChinaMax/ChinaMax.list, tag=cn-classical, force-policy=direct, update-interval=86400, opt-parser=false, enabled=true
 
 [rewrite_remote]
@@ -56,7 +56,7 @@ vmess=vh.example.com:80, method=chacha20-ietf-poly1305, password=3b1b6f5e-7c2a-4
 [filter_local]
 host, panel.example.com, direct
 geoip, cn, direct
-final, Proxy
+final, Proxies
 
 [rewrite_local]
 

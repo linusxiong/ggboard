@@ -387,13 +387,18 @@ done
 grep -q "Tokyo 01 REALITY" <(curl -sS "$BASE/api/v1/client/subscribe?token=$SUB_TOKEN&flag=clash-meta") || fail "clash-meta misses the vless node"
 grep -q '"type": *"hysteria2"' <(curl -sS "$BASE/api/v1/client/subscribe?token=$SUB_TOKEN&flag=singbox") || fail "singbox misses hysteria2"
 base64 -d <<<"$(curl -sS "$BASE/api/v1/client/subscribe?token=$SUB_TOKEN&flag=v2ray")" 2>/dev/null | grep -q '^vless://' || fail "v2ray base64 has no vless://"
-# node-list resources (QX [server_remote], Loon node subscriptions) get proxy lines only with list=1
+# node-list resources (QX [server_remote], Loon node subscriptions) get proxy lines only with list=1;
+# Quantumult X gets them by default and the full config with list=0
 for flag in quantumultx loon surge; do
 	first="$(curl -sS "$BASE/api/v1/client/subscribe?token=$SUB_TOKEN&flag=$flag&list=1" | head -n1)"
 	[[ -n "$first" && "$first" != \[* ]] || fail "flag=$flag&list=1 must be proxy lines, got: $first"
-	first="$(curl -sS "$BASE/api/v1/client/subscribe?token=$SUB_TOKEN&flag=$flag" | head -n1)"
-	[[ "$first" == \[* || "$first" == \#* ]] || fail "flag=$flag must be a full config, got: $first"
+	full="flag=$flag"
+	[[ "$flag" != quantumultx ]] || full="$full&list=0"
+	first="$(curl -sS "$BASE/api/v1/client/subscribe?token=$SUB_TOKEN&$full" | head -n1)"
+	[[ "$first" == \[* || "$first" == \#* ]] || fail "$full must be a full config, got: $first"
 done
+first="$(curl -sS "$BASE/api/v1/client/subscribe?token=$SUB_TOKEN&flag=quantumultx" | head -n1)"
+[[ -n "$first" && "$first" != \[* ]] || fail "flag=quantumultx must default to proxy lines, got: $first"
 code="$(curl -sS -o /dev/null -w '%{http_code}' -A 'ClashMetaForAndroid/2.11' "$BASE/s/$SUB_TOKEN")"
 [[ "$code" == 200 ]] || fail "short link → $code"
 ETAG="$(curl -sS -o /dev/null -D - "$BASE/api/v1/client/subscribe?token=$SUB_TOKEN&flag=clash-meta" | grep -i '^etag:' | cut -d' ' -f2- | tr -d '\r')"

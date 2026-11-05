@@ -85,6 +85,7 @@ If automatic detection fails, append `&flag=<format>` to the link: `clash-meta`,
 | `filter=香港,HK` | Only output nodes whose name or tags contain any of the keywords (case-insensitive) |
 | `emoji=0` | Remove emoji from node names |
 | `list=1` | Surge / Surfboard / Loon / Quantumult X: output only the node lines |
+| `list=0` | Quantumult X: output the whole configuration (it gets the node lines by default) |
 | `age=0` | Get plain text for this request while encrypted subscriptions are on (only when the site allows it, see 3.4) |
 
 When the site turns off "custom routing", the rule parameters are ignored. On the default profile, choosing a "Template

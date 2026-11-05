@@ -164,7 +164,10 @@ func Generate(ctx context.Context, a *app.App, u *model.User, req Request) (*Res
 		proxies = append(proxies, subscription.NodeProxies(u, nodes, opt)...)
 	}
 
-	listOnly, _ := queryBool(q, "list")
+	listOnly, listSet := queryBool(q, "list")
+	if _, ok := f.(subscription.NodeListClient); ok && !listSet && req.Format == "" { // the preview shows the whole configuration
+		listOnly = true
+	}
 	return Render(f, Input{
 		User: u, Proxies: proxies, Nodes: nodeByID, Profile: profile, Catalog: cat,
 		Defaults: rulesets.DefaultsFrom(a.Settings), Settings: a.Settings,

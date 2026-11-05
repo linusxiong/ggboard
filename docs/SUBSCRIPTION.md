@@ -148,7 +148,7 @@ get no node entries; with the setting off they get a valid config without proxie
 `types=vmess,vless,...` (aliases `ss`, `ssr`, `hy`/`hy1`/`hysteria1`, `hy2`/`hysteria2`; `hysteria` = both; default all, `all` = no filter);
 `filter=HK|JP` or `filter=HK,JP` (case-insensitive substring of name or tag; both lists split on `,` and `|`);
 `emoji=0` (strip emoji from names; any `strconv.ParseBool` value);
-`list=1` (surge, surfboard, loon, quantumultx: proxy lines only, for Surge `policy-path` / QX `[server_remote]` / Loon node subscriptions);
+`list=1` (surge, surfboard, loon, quantumultx: proxy lines only, for Surge `policy-path` / QX `[server_remote]` / Loon node subscriptions; Quantumult X requests get this by default, `list=0` asks for its whole configuration);
 `age=0` (plaintext although the user's age key is on, only while `subscribe_age_optional`; see "Encrypted subscriptions (age)");
 `profile=<slug>` (one of the user's rule profiles; see "Multiple profiles").
 The `types`/`filter` filters run before the profile's node operations.
@@ -525,8 +525,8 @@ docs/RULESETS.md is authoritative for source and key selection.
 - **loon**: `[General]`, `[Proxy]`, `[Proxy Group]`, `[Rule]` (host, `GEOIP,CN,DIRECT`, `FINAL`), `[Remote Rule]`
   `<url>, policy=<target>, tag=<tag>, enabled=true`. Loon reads `[Proxy]` from the same URL when added as a node subscription.
 - **quantumultx**: `[general]`, `[dns]`, `[policy]` (`static`, `url-latency-benchmark`, `available`, `round-robin`; `direct`/`reject`
-  lowercase), `[server_local]`, `[filter_remote]` `<url>, tag=<tag>, force-policy=<target>, update-interval=86400, opt-parser=false, enabled=true`,
-  `[filter_local]` (`host, <host>, direct`, `geoip, cn, direct`, `final, <final>`). `?list=1` returns the server lines only (for `[server_remote]`).
+  lowercase; `Proxy` is called `Proxies` because `proxy` is a built-in policy; a group with one candidate is `static`), `[server_local]`, `[filter_remote]` `<url>, tag=<tag>, force-policy=<target>, update-interval=86400, opt-parser=false, enabled=true`,
+  `[filter_local]` (`host, <host>, direct`, `geoip, cn, direct`, `final, <final>`). A request gets the server lines only (for `[server_remote]`, where a pasted link goes and which answers a whole configuration with "response invalid"); `?list=0` returns the configuration, which is also what the panel preview shows.
 - **shadowrocket / v2ray / ssr**: no rules (share links only).
 
 `mirror` prefixes every GitHub URL (`raw.githubusercontent.com`, `github.com`, `gist.githubusercontent.com`:

@@ -297,16 +297,41 @@ func validate(t *testing.T, format string, body []byte) {
 			t.Fatalf("final %q is not an outbound", doc.Route.Final)
 		}
 	case subscription.FormatQuantumultX:
+		policies := map[string]bool{"direct": true, "reject": true}
+		var targets []string
 		for _, line := range strings.Split(string(body), "\n") {
-			if !strings.HasPrefix(line, "shadowsocks=") {
-				continue
-			}
 			kv := map[string]string{}
 			for _, field := range strings.Split(line, ", ") {
 				k, v, _ := strings.Cut(field, "=")
 				kv[k] = v
 			}
-			checkSS2022Password(t, line, kv["method"], kv["password"])
+			if strings.HasPrefix(line, "shadowsocks=") {
+				checkSS2022Password(t, line, kv["method"], kv["password"])
+			}
+			for _, kind := range []string{"static", "available", "round-robin", "url-latency-benchmark"} {
+				name := kv[kind]
+				if name == "" {
+					continue
+				}
+				if strings.EqualFold(name, "proxy") {
+					t.Fatalf("group %q collides with the built-in proxy policy", name)
+				}
+				if members := strings.Count(line, ", ") - strings.Count(line, "check-interval=") - strings.Count(line, "tolerance="); kind != "static" && members < 2 {
+					t.Fatalf("%s needs two candidates: %s", kind, line)
+				}
+				policies[name] = true
+			}
+			if v := kv["force-policy"]; v != "" {
+				targets = append(targets, v)
+			}
+			if rest, ok := strings.CutPrefix(line, "final, "); ok {
+				targets = append(targets, rest)
+			}
+		}
+		for _, target := range targets {
+			if !policies[target] {
+				t.Fatalf("policy %q is not defined", target)
+			}
 		}
 	case subscription.FormatV2ray, subscription.FormatShadowrocket, subscription.FormatSSR:
 		for _, line := range strings.Split(strings.TrimSpace(string(decodeB64(t, body))), "\n") {
@@ -348,6 +373,28 @@ func checkSS2022Password(t *testing.T, name, cipher, password string) {
 		if b, err := base64.StdEncoding.DecodeString(k); err != nil || len(b) != size {
 			t.Fatalf("%s: %s key %q is not base64 of %d bytes", name, cipher, k, size)
 		}
+	}
+}
+
+// A health-checked group needs two candidates in Quantumult X, so one server makes it static (as subconverter does).
+func TestQuantumultXOneServerGroup(t *testing.T) {
+	c := rulesets.Builtin()
+	f, _ := subscription.GetFormat(subscription.FormatQuantumultX)
+	in := input(t, standard(c), c)
+	var one []subscription.Proxy
+	for _, p := range in.Proxies {
+		if !p.Info && p.NodeID == 1 {
+			one = append(one, p)
+		}
+	}
+	in.Proxies = one
+	res, err := engine.Render(f, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(res.Body)
+	if !strings.Contains(body, "static=auto, ") || strings.Contains(body, "url-latency-benchmark=") || strings.Contains(body, "check-interval=") {
+		t.Fatalf("auto group:\n%s", body)
 	}
 }
 

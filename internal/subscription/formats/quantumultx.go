@@ -8,9 +8,10 @@ import (
 	"github.com/linusxiong/ggboard/internal/subscription"
 )
 
-// quantumultx renders a Quantumult X configuration ([general], [dns], [policy], [server_local],
-// [filter_remote], [filter_local]); with ?list=1 only the server lines (for [server_remote]). Built-in
-// policies are lowercase direct / reject.
+// quantumultx renders the server lines for [server_remote], which is where a pasted link goes and which answers a
+// whole configuration with "response invalid"; ?list=0 and the panel preview get the Quantumult X configuration
+// ([general], [dns], [policy], [server_local], [filter_remote], [filter_local]). Built-in policies are lowercase
+// direct / reject.
 type quantumultxFormat struct{}
 
 const (
@@ -31,6 +32,7 @@ func (quantumultxFormat) Supports(t string) bool {
 	return false
 }
 func (quantumultxFormat) RuleFamily() string { return subscription.FormatQuantumultX }
+func (quantumultxFormat) NodeListByDefault() {}
 
 func (quantumultxFormat) SupportsProxy(p *subscription.Proxy) bool {
 	switch p.Type {
@@ -64,20 +66,24 @@ func (f quantumultxFormat) Render(ctx *subscription.RenderContext) ([]byte, stri
 	}
 	b.WriteString("\n[policy]\n")
 	for _, g := range ctx.Groups {
+		members := memberNames(g, qxDirect, qxReject)
+		multiple := len(members) > 1 // a health-checked group needs two candidates
 		kind := "static"
-		switch g.Type {
-		case subscription.GroupURLTest:
-			kind = "url-latency-benchmark"
-		case subscription.GroupFallback:
-			kind = "available"
-		case subscription.GroupLoadBalance:
-			kind = "round-robin"
+		if multiple {
+			switch g.Type {
+			case subscription.GroupURLTest:
+				kind = "url-latency-benchmark"
+			case subscription.GroupFallback:
+				kind = "available"
+			case subscription.GroupLoadBalance:
+				kind = "round-robin"
+			}
 		}
-		b.WriteString(kind + "=" + g.Name)
-		for _, m := range memberNames(g, qxDirect, qxReject) {
-			b.WriteString(", " + m)
+		b.WriteString(kind + "=" + qxPolicy(g.Name))
+		for _, m := range members {
+			b.WriteString(", " + qxPolicy(m))
 		}
-		if g.IsHealthChecked() {
+		if multiple && g.IsHealthChecked() {
 			b.WriteString(", check-interval=" + strconv.Itoa(g.Interval))
 			if g.Type == subscription.GroupURLTest {
 				b.WriteString(", tolerance=50")
@@ -89,7 +95,7 @@ func (f quantumultxFormat) Render(ctx *subscription.RenderContext) ([]byte, stri
 	final := subscription.GroupProxy
 	if plan := ctx.Rules; plan != nil {
 		for _, s := range plan.Sets {
-			b.WriteString(s.URL + ", tag=" + s.Tag + ", force-policy=" + policyName(s.Target, qxDirect, qxReject) +
+			b.WriteString(s.URL + ", tag=" + s.Tag + ", force-policy=" + qxPolicy(policyName(s.Target, qxDirect, qxReject)) +
 				", update-interval=86400, opt-parser=false, enabled=true\n")
 		}
 		final = plan.Final
@@ -106,9 +112,17 @@ func (f quantumultxFormat) Render(ctx *subscription.RenderContext) ([]byte, stri
 	if ctx.Rules != nil && ctx.Rules.GeoIPCNDirect {
 		b.WriteString("geoip, cn, " + qxDirect + "\n")
 	}
-	b.WriteString("final, " + policyName(final, qxDirect, qxReject) + "\n")
+	b.WriteString("final, " + qxPolicy(policyName(final, qxDirect, qxReject)) + "\n")
 	b.WriteString("\n[rewrite_local]\n\n[mitm]\n")
 	return []byte(b.String()), subscription.ContentTypePlain, nil
+}
+
+// qxPolicy renames a group that would shadow Quantumult X's built-in proxy policy.
+func qxPolicy(name string) string {
+	if strings.EqualFold(name, "proxy") {
+		return "Proxies"
+	}
+	return name
 }
 
 // qxLine builds "type=host:port, k=v, ..., tag=Name".
