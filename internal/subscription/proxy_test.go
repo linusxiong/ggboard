@@ -154,6 +154,17 @@ func TestProxyAccessors(t *testing.T) {
 	}
 }
 
+// Xboard's `types=all` link parameter means no filter; every node used to be dropped for it.
+func TestTypeFilterAll(t *testing.T) {
+	ss := &Proxy{Type: model.NodeShadowsocks}
+	if !typeMatches(ss, []string{"all"}) || !typeMatches(ss, ParseList("ALL")) {
+		t.Fatal("types=all must keep every node")
+	}
+	if typeMatches(ss, []string{"vmess"}) {
+		t.Fatal("a named type still filters")
+	}
+}
+
 func TestTypeAndKeywordFilters(t *testing.T) {
 	hy2 := &Proxy{Type: model.NodeHysteria, Hysteria: &model.HysteriaSettings{Version: 2}, Name: "JP 01", Tags: []string{"Premium"}}
 	hy1 := &Proxy{Type: model.NodeHysteria, Hysteria: &model.HysteriaSettings{Version: 1}, Name: "HK"}

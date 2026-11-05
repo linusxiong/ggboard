@@ -6,13 +6,13 @@ server=223.5.5.5
 server=119.29.29.29
 
 [policy]
-static=Proxy, auto, 剩余流量：97 GB, 套餐到期：2027-01-01, 距离下次重置剩余：10 天, 🇭🇰 HK VMess WS, JP VMess TCP, 🇺🇸 US VLESS Reality, TW VLESS WS, HK SS obfs, HK SSR, US Trojan, US Trojan WS, HK AnyTLS, 🇺🇸 US Relay, IPv6 SS, VMess HTTP Header
-static=AI, Proxy, JP VMess TCP, 🇺🇸 US VLESS Reality, TW VLESS WS, US Trojan, US Trojan WS, 🇺🇸 US Relay
-static=Streaming, Proxy, 🇭🇰 HK VMess WS, JP VMess TCP, 🇺🇸 US VLESS Reality, TW VLESS WS, HK SS obfs, HK SSR, US Trojan, US Trojan WS, HK AnyTLS, 🇺🇸 US Relay, IPv6 SS, VMess HTTP Header
-static=Telegram, Proxy, 🇭🇰 HK VMess WS, JP VMess TCP, 🇺🇸 US VLESS Reality, TW VLESS WS, HK SS obfs, HK SSR, US Trojan, US Trojan WS, HK AnyTLS, 🇺🇸 US Relay, IPv6 SS, VMess HTTP Header
+static=Proxy, auto, 剩余流量：97 GB, 套餐到期：2027-01-01, 距离下次重置剩余：10 天, 🇭🇰 HK VMess WS, JP VMess TCP, 🇺🇸 US VLESS Reality, TW VLESS WS, HK SS obfs, JP SS2022， Premium, HK SSR, US Trojan, US Trojan WS, HK AnyTLS, JP AnyTLS Reality, 🇺🇸 US Relay, IPv6 SS, VMess HTTP Header
+static=AI, Proxy, JP VMess TCP, 🇺🇸 US VLESS Reality, TW VLESS WS, JP SS2022， Premium, US Trojan, US Trojan WS, JP AnyTLS Reality, 🇺🇸 US Relay
+static=Streaming, Proxy, 🇭🇰 HK VMess WS, JP VMess TCP, 🇺🇸 US VLESS Reality, TW VLESS WS, HK SS obfs, JP SS2022， Premium, HK SSR, US Trojan, US Trojan WS, HK AnyTLS, JP AnyTLS Reality, 🇺🇸 US Relay, IPv6 SS, VMess HTTP Header
+static=Telegram, Proxy, 🇭🇰 HK VMess WS, JP VMess TCP, 🇺🇸 US VLESS Reality, TW VLESS WS, HK SS obfs, JP SS2022， Premium, HK SSR, US Trojan, US Trojan WS, HK AnyTLS, JP AnyTLS Reality, 🇺🇸 US Relay, IPv6 SS, VMess HTTP Header
 static=Microsoft, direct, Proxy
 static=Apple, direct, Proxy
-url-latency-benchmark=auto, 🇭🇰 HK VMess WS, JP VMess TCP, 🇺🇸 US VLESS Reality, TW VLESS WS, HK SS obfs, HK SSR, US Trojan, US Trojan WS, HK AnyTLS, 🇺🇸 US Relay, IPv6 SS, VMess HTTP Header, check-interval=300, tolerance=50
+url-latency-benchmark=auto, 🇭🇰 HK VMess WS, JP VMess TCP, 🇺🇸 US VLESS Reality, TW VLESS WS, HK SS obfs, JP SS2022， Premium, HK SSR, US Trojan, US Trojan WS, HK AnyTLS, JP AnyTLS Reality, 🇺🇸 US Relay, IPv6 SS, VMess HTTP Header, check-interval=300, tolerance=50
 
 [server_remote]
 
@@ -43,10 +43,12 @@ vmess=192.0.2.10:10086, method=chacha20-ietf-poly1305, password=3b1b6f5e-7c2a-4d
 vless=us1.example.com:443, method=none, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, obfs=over-tls, obfs-host=www.example.org, reality-base64-pubkey=PUBLIC_KEY_BASE64URL, reality-hex-shortid=0123abcd, vless-flow=xtls-rprx-vision, fast-open=false, tag=🇺🇸 US VLESS Reality
 vless=tw1.example.com:443, method=none, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, obfs=wss, obfs-host=tw1.example.com, obfs-uri=/vl, tls-verification=false, fast-open=false, tag=TW VLESS WS
 shadowsocks=ss.example.com:8388, method=aes-128-gcm, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, obfs=http, obfs-host=www.example.net, obfs-uri=/, udp-relay=true, fast-open=false, tag=HK SS obfs
+shadowsocks=ss2022.example.com:8389, method=2022-blake3-aes-128-gcm, password=YjVkODdhNWRlMWEzNWIyMg==:M2IxYjZmNWUtN2MyYS00ZA==, udp-relay=true, fast-open=false, tag=JP SS2022， Premium
 shadowsocks=ssr.example.com:8443, method=chacha20-ietf, password=ssr-node-pass, ssr-protocol=auth_chain_a, ssr-protocol-param=7:3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, obfs=http_simple, obfs-host=www.example.net, fast-open=false, tag=HK SSR
 trojan=t1.example.com:443, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, over-tls=true, tls-host=t1.example.com, tls-verification=true, fast-open=false, tag=US Trojan
 trojan=t2.example.com:443, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, obfs=wss, obfs-host=t2.example.com, obfs-uri=/tj, tls-verification=true, fast-open=false, tag=US Trojan WS
 anytls=anytls.example.com:8443, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, over-tls=true, tls-host=anytls.example.com, tls-verification=true, udp-relay=true, fast-open=false, tag=HK AnyTLS
+anytls=anytlsr.example.com:443, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, over-tls=true, tls-host=www.example.org, reality-base64-pubkey=PUBLIC_KEY_BASE64URL, reality-hex-shortid=0123abcd, udp-relay=true, fast-open=false, tag=JP AnyTLS Reality
 vless=relay.example.com:8443, method=none, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, obfs=over-tls, obfs-host=www.example.org, reality-base64-pubkey=PUBLIC_KEY_BASE64URL, reality-hex-shortid=0123abcd, vless-flow=xtls-rprx-vision, fast-open=false, tag=🇺🇸 US Relay
 shadowsocks=[2001:db8::10]:8388, method=chacha20-ietf-poly1305, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, udp-relay=true, fast-open=false, tag=IPv6 SS
 vmess=vh.example.com:80, method=chacha20-ietf-poly1305, password=3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f, obfs=http, obfs-host=www.example.net, obfs-uri=/index, aead=true, fast-open=false, tag=VMess HTTP Header

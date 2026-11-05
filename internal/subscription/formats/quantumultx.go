@@ -18,7 +18,9 @@ const (
 	qxReject = "reject"
 )
 
-var qxCiphers = typeSet("aes-128-gcm", "aes-192-gcm", "aes-256-gcm", "chacha20-ietf-poly1305", "xchacha20-ietf-poly1305")
+// qxCiphers holds the methods of the official sample.conf (crossutility/Quantumult-X). It lists no ChaCha 2022.
+var qxCiphers = typeSet("aes-128-gcm", "aes-192-gcm", "aes-256-gcm", "chacha20-ietf-poly1305", "xchacha20-ietf-poly1305",
+	"2022-blake3-aes-128-gcm", "2022-blake3-aes-256-gcm")
 
 func (quantumultxFormat) Name() string { return subscription.FormatQuantumultX }
 func (quantumultxFormat) Supports(t string) bool {
@@ -42,8 +44,6 @@ func (quantumultxFormat) SupportsProxy(p *subscription.Proxy) bool {
 		return p.Network == "tcp"
 	case model.NodeTrojan:
 		return p.Network == "ws" || (p.Network == "tcp" && !isHTTPHeaderTCP(p))
-	case model.NodeAnyTLS:
-		return p.TLSMode() != model.TLSReality
 	}
 	return true
 }
@@ -209,7 +209,12 @@ func (quantumultxFormat) server(p *subscription.Proxy) string {
 		l.kv("password", p.Password)
 		l.kv("over-tls", "true")
 		l.kv("tls-host", p.SNI())
-		l.kv("tls-verification", boolStr(!p.Insecure()))
+		if pk, sid, ok := p.Reality(); ok {
+			l.kv("reality-base64-pubkey", pk)
+			l.kv("reality-hex-shortid", sid)
+		} else {
+			l.kv("tls-verification", boolStr(!p.Insecure()))
+		}
 		l.kv("udp-relay", "true")
 	default:
 		return ""

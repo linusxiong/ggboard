@@ -21,6 +21,10 @@ Notable changes to GG Bond (ggboard), per version. The format follows [Keep a Ch
 - The node sheet no longer offers routes on a child node, where they had no effect because a child uses its parent's routes. Saving a child clears any routes of its own.
 - The help on the node tag field no longer says tags appear in subscription node names. They do not: they appear in the users' node list and are read by keyword filters and region detection.
 - Opening the site while signed in shows the console button from the first paint. The landing page is a prerendered copy of the signed-out page, so **Log in** used to stay on screen until the app had loaded, for over a second on a slow connection.
+- Quantumult X no longer gets an empty subscription when nodes use AES Shadowsocks 2022. The panel left those nodes out although this client supports the ciphers, so the one-tap import came back empty and Quantumult X reported invalid content.
+- Subscription links from Xboard keep working. `flag=meta`, `flag=general` and `flag=qx` are understood, `types=all` no longer drops every node, and `flag=clash` no longer forces classic Clash on a client whose User-Agent shows a newer core, which could leave it with no nodes.
+- The `clash-meta/*`, `clash surgio/*` and `Quantumultx` User-Agents now get the right format.
+- Quantumult X also gets AnyTLS Reality nodes, and Surfboard 2.28.1 or later gets AES Shadowsocks 2022 nodes.
 
 ## [1.0.2] - 2026-11-02
 

@@ -296,6 +296,18 @@ func validate(t *testing.T, format string, body []byte) {
 		if !tags[doc.Route.Final] {
 			t.Fatalf("final %q is not an outbound", doc.Route.Final)
 		}
+	case subscription.FormatQuantumultX:
+		for _, line := range strings.Split(string(body), "\n") {
+			if !strings.HasPrefix(line, "shadowsocks=") {
+				continue
+			}
+			kv := map[string]string{}
+			for _, field := range strings.Split(line, ", ") {
+				k, v, _ := strings.Cut(field, "=")
+				kv[k] = v
+			}
+			checkSS2022Password(t, line, kv["method"], kv["password"])
+		}
 	case subscription.FormatV2ray, subscription.FormatShadowrocket, subscription.FormatSSR:
 		for _, line := range strings.Split(strings.TrimSpace(string(decodeB64(t, body))), "\n") {
 			if strings.HasPrefix(line, "vmess://") {
@@ -339,6 +351,41 @@ func checkSS2022Password(t *testing.T, name, cipher, password string) {
 	}
 }
 
+// Surfboard reads the AES 2022 ciphers from 2.26.0 and the two-key password subscriptions use from 2.28.1
+// (official changelog), so only a User-Agent that proves 2.28.1 gets those nodes.
+func TestSurfboardSS2022ByVersion(t *testing.T) {
+	c := rulesets.Builtin()
+	f, _ := subscription.GetFormat(subscription.FormatSurfboard)
+	cases := []struct {
+		ua   string
+		want bool
+	}{
+		{"Surfboard Profile Fetcher/2.28.1 (Build 300) Dalvik/2.1.0 (Linux; U; Android 14)", true},
+		{"Surfboard Profile Fetcher/2.34.4 (Build 310) Dalvik/2.1.0 (Linux; U; Android 14)", true},
+		{"Surfboard/3.0", true},
+		{"Surfboard Profile Fetcher/2.28.0 (Build 299) Dalvik/2.1.0", false}, // no two-key password yet
+		{"Surfboard Profile Fetcher/2.26.0 (Build 280) Dalvik/2.1.0", false},
+		{"Surfboard Profile Fetcher/2.23.4 (Build 245) Dalvik/2.1.0 (Linux; U; Android 12;", false},
+		{"Mozilla/5.0", false}, // flag=surfboard without a version
+		{"", false},
+	}
+	for _, tc := range cases {
+		in := input(t, standard(c), c)
+		in.UserAgent = tc.ua
+		res, err := engine.Render(f, in)
+		if err != nil {
+			t.Fatalf("%q: %v", tc.ua, err)
+		}
+		body := string(res.Body)
+		if got := strings.Contains(body, "encrypt-method=2022-blake3-aes-128-gcm"); got != tc.want {
+			t.Errorf("%q: AES 2022 node rendered = %v, want %v", tc.ua, got, tc.want)
+		}
+		if strings.Contains(body, "2022-blake3-chacha20-poly1305") {
+			t.Errorf("%q: Surfboard has no ChaCha 2022", tc.ua)
+		}
+	}
+}
+
 // diff returns the first differing lines (enough to locate a regression).
 func diff(want, got string) string {
 	w, g := strings.Split(want, "\n"), strings.Split(got, "\n")
@@ -364,7 +411,7 @@ func TestSupportMatrix(t *testing.T) {
 		subscription.FormatClash:        "1 2 7 10 11 12 13 22 23",
 		subscription.FormatClashMeta:    "1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 20 21 22 23 24 25",
 		subscription.FormatLoon:         "1 2 3 5 7 8 10 11 12 15 16 18 19 21 22 23",
-		subscription.FormatQuantumultX:  "1 2 3 5 7 10 11 12 18 21 22 23",
+		subscription.FormatQuantumultX:  "1 2 3 5 7 8 10 11 12 18 19 21 22 23",
 		subscription.FormatShadowrocket: "1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 21 22 23 24 25",
 		subscription.FormatSingbox:      "1 2 3 5 6 7 8 9 11 12 13 14 15 16 17 18 19 21 22 24 25",
 		subscription.FormatSSR:          "10 22",

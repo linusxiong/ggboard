@@ -1,6 +1,8 @@
 package formats
 
 import (
+	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -26,11 +28,38 @@ func (f surgeFormat) Name() string           { return f.name }
 func (f surgeFormat) Supports(t string) bool { return f.types[t] }
 func (f surgeFormat) RuleFamily() string     { return f.name }
 
-func (f surgeFormat) SupportsProxy(p *subscription.Proxy) bool {
+// surfboardVersionRE finds the app version in "Surfboard Profile Fetcher/2.23.4 (Build 245) Dalvik/2.1.0 ...".
+var surfboardVersionRE = regexp.MustCompile(`(?i)surfboard[^/]*/(\d+)\.(\d+)(?:\.(\d+))?`)
+
+// surfboardSS2022 reports whether the User-Agent names Surfboard >= 2.28.1. The AES 2022 ciphers arrived in
+// 2.26.0, but subscriptions use the two-key `password:identity` form, which arrived in 2.28.1 (official
+// changelog). An unnamed version is treated as older, as an unsupported cipher can fail the whole profile.
+func surfboardSS2022(userAgent string) bool {
+	m := surfboardVersionRE.FindStringSubmatch(userAgent)
+	if m == nil {
+		return false
+	}
+	v := make([]int, 3)
+	for i, s := range m[1:] {
+		if s == "" {
+			continue
+		}
+		n, err := strconv.Atoi(s)
+		if err != nil {
+			return false
+		}
+		v[i] = n
+	}
+	return slices.Compare(v, []int{2, 28, 1}) >= 0
+}
+
+func (f surgeFormat) SupportsProxy(p *subscription.Proxy) bool { return f.SupportsProxyFor(p, "") }
+
+func (f surgeFormat) SupportsProxyFor(p *subscription.Proxy, userAgent string) bool {
 	switch p.Type {
 	case model.NodeShadowsocks:
 		ciphers := surgeCiphers
-		if f.surfboard {
+		if f.surfboard && !surfboardSS2022(userAgent) {
 			ciphers = surfboardCiphers
 		}
 		switch ssPlugin(p).Kind {

@@ -47,6 +47,12 @@ type ProxyFilter interface {
 	SupportsProxy(p *Proxy) bool
 }
 
+// ClientProxyFilter is a ProxyFilter whose answer also depends on the client version named by the User-Agent.
+// Render prefers it over SupportsProxy.
+type ClientProxyFilter interface {
+	SupportsProxyFor(p *Proxy, userAgent string) bool
+}
+
 // RuleConsumer is implemented by formats that emit rule sets; RuleFamily is the format name used to pick
 // catalog format keys (docs/RULESETS.md "How each format consumes the catalog"). Formats without it get no
 // rule sets (only GEOIP,CN,DIRECT and the final policy where they support rules at all).

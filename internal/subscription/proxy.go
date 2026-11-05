@@ -379,7 +379,7 @@ func typeMatches(p *Proxy, want []string) bool {
 	}
 	for _, w := range want {
 		switch strings.ToLower(w) {
-		case p.Type:
+		case p.Type, "all": // Xboard links use types=all for no filter
 			return true
 		case "ss":
 			if p.Type == model.NodeShadowsocks {

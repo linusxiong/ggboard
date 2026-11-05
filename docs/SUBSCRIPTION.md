@@ -25,13 +25,13 @@ on the proxy). The per-group list is cached for 5 s (`subscription_nodes` namesp
 
 | flag/UA contains | format | node types rendered |
 | --- | --- | --- |
-| `clash.meta`, `mihomo`, `clashmeta`, `clash-verge`, `clash verge`, `verge`, `flclash`, `clash nyanpasu`, `clashx meta` | `clash-meta` | all 9 (mihomo YAML). Skipped: AnyTLS+REALITY (mihomo has none), unknown ss plugins |
+| `clash.meta`, `clash-meta`, `mihomo`, `clashmeta`, `clash-verge`, `clash verge`, `verge`, `flclash`, `clash nyanpasu`, `clashx meta`, `clash surgio` | `clash-meta` | all 9 (mihomo YAML). Skipped: AnyTLS+REALITY (mihomo has none), unknown ss plugins |
 | `stash` | `stash` | ss (no chacha20-2022), ssr, vmess, vless (incl. reality/xhttp), trojan, hysteria v1/v2, tuic. No anytls/mieru (Stash docs list them since 2026, kept off for older Stash builds) |
 | `clash` (plain), `clashforandroid`, `clashx` | `clash` (classic core) | ss (no 2022 ciphers, no shadow-tls), ssr, vmess (tcp/ws/grpc/h2/tcp-http), trojan (tcp/ws/grpc) |
 | `sing-box`, `singbox`, `sfa`, `sfi`, `sfm`, `nekobox`, `hiddify` | `singbox` (**sing-box ≥ 1.12** schema; rule-set downloads in the 1.14 form when the UA names `sing-box ≥ 1.14`, see Rule emission) | ss, vmess, vless, trojan, hysteria v1/v2, tuic, anytls (incl. reality). No ssr/mieru, no xhttp, no tcp-http-header |
-| `surfboard` | `surfboard` | ss (AEAD only), vmess, trojan (tcp/ws) |
+| `surfboard` | `surfboard` | ss (AEAD; AES 2022 when the User-Agent names 2.28.1 or later), vmess, trojan (tcp/ws) |
 | `surge` | `surge` | ss (AEAD + 2022 aes), vmess, trojan (tcp/ws), hysteria2, tuic (`tuic-v5`), anytls (tls). **Surge has no VLESS** (manual 2026-10), no ssr/mieru/hysteria v1 |
-| `quantumult x`, `quantumult%20x`, `quanx` | `quantumultx` | ss (AEAD, obfs/v2ray-plugin), ssr, vmess & vless (tcp/ws, incl. reality), trojan (tcp/ws), anytls (tls) |
+| `quantumult x`, `quantumult%20x`, `quantumultx`, `quanx` | `quantumultx` | ss (AEAD, AES 2022, obfs/v2ray-plugin), ssr, vmess & vless (tcp/ws, incl. reality), trojan (tcp/ws), anytls (tls, reality) |
 | `shadowrocket` | `shadowrocket` | every type except mieru (share links) |
 | `loon` | `loon` | ss (no chacha20-2022), ssr, vmess & vless (tcp/ws/tcp-http), trojan (tcp/ws), hysteria2, anytls (incl. reality). **Loon documents no TUIC** |
 | `v2rayn`, `v2rayng`, `nekoray`, `passwall`, `ssrplus`, `sagernet`, `karing`, `v2box`, `shadowsocks` | `v2ray` | all 9 (base64 of share links) |
@@ -39,6 +39,8 @@ on the proxy). The per-group list is cached for 5 s (`subscription_nodes` namesp
 
 `flag` may also name a format directly: `clash`, `clash-meta`, `stash`, `singbox`, `surge`, `surfboard`, `quantumultx`, `shadowrocket`, `loon`,
 `v2ray`, `ssr` (`ssr` = base64 of `ssr://` links: SSR nodes plus plain shadowsocks as protocol origin / obfs plain).
+Aliases: `meta` = `clash-meta`, `general` = `v2ray`, `qx` = `quantumultx`; `meta` and `general` come from Xboard links.
+`flag=clash` names the Clash family for the same reason: when the User-Agent detects as `clash-meta` or `stash`, that format wins.
 
 Every format implements (optional interfaces in brackets):
 
@@ -79,8 +81,9 @@ IPv6 literals are bracketed. Params are emitted only when set (`insecure=1` only
 (`FATAL initialize outbound[N]: Shadowsocks 2022 EIH support only available in AES ciphers`, 1.14.4) and mihomo (`proxy N: …`,
 1.19.33; a proxy-provider fails as a whole too) reject the **entire** config. The node stays in every format that can express it
 (clash-meta, sing-box, Shadowrocket, v2ray), so the subscription is valid everywhere; whether it connects depends on the backend
-accepting per-user ChaCha keys (XrayR/V2bX cannot, NODE_PROTOCOLS.md §2.1.1). Stash, Loon and Surge get no ChaCha 2022 nodes,
-classic Clash, Surfboard, Quantumult X and `ssr` no 2022 nodes at all (client table above). The golden tests check every
+accepting per-user ChaCha keys (XrayR/V2bX cannot, NODE_PROTOCOLS.md §2.1.1). Stash, Loon, Surge, Quantumult X and Surfboard 2.28.1+ get no ChaCha 2022 nodes,
+classic Clash, older Surfboard and `ssr` no 2022 nodes at all (client table above). Surfboard added the AES 2022 ciphers in 2.26.0 and the
+two-key password these subscriptions use in 2.28.1, so a User-Agent without a version counts as older. The golden tests check every
 rendered 2022 password: each `:`-separated key is base64 of the cipher's key size, and only AES ciphers carry two.
 
 **Child nodes** are entries of their own: child `host`, `port`, `name`, `tags`; parent `protocol_settings`, credentials, keys and status.
@@ -142,7 +145,7 @@ get no node entries; with the setting off they get a valid config without proxie
 
 ## Filtering query params
 
-`types=vmess,vless,...` (aliases `ss`, `ssr`, `hy`/`hy1`/`hysteria1`, `hy2`/`hysteria2`; `hysteria` = both; default all);
+`types=vmess,vless,...` (aliases `ss`, `ssr`, `hy`/`hy1`/`hysteria1`, `hy2`/`hysteria2`; `hysteria` = both; default all, `all` = no filter);
 `filter=HK|JP` or `filter=HK,JP` (case-insensitive substring of name or tag; both lists split on `,` and `|`);
 `emoji=0` (strip emoji from names; any `strconv.ParseBool` value);
 `list=1` (surge, surfboard, loon, quantumultx: proxy lines only, for Surge `policy-path` / QX `[server_remote]` / Loon node subscriptions);

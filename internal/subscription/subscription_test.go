@@ -42,7 +42,25 @@ func TestDetectFormat(t *testing.T) {
 		{"singbox", "ClashX/1.0", FormatSingbox},
 		{"SSR", "", FormatSSR},
 		{"quantumultx", "", FormatQuantumultX},
-		{"meta", "Shadowrocket/1", FormatShadowrocket}, // unknown flag falls back to UA
+		{"nope", "Shadowrocket/1", FormatShadowrocket}, // unknown flag falls back to UA
+		// Xboard's flag names, still in links from before a migration.
+		{"meta", "", FormatClashMeta},
+		{"meta", "ClashforWindows/0.20.39", FormatClashMeta},
+		{"general", "Quantumultx", FormatV2ray},
+		{"qx", "", FormatQuantumultX},
+		// flag=clash names the family: a client that proves a newer core keeps its own format.
+		{"clash", "clash.meta/v1.19.33", FormatClashMeta},
+		{"clash", "ClashMetaForAndroid/2.11.32.Meta", FormatClashMeta},
+		{"clash", "FlClash/v0.9.3 clash-verge Platform/windows", FormatClashMeta},
+		{"clash", "Stash/2.4.0 Clash/1.9.0", FormatStash},
+		{"clash", "ClashforWindows/0.20.39", FormatClash},
+		// User-Agents seen in production.
+		{"", "clash-meta/1.19.0", FormatClashMeta},
+		{"", "clash surgio/3.19.0", FormatClashMeta},
+		{"", "Clash.Meta surgio/3.19.0", FormatClashMeta},
+		{"", "surgio/3.19.0", FormatV2ray},
+		{"", "Quantumultx", FormatQuantumultX},
+		{"", "NekoBox/Android/1.4.2 (Prefer ClashMeta Format)", FormatClashMeta},
 		{"clashmeta", "", FormatClashMeta},
 		{"hiddify", "", FormatSingbox},
 		{"  V2RAY ", "Surge", FormatV2ray},

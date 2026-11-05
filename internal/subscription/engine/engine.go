@@ -194,17 +194,27 @@ type Input struct {
 	Location    *time.Location
 }
 
+func proxySupported(f subscription.Format, p *subscription.Proxy, userAgent string) bool {
+	if !f.Supports(p.Type) {
+		return false
+	}
+	switch c := f.(type) {
+	case subscription.ClientProxyFilter:
+		return c.SupportsProxyFor(p, userAgent)
+	case subscription.ProxyFilter:
+		return c.SupportsProxy(p)
+	}
+	return true
+}
+
 // Render filters the proxies to what f supports, makes names unique, resolves groups and the rule plan and
 // renders f. It does no I/O.
 func Render(f subscription.Format, in Input) (*Result, error) {
-	filter, _ := f.(subscription.ProxyFilter)
 	kept := make([]subscription.Proxy, 0, len(in.Proxies))
 	for i := range in.Proxies {
-		p := &in.Proxies[i]
-		if !f.Supports(p.Type) || (filter != nil && !filter.SupportsProxy(p)) {
-			continue
+		if p := &in.Proxies[i]; proxySupported(f, p, in.UserAgent) {
+			kept = append(kept, *p)
 		}
-		kept = append(kept, *p)
 	}
 	if len(in.Profile.Groups) == 0 { // validated profiles always have groups; never render a config without Proxy
 		in.Profile.Groups = []subscription.PolicyGroup{{Name: subscription.GroupProxy, Type: subscription.GroupSelect, Include: "*"}}
