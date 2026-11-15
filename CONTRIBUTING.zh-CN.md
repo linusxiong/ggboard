@@ -9,7 +9,7 @@
 
 | 工具 | 版本 | 来源 |
 | --- | --- | --- |
-| Go | ≥ 1.27.3 | `go.mod`（CI 用 `1.27.x`，Dockerfile 用 `golang:1.27-alpine`） |
+| Go | ≥ 1.27.4 | `go.mod`（CI 用 `1.27.x`，Dockerfile 用 `golang:1.27-alpine`） |
 | Node.js | ≥ 22（CI 与 Dockerfile 用 24） | `web/package.json` `engines`、`.github/workflows/ci.yml` |
 | pnpm | 12（Dockerfile 固定 `pnpm@12.4.1`） | `ci.yml`、`deploy/Dockerfile` |
 | golangci-lint | v2（可选） | `.golangci.yml`；没装时 `make lint` 退回 `go vet` + `gofmt` |

@@ -9,7 +9,7 @@ overrides:
   # Keep the CommonJS API used by LHCI; uuid 12+ is ESM-only.
   '@lhci/cli>uuid': 11.1.1
   'tmp@<0.2.7': 0.2.7
-  'get-uri>basic-ftp': 6.2.3
+  'get-uri>basic-ftp': 6.2.6
   'body-parser@<1.20.9': 1.20.9
   # LHCI 0.15.1 only calls chrome-launcher's static Launcher.getInstallations(), but 0.13.4 pulls in rimraf 3 -> glob 7 ->
   # minimatch 3, and glob 7 breaks on minimatch 11. 0.15.2 is the last CommonJS release and has none of them.

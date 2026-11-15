@@ -9,7 +9,7 @@ conventions), [MISTAKES.md](MISTAKES.md) (the mistake log) and the contract docs
 
 | Tool | Version | Source |
 | --- | --- | --- |
-| Go | ≥ 1.27.3 | `go.mod` (CI uses `1.27.x`, the Dockerfile uses `golang:1.27-alpine`) |
+| Go | ≥ 1.27.4 | `go.mod` (CI uses `1.27.x`, the Dockerfile uses `golang:1.27-alpine`) |
 | Node.js | ≥ 22 (CI and the Dockerfile use 24) | `web/package.json` `engines`, `.github/workflows/ci.yml` |
 | pnpm | 12 (the Dockerfile pins `pnpm@12.4.1`) | `ci.yml`, `deploy/Dockerfile` |
 | golangci-lint | v2 (optional) | `.golangci.yml`; without it, `make lint` falls back to `go vet` + `gofmt` |

@@ -34,6 +34,7 @@ Notable changes to GG Bond (ggboard), per version. The format follows [Keep a Ch
 ### Security
 
 - EPay and Epusdt refuse a payment notification whose signed string contains `notify_url=`, `return_url=` or `redirect_url=` anywhere, even inside another value, so the signature of a checkout request can never pass as a callback. Before, only the parameter names were checked, so a plan or site name that itself spelled out the fields of a successful callback after a `&` made the checkout signature of that order verify as a paid notification. Only administrators set those names, and a plain `&` such as `Pro & Family` was not enough. EPay now signs `&` in the product name as `＆`, and Epusdt rejects callback URLs whose request Host contains `&`, `?`, `#` or user information, as EPay already did.
+- Built with Go 1.27.4, which fixes a crash in the `net/http` server ([CVE-2026-97054](https://pkg.go.dev/vuln/GO-2026-6859)): an HTTP/1 server that limits request bodies with `MaxBytesReader`, as the panel does for every request, could panic when a handler read the body while it was writing the response headers. `go.mod` now requires Go 1.27.4, so a build from source uses it too.
 
 ## [1.0.3] - 2026-11-05
 
