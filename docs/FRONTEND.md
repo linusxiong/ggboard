@@ -10,15 +10,15 @@ Versions below are the ones resolved in `web/pnpm-lock.yaml`.
 | --- | --- | --- | --- |
 | `@heroui/react` / `@heroui/styles` | 3.2.6 / 3.2.6 | `@tanstack/react-table` | 9.3.1 |
 | `tailwindcss` / `@tailwindcss/vite` | 4.3.3 | `@tanstack/react-form` | 1.33.5 |
-| `vite` / `@vitejs/plugin-react` | 8.3.5 / 6.1.2 | `@tanstack/react-virtual` | 3.14.21 |
+| `vite` / `@vitejs/plugin-react` | 8.3.8 / 6.1.2 | `@tanstack/react-virtual` | 3.14.21 |
 | `react` / `react-dom` | 19.3.1 | `zustand` | 5.0.15 |
 | `@tanstack/react-router` / `router-plugin` | 1.170.45 / 1.168.47 | `motion` | 14.4.0 |
 | `@tanstack/react-query` | 5.104.5 | `lucide-react` | 1.60.0 |
 | `typescript` (lint tooling: 6.0.3, §1) | 7.0.2 | `@simplewebauthn/browser` | 14.0.0 |
 | `vite-plugin-compression2` / `@lhci/cli` | 2.5.3 / 0.15.1 | `react-aria-components` / `react-aria` | 1.22.1 / 3.53.1 |
-| `marked` / `dompurify` | 18.1.1 / 3.4.17 | `qrcode` | 1.5.4 |
+| `marked` / `dompurify` | 18.2.0 / 3.4.18 | `qrcode` | 1.5.4 |
 | `vitest` / `jsdom` | 5.0.5 / 30.1.3 | `eslint` / `typescript-eslint` | 10.13.0 / 8.72.0 |
-| `puppeteer-core` (scripts only: prerender, screenshots, ui-smoke) | 25.15.0 | `tw-animate-css` | 1.4.0 |
+| `puppeteer-core` (scripts only: prerender, screenshots, ui-smoke) | 25.16.0 | `tw-animate-css` | 1.4.0 |
 
 There is **no schema library** (no Zod): search params and form fields are validated with plain functions
 (`validateSearch` functions, `@/lib/validators`).

@@ -6,6 +6,14 @@
 
 ## [Unreleased]
 
+### 安全
+
+- PostgreSQL 驱动 pgx 升级到 5.13.0，修复三条公告。其中两条为高危：simple-protocol 批量查询的 SQL 注入（[GHSA-j38q-h3ph-jjpq](https://github.com/jackc/pgx/security/advisories/GHSA-j38q-h3ph-jjpq)），ggboard 没有用到；以及服务器跳过认证时，连接串里的 `require_auth` / `channel_binding` 不生效（[GHSA-95fj-3fxw-g62g](https://github.com/jackc/pgx/security/advisories/GHSA-95fj-3fxw-g62g)），DSN 里设置了这两项的站点受影响。第三条是服务器返回畸形响应时 panic（[GHSA-w9rp-vfrh-q8vv](https://github.com/jackc/pgx/security/advisories/GHSA-w9rp-vfrh-q8vv)）。使用 SQLite 或 MySQL 的站点不受影响。
+- go-mail 升级到 0.8.2（[GHSA-f82v-42xw-72cj](https://github.com/wneessen/go-mail/security/advisories/GHSA-f82v-42xw-72cj)、[GHSA-w8w6-94hg-2qpm](https://github.com/wneessen/go-mail/security/advisories/GHSA-w8w6-94hg-2qpm)）。两处问题分别在 EML 解析器和 List-Unsubscribe 辅助函数里，ggboard 都没有用到。
+- DOMPurify 升级到 3.4.18（[GHSA-qm7q-q8h9-jg8q](https://github.com/cure53/DOMPurify/security/advisories/GHSA-qm7q-q8h9-jg8q)，问题在面板没有使用的选项里），marked 升级到 18.2.0，未配对的强调标记不再导致平方级耗时。面板里的 Markdown（如公告和知识库文章）由这两个库渲染。
+- `golang.org/x/crypto` 升级到 0.59.0，不再包含已停止维护的 `openpgp` 包（ggboard 从未使用）。
+- 仅开发环境：Vite 升级到 8.3.8。此前的 8.3 版本在开发服务器以 `--host` 启动时，一个请求就能在上面执行代码（[GHSA-p4f5-76q4-ffq7](https://github.com/vitejs/vite/security/advisories/GHSA-p4f5-76q4-ffq7)）。发布的二进制和镜像里没有开发服务器。
+
 ## [1.0.4] - 2026-11-15
 
 ### 新增

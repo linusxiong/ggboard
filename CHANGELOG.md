@@ -6,6 +6,14 @@ Notable changes to GG Bond (ggboard), per version. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Security
+
+- The PostgreSQL driver pgx is updated to 5.13.0, which fixes three advisories. Two are rated high: SQL injection in simple-protocol batches ([GHSA-j38q-h3ph-jjpq](https://github.com/jackc/pgx/security/advisories/GHSA-j38q-h3ph-jjpq)), which ggboard does not use, and `require_auth` / `channel_binding` in the connection string not being enforced when the server skips authentication ([GHSA-95fj-3fxw-g62g](https://github.com/jackc/pgx/security/advisories/GHSA-95fj-3fxw-g62g)), which matters if your DSN sets either. The third is a panic on a malformed server response ([GHSA-w9rp-vfrh-q8vv](https://github.com/jackc/pgx/security/advisories/GHSA-w9rp-vfrh-q8vv)). SQLite and MySQL installations are not affected.
+- go-mail is updated to 0.8.2 ([GHSA-f82v-42xw-72cj](https://github.com/wneessen/go-mail/security/advisories/GHSA-f82v-42xw-72cj), [GHSA-w8w6-94hg-2qpm](https://github.com/wneessen/go-mail/security/advisories/GHSA-w8w6-94hg-2qpm)). ggboard uses neither the EML parser nor the List-Unsubscribe helper they are in.
+- DOMPurify is updated to 3.4.18 ([GHSA-qm7q-q8h9-jg8q](https://github.com/cure53/DOMPurify/security/advisories/GHSA-qm7q-q8h9-jg8q), in an option the panel does not use) and marked to 18.2.0, which no longer takes quadratic time on unmatched emphasis markers. Both render Markdown in the panel, such as notices and knowledge-base articles.
+- `golang.org/x/crypto` is updated to 0.59.0, which no longer ships the unmaintained `openpgp` package (never used by ggboard).
+- Development only: Vite is updated to 8.3.8. Earlier 8.3 releases let a request run code on a dev server that was started with `--host` ([GHSA-p4f5-76q4-ffq7](https://github.com/vitejs/vite/security/advisories/GHSA-p4f5-76q4-ffq7)). The released binaries and images never contain the dev server.
+
 ## [1.0.4] - 2026-11-15
 
 ### Added
