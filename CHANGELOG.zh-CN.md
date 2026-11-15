@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-11-15
+
 ### 新增
 
 - 用户回复工单时，管理员会收到 Telegram 提醒（`ticket_user_reply`，默认开启）。同一工单 30 分钟内最多提醒一次，客服回复后重新计时，所以用户对客服回复的追问不会漏掉。已保存过事件列表的站点，升级时会自动加入一次这个事件。原来的事件 **工单回复** 改名为 **客服回复工单**。
@@ -168,7 +170,8 @@
 - 定时任务：订单超时、佣金结算、流量重置、到期与流量提醒、每日统计；`GET /healthz` 用于存活探针。
 - `make bench`：可复现的压测（10,000 个用户、50 个节点），结果见 `docs/perf/`。
 
-[Unreleased]: https://github.com/linusxiong/ggboard/compare/v1.0.3...HEAD
+[Unreleased]: https://github.com/linusxiong/ggboard/compare/v1.0.4...HEAD
+[1.0.4]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.4
 [1.0.3]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.3
 [1.0.2]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.2
 [1.0.1]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.1

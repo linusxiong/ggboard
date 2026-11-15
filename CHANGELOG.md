@@ -6,6 +6,8 @@ Notable changes to GG Bond (ggboard), per version. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-11-15
+
 ### Added
 
 - Administrators get a Telegram alert when a user replies to a ticket (`ticket_user_reply`, on by default). Each ticket alerts at most once in 30 minutes, and a staff reply starts over, so a reply to an answer is never missed. Sites that already saved their event list get the event added once on upgrade. The existing event **Ticket reply** is now called **Staff replied to a ticket**.
@@ -168,7 +170,8 @@ The first stable release: a single Go binary with the React frontend, scheduled 
 - Scheduled jobs: order timeout, commission settlement, traffic reset, expiry and traffic reminders, daily statistics; `GET /healthz` for liveness probes.
 - `make bench`: a reproducible load test (10,000 users, 50 nodes); results in `docs/perf/`.
 
-[Unreleased]: https://github.com/linusxiong/ggboard/compare/v1.0.3...HEAD
+[Unreleased]: https://github.com/linusxiong/ggboard/compare/v1.0.4...HEAD
+[1.0.4]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.4
 [1.0.3]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.3
 [1.0.2]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.2
 [1.0.1]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.1
