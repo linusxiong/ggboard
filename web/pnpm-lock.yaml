@@ -23,10 +23,10 @@ importers:
     dependencies:
       '@heroui/react':
         specifier: 3.2.6
-        version: 3.2.6(@internationalized/date@3.12.4)(@react-aria/ssr@3.10.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@react-aria/utils@3.34.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@react-spectrum/provider@3.11.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-aria-components@1.22.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-aria@3.53.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(tailwindcss@4.3.3)
+        version: 3.2.6(@internationalized/date@3.12.4)(@react-aria/ssr@3.10.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@react-aria/utils@3.34.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@react-spectrum/provider@3.11.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-aria-components@1.22.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-aria@3.53.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(tailwindcss@4.3.5)
       '@heroui/styles':
         specifier: 3.2.6
-        version: 3.2.6(tailwindcss@4.3.3)
+        version: 3.2.6(tailwindcss@4.3.5)
       '@internationalized/date':
         specifier: ^3.12.4
         version: 3.12.4
@@ -147,10 +147,10 @@ importers:
         version: 3.9.10
       puppeteer-core:
         specifier: 25.16.0
-        version: 25.16.0(supports-color@5.5.0)(yauzl@2.10.0)
+        version: 25.16.0(proxy-agent@6.5.0(supports-color@5.5.0))(yauzl@2.10.0)
       tailwindcss:
-        specifier: ^4.3.3
-        version: 4.3.3
+        specifier: ^4.3.5
+        version: 4.3.5
       tw-animate-css:
         specifier: 1.4.0
         version: 1.4.0
@@ -2914,6 +2914,9 @@ packages:
   tailwindcss@4.3.3:
     resolution: {integrity: sha512-gOhV3P7ufE62QDGg1zVaTgCR+EtPv92k2nIhVcVKcLmxT1sUBsQGhnZj175j+MqRt4zLF7ic+sCYjfhxMxj7YQ==}
 
+  tailwindcss@4.3.5:
+    resolution: {integrity: sha512-FcQk9BuffmEHJP2G0XmB2SplU1aLTI7j07Kunk+U74Ny+XiWOtzXz9aujFZ/avntw1e2cOv/3PkgzflQ7gX2vQ==}
+
   tapable@2.3.3:
     resolution: {integrity: sha512-uxc/zpqFg6x7C8vOE7lh6Lbda8eEL9zmVm/PLeTPBRhh1xCgdWaQ+J1CUieGpIfm2HdtsUpRv+HshiasBMcc6A==}
     engines: {node: '>=6'}
@@ -3620,9 +3623,9 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  '@heroui/react@3.2.6(@internationalized/date@3.12.4)(@react-aria/ssr@3.10.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@react-aria/utils@3.34.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@react-spectrum/provider@3.11.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-aria-components@1.22.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-aria@3.53.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(tailwindcss@4.3.3)':
+  '@heroui/react@3.2.6(@internationalized/date@3.12.4)(@react-aria/ssr@3.10.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@react-aria/utils@3.34.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@react-spectrum/provider@3.11.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-aria-components@1.22.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-aria@3.53.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(tailwindcss@4.3.5)':
     dependencies:
-      '@heroui/styles': 3.2.6(tailwindcss@4.3.3)
+      '@heroui/styles': 3.2.6(tailwindcss@4.3.5)
       '@internationalized/date': 3.12.4
       '@radix-ui/react-avatar': 1.2.6(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@react-aria/ssr': 3.10.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -3635,18 +3638,18 @@ snapshots:
       react-aria: 3.53.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       react-aria-components: 1.22.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       react-dom: 19.3.1(react@19.3.1)
-      tailwind-variants: 3.3.1(tailwindcss@4.3.3)
-      tailwindcss: 4.3.3
+      tailwind-variants: 3.3.1(tailwindcss@4.3.5)
+      tailwindcss: 4.3.5
     transitivePeerDependencies:
       - '@react-spectrum/provider'
       - '@types/react'
       - '@types/react-dom'
       - tailwind-merge
 
-  '@heroui/styles@3.2.6(tailwindcss@4.3.3)':
+  '@heroui/styles@3.2.6(tailwindcss@4.3.5)':
     dependencies:
-      tailwind-variants: 3.3.1(tailwindcss@4.3.3)
-      tailwindcss: 4.3.3
+      tailwind-variants: 3.3.1(tailwindcss@4.3.5)
+      tailwindcss: 4.3.5
       tw-animate-css: 1.4.0
     transitivePeerDependencies:
       - tailwind-merge
@@ -3710,14 +3713,14 @@ snapshots:
 
   '@lhci/cli@0.15.1(supports-color@5.5.0)(yauzl@2.10.0)':
     dependencies:
-      '@lhci/utils': 0.15.1(supports-color@5.5.0)(yauzl@2.10.0)
+      '@lhci/utils': 0.15.1(proxy-agent@6.5.0(supports-color@5.5.0))(supports-color@5.5.0)(yauzl@2.10.0)
       chrome-launcher: 0.15.2(supports-color@5.5.0)
       compression: 1.8.2(supports-color@5.5.0)
       debug: 4.4.3(supports-color@5.5.0)
       express: 4.22.3(supports-color@5.5.0)
       inquirer: 6.5.2
       isomorphic-fetch: 3.0.0
-      lighthouse: 12.6.1(supports-color@5.5.0)(yauzl@2.10.0)
+      lighthouse: 12.6.1(proxy-agent@6.5.0(supports-color@5.5.0))(supports-color@5.5.0)(yauzl@2.10.0)
       lighthouse-logger: 1.2.0(supports-color@5.5.0)
       open: 7.4.2
       proxy-agent: 6.5.0(supports-color@5.5.0)
@@ -3728,22 +3731,21 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - encoding
-      - kerberos
       - supports-color
       - utf-8-validate
       - yauzl
 
-  '@lhci/utils@0.15.1(supports-color@5.5.0)(yauzl@2.10.0)':
+  '@lhci/utils@0.15.1(proxy-agent@6.5.0(supports-color@5.5.0))(supports-color@5.5.0)(yauzl@2.10.0)':
     dependencies:
       debug: 4.4.3(supports-color@5.5.0)
       isomorphic-fetch: 3.0.0
       js-yaml: 3.15.2
-      lighthouse: 12.6.1(supports-color@5.5.0)(yauzl@2.10.0)
+      lighthouse: 12.6.1(proxy-agent@6.5.0(supports-color@5.5.0))(supports-color@5.5.0)(yauzl@2.10.0)
       tree-kill: 1.2.2
     transitivePeerDependencies:
       - bufferutil
       - encoding
-      - kerberos
+      - proxy-agent
       - supports-color
       - utf-8-validate
       - yauzl
@@ -3762,16 +3764,13 @@ snapshots:
       legacy-javascript: 0.0.4
       third-party-web: 0.30.0
 
-  '@puppeteer/browsers@3.2.6(supports-color@5.5.0)(yauzl@2.10.0)':
+  '@puppeteer/browsers@3.2.6(proxy-agent@6.5.0(supports-color@5.5.0))(yauzl@2.10.0)':
     dependencies:
       modern-tar: 0.8.6
-      proxy-agent: 8.0.2(supports-color@5.5.0)
       yargs: 18.2.0
     optionalDependencies:
+      proxy-agent: 6.5.0(supports-color@5.5.0)
       yauzl: 2.10.0
-    transitivePeerDependencies:
-      - kerberos
-      - supports-color
 
   '@radix-ui/primitive@1.1.7': {}
 
@@ -5371,7 +5370,7 @@ snapshots:
 
   lighthouse-stack-packs@1.12.2: {}
 
-  lighthouse@12.6.1(supports-color@5.5.0)(yauzl@2.10.0):
+  lighthouse@12.6.1(proxy-agent@6.5.0(supports-color@5.5.0))(supports-color@5.5.0)(yauzl@2.10.0):
     dependencies:
       '@paulirish/trace_engine': 0.0.53
       '@sentry/node': 7.120.4
@@ -5392,7 +5391,7 @@ snapshots:
       metaviewport-parser: 0.3.0
       open: 8.4.2
       parse-cache-control: 1.0.1
-      puppeteer-core: 25.16.0(supports-color@5.5.0)(yauzl@2.10.0)
+      puppeteer-core: 25.16.0(proxy-agent@6.5.0(supports-color@5.5.0))(yauzl@2.10.0)
       robots-parser: 3.0.1
       semver: 5.7.2
       speedline-core: 1.4.3
@@ -5403,7 +5402,7 @@ snapshots:
       yargs-parser: 21.1.1
     transitivePeerDependencies:
       - bufferutil
-      - kerberos
+      - proxy-agent
       - supports-color
       - utf-8-validate
       - yauzl
@@ -5810,9 +5809,9 @@ snapshots:
 
   punycode@2.3.1: {}
 
-  puppeteer-core@25.16.0(supports-color@5.5.0)(yauzl@2.10.0):
+  puppeteer-core@25.16.0(proxy-agent@6.5.0(supports-color@5.5.0))(yauzl@2.10.0):
     dependencies:
-      '@puppeteer/browsers': 3.2.6(supports-color@5.5.0)(yauzl@2.10.0)
+      '@puppeteer/browsers': 3.2.6(proxy-agent@6.5.0(supports-color@5.5.0))(yauzl@2.10.0)
       chromium-bidi: 157.0.8090-0(devtools-protocol@0.0.1704951)
       devtools-protocol: 0.0.1704951
       typed-query-selector: 2.12.3
@@ -5820,8 +5819,7 @@ snapshots:
       ws: 8.22.0
     transitivePeerDependencies:
       - bufferutil
-      - kerberos
-      - supports-color
+      - proxy-agent
       - utf-8-validate
       - yauzl
 
@@ -6131,11 +6129,13 @@ snapshots:
     dependencies:
       has-flag: 3.0.0
 
-  tailwind-variants@3.3.1(tailwindcss@4.3.3):
+  tailwind-variants@3.3.1(tailwindcss@4.3.5):
     optionalDependencies:
-      tailwindcss: 4.3.3
+      tailwindcss: 4.3.5
 
   tailwindcss@4.3.3: {}
+
+  tailwindcss@4.3.5: {}
 
   tapable@2.3.3: {}
 
