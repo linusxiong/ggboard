@@ -12,6 +12,8 @@ import (
 
 	"github.com/linusxiong/ggboard/internal/model"
 	_ "github.com/linusxiong/ggboard/internal/payment/gateways/epay"
+	"github.com/linusxiong/ggboard/internal/payment/gateways/gwutil"
+	"github.com/linusxiong/ggboard/internal/payment/gateways/gwutil/gwutiltest"
 )
 
 func TestCheckoutSignatureCannotBecomePaidCallback(t *testing.T) {
@@ -46,6 +48,51 @@ func TestCheckoutSignatureCannotBecomePaidCallback(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, NotifyPath+p.Gateway+"/"+p.UUID+"?"+q.Encode(), nil)
 			f.svc.HandleNotify(ctx, p.Gateway, p.UUID, r)
 		}
+	}
+	if f.order(o.TradeNo).Status != model.OrderStatusPending || f.reload(u).PlanID != nil {
+		t.Fatal("checkout signature granted a paid plan without a payment")
+	}
+}
+
+// The EPay name is "<app_name> - <plan name>", text an administrator types. A raw '&' in it must not let any
+// re-split of the checkout signature pay the order (MISTAKES #302).
+func TestCheckoutSubjectCannotBecomePaidCallback(t *testing.T) {
+	f := newFixture(t)
+	u := f.user("buyer@example.com")
+	plan := f.plan("Pro", map[string]int64{model.PeriodMonthly: 1000})
+	p := f.payment(true, func(p *model.Payment) {
+		p.Gateway = "epay"
+		p.Config = model.JSONObject[string]{"url": "https://pay.example.com", "pid": "1001", "key": "test-merchant-key", "type": "alipay"}
+	})
+	o, err := f.svc.Create(ctx, u.ID, CreateInput{PlanID: plan.ID, Period: model.PeriodMonthly})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hostile := "Pro&out_trade_no=" + o.TradeNo + "&pid=1001&trade_no=forged&trade_status=TRADE_SUCCESS&type=x"
+	if err := f.a.DB.Model(plan).Update("name", hostile).Error; err != nil {
+		t.Fatal(err)
+	}
+	result, err := f.svc.Checkout(ctx, u.ID, o.TradeNo, CheckoutInput{PaymentID: &p.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	redirect, err := url.Parse(result.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signed := map[string]string{}
+	for k := range redirect.Query() {
+		signed[k] = redirect.Query().Get(k)
+	}
+	for _, params := range gwutiltest.Reparses(gwutil.SignString(signed, "sign", "sign_type"), "sign", "sign_type") {
+		q := url.Values{}
+		for k, v := range params {
+			q.Set(k, v)
+		}
+		q.Set("sign", signed["sign"])
+		q.Set("sign_type", "MD5")
+		r := httptest.NewRequest(http.MethodGet, NotifyPath+p.Gateway+"/"+p.UUID+"?"+q.Encode(), nil)
+		f.svc.HandleNotify(ctx, p.Gateway, p.UUID, r)
 	}
 	if f.order(o.TradeNo).Status != model.OrderStatusPending || f.reload(u).PlanID != nil {
 		t.Fatal("checkout signature granted a paid plan without a payment")

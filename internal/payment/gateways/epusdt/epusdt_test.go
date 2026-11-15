@@ -77,7 +77,7 @@ func TestPay(t *testing.T) {
 	}))
 	defer errSrv.Close()
 	if _, err := (&Gateway{Client: errSrv.Client()}).Pay(context.Background(), map[string]string{"api_url": errSrv.URL, "api_token": token},
-		payment.PayRequest{TradeNo: tradeNo, TotalAmount: 100}); err == nil || !strings.Contains(err.Error(), "签名认证错误") {
+		payment.PayRequest{TradeNo: tradeNo, TotalAmount: 100, NotifyURL: notifyURL, ReturnURL: returnURL}); err == nil || !strings.Contains(err.Error(), "签名认证错误") {
 		t.Fatalf("expected provider error, got %v", err)
 	}
 	// Context timeout.
@@ -90,10 +90,10 @@ func TestPay(t *testing.T) {
 	defer slow.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
-	if _, err := (&Gateway{Client: slow.Client()}).Pay(ctx, map[string]string{"api_url": slow.URL, "api_token": token}, payment.PayRequest{TradeNo: tradeNo, TotalAmount: 100}); err == nil {
+	if _, err := (&Gateway{Client: slow.Client()}).Pay(ctx, map[string]string{"api_url": slow.URL, "api_token": token}, payment.PayRequest{TradeNo: tradeNo, TotalAmount: 100, NotifyURL: notifyURL, ReturnURL: returnURL}); err == nil {
 		t.Fatal("expected timeout")
 	}
-	if _, err := gw.Pay(context.Background(), cfg, payment.PayRequest{TradeNo: tradeNo, TotalAmount: 100_000_000}); err == nil {
+	if _, err := gw.Pay(context.Background(), cfg, payment.PayRequest{TradeNo: tradeNo, TotalAmount: 100_000_000, NotifyURL: notifyURL, ReturnURL: returnURL}); err == nil {
 		t.Fatal("expected amount limit")
 	}
 }

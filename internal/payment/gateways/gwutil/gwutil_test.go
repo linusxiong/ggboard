@@ -118,3 +118,32 @@ func TestValuesAndBody(t *testing.T) {
 		t.Fatal("default client")
 	}
 }
+
+func TestSignStringSeparation(t *testing.T) {
+	signed := "money=1&type=x&notify_url=https://panel.example.com/n&pid=1"
+	if !HasSignedField(signed, "return_url", "notify_url") || HasSignedField("money=1&pid=1", "notify_url") {
+		t.Fatal("HasSignedField must find a field hidden inside a value")
+	}
+	if k := SignedSeparator(map[string]string{"pid": "1", "type": "x&b=1", "name": "a&b"}); k != "name" {
+		t.Fatalf("SignedSeparator = %q, want the first key with '&'", k)
+	}
+	if k := SignedSeparator(map[string]string{"pid": "1", "name": "a＆b=c"}); k != "" {
+		t.Fatalf("SignedSeparator = %q for values without '&'", k)
+	}
+	for raw, want := range map[string]bool{
+		"https://panel.example.com/api/v1/guest/payment/notify/epay/0123": true,
+		"http://127.0.0.1:8080/n":                    true,
+		"https://[2001:db8::1]:8443/n":               true,
+		"https://panel.example.com&trade_status=x/n": false,
+		"https://panel.example.com/n?x=1":            false,
+		"https://panel.example.com/n#x":              false,
+		"https://buyer@panel.example.com/n":          false,
+		"https://panel_example.com/n":                false,
+		"ftp://panel.example.com/n":                  false,
+		"":                                           false,
+	} {
+		if ValidCallbackURL(raw) != want {
+			t.Errorf("ValidCallbackURL(%q) = %v", raw, !want)
+		}
+	}
+}

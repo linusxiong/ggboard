@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -54,25 +53,6 @@ func Sign(params map[string]string, key string) string {
 	return gwutil.MD5Hex(gwutil.SignString(params, "sign", "sign_type") + key)
 }
 
-func validCallbackURL(raw string) bool {
-	if strings.ContainsAny(raw, "&?#") {
-		return false
-	}
-	u, err := url.Parse(raw)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.Hostname() == "" {
-		return false
-	}
-	if net.ParseIP(u.Hostname()) != nil {
-		return true
-	}
-	for _, c := range u.Hostname() {
-		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '.') {
-			return false
-		}
-	}
-	return true
-}
-
 // Pay implements payment.Gateway: it returns the signed submit.php URL.
 func (*Gateway) Pay(_ context.Context, cfg map[string]string, req payment.PayRequest) (*payment.PayResult, error) {
 	if err := gwutil.Required(cfg, Name, "url", "pid", "key"); err != nil {
@@ -82,7 +62,7 @@ func (*Gateway) Pay(_ context.Context, cfg map[string]string, req payment.PayReq
 		return nil, err
 	}
 	// A request-derived Host must never inject fields into the raw k=v signature.
-	if !validCallbackURL(req.NotifyURL) || !validCallbackURL(req.ReturnURL) {
+	if !gwutil.ValidCallbackURL(req.NotifyURL) || !gwutil.ValidCallbackURL(req.ReturnURL) {
 		return nil, errors.New("epay: invalid callback URL")
 	}
 	base, err := gwutil.BaseURL(cfg["url"], Name, true)
@@ -99,8 +79,12 @@ func (*Gateway) Pay(_ context.Context, cfg map[string]string, req payment.PayReq
 		"out_trade_no": req.TradeNo,
 		"notify_url":   req.NotifyURL,
 		"return_url":   req.ReturnURL,
-		"name":         name,
-		"money":        payment.FormatAmount(req.TotalAmount),
+		// The name is "<app_name> - <plan name>"; a raw '&' in it would add a field to the signed string.
+		"name":  strings.ReplaceAll(name, "&", "＆"),
+		"money": payment.FormatAmount(req.TotalAmount),
+	}
+	if k := gwutil.SignedSeparator(params); k != "" {
+		return nil, fmt.Errorf("epay: %s must not contain '&'", k)
 	}
 	params["sign"] = Sign(params, cfg["key"])
 	params["sign_type"] = "MD5"
@@ -135,7 +119,12 @@ func (*Gateway) Notify(_ context.Context, cfg map[string]string, r *http.Request
 	if params["sign"] == "" {
 		return nil, nil, errors.New("epay: missing sign")
 	}
-	if !gwutil.EqualHex(params["sign"], Sign(params, cfg["key"])) {
+	// The names alone are not enough: a field can hide inside another value of the raw string.
+	signed := gwutil.SignString(params, "sign", "sign_type")
+	if gwutil.HasSignedField(signed, "notify_url", "return_url") {
+		return nil, nil, errors.New("epay: merchant request is not a payment notification")
+	}
+	if !gwutil.EqualHex(params["sign"], gwutil.MD5Hex(signed+cfg["key"])) {
 		return nil, nil, errors.New("epay: signature mismatch")
 	}
 	if params["pid"] != strings.TrimSpace(cfg["pid"]) {

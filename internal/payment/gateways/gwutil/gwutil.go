@@ -1,6 +1,7 @@
 // Package gwutil holds the helpers shared by the built-in payment gateways (docs/PAYMENTS_GATEWAYS.md §1):
-// the HTTP client, base-URL normalization, bounded body reads, form/query parameter maps, sorted sign strings,
-// constant-time hex comparison and exact decimal <-> cents conversion.
+// the HTTP client, base-URL normalization, bounded body reads, form/query parameter maps, sorted sign strings and
+// the checks that keep merchant requests and callbacks apart under them, constant-time hex comparison and exact
+// decimal <-> cents conversion.
 package gwutil
 
 import (
@@ -12,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"path"
@@ -124,6 +126,60 @@ func SignString(params map[string]string, exclude ...string) string {
 		b.WriteString(params[k])
 	}
 	return b.String()
+}
+
+// HasSignedField reports whether signed, a SignString result, contains "key=" for any of keys. The sign string
+// does not escape values, so a callback carrying type=x&notify_url=… inside one value reproduces a merchant
+// request's string exactly; a check that only looks at parameter names misses it (MISTAKES #302). Every request
+// the merchant signs carries its callback URLs and no provider callback does, so a Notify that rejects a signed
+// string with them can never be fed a request signature.
+func HasSignedField(signed string, keys ...string) bool {
+	for _, k := range keys {
+		if strings.Contains(signed, k+"=") {
+			return true
+		}
+	}
+	return false
+}
+
+// ValidCallbackURL reports whether raw is safe to sign as a notify/return URL inside a SignString: HTTP(S), no
+// user information, query, fragment or raw '&', and a DNS hostname (ASCII letters, digits, dots and hyphens) or
+// an IP address, optionally with a port. Without app_url the host comes from the request Host header, which Go
+// accepts with '&' and '=', so a buyer could otherwise add fields to the merchant signature (MISTAKES #246).
+func ValidCallbackURL(raw string) bool {
+	if strings.ContainsAny(raw, "&?#") {
+		return false
+	}
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.Hostname() == "" {
+		return false
+	}
+	if net.ParseIP(u.Hostname()) != nil {
+		return true
+	}
+	for _, c := range u.Hostname() {
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '.') {
+			return false
+		}
+	}
+	return true
+}
+
+// SignedSeparator returns the first key whose value contains the raw '&' field separator, or "". Pay refuses to
+// sign such a value: it would add a field to the string, and the signature could then be re-read as another
+// message.
+func SignedSeparator(params map[string]string) string {
+	keys := make([]string, 0, len(params))
+	for k, v := range params {
+		if strings.Contains(v, "&") {
+			keys = append(keys, k)
+		}
+	}
+	if len(keys) == 0 {
+		return ""
+	}
+	sort.Strings(keys)
+	return keys[0]
 }
 
 func contains(list []string, s string) bool {

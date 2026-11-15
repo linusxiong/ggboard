@@ -169,6 +169,9 @@ merchant-request signature into a successful callback signature.
 | `money` | `12.34`; must match `^[0-9.]+$` and be > 0 |
 | `sign` / `sign_type` | §2.1 / `MD5` |
 
+- No signed value may contain a raw `&`, because it would add a field to the §2.1 string. Replace `&` in `name`
+  with the fullwidth `＆`, since `name` is the `<app_name> - <plan name>` text an administrator types. Refuse to
+  sign any other value that contains `&`, such as a `pid` or `type` in the configuration.
 - Optional `sitename` / `param` must then be signed too; Caihong echoes `param` back in the notify.
 - **Gotcha:** Caihong rejects a resubmit of an `out_trade_no` for **10 days** in two cases: when the order is
   already paid, and when `money`, `name`, `notify_url`, `return_url` or `param` changed ("支付参数有变化"). Keep
@@ -198,8 +201,13 @@ Some clones POST a form instead, so accept both.
 Steps:
 
 0. Reject merchant-only `notify_url` / `return_url` fields and parameter names containing anything other
-   than ASCII letters, digits or underscores. Require both `out_trade_no` and `trade_no` on a success.
-   Merchant requests and callbacks must not be interchangeable under the raw `k=v` signature format.
+   than ASCII letters, digits or underscores. Also reject a §2.1 string that contains `notify_url=` or
+   `return_url=` anywhere: values are not escaped, so `type=x&notify_url=…` inside one value reproduces a
+   merchant request's string even though no parameter has that name. Every request we sign carries both
+   URLs and no callback does, so this keeps the two apart whatever a signed value contains. Require both
+   `out_trade_no` and `trade_no` on a success. Merchant requests and callbacks must not be interchangeable
+   under the raw `k=v` signature format. Extra fields stay allowed (step 1): clones add their own, and an
+   allowlist of names would not stop a field hidden inside an allowed value.
 1. Recompute §2.1 over **all received** params, extras included, and compare in constant time.
 2. Require `pid == cfg.pid`.
 3. Require `trade_status == "TRADE_SUCCESS"`; anything else is a no-op ack.
@@ -282,6 +290,9 @@ with Go 1.27).
 - **`fiat`**: sent only when the site currency isn't CNY, as the uppercased site currency (`USD`, `EUR`, …;
   BEpusdt only, legacy epusdt treats the amount as CNY regardless).
 - **`redirect_url`** is required by BEpusdt.
+- **`notify_url` / `redirect_url`** follow the EPay callback URL rule (§2.2): HTTP(S), no user information, query,
+  fragment or raw `&`, and a DNS hostname or IP address. Without `app_url` they come from the request Host.
+- No signed value may contain a raw `&` (§2.2); refuse to sign one, such as a `currency_type` with `&`.
 - **`order_id`** must be ≤ 32 chars. BEpusdt *rebuilds* a pending order with the same `order_id` (new
   address/amount, timer reset), so re-checkout is safe.
 - Extra parameters (`name`, `timeout` in seconds ≥ 120) are allowed but must be signed.
@@ -325,6 +336,9 @@ Steps:
 3. Verify per §3.1 in constant time. On a mismatch, recompute **once** with numbers formatted as
    `fmt.Sprint(float64)` (BEpusdt `%v`), and accept either result.
 4. `status`: `2` → paid. `1` (BEpusdt "waiting", sent every minute) and `3` (expired) → no-op ack.
+
+Before step 3, reject a sign string that contains `notify_url=` or `redirect_url=` anywhere. The create request
+uses the same token and carries both URLs, and a callback carries neither (see §2.3 step 0).
 5. Return `TradeNo=order_id`, `CallbackNo=trade_id`, `Amount=cents(amount)` (the fiat amount we sent). Log
    `block_transaction_id`.
 
@@ -781,6 +795,11 @@ BTCPay-Sig: sha256=f1a2d817b438106a73e851ffee748de61af0666fb1038809ca63cbdc4d7fe
 - **`Notify`:** paid; every no-op event → `(nil, resp, nil)`; bad signature → `err`; stale timestamp (Stripe,
   Coinbase); foreign `payment_uuid`/`storeId`/`app_id`/`pid` → ack without a result.
 - **Alipay:** generate an RSA-2048 key in the test; cover PKCS#1/PKCS#8 × PEM/bare-base64 parsing.
+- **Raw `k=v` signatures with one key for requests and callbacks (EPay, Epusdt):** sign a merchant request whose
+  values carry a whole successful callback after a raw `&`, pass every map from `gwutiltest.Reparses` to `Notify`,
+  and require an error for each one, including those that would only be acknowledged. Assert that the fixture has a
+  parse that looks like a payment, or the test proves nothing. Then check that `Pay` signs no value containing `&`,
+  and that callback URLs with `&`, `?`, `#` or user information in the host never reach the provider.
 
 ## 9. Implementation notes (ggboard, 2026-10-22)
 

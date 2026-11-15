@@ -108,6 +108,10 @@ func (g *Gateway) Pay(ctx context.Context, cfg map[string]string, req payment.Pa
 	if req.TotalAmount >= maxCents {
 		return nil, errors.New("epusdt: amount must be below 1000000")
 	}
+	// A request-derived Host must never inject fields into the raw k=v signature.
+	if !gwutil.ValidCallbackURL(req.NotifyURL) || !gwutil.ValidCallbackURL(req.ReturnURL) {
+		return nil, errors.New("epusdt: invalid callback URL")
+	}
 	base, err := gwutil.BaseURL(cfg["api_url"], Name, true)
 	if err != nil {
 		return nil, err
@@ -126,6 +130,9 @@ func (g *Gateway) Pay(ctx context.Context, cfg map[string]string, req payment.Pa
 	}
 	if cur := strings.ToUpper(strings.TrimSpace(req.Currency)); cur != "" && cur != "CNY" {
 		params["fiat"] = cur
+	}
+	if k := gwutil.SignedSeparator(params); k != "" {
+		return nil, fmt.Errorf("epusdt: %s must not contain '&'", k)
 	}
 	body := map[string]any{"amount": json.Number(amount)}
 	for k, v := range params {
@@ -194,6 +201,11 @@ func (*Gateway) Notify(_ context.Context, cfg map[string]string, r *http.Request
 		} else if ok {
 			fallback[k] = s
 		}
+	}
+	// The create-transaction request is signed with the same token and carries both callback URLs; a callback
+	// never does. Check the signed string, because a field can hide inside another value.
+	if gwutil.HasSignedField(gwutil.SignString(exact, "signature"), "notify_url", "redirect_url") {
+		return nil, nil, errors.New("epusdt: merchant request is not a payment notification")
 	}
 	if !gwutil.EqualHex(sig, Sign(exact, cfg["api_token"])) && !gwutil.EqualHex(sig, Sign(fallback, cfg["api_token"])) {
 		return nil, nil, errors.New("epusdt: signature mismatch")

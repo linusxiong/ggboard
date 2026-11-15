@@ -15,6 +15,10 @@ Notable changes to GG Bond (ggboard), per version. The format follows [Keep a Ch
 - The plain subscription link works in Quantumult X, which answered it with "response invalid". Quantumult X now gets the node list by default, as with the one-tap import. Add `&list=0` to get its whole configuration.
 - The whole Quantumult X configuration calls its main group `Proxies`, because `proxy` is a built-in policy there, and a health-checked group with one server becomes `static`.
 
+### Security
+
+- EPay and Epusdt refuse a payment notification whose signed string contains `notify_url=`, `return_url=` or `redirect_url=` anywhere, even inside another value, so the signature of a checkout request can never pass as a callback. Before, only the parameter names were checked, so a plan or site name that itself spelled out the fields of a successful callback after a `&` made the checkout signature of that order verify as a paid notification. Only administrators set those names, and a plain `&` such as `Pro & Family` was not enough. EPay now signs `&` in the product name as `＆`, and Epusdt rejects callback URLs whose request Host contains `&`, `?`, `#` or user information, as EPay already did.
+
 ## [1.0.3] - 2026-11-05
 
 ### Added
