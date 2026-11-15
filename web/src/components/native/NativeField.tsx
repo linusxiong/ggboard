@@ -50,8 +50,8 @@ export function NativeField({
       id={inputId}
       name={name}
       required={required}
-      aria-required={required || undefined}
-      aria-invalid={invalid || undefined}
+      // Always present: Firefox and Safari report an empty `required` field as invalid until it says otherwise.
+      aria-invalid={invalid}
       aria-describedby={describedBy}
       data-slot="input"
       data-invalid={invalid || undefined}

@@ -8,6 +8,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { type FormEvent, useState } from 'react'
 import { FormError } from '@/components/FormError'
 import { TitleWithHelp } from '@/components/HelpTip'
+import { focusFirstInvalid } from '@/components/form/focus'
 import { useT } from '@/i18n'
 import { changePassword } from '@/lib/api/user'
 import { PASSWORD_MIN } from '@/lib/validators'
@@ -25,14 +26,16 @@ export function ChangePasswordCard({ email }: { email: string }) {
   const [errors, setErrors] = useState<ReturnType<typeof mapError>>({})
   const [pending, setPending] = useState(false)
 
-  const submit = async (event: FormEvent) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    const form = event.currentTarget
     const local: ReturnType<typeof mapError> = {}
     if (!oldPassword) local.old_password = t('password.oldRequired')
     if (newPassword.length < PASSWORD_MIN) local.new_password = t('password.tooShort', { min: PASSWORD_MIN })
     else if (newPassword === oldPassword) local.new_password = t('password.same')
     setErrors(local)
-    if (Object.keys(local).length > 0) return
+    // `noValidate` form: the browser does not move focus to the first invalid field, so do it here.
+    if (Object.keys(local).length > 0) return focusFirstInvalid(form)
     setPending(true)
     try {
       await changePassword({ old_password: oldPassword, new_password: newPassword })
@@ -41,6 +44,7 @@ export function ChangePasswordCard({ email }: { email: string }) {
       await navigate({ to: '/login', replace: true })
     } catch (error) {
       setErrors(mapError(error))
+      focusFirstInvalid(form)
     } finally {
       setPending(false)
     }

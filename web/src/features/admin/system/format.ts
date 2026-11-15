@@ -19,10 +19,21 @@ export function toSeconds(value: number | string | null | undefined): number | n
   return matched === s.replace(/^-/, '') ? (s.startsWith('-') ? -total : total) : null
 }
 
-/** `93784` → "1d 2h 3m" (narrow Intl units, up to three parts). */
+type DurationUnit = 'day' | 'hour' | 'minute' | 'second'
+/** `Intl.DurationFormat` as far as this file uses it (Chrome 129, Firefox 136, Safari 16.4; not in the ES2023 lib). */
+type DurationFormat = new (
+  locale: string,
+  options: { style: 'narrow'; secondsDisplay?: 'always' },
+) => { format(duration: Partial<Record<`${DurationUnit}s`, number>>): string }
+
+/**
+ * `93784` → "1d 2h 3m" / "1天2小时3分钟": days, hours and minutes, seconds only below a day (up to three parts).
+ * `Intl.DurationFormat` joins the parts the way the locale writes a duration (no spaces in Chinese); older
+ * browsers format each unit on its own and join with a space.
+ */
 export function formatDuration(seconds: number | null, locale: Locale): string {
   if (seconds === null) return '—'
-  const parts: Array<[Intl.NumberFormatOptions['unit'], number]> = []
+  const parts: Array<[DurationUnit, number]> = []
   let rest = Math.max(0, Math.floor(seconds))
   const d = Math.floor(rest / 86_400)
   rest %= 86_400
@@ -34,8 +45,18 @@ export function formatDuration(seconds: number | null, locale: Locale): string {
   if (h) parts.push(['hour', h])
   if (m) parts.push(['minute', m])
   if (!d && (s || parts.length === 0)) parts.push(['second', s])
+
+  const Native = (Intl as typeof Intl & { DurationFormat?: DurationFormat }).DurationFormat
+  if (Native) {
+    const duration: Partial<Record<`${DurationUnit}s`, number>> = {}
+    for (const [unit, n] of parts) duration[`${unit}s`] = n
+    // A zero duration would format as an empty string: keep "0s".
+    const zero = parts.every(([, n]) => n === 0)
+    return new Native(locale, { style: 'narrow', ...(zero ? { secondsDisplay: 'always' } : {}) }).format(
+      duration,
+    )
+  }
   return parts
-    .slice(0, 3)
     .map(([unit, n]) => formatNumber(n, locale, { style: 'unit', unit, unitDisplay: 'narrow' }))
     .join(' ')
 }

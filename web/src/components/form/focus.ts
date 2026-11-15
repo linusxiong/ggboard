@@ -3,8 +3,10 @@
  * focus it. Scoped to the top-most open dialog when there is one. Never steals focus the user has
  * already moved somewhere else (MISTAKES #68/#86): it only acts if focus is where it was at submit.
  */
+// `button`: controls that are one (a select trigger). Not the ⓘ beside a label or a chip's remove button, which
+// come before the control in the same invalid field and would take the focus instead of it.
 const INVALID =
-  '[aria-invalid="true"], [data-invalid="true"] input:not([type="hidden"]), [data-invalid="true"] textarea, [data-invalid="true"] button'
+  '[aria-invalid="true"], [data-invalid="true"] input:not([type="hidden"]), [data-invalid="true"] textarea, [data-invalid="true"] button:not(.help-tip, .gg-tag__remove)'
 
 export function focusFirstInvalid(scope?: ParentNode | null) {
   if (typeof document === 'undefined') return

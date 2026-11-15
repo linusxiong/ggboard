@@ -44,13 +44,14 @@ export const useUiStore = create<UiState>()((set) => ({
   setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
 }))
 
-persistStore(useUiStore, {
+/** Re-reads the persisted preferences (another tab wrote them; tests). */
+export const rehydrateUi = persistStore(useUiStore, {
   key: UI_STORAGE_KEY,
   pick: (s) => ({ theme: s.theme, locale: s.locale, sidebarCollapsed: s.sidebarCollapsed }),
   merge: (persisted) => {
     const p = (persisted ?? {}) as Partial<UiState>
     return {
-      ...(p.theme && p.theme in NEXT_THEME ? { theme: p.theme } : {}),
+      ...(typeof p.theme === 'string' && Object.hasOwn(NEXT_THEME, p.theme) ? { theme: p.theme } : {}),
       ...(isLocale(p.locale) ? { locale: p.locale } : {}),
       ...(typeof p.sidebarCollapsed === 'boolean' ? { sidebarCollapsed: p.sidebarCollapsed } : {}),
     }

@@ -3,7 +3,8 @@
     "login": "Sign in",
     "register": "Sign up",
     "console": "Open dashboard",
-    "plans": "Plans"
+    "plans": "Plans",
+    "label": "Main navigation"
   },
   "hero": {
     "eyebrow": "Simple · Beautiful · Fast",

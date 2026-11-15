@@ -128,11 +128,15 @@ export function TicketThread({ id, onBack, className }: TicketThreadProps) {
         ) : null}
       </header>
 
+      {/* Plain text only, so the scroller itself takes focus: otherwise the keyboard cannot scroll it in Safari. */}
       <div
         ref={scroller}
         className="min-h-48 flex-1 overflow-auto px-4 py-4"
+        role="log"
+        aria-label={t('tickets.thread')}
         aria-live="polite"
         aria-busy={q.isPending}
+        tabIndex={0}
       >
         {q.isError ? (
           <p className="text-subhead text-label-red">{errorMessage(q.error)}</p>

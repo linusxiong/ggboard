@@ -116,7 +116,12 @@ function StatusHero({ order, polling }: { order: Order; polling: OrderPolling })
   if (status === ORDER_STATUS.processing) {
     return (
       <Hero
-        icon={<IconBadge tone="blue" icon={<Loader className="size-8 motion-safe:animate-spin" />} />}
+        icon={
+          <IconBadge
+            tone="blue"
+            icon={<Loader className="size-8 animate-[gg-spin_var(--spin-duration)_linear_infinite]" />}
+          />
+        }
         title={t('hero.processing')}
         body={t('hero.processingBody')}
         live

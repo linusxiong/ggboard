@@ -5,6 +5,7 @@ import { type ReactNode, useState } from 'react'
 import { CopyButton } from '@/components/CopyButton'
 import { FieldHint, FieldLabel } from '@/components/form/parts'
 import { useT } from '@/i18n'
+import { localDay } from './localDay'
 
 /**
  * HeroUI text input with a visible label, `name`/`id` and native autocomplete hints (password managers).
@@ -69,6 +70,7 @@ export function PlainField({
         placeholder={placeholder}
         spellCheck={false}
         autoCapitalize="none"
+        autoCorrect="off"
         className={inputClassName}
       />
       {error ? null : <FieldHint>{description}</FieldHint>}
@@ -141,17 +143,16 @@ export function BackupCodesView({
 }) {
   const t = useT(['security', 'common'])
   const [downloaded, setDownloaded] = useState(false)
-  const text = [
-    `${appName} — ${t('backup.fileTitle')}`,
-    email,
-    new Date().toISOString().slice(0, 10),
-    '',
-    ...codes,
-    '',
-    t('backup.fileHint'),
-  ].join('\n')
-
   const download = () => {
+    const text = [
+      `${appName} — ${t('backup.fileTitle')}`,
+      email,
+      localDay(new Date()),
+      '',
+      ...codes,
+      '',
+      t('backup.fileHint'),
+    ].join('\n')
     const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }))
     const a = document.createElement('a')
     a.href = url
@@ -159,7 +160,8 @@ export function BackupCodesView({
     document.body.appendChild(a)
     a.click()
     a.remove()
-    URL.revokeObjectURL(url)
+    // Not at once: some browsers start the download after this handler returns.
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
     setDownloaded(true)
   }
 
@@ -167,6 +169,7 @@ export function BackupCodesView({
     <div className="flex flex-col gap-3">
       <p className="text-subhead text-label">{t('backup.once')}</p>
       <ol
+        role="list"
         aria-label={t('backup.title')}
         className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-[12px] bg-fill-quaternary p-4 font-mono text-subhead text-label"
       >

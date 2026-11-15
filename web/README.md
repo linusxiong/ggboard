@@ -66,8 +66,9 @@ src/
                            mail-templates/ (per-locale subject + Markdown body editor, live preview)
   lib/api/                 client.ts, types.ts, guest.ts, passport.ts, user.ts, admin.ts, queries.ts, index.ts
   lib/                     guards, format, toast, motion, theme, errors, authErrors, button, clipboard, cn,
-                           publicData, queryClient, snapshot (prerender handover), validators
-  hooks/                   useLiteForm, useFinishAuth, useCooldown, useCssVar, useMediaQuery
+                           publicData, queryClient, snapshot (prerender handover), validators,
+                           ime (`isImeEnter`), announce (screen-reader announcements)
+  hooks/                   useLiteForm, useFinishAuth, useCooldown, useCssVar, useMediaQuery, useScrollFade
   stores/                  auth.ts (token/user, `gg-auth`), ui.ts (theme/locale/sidebar, `gg-ui`), storage.ts
                            (`persistStore`: zustand-`persist`-compatible, ~1 KB lighter)
   i18n/                    index.ts + <locale>/<namespace>.json (zh-CN, en)
@@ -230,9 +231,13 @@ React Aria JS) — see "Performance".
   options `{ description, timeout (ms, 0 = sticky), id }`. Own renderer (no HeroUI toast): Apple capsules (14 px radius,
   thick material + hairline + soft shadow, status symbol, 15 px medium text), spring in from the top on desktop / from
   the bottom above the tab bar on phones, 3.2–4 s auto-dismiss (paused on hover/focus/hidden tab), max 3 (a repeated
-  message refreshes instead of stacking), dismiss button + Esc, `role="status"`, reduced-motion → fade. The store is a
+  message refreshes instead of stacking), dismiss button + Esc, reduced-motion → fade. The store is a
   ~1 KB module in the entry; `components/feedback/ToastHost.tsx` (+ `toast.css`) loads lazily. **Never** import
-  `toast` from `@heroui/react`.
+  `toast` from `@heroui/react`. Accessibility: the stack is a child of `<body>` marked `data-react-aria-top-layer`,
+  so a toast raised while a HeroUI modal is open is not made inert with the page. A toast is announced once through
+  `announce()` (`lib/announce.ts`: `document.ariaNotify()`, else the polite live region `<LiveRegion>` that the root
+  route renders from the start), not by being a live region itself. Dismissing a focused toast hands focus to the
+  next one, or back to where it came from. Use `announce(text)` for any other result that appears without a toast.
 - Confirm: `if (await confirm({ title, description, tone: 'danger' })) …` (`@/components/feedback/confirm`), or the
   controlled `<ConfirmDialog isOpen onOpenChange onConfirm={() => mutation.mutateAsync()} />` (pending state, keeps open on error).
 - `errorMessage(e)` (`@/lib/errors`) → localized text for transport errors, server text for business errors.
@@ -298,7 +303,9 @@ import { SegmentedControl, SegmentedTabs } from '@/components/SegmentedControl'
   content (never stretched), 2 px inset track, 9 px radius, 13 px semibold labels, one white (dark `#636366`) pill that
   slides to the selection (CSS transform, measured; reduced motion → jump), hairline dividers that fade next to the
   pill / a hovered segment, pressed segment dims, pressed pill shrinks to 0.96. Too wide → it scrolls inside an
-  edge-faded container and keeps the selection in view.
+  edge-faded container and keeps the selection in view. The fades are `.gg-scroll-fade` + `useScrollFade(ref)`
+  (also on the settings and mail-template chip strips): a CSS scroll-driven animation moves them, and browsers
+  without one get `data-fade-start` / `data-fade-end` from a passive scroll listener.
 - Picks show at once even when the owner commits later (router search params): the control keeps the pick for up to
   2 s while `value` is still the old one. `SegmentedTabs optimistic={false}` when the owner may refuse/confirm first or
   renders only the committed panel (subscription profiles).
@@ -330,18 +337,19 @@ import { SegmentedControl, SegmentedTabs } from '@/components/SegmentedControl'
 
 ## Design tokens (Apple HIG → HeroUI → Tailwind)
 
-| use                  | classes / variables                                                                                                                                    |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| page / card / nested | `bg-canvas` (systemGroupedBackground), `bg-elevated` / `surface-card` (card + radius + shadow), `bg-elevated-secondary`, `inset-group`                 |
-| text                 | `text-label`, `text-label-secondary` (AA-safe 80 %), `text-label-tertiary`, `text-label-blue/green/orange/red` (HIG increased-contrast, for text)      |
-| raw system colors    | `bg-system-blue` … `text-system-gray-6` — **icons, dots, progress only** (they fail 4.5:1 as text)                                                     |
-| fills / lines        | `bg-fill(-secondary/-tertiary/-quaternary)`, `border-hairline`, `hairline-t/-b`, `glass glass-border-b` (frosted bars)                                 |
-| type                 | `text-large-title`, `text-title1/2/3`, `text-headline`, `text-body`, `text-callout`, `text-subhead`, `text-footnote`, `text-caption`, `text-caption2`  |
-| radii / motion       | `rounded-card` 20 px, `rounded-button` 12 px, `rounded-input` 10 px, `ease-apple-out`, `animate-enter` (not on LCP elements)                           |
-| micro-interactions   | `pressable` (tappable cards/rows: 0.98 press), `shimmer` (skeleton placeholders), `--ease-spring` (sheets) — app.css only                              |
-| layout               | `max-w-page` (1120 px), `surface-card` (20 px radius, hairline + soft shadow), `inset-group` / `separated` (hairline rows; `[--separator-inset:20px]`) |
-| controls             | `--field-h` 44 → 38 px (≥ md), `--field-fs` 17 → 15 px, `field-affix(--start)` units, `bg-selection` (tinted pill), `--material-thick` (toasts)        |
-| HeroUI               | `bg-background`, `bg-surface`, `text-muted`, `bg-accent` (= `--tint` #006EF8, white text 4.58:1), `text-danger` … all mapped to the tokens above       |
+| use                  | classes / variables                                                                                                                                                                                                                                                                                                                              |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| page / card / nested | `bg-canvas` (systemGroupedBackground), `bg-elevated` / `surface-card` (card + radius + shadow), `bg-elevated-secondary`, `inset-group`                                                                                                                                                                                                           |
+| text                 | `text-label`, `text-label-secondary` (AA-safe 80 %), `text-label-tertiary`, `text-label-blue/green/orange/red` (HIG increased-contrast, for text)                                                                                                                                                                                                |
+| raw system colors    | `bg-system-blue` … `text-system-gray-6` — **icons, dots, progress only** (they fail 4.5:1 as text)                                                                                                                                                                                                                                               |
+| fills / lines        | `bg-fill(-secondary/-tertiary/-quaternary)`, `border-hairline`, `hairline-t/-b`, `glass glass-border-b` (frosted bars)                                                                                                                                                                                                                           |
+| type                 | `text-large-title`, `text-title1/2/3`, `text-headline`, `text-body`, `text-callout`, `text-subhead`, `text-footnote`, `text-caption`, `text-caption2`                                                                                                                                                                                            |
+| radii / motion       | `rounded-card` 20 px, `rounded-button` 12 px, `rounded-input` 10 px, `ease-apple-out`, `animate-enter` (not on LCP elements)                                                                                                                                                                                                                     |
+| micro-interactions   | `pressable` (tappable cards/rows: 0.98 press), `shimmer` (skeleton placeholders), `--ease-spring` (sheets) — app.css only                                                                                                                                                                                                                        |
+| reduced motion       | decided per rule, never by a global reset: movement / scale / rotation inside `@media (prefers-reduced-motion: no-preference)` (Tailwind `motion-reduce:transition-none`), colour and opacity transitions stay, spinners slow to 6 s (`--spin-duration`; in markup `animate-[gg-spin_var(--spin-duration)_linear_infinite]`, not `animate-spin`) |
+| layout               | `max-w-page` (1120 px), `surface-card` (20 px radius, hairline + soft shadow), `inset-group` / `separated` (hairline rows; `[--separator-inset:20px]`)                                                                                                                                                                                           |
+| controls             | `--field-h` 44 → 38 px (≥ md), `--field-fs` 17 → 15 px, `field-affix(--start)` units, `bg-selection` (tinted pill), `--material-thick` (toasts)                                                                                                                                                                                                  |
+| HeroUI               | `bg-background`, `bg-surface`, `text-muted`, `bg-accent` (= `--tint` #006EF8, white text 4.58:1), `text-danger` … all mapped to the tokens above                                                                                                                                                                                                 |
 
 Component skin (`styles/theme.css` global part + `styles/app.css`, which `AppShell` imports so public pages never load it),
 all in the `gg-overrides` layer after HeroUI's `components` layer:
@@ -364,16 +372,18 @@ No hex colors in components. Dark mode follows the OS; `useUiStore().setTheme('l
 
 ## Performance rules (AGENTS §6)
 
-- **First-load budget: ≤ 120 KB gzip JS** for landing/login. Last measured (2026-10-22, after polish round 2, see
-  `docs/E2E_2026-10-22.md`): entry JS 112.0 KB, entry CSS 15.8 KB; with route chunk, dictionaries and boot module the
-  public pages land at ≈ 120–122 KB. They are prerendered, so this JS no longer gates their first paint (it loads after
-  it). The signed-in skin (`app.css`, incl. the segmented control) never loads on them.
-  Fixed cost: React 19 (67 KB) + TanStack Router (26 KB). Check with `pnpm build` (sum the chunks a page loads).
+- **First-load budget: ≤ 120 KB gzip JS** for landing/login. Last measured on the 1.0.4 build (2026-11-15, gzip sizes
+  of `dist/`): the prerendered pages load 112.5–115.0 kB of JS each (boot script plus their preload list: `/` 113.6,
+  `/login` 115.0, `/register` 113.3, `/forgot` 112.5) and the shell `spa.html` 115.6 kB; the entry CSS is 16.7 kB.
+  (2026-10-22, `docs/E2E_2026-10-22.md`: entry JS 112.0 KB, entry CSS 15.8 KB.) The public pages are prerendered, so
+  this JS no longer gates their first paint (it loads after it). The signed-in skin (`app.css`, incl. the segmented
+  control) never loads on them.
+  Fixed cost: React 19 (67 KB) + TanStack Router (27 KB). Check with `pnpm build` (sum the chunks a page loads).
 - Public pages use native elements with HeroUI CSS classes (`NativeButton`, `NativeField`, `buttonClass`, inline icons in
   `components/icons/inline.tsx`) and no React Query; HeroUI React components, React Aria, lucide and React Query load with
   the authenticated shells.
 - HeroUI CSS is per component (`scripts/heroui-css.ts` attaches each component's stylesheet to its JS module); in a
-  native element use `import 'heroui-css:button'`. The entry (global) CSS stays ≈ 16 KB gzip (15.8 KB on 2026-10-22).
+  native element use `import 'heroui-css:button'`. The entry (global) CSS stays ≈ 16–17 KB gzip (16.7 kB on 2026-11-15).
 - Route-level code splitting is automatic; lazy-load anything heavy (charts, editors, Markdown, QR, effects) and start
   animations after idle (`useAnimationsReady`, `WhenIdle`). Give async content a fixed-size placeholder (CLS 0).
 - Vendor groups (`vite.config.ts` → `rolldownOptions.output.codeSplitting.groups`): `react`, `tanstack`, `tanstack-query`,
@@ -388,7 +398,9 @@ No hex colors in components. Dark mode follows the OS; `useUiStore().setTheme('l
   `assets/boot-*.js`, which imports the app after the snapshot's LCP entry — Lighthouse's simulation counts every
   request started before the first paint, and React replacing nodes before Chrome reports them moves LCP to the swap.
   The boot script is a blocking classic script (no inline script: the CSP is `script-src 'self'`): before the first
-  paint it sets `<html data-session="member">` for a live session (`scripts/session-mark.mjs`).
+  paint it sets `<html data-session="member">` for a live session and `<html data-theme>` for a forced light or dark
+  theme (`scripts/session-mark.mjs`). The shell gets the theme part as `assets/theme-*.js`, also when prerendering is
+  skipped, because the entry is a module script and runs after the first paint.
   The client never hydrates (a client snapshot has client `useId`s): it renders the complete route in its first commit
   (`router.load()` first), carries typed values over (`lib/snapshot.ts`) and replaces the snapshot in one frame.
   Rules: keep the first commit of a public route free of Suspense fallbacks and data that differs from a fresh install

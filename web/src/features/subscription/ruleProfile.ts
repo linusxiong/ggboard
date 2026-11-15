@@ -30,7 +30,8 @@ export function localized(text: LocalizedText | undefined, locale: string, fallb
   return text[locale] ?? text['zh-CN'] ?? text.en ?? Object.values(text)[0] ?? fallback
 }
 
-const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
+/** Deep copy of catalog data, so a profile never shares objects with the cached catalog. */
+const clone = <T>(value: T): T => structuredClone(value)
 
 export const needsProbe = (type: PolicyGroupType) => type !== 'select'
 

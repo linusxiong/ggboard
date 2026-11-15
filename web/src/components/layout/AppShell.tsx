@@ -6,7 +6,7 @@
  */
 import { Avatar, Button, Dropdown, Header, Label, Separator } from '@heroui/react'
 import { type QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
-import { Link, Outlet, useNavigate } from '@tanstack/react-router'
+import { Link, Outlet, useMatchRoute, useNavigate } from '@tanstack/react-router'
 import { Ellipsis, LogOut, PanelLeftClose, PanelLeftOpen, Shield, UserRound } from 'lucide-react'
 import { Suspense, useEffect } from 'react'
 import '@/styles/app.css'
@@ -59,6 +59,9 @@ function Shell({ area, items }: Omit<AppShellProps, 'queryClient'>) {
   const visible = area === 'admin' && !isAdmin(user) ? items.filter((i) => i.staff) : items
   const primary = visible.filter((i) => i.primary).slice(0, 4)
   const more = visible.filter((i) => !primary.includes(i))
+  // The page behind "More" is open: the tab shows as current, like the other tabs do.
+  const matchRoute = useMatchRoute()
+  const moreActive = more.some((item) => Boolean(matchRoute({ to: item.to, fuzzy: true })))
   const home = area === 'admin' ? '/admin/dashboard' : '/dashboard'
   const sections = groupBySection(visible)
 
@@ -75,7 +78,7 @@ function Shell({ area, items }: Omit<AppShellProps, 'queryClient'>) {
       <aside
         className={cx(
           'sticky top-0 hidden h-dvh shrink-0 flex-col bg-elevated shadow-[inset_-0.5px_0_0_var(--hairline)] md:flex',
-          'transition-[width] duration-200 ease-apple-out',
+          'transition-[width] duration-200 ease-apple-out motion-reduce:transition-none',
           collapsed ? 'w-[72px]' : 'w-[248px]',
         )}
       >
@@ -213,7 +216,10 @@ function Shell({ area, items }: Omit<AppShellProps, 'queryClient'>) {
               <Dropdown>
                 <Button
                   variant="ghost"
-                  className="h-full w-full flex-col gap-0.5 rounded-none px-0 pt-1 text-[0.625rem] leading-3 font-medium text-label-secondary [&_svg]:m-0"
+                  className={cx(
+                    'h-full w-full flex-col gap-0.5 rounded-none px-0 pt-1 text-[0.625rem] leading-3 [&_svg]:m-0',
+                    moreActive ? 'font-semibold text-label-blue' : 'font-medium text-label-secondary',
+                  )}
                 >
                   <Ellipsis className="size-6" aria-hidden="true" />
                   <span>{t('more')}</span>
@@ -277,7 +283,7 @@ function TabLink({ item, label }: { item: NavItem; label: string }) {
   return (
     <Link
       to={item.to}
-      className="flex flex-1 flex-col items-center justify-center gap-0.5 pt-1 text-[0.625rem] leading-3 font-medium text-label-secondary data-[status=active]:text-label-blue"
+      className="flex flex-1 flex-col items-center justify-center gap-0.5 pt-1 text-[0.625rem] leading-3 font-medium text-label-secondary data-[status=active]:font-semibold data-[status=active]:text-label-blue"
     >
       <Icon className="size-6" aria-hidden="true" />
       <span>{label}</span>

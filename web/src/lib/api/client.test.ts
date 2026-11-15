@@ -35,6 +35,14 @@ describe('api client', () => {
     expect(init?.body).toBe(JSON.stringify({ old_password: 'x', new_password: 'y' }))
   })
 
+  it('passes a fetch priority only when one is asked for', async () => {
+    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(200, { data: [] })))
+    await api.get('/guest/plans', undefined, { priority: 'low' })
+    await api.get('/guest/config')
+    expect(fetchMock.mock.calls[0]![1]).toMatchObject({ priority: 'low' })
+    expect(fetchMock.mock.calls[1]![1]).not.toHaveProperty('priority')
+  })
+
   it('serialises query params and skips empty values', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(200, { data: [] }))
     await api.get('/admin/users', { page: 2, email: '', banned: false, ids: [1, 2], x: undefined })

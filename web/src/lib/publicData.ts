@@ -21,7 +21,8 @@ export function getGuestConfig(): Promise<GuestConfig> {
 }
 
 export function getGuestPlans(): Promise<Plan[]> {
-  plansPromise ??= guestApi.plans().catch((error: unknown) => {
+  // Low priority: the plans section is below the fold and lazy; the config and the route chunks go first.
+  plansPromise ??= guestApi.plans(undefined, 'low').catch((error: unknown) => {
     plansPromise = null
     throw error
   })

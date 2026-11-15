@@ -59,6 +59,8 @@ export interface RequestOptions {
   signal?: AbortSignal
   /** ms; `0` disables the timeout. */
   timeout?: number
+  /** Fetch priority: `'low'` for data fetched ahead of need, so it yields to what the page is waiting for. */
+  priority?: RequestPriority
   /** Skip the bearer token (public endpoints still work with it, this is for tests/special cases). */
   anonymous?: boolean
   headers?: Record<string, string>
@@ -137,6 +139,7 @@ async function send(method: HttpMethod, path: string, opts: RequestOptions = {})
       body,
       signal: withTimeout(opts.signal, opts.timeout ?? DEFAULT_TIMEOUT),
       credentials: 'same-origin',
+      ...(opts.priority ? { priority: opts.priority } : {}),
     })
   } catch (err) {
     // DOMException is not `instanceof Error` in every runtime; read `name` structurally.

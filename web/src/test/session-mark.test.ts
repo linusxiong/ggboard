@@ -1,11 +1,14 @@
 /**
  * The boot script's session mark and the auth store read the same storage with separate code: the mark picks
  * what the snapshot paints, the store what the app then renders. They have to agree, or the page changes at the swap.
+ * The same holds for the theme mark and `applyTheme`: one paints the first frame, the other takes over.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { User } from '@/lib/api/types'
+import { applyTheme } from '@/lib/theme'
 import { AUTH_STORAGE_KEY, rehydrateAuth, useAuthStore } from '@/stores/auth'
-import { markSession } from '../../scripts/session-mark.mjs'
+import { rehydrateUi, UI_STORAGE_KEY, useUiStore } from '@/stores/ui'
+import { markSession, markTheme } from '../../scripts/session-mark.mjs'
 
 const user = { id: 1, email: 'a@example.com' } as User
 const inAnHour = Math.floor(Date.now() / 1000) + 3600
@@ -63,5 +66,89 @@ describe('session mark', () => {
     rehydrateAuth()
     expect(marked()).toBe(expected)
     expect(Boolean(useAuthStore.getState().token)).toBe(expected)
+  })
+})
+
+describe('theme mark', () => {
+  const head = document.head.innerHTML
+  const ui = (theme: unknown) =>
+    JSON.stringify({ state: { theme, locale: 'en', sidebarCollapsed: false }, version: 1 })
+
+  /** The document as index.html ships it: no forced theme, one `theme-color` per system scheme. */
+  function freshPage() {
+    delete document.documentElement.dataset.theme
+    document.head.innerHTML =
+      '<meta name="theme-color" content="#F2F2F7" media="(prefers-color-scheme: light)">' +
+      '<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">'
+  }
+  /** What the browser paints from: the forced theme and the toolbar colour per scheme. */
+  const painted = () => ({
+    theme: document.documentElement.dataset.theme,
+    themeColor: [...document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')].map((meta) => ({
+      media: meta.getAttribute('media'),
+      content: meta.content,
+    })),
+  })
+
+  function reset() {
+    localStorage.clear()
+    useUiStore.setState({ theme: 'system' })
+    localStorage.clear()
+    freshPage()
+  }
+  beforeEach(reset)
+  afterEach(() => {
+    reset()
+    document.head.innerHTML = head
+  })
+
+  it('follows a real theme choice', () => {
+    useUiStore.getState().setTheme('dark')
+    markTheme()
+    expect(painted().theme).toBe('dark')
+
+    freshPage()
+    useUiStore.getState().setTheme('system')
+    markTheme()
+    expect(painted().theme).toBeUndefined()
+  })
+
+  it.each([
+    ['nothing stored', null, undefined],
+    ['the system theme', ui('system'), undefined],
+    ['a forced light theme', ui('light'), 'light'],
+    ['a forced dark theme', ui('dark'), 'dark'],
+    ['an unknown theme', ui('solarized'), undefined],
+    // A key that only exists on Object.prototype must not pass for a theme.
+    ['a prototype key', ui('constructor'), undefined],
+    ['a non-string theme', ui(1), undefined],
+    ['no state', '{"version":1}', undefined],
+    ['corrupt storage', '{not json', undefined],
+  ])('agrees with applyTheme on %s', (_name, value, expected) => {
+    if (value !== null) localStorage.setItem(UI_STORAGE_KEY, value)
+    markTheme()
+    const boot = painted()
+    expect(boot.theme).toBe(expected)
+
+    freshPage()
+    rehydrateUi()
+    applyTheme(useUiStore.getState().theme)
+    expect(painted()).toEqual(boot)
+  })
+
+  it('hands over to the app, which can still return to the system theme', () => {
+    const system = painted()
+    localStorage.setItem(UI_STORAGE_KEY, ui('dark'))
+    markTheme()
+    const boot = painted()
+    expect(boot.themeColor).toEqual([
+      { media: null, content: '#000000' },
+      { media: null, content: '#000000' },
+    ])
+
+    applyTheme('dark')
+    expect(painted()).toEqual(boot)
+    applyTheme('system')
+    expect(painted()).toEqual(system)
   })
 })

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NativeButton } from '@/components/native/NativeButton'
 import { useCooldown } from '@/hooks/useCooldown'
 import { useT } from '@/i18n'
+import { announce } from '@/lib/announce'
 import { EMAIL_CODE_COOLDOWN, sendEmailCode } from '@/lib/api/passport'
 import { errorMessage } from '@/lib/errors'
 import { toast } from '@/lib/toast'
@@ -34,8 +35,11 @@ export function EmailCodeButton({ purpose, getEmail, captcha, onSent, onResult }
     try {
       await sendEmailCode({ email, ...(captcha ? { captcha } : {}) })
       start()
-      if (onResult) onResult({ ok: true, email })
-      else toast.success(t('code.sent'))
+      if (onResult) {
+        onResult({ ok: true, email })
+        // The caller shows the result as a line under the field, which is not read out by itself.
+        announce(t('code.sent'))
+      } else toast.success(t('code.sent'))
     } catch (error) {
       const message = errorMessage(error)
       if (onResult) onResult({ ok: false, message })
@@ -50,7 +54,8 @@ export function EmailCodeButton({ purpose, getEmail, captcha, onSent, onResult }
     <NativeButton
       variant="secondary"
       className="h-auto min-w-[7.5rem] shrink-0 whitespace-nowrap tabular-nums"
-      disabled={remaining > 0}
+      // Not `disabled`: the button has focus when the cooldown starts and must keep it.
+      aria-disabled={remaining > 0}
       pending={pending}
       onClick={() => void send()}
     >

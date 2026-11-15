@@ -2,6 +2,7 @@
   "name": "GG Bond",
   "short_name": "GG Bond",
   "description": "GG Bond — a simple, beautiful and fast proxy panel.",
+  "id": "/dashboard",
   "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",

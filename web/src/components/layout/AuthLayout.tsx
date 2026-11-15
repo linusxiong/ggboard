@@ -57,7 +57,9 @@ export function AuthLayout({ title, subtitle, children, footer, icon }: AuthLayo
                 </span>
               ) : null}
               <h1 className="text-title1 text-label">{title}</h1>
-              {subtitle ? <p className="mt-2 text-subhead text-label-secondary">{subtitle}</p> : null}
+              {subtitle ? (
+                <p className="mt-2 text-subhead text-balance text-label-secondary">{subtitle}</p>
+              ) : null}
             </div>
             {children}
           </div>

@@ -227,6 +227,10 @@ function RegisterPage() {
           {...form.field('invite_code')}
           label={inviteForce ? t('fields.inviteCode') : t('fields.inviteCodeOptional')}
           autoComplete="off"
+          // A case-sensitive code: no capital first letter, no autocorrection (iOS does both by default).
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
           required={inviteForce}
         />
         <NativeButton type="submit" size="lg" fullWidth pending={form.submitting}>

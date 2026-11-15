@@ -27,7 +27,7 @@ const vendorGroups = [
   {
     // App core that every page needs (entry-adjacent): one file compresses better than five.
     name: 'app',
-    test: /[\\/]src[\\/](i18n[\\/]index|stores[\\/]|lib[\\/](api[\\/](client|guest|passport|types)|publicData|theme|motion|toast|guards|cn|errors)\.)/,
+    test: /[\\/]src[\\/](i18n[\\/]index|stores[\\/]|lib[\\/](api[\\/](client|guest|passport|types)|publicData|theme|motion|toast|announce|guards|cn|errors)\.)/,
     priority: 15,
   },
   {

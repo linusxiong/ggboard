@@ -19,7 +19,14 @@ export interface CouponValues {
 
 export function couponDefaults(coupon?: AdminCoupon | null): CouponValues {
   const now = new Date()
-  const in30 = new Date(now.getTime() + 30 * 86_400_000)
+  // Calendar days, not 30 × 24 h: the same wall-clock time also across a daylight-saving change.
+  const in30 = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() + 30,
+    now.getHours(),
+    now.getMinutes(),
+  )
   return {
     name: coupon?.name ?? '',
     code: coupon?.code ?? '',

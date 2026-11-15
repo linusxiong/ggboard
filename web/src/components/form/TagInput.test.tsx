@@ -106,6 +106,20 @@ describe('<TagInput/>', () => {
     expect(submit).toHaveBeenCalledTimes(1)
   })
 
+  it('leaves the Enter that picks an IME candidate to the IME', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    const input = screen.getByRole('textbox', { name: 'Domains' })
+    await user.type(input, 'li')
+    fireEvent.keyDown(input, { key: 'Enter', keyCode: 229, isComposing: true })
+    // Safari ends the composition first: `isComposing` is already false on that keydown (WebKit bug 165004).
+    fireEvent.keyDown(input, { key: 'Enter', keyCode: 229 })
+    expect(chips()).toEqual([])
+    expect(input).toHaveValue('li')
+    fireEvent.keyDown(input, { key: 'Enter', keyCode: 13 })
+    expect(chips()).toEqual(['li'])
+  })
+
   it('suggestion chips add an item and disappear once added', async () => {
     const user = userEvent.setup()
     render(<Harness suggestions={['gmail.com', 'qq.com']} addLabel="Add" />)

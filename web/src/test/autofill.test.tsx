@@ -74,6 +74,14 @@ describe('password-manager autofill attributes', () => {
     expect(password).toHaveAttribute('autocomplete', 'new-password')
     expect(password).toHaveAttribute('type', 'password')
     expect(field('邮箱验证码')).toHaveAttribute('autocomplete', 'one-time-code')
+    // The invite code is case-sensitive: iOS must not capitalise or correct it.
+    const invite = field(/^邀请码/)
+    expect(invite).toHaveAttribute('autocapitalize', 'none')
+    expect(invite).toHaveAttribute('autocorrect', 'off')
+    expect(invite).toHaveAttribute('spellcheck', 'false')
+    // A valid field says so: an empty `required` one is otherwise reported as invalid by Firefox and Safari.
+    expect(field('邮箱')).toHaveAttribute('aria-invalid', 'false')
+    expect(field('邮箱')).not.toHaveAttribute('aria-required')
   })
 
   it('forgot: username, one-time-code (numeric), new-password', async () => {

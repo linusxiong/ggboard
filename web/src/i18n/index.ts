@@ -123,7 +123,8 @@ function pluralCategory(locale: Locale, count: number) {
 export function interpolate(template: string, params?: TParams): string {
   if (!params) return template
   return template.replace(/\{(\w+)\}/g, (match, name: string) =>
-    name in params ? String(params[name]) : match,
+    // Own keys only: `{toString}` in a template must stay as written, not print a function.
+    Object.hasOwn(params, name) ? String(params[name]) : match,
   )
 }
 

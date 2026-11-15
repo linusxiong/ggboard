@@ -11,6 +11,7 @@ import { useT } from '@/i18n'
 import * as adminApi from '@/lib/api/admin'
 import { adminGroupsQuery, qk } from '@/lib/api/queries'
 import type { ServerGroup } from '@/lib/api/types'
+import { isImeEnter } from '@/lib/ime'
 import { useAdminMutation } from '../shared/useAdminMutation'
 import { useFormatters } from '../shared/useFormatters'
 
@@ -68,7 +69,7 @@ export function GroupsPage() {
                 onChange={(value) => setEditing({ id: c.row.original.id, name: value })}
                 autoFocus
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') saveRename()
+                  if (e.key === 'Enter' && !isImeEnter(e)) saveRename()
                   if (e.key === 'Escape') setEditing(null)
                 }}
                 className="max-w-64"

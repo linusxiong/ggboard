@@ -6,7 +6,8 @@ import type { GuestConfig, Plan, RulesetCatalog, SubscribeQuery } from './types'
 export const config = (signal?: AbortSignal) => api.get<GuestConfig>('/guest/config', undefined, { signal })
 
 /** `GET /guest/plans` — plans with show=true & sell=true. */
-export const plans = (signal?: AbortSignal) => api.get<Plan[]>('/guest/plans', undefined, { signal })
+export const plans = (signal?: AbortSignal, priority?: RequestPriority) =>
+  api.get<Plan[]>('/guest/plans', undefined, { signal, priority })
 
 /** `GET /guest/rulesets/catalog` — rule-set catalog (docs/SUBSCRIPTION.md). */
 export const rulesetCatalog = (signal?: AbortSignal) =>

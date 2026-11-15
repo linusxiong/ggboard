@@ -4,10 +4,17 @@
  * from the top on desktop and from the bottom (above the tab bar) on phones; reduced motion → fade.
  *
  * Timers pause while the pointer or focus is inside the stack and while the page is hidden.
+ *
+ * Accessibility: the stack is a child of `<body>` marked `data-react-aria-top-layer`, so an open HeroUI modal
+ * (which makes the rest of the page inert) does not take the toasts with it. Each toast is announced once through
+ * `announce()` (its visible text only), not by being a live region itself. Dismissing a focused toast moves
+ * focus to the next one, or back to where it was before the stack was entered.
  */
 import './toast.css'
 import { type ReactNode, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { createPortal } from 'react-dom'
 import { useT } from '@/i18n'
+import { announce } from '@/lib/announce'
 import { type ToastRecord, type ToastTone, toastStore } from '@/lib/toast'
 
 const EMPTY: readonly ToastRecord[] = []
@@ -18,6 +25,8 @@ export default function ToastHost() {
   const items = useSyncExternalStore(toastStore.subscribe, toastStore.getSnapshot, () => EMPTY)
   const [paused, setPaused] = useState(false)
   const [hidden, setHidden] = useState(() => typeof document !== 'undefined' && document.hidden)
+  /** What had focus before it entered the stack: a dismissed toast gives it back. */
+  const cameFrom = useRef<Element | null>(null)
 
   useEffect(() => {
     const onVisibility = () => setHidden(document.hidden)
@@ -25,13 +34,17 @@ export default function ToastHost() {
     return () => document.removeEventListener('visibilitychange', onVisibility)
   }, [])
 
-  return (
+  return createPortal(
     <section
       aria-label={t('a11y.notifications')}
       className="gg-toaster"
+      data-react-aria-top-layer=""
       onPointerEnter={() => setPaused(true)}
       onPointerLeave={() => setPaused(false)}
-      onFocus={() => setPaused(true)}
+      onFocus={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) cameFrom.current = e.relatedTarget
+        setPaused(true)
+      }}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget)) setPaused(false)
       }}
@@ -44,22 +57,50 @@ export default function ToastHost() {
             item={item}
             paused={paused || hidden}
             dismissLabel={t('a11y.dismiss')}
+            cameFrom={cameFrom}
           />
         ))}
       </div>
-    </section>
+    </section>,
+    document.body,
   )
 }
 
-function Toast({ item, paused, dismissLabel }: { item: ToastRecord; paused: boolean; dismissLabel: string }) {
+interface ToastProps {
+  item: ToastRecord
+  paused: boolean
+  dismissLabel: string
+  cameFrom: { readonly current: Element | null }
+}
+
+function Toast({ item, paused, dismissLabel, cameFrom }: ToastProps) {
   const [leaving, setLeaving] = useState(false)
   const remaining = useRef(item.timeout)
   const startedAt = useRef(0)
+  const ref = useRef<HTMLDivElement>(null)
+  const textRef = useRef<HTMLDivElement>(null)
+
+  // Announce what is visible, once per appearance (a refreshed or settled toast is a new instance).
+  useEffect(() => {
+    const lines = [...(textRef.current?.children ?? [])].map((line) => line.textContent ?? '')
+    announce(lines.join(' '))
+  }, [])
 
   const close = useCallback(() => {
+    // The toast is about to go: a focused one hands focus on, so it does not fall back to <body>.
+    const self = ref.current
+    if (self?.contains(document.activeElement)) {
+      const others = self.parentElement?.querySelectorAll<HTMLElement>(
+        '.gg-toast:not([data-leaving]) .gg-toast__close',
+      )
+      const next = [...(others ?? [])].find((button) => !self.contains(button))
+      const back = cameFrom.current
+      const target = next ?? (back instanceof HTMLElement && back.isConnected ? back : null)
+      target?.focus({ preventScroll: true })
+    }
     setLeaving(true)
     window.setTimeout(() => toastStore.dismiss(item.id), LEAVE_MS)
-  }, [item.id])
+  }, [item.id, cameFrom])
 
   useEffect(() => {
     if (item.timeout <= 0 || paused || leaving) return
@@ -73,9 +114,7 @@ function Toast({ item, paused, dismissLabel }: { item: ToastRecord; paused: bool
 
   return (
     <div
-      role="status"
-      aria-live="polite"
-      aria-atomic="true"
+      ref={ref}
       className="gg-toast"
       data-tone={item.tone}
       data-leaving={leaving || undefined}
@@ -84,7 +123,7 @@ function Toast({ item, paused, dismissLabel }: { item: ToastRecord; paused: bool
       }}
     >
       <ToneIcon tone={item.tone} />
-      <div className="gg-toast__text">
+      <div ref={textRef} className="gg-toast__text">
         <p className="gg-toast__title">{item.message}</p>
         {item.description ? <p className="gg-toast__description">{item.description}</p> : null}
       </div>

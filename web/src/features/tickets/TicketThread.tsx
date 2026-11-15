@@ -23,7 +23,7 @@ export function TicketThread({ messages }: { messages: readonly TicketMessage[] 
   return (
     <div
       ref={scroller}
-      className="max-h-[min(60vh,640px)] overflow-y-auto px-4 py-5 sm:px-6"
+      className="max-h-[min(60dvh,640px)] overflow-y-auto px-4 py-5 sm:px-6"
       role="log"
       aria-label={t('detail.thread')}
       aria-live="polite"

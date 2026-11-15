@@ -10,10 +10,26 @@ Notable changes to GG Bond (ggboard), per version. The format follows [Keep a Ch
 
 - Administrators get a Telegram alert when a user replies to a ticket (`ticket_user_reply`, on by default). Each ticket alerts at most once in 30 minutes, and a staff reply starts over, so a reply to an answer is never missed. Sites that already saved their event list get the event added once on upgrade. The existing event **Ticket reply** is now called **Staff replied to a ticket**.
 
+### Changed
+
+- With **Reduce motion** on, the panel now removes only movement, scaling and rotation. Spinners keep turning, slowly, instead of freezing (a frozen spinner looked like a hang), toasts fade as designed, and colour changes stay smooth. Before, one global rule cut every animation and transition short.
+- Uptime and other durations are written the way the language writes them where the browser has `Intl.DurationFormat` (`1天2小时3分钟` instead of `1天 2小时 3分钟`). Older browsers keep the previous format.
+- Headings wrap into lines of similar length, so a title no longer leaves a single word or character on its last line.
+
 ### Fixed
 
 - The plain subscription link works in Quantumult X, which answered it with "response invalid". Quantumult X now gets the node list by default, as with the one-tap import. Add `&list=0` to get its whole configuration.
 - The whole Quantumult X configuration calls its main group `Proxies`, because `proxy` is a built-in policy there, and a health-checked group with one server becomes `static`.
+- Choosing light or dark no longer shows the other scheme first while a page loads. The landing, sign-in, sign-up and reset pages are prerendered and stayed in the system scheme until the app had started, for about half a second; every other page flashed its background. A small script now applies the choice before the first paint on every page.
+- Typing Chinese, Japanese or Korean: the Enter that picks a candidate in the input method no longer renames a group, adds a node filter pattern or commits a policy-group name halfway through. Chip fields handle this in Safari as well.
+- A toast shown while a dialog is open, such as “Copied” in the two-factor dialog or a failed confirmation, can now be read by screen readers and dismissed. It used to be hidden from them together with the page behind the dialog. Each toast is announced once, and dismissing a focused toast moves focus to the next one or back to where it was.
+- The backup-codes file carries today's date where you are. It used the UTC date, so before 08:00 in UTC+8 it showed yesterday.
+- After a failed submit, focus goes to the first invalid field, not to the ⓘ beside its label. The password, two-factor and passkey forms now move focus too; they used to leave it on the button without saying anything.
+- **Send code** keeps keyboard focus when its cooldown starts, and screen readers are told that the code was sent.
+- The invite-code field no longer capitalises the first letter or autocorrects on phones. The code is case-sensitive, so a typed code could fail.
+- On phones, the settings and mail-template chip strips fade at an edge while there is more to scroll. Their scroll bar is hidden, so nothing showed that they scroll.
+- If the server refuses a passkey the browser has just created, the passkey provider is told, so it stops offering a passkey that cannot sign in (Chrome 132, Safari 26 and later).
+- Accessibility details: a required field's name no longer ends in “*” for screen readers; the current tab in the phone tab bar is bold as well as blue, and **More** shows as current when one of its pages is open; the staff ticket thread scrolls with the keyboard; chip remove buttons are 24 px.
 
 ### Security
 

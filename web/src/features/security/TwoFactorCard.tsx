@@ -10,6 +10,7 @@ import { CopyButton } from '@/components/CopyButton'
 import { DateTime } from '@/components/Formatters'
 import { FormError } from '@/components/FormError'
 import { HelpTip, TitleWithHelp } from '@/components/HelpTip'
+import { focusFirstInvalid } from '@/components/form/focus'
 import { useT } from '@/i18n'
 import type { SecurityOverview, TotpSetup } from '@/lib/api/types'
 import { regenerateBackupCodes, totpDisable, totpEnable, totpSetup } from '@/lib/api/user'
@@ -110,7 +111,7 @@ function Frame({
   dismissable?: boolean
   children: ReactNode
   footer: ReactNode
-  onSubmit?: (event: FormEvent) => void
+  onSubmit?: (event: FormEvent<HTMLFormElement>) => void
 }) {
   const body = (
     <>
@@ -183,7 +184,7 @@ function EnableDialog({ email, appName, onClose }: { email: string; appName: str
     if (inFlight.current || codes) return
     if (!TOTP_RE.test(value)) {
       setErrors({ code: t('totp.codeInvalid') })
-      return
+      return focusFirstInvalid()
     }
     inFlight.current = true
     setPending(true)
@@ -313,13 +314,14 @@ function DisableDialog({ email, onClose }: { email: string; onClose: () => void 
   const [errors, setErrors] = useState<ReturnType<typeof mapError>>({})
   const [pending, setPending] = useState(false)
 
-  const submit = async (event: FormEvent) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    const form = event.currentTarget
     const local: ReturnType<typeof mapError> = {}
     if (!password) local.password = t('password.oldRequired')
     if (!CODE_OR_BACKUP_RE.test(code)) local.code = t('totp.codeOrBackupInvalid')
     setErrors(local)
-    if (Object.keys(local).length > 0) return
+    if (Object.keys(local).length > 0) return focusFirstInvalid(form)
     setPending(true)
     try {
       await totpDisable({ password, code })
@@ -328,6 +330,7 @@ function DisableDialog({ email, onClose }: { email: string; onClose: () => void 
       onClose()
     } catch (error) {
       setErrors(mapError(error))
+      focusFirstInvalid(form)
     } finally {
       setPending(false)
     }
@@ -396,11 +399,12 @@ function RegenerateDialog({
   const [pending, setPending] = useState(false)
   const [saved, setSaved] = useState(false)
 
-  const submit = async (event: FormEvent) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    const form = event.currentTarget
     if (!CODE_OR_BACKUP_RE.test(code)) {
       setErrors({ code: t('totp.codeOrBackupInvalid') })
-      return
+      return focusFirstInvalid(form)
     }
     setPending(true)
     try {
@@ -409,6 +413,7 @@ function RegenerateDialog({
       await queryClient.invalidateQueries({ queryKey: securityKey() })
     } catch (error) {
       setErrors(mapError(error))
+      focusFirstInvalid(form)
     } finally {
       setPending(false)
     }

@@ -11,12 +11,19 @@ import { EmptyState } from '@/components/EmptyState'
 import { DateTime } from '@/components/Formatters'
 import { FormError } from '@/components/FormError'
 import { TitleWithHelp } from '@/components/HelpTip'
+import { focusFirstInvalid } from '@/components/form/focus'
 import { useT } from '@/i18n'
 import { isApiError } from '@/lib/api/client'
 import type { Passkey } from '@/lib/api/types'
 import { deletePasskey, passkeyRegisterBegin, passkeyRegisterFinish, renamePasskey } from '@/lib/api/user'
 import { toast } from '@/lib/toast'
-import { guessDeviceName, loadWebAuthn, supportsWebAuthn, webAuthnFailure } from './webauthn'
+import {
+  guessDeviceName,
+  loadWebAuthn,
+  signalUnknownPasskey,
+  supportsWebAuthn,
+  webAuthnFailure,
+} from './webauthn'
 import { securityKey, useSecurityError } from './api'
 import { PlainField, UsernameHint } from './shared'
 import { ModalClose } from '@/components/feedback/ModalClose'
@@ -143,7 +150,7 @@ function FormDialog({
 }: {
   title: string
   onClose: () => void
-  onSubmit: (event: FormEvent) => void
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void
   children: ReactNode
   submitLabel: string
   pending: boolean
@@ -204,11 +211,20 @@ function AddDialog({ onClose }: { onClose: () => void }) {
       const { startRegistration } = await loadWebAuthn()
       const begin = await passkeyRegisterBegin(trimmed || undefined)
       const credential = await startRegistration({ optionsJSON: begin.options })
-      await passkeyRegisterFinish({
-        challenge_id: begin.challenge_id,
-        credential,
-        ...(trimmed ? { name: trimmed } : {}),
-      })
+      try {
+        await passkeyRegisterFinish({
+          challenge_id: begin.challenge_id,
+          credential,
+          ...(trimmed ? { name: trimmed } : {}),
+        })
+      } catch (error) {
+        // The authenticator has made the passkey but the server refused to store it: without this the
+        // provider keeps offering a passkey that can never sign in. Only on a real refusal — 409 means the
+        // credential is stored, and after a network error or timeout it may be.
+        if (isApiError(error) && error.status >= 400 && error.status !== 409)
+          void signalUnknownPasskey(begin.options.rp.id, credential.id)
+        throw error
+      }
       toast.success(t('passkeys.added'))
       await queryClient.invalidateQueries({ queryKey: securityKey() })
       onClose()
@@ -269,12 +285,13 @@ function RenameDialog({ passkey, onClose }: { passkey: Passkey; onClose: () => v
   const [errors, setErrors] = useState<ReturnType<typeof mapError>>({})
   const [pending, setPending] = useState(false)
 
-  const submit = async (event: FormEvent) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    const form = event.currentTarget
     const trimmed = name.trim()
     if (!trimmed) {
       setErrors({ name: t('passkeys.nameRequired') })
-      return
+      return focusFirstInvalid(form)
     }
     setPending(true)
     try {
@@ -284,6 +301,7 @@ function RenameDialog({ passkey, onClose }: { passkey: Passkey; onClose: () => v
       onClose()
     } catch (error) {
       setErrors(mapError(error))
+      focusFirstInvalid(form)
     } finally {
       setPending(false)
     }
@@ -323,11 +341,12 @@ function DeleteDialog({ passkey, email, onClose }: { passkey: Passkey; email: st
   const [errors, setErrors] = useState<ReturnType<typeof mapError>>({})
   const [pending, setPending] = useState(false)
 
-  const submit = async (event: FormEvent) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    const form = event.currentTarget
     if (!password) {
       setErrors({ password: t('password.oldRequired') })
-      return
+      return focusFirstInvalid(form)
     }
     setPending(true)
     try {
@@ -337,6 +356,7 @@ function DeleteDialog({ passkey, email, onClose }: { passkey: Passkey; email: st
       onClose()
     } catch (error) {
       setErrors(mapError(error))
+      focusFirstInvalid(form)
     } finally {
       setPending(false)
     }

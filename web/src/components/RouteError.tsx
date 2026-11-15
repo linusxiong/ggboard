@@ -6,7 +6,7 @@ const RouteErrorPage = lazy(() => import('./RouteErrorPage'))
 /** Router `errorComponent` — lazy body, self-contained Suspense (works for any route level). */
 export function RouteError(props: ErrorComponentProps) {
   return (
-    <Suspense fallback={<div role="alert" className="min-h-[50vh]" />}>
+    <Suspense fallback={<div role="alert" className="min-h-[50dvh]" />}>
       <RouteErrorPage {...props} />
     </Suspense>
   )

@@ -42,8 +42,10 @@ export function EmptyState({
       >
         {icon ?? <Inbox />}
       </div>
-      <p className={cx('text-label', compact ? 'text-headline' : 'text-title3')}>{title}</p>
-      {description ? <p className="max-w-sm text-subhead text-label-secondary">{description}</p> : null}
+      <p className={cx('text-balance text-label', compact ? 'text-headline' : 'text-title3')}>{title}</p>
+      {description ? (
+        <p className="max-w-sm text-subhead text-balance text-label-secondary">{description}</p>
+      ) : null}
       {action ? <div className={compact ? 'mt-2' : 'mt-3'}>{action}</div> : null}
     </div>
   )

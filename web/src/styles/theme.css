@@ -457,6 +457,13 @@
     min-width: 0;
   }
 
+  /* Headings wrap into lines of similar length, so a title never leaves one word (or one 字) alone on its last
+     line. Browsers without `text-wrap: balance` (before Chrome 114, Firefox 121, Safari 17.5) wrap as before.
+     Centred captions opt in with `text-balance`; long text uses `pretty` (see `.markdown`). */
+  :where(h1, h2, h3, h4, h5, h6) {
+    text-wrap: balance;
+  }
+
   /* Session-dependent parts of a prerendered snapshot come in both variants; `<html data-session>` from the boot
      script shows one before the first paint. `contents` keeps the wrappers out of the layout, so nothing moves
      when the app swaps them for the bare element (scripts/session-mark.mjs, `routes/index.tsx`). */
@@ -472,16 +479,21 @@
   svg.lucide {
     stroke-width: 1.75;
   }
+}
 
-  @media (prefers-reduced-motion: reduce) {
-    *,
-    ::before,
-    ::after {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-      scroll-behavior: auto !important;
-    }
+/* Reduced motion is decided where the motion is declared, not by a global `* { animation-duration: 0.01ms }`
+   reset: that one also froze every spinner (a busy state then looks like a hang), cut the toast's fade and the
+   colour transitions, and broke HeroUI's autofill transition. The rules in this project:
+   - movement, scaling and rotation live inside `@media (prefers-reduced-motion: no-preference)`;
+   - colour, opacity and shadow transitions stay;
+   - a spinner keeps turning, slowly (`--spin-duration`);
+   - HeroUI components carry their own `motion-reduce:` rules; the few that do not are patched in app.css. */
+:root {
+  --spin-duration: 700ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --spin-duration: 6s;
   }
 }
 
@@ -565,10 +577,18 @@
     --btn-h: 44px;
     --btn-radius: 12px;
   }
+  /* Pressed: dim always; the 0.98 scale only where motion is welcome. With reduced motion the transform stays
+     `none` (which also drops HeroUI's own press scale), so the `transform` transition above has nothing to run. */
   .button:active,
   .button[data-pressed='true'] {
-    transform: scale(0.98);
+    transform: none;
     opacity: 0.82;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .button:active,
+    .button[data-pressed='true'] {
+      transform: scale(0.98);
+    }
   }
   .button:disabled,
   .button[aria-disabled='true'],
@@ -587,7 +607,7 @@
     border-radius: 999px;
     border: 2px solid currentColor;
     border-right-color: transparent;
-    animation: gg-spin 700ms linear infinite;
+    animation: gg-spin var(--spin-duration) linear infinite;
   }
   .button--secondary {
     --button-bg: var(--fill-secondary);
@@ -732,6 +752,15 @@
   }
   .label::after {
     color: var(--label-red);
+  }
+  /* The asterisk on a required field is decoration: `required` already says so to assistive technology. Empty
+     alternative text keeps "*" out of the field's accessible name ("邮箱", not "邮箱*"). HeroUI draws it with
+     `content: var(--tw-content)`, so one short rule covers all its selectors (a label that is not required has no
+     `content` and stays without). Browsers without the `/` syntax (before Firefox 128, Safari 17.4) keep "*". */
+  @supports (content: '*' / '') {
+    .label::after {
+      --tw-content: '*' / '';
+    }
   }
   .description {
     font-size: 0.8125rem;

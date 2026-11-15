@@ -3,7 +3,8 @@
     "login": "登录",
     "register": "注册",
     "console": "进入控制台",
-    "plans": "套餐"
+    "plans": "套餐",
+    "label": "主导航"
   },
   "hero": {
     "eyebrow": "简洁 · 美观 · 高性能",

@@ -17,6 +17,8 @@ describe('i18n', () => {
   it('interpolates {params}', () => {
     expect(interpolate('{seconds} 秒后重发', { seconds: 30 })).toBe('30 秒后重发')
     expect(interpolate('keep {missing}', {})).toBe('keep {missing}')
+    // Names that only exist on Object.prototype are not parameters.
+    expect(interpolate('{toString} {constructor}', {})).toBe('{toString} {constructor}')
   })
 
   it('loads namespaces lazily and translates nested keys', async () => {

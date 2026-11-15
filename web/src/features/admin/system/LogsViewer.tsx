@@ -164,7 +164,10 @@ export function LogsViewer() {
                         className="inline-flex shrink-0 items-center gap-0.5 rounded-[6px] px-1 text-label-blue outline-none focus-visible:ring-2 focus-visible:ring-focus"
                       >
                         <ChevronRight
-                          className={cx('size-3.5 transition-transform', expanded && 'rotate-90')}
+                          className={cx(
+                            'size-3.5 transition-transform motion-reduce:transition-none',
+                            expanded && 'rotate-90',
+                          )}
                           aria-hidden
                         />
                         {t('logs.attrs', { n: Object.keys(attrs).length })}

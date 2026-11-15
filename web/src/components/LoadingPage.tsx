@@ -16,7 +16,7 @@ export function Spinner({
       aria-label={label}
       aria-hidden={label ? undefined : true}
       className={cx(
-        'inline-block shrink-0 animate-spin rounded-full border-2 border-fill border-t-label-secondary',
+        'inline-block shrink-0 animate-[gg-spin_var(--spin-duration)_linear_infinite] rounded-full border-2 border-fill border-t-label-secondary',
         className,
       )}
       style={{ width: size, height: size }}
@@ -38,7 +38,7 @@ export function LoadingPage({
 }) {
   return (
     <div
-      className={cx('flex w-full items-center justify-center', fullscreen ? 'min-h-dvh' : 'min-h-[40vh]')}
+      className={cx('flex w-full items-center justify-center', fullscreen ? 'min-h-dvh' : 'min-h-[40dvh]')}
       role="status"
       aria-live="polite"
     >

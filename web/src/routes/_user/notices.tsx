@@ -50,9 +50,9 @@ function NoticesPage() {
             className={cx('flex w-full max-w-3xl flex-col gap-5', query.isPlaceholderData && 'opacity-60')}
             aria-label={t('notices.title')}
           >
-            {query.data.items.map((notice) => (
+            {query.data.items.map((notice, index) => (
               <li key={notice.id}>
-                <NoticeCard notice={notice} />
+                <NoticeCard notice={notice} priority={index === 0} />
               </li>
             ))}
           </ul>

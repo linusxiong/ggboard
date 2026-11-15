@@ -20,10 +20,10 @@ const BOX: Record<PaymentIconSize, string> = {
   40: 'size-10 rounded-[10px]',
 }
 const EMOJI_TEXT: Record<PaymentIconSize, string> = {
-  20: 'text-[14px]',
-  24: 'text-[17px]',
-  32: 'text-[22px]',
-  40: 'text-[28px]',
+  20: 'text-[0.875rem]',
+  24: 'text-[1.0625rem]',
+  32: 'text-[1.375rem]',
+  40: 'text-[1.75rem]',
 }
 const GLYPH: Record<PaymentIconSize, string> = {
   20: 'size-4',

@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { MailCheck } from 'lucide-react'
 import { type ReactNode, useMemo, useRef, useState } from 'react'
 import { focusFirstInvalid } from '@/components/form/focus'
+import { useScrollFade } from '@/hooks/useScrollFade'
 import { TitleWithHelp } from '@/components/HelpTip'
 import { SaveBar } from '@/components/form/SaveBar'
 import { PageShell } from '@/components/PageShell'
@@ -91,6 +92,9 @@ export function SettingsPage({
   const plans = useQuery(adminPlansQuery())
 
   const groups = useMemo(() => (settings.data ? buildGroups(settings.data) : []), [settings.data])
+  // Phones: the group strip's scroll bar is hidden, so its edges fade while there is more to scroll.
+  const stripRef = useRef<HTMLUListElement>(null)
+  useScrollFade(stripRef, groups.length)
   const initial = useMemo(
     () => (settings.data ? flattenValues(settings.data, groups) : {}),
     [settings.data, groups],
@@ -247,7 +251,10 @@ export function SettingsPage({
         <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 md:grid-cols-[220px_minmax(0,1fr)] md:gap-8">
           {/* ------------------------------------------------ group list */}
           <nav aria-label={t('groupsLabel')} className="-mx-4 md:sticky md:top-[5.5rem] md:mx-0">
-            <ul className="no-scrollbar flex gap-1.5 overflow-x-auto px-4 md:flex-col md:gap-0.5 md:overflow-visible md:px-0">
+            <ul
+              ref={stripRef}
+              className="no-scrollbar gg-scroll-fade flex gap-1.5 overflow-x-auto px-4 md:flex-col md:gap-0.5 md:overflow-visible md:px-0"
+            >
               {groups.map((g) => {
                 const { icon: Icon, tint } = GROUP_ICON[g.name] ?? FALLBACK_ICON
                 const selected = g.name === active.name

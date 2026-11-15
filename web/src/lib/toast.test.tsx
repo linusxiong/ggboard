@@ -1,7 +1,9 @@
+import { AlertDialog } from '@heroui/react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import ToastHost from '@/components/feedback/ToastHost'
+import { LiveRegion } from '@/components/feedback/ToastMount'
 import { loadNamespaces } from '@/i18n'
 import { useUiStore } from '@/stores/ui'
 import { MAX_TOASTS, toast, toastStore } from './toast'
@@ -85,16 +87,17 @@ describe('<ToastHost/>', () => {
     act(() => toastStore.clear())
   })
 
-  it('renders capsules with role=status, a status symbol and a dismiss button', async () => {
+  const capsule = (text: string) => screen.getByText(text).closest('.gg-toast')
+
+  it('renders capsules with a status symbol and a dismiss button', async () => {
     const user = userEvent.setup()
     render(<ToastHost />)
     act(() => {
       toast.success('Profile saved', { description: 'Changes are live.' })
     })
-    const status = screen.getByRole('status')
-    expect(status).toHaveTextContent('Profile saved')
-    expect(status).toHaveTextContent('Changes are live.')
-    expect(status).toHaveAttribute('data-tone', 'success')
+    const toastEl = capsule('Profile saved')
+    expect(toastEl).toHaveTextContent('Changes are live.')
+    expect(toastEl).toHaveAttribute('data-tone', 'success')
     expect(screen.getByRole('region', { name: 'Notifications' })).toBeInTheDocument()
 
     vi.useFakeTimers({ shouldAdvanceTime: true })
@@ -102,7 +105,106 @@ describe('<ToastHost/>', () => {
     act(() => {
       vi.advanceTimersByTime(250)
     })
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.queryByText('Profile saved')).not.toBeInTheDocument()
+  })
+
+  it('announces the visible text once through the live region that was there first', () => {
+    vi.useFakeTimers()
+    render(
+      <>
+        <LiveRegion />
+        <ToastHost />
+      </>,
+    )
+    const region = document.getElementById('gg-live')
+    expect(region).toHaveAttribute('aria-live', 'polite')
+    expect(region).toBeEmptyDOMElement()
+
+    act(() => {
+      toast.success('Profile saved', { description: 'Changes are live.' })
+    })
+    expect(region).toHaveTextContent('Profile saved Changes are live.')
+    // The capsule is not a live region itself: one announcement, without the dismiss button's name.
+    expect(capsule('Profile saved')).not.toHaveAttribute('role')
+    expect(capsule('Profile saved')).not.toHaveAttribute('aria-live')
+    expect(region).not.toHaveTextContent('Dismiss')
+
+    // The same message again is announced again (a new node), and old announcements do not pile up.
+    act(() => {
+      toast.success('Profile saved', { description: 'Changes are live.' })
+    })
+    expect(region?.children).toHaveLength(2)
+    act(() => {
+      vi.advanceTimersByTime(10_000)
+    })
+    expect(region).toBeEmptyDOMElement()
+  })
+
+  it('uses document.ariaNotify where the browser has it', () => {
+    const ariaNotify = vi.fn()
+    Object.defineProperty(document, 'ariaNotify', { value: ariaNotify, configurable: true })
+    try {
+      render(
+        <>
+          <LiveRegion />
+          <ToastHost />
+        </>,
+      )
+      act(() => {
+        toast.error('Could not save')
+      })
+      expect(ariaNotify).toHaveBeenCalledExactlyOnceWith('Could not save')
+      expect(document.getElementById('gg-live')).toBeEmptyDOMElement()
+    } finally {
+      Reflect.deleteProperty(document, 'ariaNotify')
+    }
+  })
+
+  it('hands focus on when a focused toast is dismissed', async () => {
+    const user = userEvent.setup()
+    render(
+      <>
+        <button type="button">Save</button>
+        <ToastHost />
+      </>,
+    )
+    const save = screen.getByRole('button', { name: 'Save' })
+    save.focus()
+    act(() => {
+      toast.info('First')
+      toast.info('Second')
+    })
+    const [first, second] = screen.getAllByRole('button', { name: 'Dismiss notification' })
+    // Tab from the page into the stack, then dismiss: focus goes to the toast that is left…
+    first!.focus()
+    await user.keyboard('{Escape}')
+    expect(second).toHaveFocus()
+    // …and from the last one back to where the user came from, not to <body>.
+    await user.keyboard('{Escape}')
+    expect(save).toHaveFocus()
+  })
+
+  it('stays reachable while a dialog is open', async () => {
+    // React Aria hides everything outside an open modal (inert, or aria-hidden as here in jsdom). A toast
+    // raised from inside the dialog, such as a failed confirm, must not be hidden with the page.
+    render(
+      <div>
+        <AlertDialog.Backdrop isOpen>
+          <AlertDialog.Container>
+            <AlertDialog.Dialog>
+              <AlertDialog.Heading>Delete the plan?</AlertDialog.Heading>
+            </AlertDialog.Dialog>
+          </AlertDialog.Container>
+        </AlertDialog.Backdrop>
+        <ToastHost />
+      </div>,
+    )
+    await screen.findByRole('alertdialog')
+    act(() => {
+      toast.error('Could not delete')
+    })
+    expect(screen.getByRole('region', { name: 'Notifications' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Dismiss notification' })).toBeInTheDocument()
   })
 
   it('auto-dismisses, but not while the pointer is over the stack', () => {

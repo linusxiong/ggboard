@@ -94,7 +94,8 @@
     border-radius: 999px;
     border: 2px solid var(--fill);
     border-top-color: var(--label-secondary);
-    animation: gg-spin 800ms linear infinite;
+    /* `--spin-duration` (theme.css) slows to 6 s with reduced motion: still visibly busy. */
+    animation: gg-spin var(--spin-duration) linear infinite;
   }
 
   .gg-toast__text {

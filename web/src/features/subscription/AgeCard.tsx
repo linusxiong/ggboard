@@ -259,7 +259,10 @@ export function AgeCard({
           <details className="group rounded-[12px] bg-fill-quaternary px-4 py-3">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-subhead font-medium text-label [&::-webkit-details-marker]:hidden">
               {t('age.howto')}
-              <ChevronDown className="size-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+              <ChevronDown
+                className="size-4 transition-transform group-open:rotate-180 motion-reduce:transition-none"
+                aria-hidden="true"
+              />
             </summary>
             <div className="mt-3 flex flex-col gap-3 text-footnote text-label">
               <p>{t('age.howtoCommon')}</p>

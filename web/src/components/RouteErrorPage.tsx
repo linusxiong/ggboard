@@ -18,7 +18,7 @@ export default function RouteErrorPage({ error, reset }: ErrorComponentProps) {
   }, [resetQueries])
 
   return (
-    <div className="flex min-h-[50vh] items-center justify-center px-4" role="alert">
+    <div className="flex min-h-[50dvh] items-center justify-center px-4" role="alert">
       <EmptyState
         icon={<TriangleAlert className="size-7 text-label-orange" strokeWidth={1.75} />}
         title={t('states.error')}

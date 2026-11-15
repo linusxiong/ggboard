@@ -160,6 +160,57 @@ describe('profile → security', () => {
     ])
   })
 
+  it('moves focus to the first invalid field when the password form fails validation', async () => {
+    mockApi({
+      'GET /guest/config': GUEST_CONFIG,
+      'GET /user/me': TEST_USER,
+      'GET /user/security': () => overview,
+    })
+    renderAt('/profile?tab=security')
+    const user = userEvent.setup()
+    // Nothing typed: both fields are invalid, focus goes to the first (the form is `noValidate`).
+    await user.click(await screen.findByRole('button', { name: '修改密码' }, { timeout: 8000 }))
+    await waitFor(() => expect(screen.getByLabelText('当前密码')).toHaveFocus())
+
+    // The first one is fine now: focus goes to the one that is still wrong.
+    await user.type(screen.getByLabelText('当前密码'), 'old-password')
+    await user.click(screen.getByRole('button', { name: '修改密码' }))
+    // This field has an ⓘ before its input: the input gets the focus, not the ⓘ.
+    await waitFor(() => expect(screen.getByLabelText('新密码')).toHaveFocus())
+  })
+
+  it.each([
+    ['refuses the new passkey', 400, 1],
+    // 409: the credential is already stored, so the provider must keep it.
+    ['already has the passkey', 409, 0],
+  ])('tells the passkey provider only when the server %s', async (_name, status, calls) => {
+    const signalUnknownCredential = vi.fn(() => Promise.resolve())
+    Object.assign(window.PublicKeyCredential, { signalUnknownCredential })
+    webauthn.startRegistration.mockResolvedValueOnce(CREDENTIAL)
+    mockApi({
+      'GET /guest/config': { ...GUEST_CONFIG, passkey_enabled: true },
+      'GET /user/me': TEST_USER,
+      'GET /user/security': () => overview,
+      'POST /user/security/passkeys/begin': { challenge_id: 'ch-1', options: OPTIONS },
+      'POST /user/security/passkeys/finish': () =>
+        json({ code: 'passkey_failed', message: 'passkey verification failed' }, status),
+    })
+    renderAt('/profile?tab=security')
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: /添加通行密钥/ }, { timeout: 8000 }))
+    const dialog = await screen.findByRole('dialog', { name: '添加通行密钥' })
+    await user.click(within(dialog).getByRole('button', { name: '创建' }))
+
+    expect(await within(dialog).findByRole('alert')).toBeInTheDocument()
+    expect(signalUnknownCredential).toHaveBeenCalledTimes(calls)
+    if (calls) {
+      expect(signalUnknownCredential).toHaveBeenCalledWith({
+        rpId: 'panel.example.com',
+        credentialId: 'cred-id',
+      })
+    }
+  })
+
   it('treats a cancelled ceremony (NotAllowedError) as a gentle notice', async () => {
     webauthn.startRegistration.mockRejectedValueOnce(
       Object.assign(new Error('cancelled'), { name: 'NotAllowedError' }),

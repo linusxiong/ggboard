@@ -188,6 +188,14 @@
   .button.button--icon-only.help-tip:hover {
     color: var(--label);
   }
+  /* Touch: the 24 px ⓘ gets a wider hit area (sideways, so it does not cover the field below). */
+  @media (pointer: coarse) {
+    .button.button--icon-only.help-tip::after {
+      content: '';
+      position: absolute;
+      inset: -4px -10px;
+    }
+  }
   .field-label-row {
     display: flex;
     align-items: center;
@@ -202,7 +210,8 @@
   [data-required='true'] > .field-label-row > .label::after {
     margin-inline-start: 0.125rem;
     color: var(--color-danger);
-    content: '*';
+    /* `--tw-content`: "*" with empty alternative text where the browser supports it (theme.css). */
+    content: var(--tw-content, '*');
   }
   .switch-help {
     position: relative;
@@ -234,6 +243,12 @@
   /* ------------------------------------------------------------------ select popovers, menus, lists */
   .select__indicator {
     color: var(--label-secondary);
+  }
+  /* HeroUI turns the chevron over when the select opens and has no reduced-motion rule for it: flip at once. */
+  @media (prefers-reduced-motion: reduce) {
+    .select__indicator {
+      transition: none;
+    }
   }
   .popover,
   .select__popover,
@@ -294,20 +309,36 @@
     /* Room for the pill shadow and the focus ring without changing the layout. */
     padding-block: 4px;
     margin-block: -4px;
-    --fade-start: 0px;
-    --fade-end: 0px;
   }
   .gg-segmented-scroll::-webkit-scrollbar {
     display: none;
   }
-  .gg-segmented-scroll[data-fade-start] {
-    --fade-start: 28px;
+  /* Bringing the selected segment into view (`scrollTo` in SegmentedControl.tsx) glides only where motion is
+     welcome; the script leaves the behaviour to this rule. */
+  @media (prefers-reduced-motion: no-preference) {
+    .gg-segmented-scroll {
+      scroll-behavior: smooth;
+    }
   }
-  .gg-segmented-scroll[data-fade-end] {
-    --fade-end: 28px;
+  /* Edge fades for a horizontal strip with a hidden scroll bar (segmented controls, the settings and template
+     chip strips on phones): the content fades out at an edge while there is more to scroll that way.
+     `data-scrollable` (hooks/useScrollFade.ts) limits the mask to strips that overflow. The fade widths follow
+     the scroll position through a scroll-driven animation; where there is none (before Chrome 115, Safari 26,
+     Firefox 159) the hook sets `data-fade-start` / `data-fade-end` instead. */
+  .gg-scroll-fade {
+    --fade-size: 28px;
+    --fade-start: 0px;
+    --fade-end: 0px;
   }
-  .gg-segmented-scroll[data-fade-start],
-  .gg-segmented-scroll[data-fade-end] {
+  .gg-scroll-fade[data-fade-start] {
+    --fade-start: var(--fade-size);
+  }
+  .gg-scroll-fade[data-fade-end] {
+    --fade-end: var(--fade-size);
+  }
+  .gg-scroll-fade[data-scrollable] {
+    /* A focused or revealed item never stops under a fade. */
+    scroll-padding-inline: var(--fade-size);
     -webkit-mask-image: linear-gradient(
       to right,
       transparent,
@@ -322,6 +353,20 @@
       black calc(100% - var(--fade-end)),
       transparent
     );
+  }
+  /* Gated: a browser without scroll timelines would run these as time animations and pin a fade on.
+     The 1 ms duration is needed: the minifier writes the shorthand out with `0s`, and a zero-length animation
+     does not interpolate along a scroll timeline (it jumps to its end). Any non-zero value maps to the range. */
+  @supports (animation-timeline: scroll()) {
+    .gg-scroll-fade[data-scrollable] {
+      animation:
+        gg-fade-start 1ms linear both,
+        gg-fade-end 1ms linear both;
+      animation-timeline: scroll(self inline);
+      animation-range:
+        0 var(--fade-size),
+        calc(100% - var(--fade-size)) 100%;
+    }
   }
   .gg-segmented {
     --seg-h: 32px;
@@ -453,14 +498,20 @@
   .gg-segmented__pill[data-hidden] {
     opacity: 0;
   }
+  /* Slides to the new segment; with reduced motion it jumps there (only the fade stays). */
   .gg-segmented__pill[data-ready] {
-    transition:
-      transform 280ms var(--ease-apple-out),
-      width 280ms var(--ease-apple-out),
-      opacity 160ms var(--ease-apple-out);
+    transition: opacity 160ms var(--ease-apple-out);
   }
-  .gg-segmented:has(.gg-segmented__item[data-selected][data-pressed]) .gg-segmented__pill {
-    --seg-scale: 0.96;
+  @media (prefers-reduced-motion: no-preference) {
+    .gg-segmented__pill[data-ready] {
+      transition:
+        transform 280ms var(--ease-apple-out),
+        width 280ms var(--ease-apple-out),
+        opacity 160ms var(--ease-apple-out);
+    }
+    .gg-segmented:has(.gg-segmented__item[data-selected][data-pressed]) .gg-segmented__pill {
+      --seg-scale: 0.96;
+    }
   }
   /* Tab panels: keep the default focus ring readable on cards. */
   .gg-tab-panel:focus-visible {
@@ -645,8 +696,10 @@
       border-radius: 999px;
       background-color: var(--label-tertiary);
     }
-    .modal__container[data-entering='true'] {
-      animation: gg-sheet-up 500ms var(--ease-spring, var(--ease-apple-out)) both;
+    @media (prefers-reduced-motion: no-preference) {
+      .modal__container[data-entering='true'] {
+        animation: gg-sheet-up 500ms var(--ease-spring, var(--ease-apple-out)) both;
+      }
     }
   }
   @keyframes gg-sheet-up {
@@ -745,6 +798,14 @@
     border-radius: 8px;
     background-color: var(--fill-tertiary);
   }
+  /* HeroUI's skeleton sweep and pulse have no reduced-motion rule of their own: a still placeholder then. */
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton::before,
+    .skeleton::after,
+    .skeleton--pulse {
+      animation: none;
+    }
+  }
   .spinner {
     color: var(--label-secondary);
   }
@@ -831,8 +892,8 @@
   .gg-tag__remove {
     display: grid;
     place-items: center;
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     border-radius: 999px;
     color: var(--label-secondary);
     cursor: pointer;
@@ -883,14 +944,21 @@
     cursor: pointer;
     transition:
       background-color 150ms var(--ease-apple-out),
-      color 150ms var(--ease-apple-out),
-      transform 150ms var(--ease-apple-out);
+      color 150ms var(--ease-apple-out);
   }
   .gg-chip-toggle:hover {
     background-color: var(--fill-secondary);
   }
-  .gg-chip-toggle:active {
-    transform: scale(0.97);
+  @media (prefers-reduced-motion: no-preference) {
+    .gg-chip-toggle {
+      transition:
+        background-color 150ms var(--ease-apple-out),
+        color 150ms var(--ease-apple-out),
+        transform 150ms var(--ease-apple-out);
+    }
+    .gg-chip-toggle:active {
+      transform: scale(0.97);
+    }
   }
   .gg-chip-toggle[aria-pressed='true'] {
     background-color: var(--tint);
@@ -900,9 +968,14 @@
     width: 0;
     height: 12px;
     opacity: 0;
-    transition:
-      width 150ms var(--ease-apple-out),
-      opacity 150ms var(--ease-apple-out);
+    transition: opacity 150ms var(--ease-apple-out);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .gg-chip-toggle__check {
+      transition:
+        width 150ms var(--ease-apple-out),
+        opacity 150ms var(--ease-apple-out);
+    }
   }
   .gg-chip-toggle[aria-pressed='true'] .gg-chip-toggle__check {
     width: 12px;
@@ -920,11 +993,14 @@
    `shimmer`: loading placeholder — a soft highlight sweeps across the fill; reduced motion → static. */
 @layer utilities {
   .pressable {
-    transition-property: transform, background-color, border-color, color, opacity;
+    transition-property: background-color, border-color, color, opacity;
     transition-duration: 160ms;
     transition-timing-function: var(--ease-apple-out);
   }
   @media (prefers-reduced-motion: no-preference) {
+    .pressable {
+      transition-property: transform, background-color, border-color, color, opacity;
+    }
     .pressable:active {
       transform: scale(0.98);
     }
@@ -940,8 +1016,34 @@
     inset: 0;
     transform: translateX(-100%);
     background-image: linear-gradient(90deg, transparent, var(--shimmer-highlight), transparent);
-    animation: gg-shimmer 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
     pointer-events: none;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .shimmer::after {
+      animation: gg-shimmer 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+  }
+}
+
+/* Registered, so the scroll-driven animation above can interpolate them (an unregistered property would jump). */
+@property --fade-start {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+@property --fade-end {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+@keyframes gg-fade-start {
+  to {
+    --fade-start: var(--fade-size);
+  }
+}
+@keyframes gg-fade-end {
+  from {
+    --fade-end: var(--fade-size);
   }
 }
 

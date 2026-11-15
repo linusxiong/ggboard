@@ -12,6 +12,7 @@
 import { type ClipboardEvent, type KeyboardEvent, type ReactNode, useId, useRef, useState } from 'react'
 import { HelpTip } from '@/components/HelpTip'
 import { cx } from '@/lib/cn'
+import { isImeEnter } from '@/lib/ime'
 import { splitTagText } from './tags'
 
 export interface TagInputProps {
@@ -109,7 +110,7 @@ export function TagInput({
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === ',' || e.key === '，' || e.key === ';' || e.key === '；') {
-      if (e.nativeEvent.isComposing) return
+      if (e.nativeEvent.isComposing || (e.key === 'Enter' && isImeEnter(e))) return
       if (draft.trim() === '' && e.key === 'Enter') return // let Enter submit the form
       e.preventDefault()
       add(draft)
@@ -163,7 +164,8 @@ export function TagInput({
         }}
       >
         {value.length > 0 ? (
-          <ul className="gg-tags__list" aria-labelledby={labelId}>
+          // `role`: Safari drops list semantics (and with them the name) from a list without markers.
+          <ul role="list" className="gg-tags__list" aria-labelledby={labelId}>
             {value.map((item, i) => (
               <li
                 key={item}
@@ -203,10 +205,11 @@ export function TagInput({
           value={draft}
           disabled={isDisabled}
           required={isRequired && value.length === 0}
-          aria-invalid={invalid || undefined}
+          aria-invalid={invalid}
           aria-describedby={describedBy}
           autoComplete="off"
           autoCapitalize="none"
+          autoCorrect="off"
           spellCheck={false}
           enterKeyHint="done"
           placeholder={value.length === 0 ? placeholder : undefined}

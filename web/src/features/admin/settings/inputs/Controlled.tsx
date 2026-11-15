@@ -72,6 +72,8 @@ export function TextInput({
     autoComplete,
     maxLength,
     className: cx('w-full', monospace && 'font-mono'),
+    // Monospace fields hold identifiers (URLs, ids, patterns), not prose.
+    ...(monospace ? { autoCapitalize: 'none', autoCorrect: 'off', spellCheck: false } : {}),
   }
   return (
     <TextField

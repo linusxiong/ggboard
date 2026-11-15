@@ -8,6 +8,7 @@ import { ArrowDown, ArrowUp, ExternalLink, Lock, Plus, Trash2 } from 'lucide-rea
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { FormError } from '@/components/FormError'
 import { confirm } from '@/components/feedback/confirm'
+import { focusFirstInvalid } from '@/components/form/focus'
 import { FieldHint, FieldLabel } from '@/components/form/parts'
 import { HelpTip, TitleWithHelp } from '@/components/HelpTip'
 import { useLocale, useT } from '@/i18n'
@@ -17,6 +18,7 @@ import type { PolicyGroup, RuleProfile, RulesetCatalog, RulesetCategory } from '
 import { saveRuleProfile } from '@/lib/api/user'
 import { cx } from '@/lib/cn'
 import { errorMessage } from '@/lib/errors'
+import { isImeEnter } from '@/lib/ime'
 import { toast } from '@/lib/toast'
 import { OptionSelect, SectionTitle, Toggle, type Option } from './controls'
 import {
@@ -119,13 +121,8 @@ export function RuleBuilder({
         setServerErrors(mapped)
         // Whole-profile errors (e.g. the stored-size cap) have no field to sit on: show them at the form level.
         setFormError(error.errors.profile?.[0] ?? t('builder.fixErrors'))
-        requestAnimationFrame(() => {
-          const el = sectionRef.current?.querySelector<HTMLElement>(
-            '[data-invalid="true"], [aria-invalid="true"]',
-          )
-          // jsdom has no scrollIntoView; browsers always do.
-          el?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
-        })
+        // Scrolls to the first field the server rejected and focuses it (no glide with reduced motion).
+        focusFirstInvalid(sectionRef.current)
         return
       }
       setFormError(errorMessage(error))
@@ -609,7 +606,7 @@ function GroupEditor({
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault()
-              commitName()
+              if (!isImeEnter(e)) commitName()
             }
           }}
           isReadOnly={readOnly || isProxy}

@@ -156,6 +156,8 @@ export function DataTable<TData extends RowData>(props: DataTableProps<TData>) {
           <div className="surface-card">{empty}</div>
         ) : (
           <ul
+            // Safari drops list semantics (and with them the name) from a list without markers.
+            role="list"
             aria-label={props['aria-label']}
             className={cx('flex flex-col gap-3', isFetching && 'opacity-60')}
           >

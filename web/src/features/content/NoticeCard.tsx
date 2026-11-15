@@ -13,7 +13,11 @@ function isLongNotice(content: string): boolean {
   return content.length > 280 || content.split('\n').length > 6
 }
 
-export function NoticeCard({ notice }: { notice: Notice }) {
+/**
+ * `priority`: this card's cover is the first thing on the page (its largest paint), so it loads eagerly and
+ * ahead of the others. Every other cover is lazy.
+ */
+export function NoticeCard({ notice, priority = false }: { notice: Notice; priority?: boolean }) {
   const t = useT('content')
   const [expanded, setExpanded] = useState(false)
   const bodyId = useId()
@@ -28,8 +32,9 @@ export function NoticeCard({ notice }: { notice: Notice }) {
           alt=""
           width={1200}
           height={500}
-          loading="lazy"
-          decoding="async"
+          {...(priority
+            ? { fetchPriority: 'high' as const }
+            : { loading: 'lazy' as const, decoding: 'async' as const })}
           className="aspect-[12/5] w-full bg-fill-quaternary object-cover"
         />
       ) : null}

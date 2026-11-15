@@ -9,6 +9,8 @@ import {
   Receipt,
   RotateCcwKey,
 } from 'lucide-react'
+import { useRef } from 'react'
+import { useScrollFade } from '@/hooks/useScrollFade'
 import { useT } from '@/i18n'
 import type { AdminMailTemplateSummary } from '@/lib/api/types'
 import { cx } from '@/lib/cn'
@@ -53,9 +55,15 @@ interface TemplateListProps {
  */
 export function TemplateList({ items, active, dirty, onSelect }: TemplateListProps) {
   const t = useT('admin-settings')
+  // Phones: the strip's scroll bar is hidden, so its edges fade while there is more to scroll.
+  const stripRef = useRef<HTMLUListElement>(null)
+  useScrollFade(stripRef, items.length)
   return (
     <nav aria-label={t('mailTemplates.listLabel')} className="-mx-4 md:sticky md:top-[5.5rem] md:mx-0">
-      <ul className="no-scrollbar flex gap-1.5 overflow-x-auto px-4 md:flex-col md:gap-0.5 md:overflow-visible md:px-0">
+      <ul
+        ref={stripRef}
+        className="no-scrollbar gg-scroll-fade flex gap-1.5 overflow-x-auto px-4 md:flex-col md:gap-0.5 md:overflow-visible md:px-0"
+      >
         {items.map((item) => {
           const { icon: Icon, tint } = TEMPLATE_ICON[item.name] ?? FALLBACK_ICON
           const selected = item.name === active

@@ -19,6 +19,7 @@ import { useMutation } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, Lock, Plus, Trash2 } from 'lucide-react'
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { FormError } from '@/components/FormError'
+import { focusFirstInvalid } from '@/components/form/focus'
 import { FieldHint, FieldLabel } from '@/components/form/parts'
 import { TitleWithHelp } from '@/components/HelpTip'
 import { SegmentedControl } from '@/components/SegmentedControl'
@@ -29,6 +30,7 @@ import { NODE_TYPES } from '@/lib/api/types'
 import type { NodeOperations, RuleProfile, UserNode } from '@/lib/api/types'
 import { cx } from '@/lib/cn'
 import { errorMessage } from '@/lib/errors'
+import { isImeEnter } from '@/lib/ime'
 import { toast } from '@/lib/toast'
 import { ChipLabel, ChipSelect, SectionTitle, Toggle } from './controls'
 import {
@@ -126,11 +128,8 @@ export function NodeOpsEditor({
         }
         setServerErrors(mapped)
         setFormError(other[0] ?? t('builder.fixErrors'))
-        requestAnimationFrame(() => {
-          sectionRef.current
-            ?.querySelector<HTMLElement>('[data-invalid="true"], [aria-invalid="true"]')
-            ?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
-        })
+        // Scrolls to the first field the server rejected and focuses it (no glide with reduced motion).
+        focusFirstInvalid(sectionRef.current)
         return
       }
       setFormError(errorMessage(error))
@@ -521,7 +520,7 @@ function PatternList({
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault()
-                add()
+                if (!isImeEnter(e)) add()
               }
             }}
             onBlur={() => setTouched(Boolean(draft))}

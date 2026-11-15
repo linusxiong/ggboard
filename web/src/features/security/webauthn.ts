@@ -27,6 +27,24 @@ export function supportsWebAuthn(): boolean {
 }
 
 /**
+ * Tells the passkey provider (iCloud Keychain, Google Password Manager, 1Password, …) that the server does not
+ * know this credential, so it stops offering a passkey that cannot sign in. Chrome 132 and Safari 26 have the
+ * call; elsewhere this does nothing. It never throws: it is cleanup after a failure the caller still reports.
+ */
+export async function signalUnknownPasskey(rpId: string | undefined, credentialId: string): Promise<void> {
+  if (!supportsWebAuthn() || !rpId || !credentialId) return
+  const api = window.PublicKeyCredential as unknown as {
+    signalUnknownCredential?: (options: { rpId: string; credentialId: string }) => Promise<void>
+  }
+  if (typeof api.signalUnknownCredential !== 'function') return
+  try {
+    await api.signalUnknownCredential({ rpId, credentialId })
+  } catch {
+    /* the provider does not hold it, or refused: nothing left to clean up */
+  }
+}
+
+/**
  * Conditional UI ("passkey autofill" in the username field). Uses the native check first so browsers
  * without it never download the library.
  */

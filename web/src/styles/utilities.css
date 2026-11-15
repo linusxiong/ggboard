@@ -102,9 +102,11 @@
   }
 }
 
-/* Short ease-out entrance that respects reduced motion (global reduce rule in theme.css). */
+/* Short ease-out entrance; with reduced motion the content is simply there. */
 @utility animate-enter {
-  animation: gg-enter 240ms var(--ease-apple-out) both;
+  @media (prefers-reduced-motion: no-preference) {
+    animation: gg-enter 240ms var(--ease-apple-out) both;
+  }
 }
 
 @keyframes gg-enter {
@@ -129,6 +131,10 @@
   .markdown > * + * {
     margin-top: 0.85em;
   }
+  /* No single word left on the last line of a paragraph (ignored where unsupported). */
+  .markdown :where(p, li, blockquote) {
+    text-wrap: pretty;
+  }
   .markdown h1,
   .markdown h2,
   .markdown h3,
@@ -152,20 +158,21 @@
     text-decoration: underline;
     text-underline-offset: 2px;
   }
+  /* Logical sides: an admin can write a notice in a right-to-left language (`<div dir="rtl">`). */
   .markdown ul {
     list-style: disc;
-    padding-left: 1.4em;
+    padding-inline-start: 1.4em;
   }
   .markdown ol {
     list-style: decimal;
-    padding-left: 1.4em;
+    padding-inline-start: 1.4em;
   }
   .markdown li + li {
     margin-top: 0.3em;
   }
   .markdown blockquote {
-    border-left: 3px solid var(--hairline);
-    padding-left: 1em;
+    border-inline-start: 3px solid var(--hairline);
+    padding-inline-start: 1em;
     color: var(--label-secondary);
   }
   .markdown code {
@@ -199,7 +206,7 @@
   .markdown td {
     border-bottom: 0.5px solid var(--hairline);
     padding: 0.5em 0.6em;
-    text-align: left;
+    text-align: start;
   }
   .markdown hr {
     border: 0;

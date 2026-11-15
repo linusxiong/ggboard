@@ -32,6 +32,33 @@ describe('system helpers', () => {
     expect(formatDuration(93784, 'en')).toMatch(/1\s?d.*2\s?h.*3\s?m/)
   })
 
+  it('writes a duration the way the locale does, with or without Intl.DurationFormat', () => {
+    const cases = () => ({
+      zh: formatDuration(93784, 'zh-CN'),
+      en: formatDuration(93784, 'en'),
+      seconds: formatDuration(3605, 'en'),
+      zero: formatDuration(0, 'en'),
+      none: formatDuration(null, 'en'),
+    })
+    // Native: CLDR joins Chinese units without spaces.
+    expect(cases()).toEqual({ zh: '1天2小时3分钟', en: '1d 2h 3m', seconds: '1h 5s', zero: '0s', none: '—' })
+
+    // Browsers before Chrome 129 / Firefox 136: one unit at a time, joined by a space.
+    const native = Reflect.get(Intl, 'DurationFormat') as unknown
+    Reflect.deleteProperty(Intl, 'DurationFormat')
+    try {
+      expect(cases()).toEqual({
+        zh: '1天 2小时 3分钟',
+        en: '1d 2h 3m',
+        seconds: '1h 5s',
+        zero: '0s',
+        none: '—',
+      })
+    } finally {
+      Reflect.set(Intl, 'DurationFormat', native)
+    }
+  })
+
   it('builds the logs query and filters by text', () => {
     expect(logsQuery('all', 200)).toEqual({ limit: 200 })
     expect(logsQuery('warn', 500)).toEqual({ level: 'warn', limit: 500 })

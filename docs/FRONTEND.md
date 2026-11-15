@@ -42,6 +42,7 @@ There is **no schema library** (no Zod): search params and form fields are valid
 | Auth state | `useAuthStore` (`token`, `user`, `hydrated`, `login(token,user)`, `setUser`, `logout`), `isAdmin(u)`, `isStaff(u)` | persisted under `gg-auth` |
 | Links that look like buttons | `buttonClass({ variant, size })` from `@/lib/button` | `<Link to="/plans" className={buttonClass()}>` |
 | Motion helpers | `onIdle`, `useIdle`, `useReducedMotion`, `useAnimationsReady` from `@/lib/motion` | start animations only after idle |
+| Keyboard / announcements | `isImeEnter(e)` from `@/lib/ime`, `announce(text)` from `@/lib/announce`, `focusFirstInvalid(scope)` from `@/components/form/focus` | every custom Enter handler on a text field checks `isImeEnter` (IME candidate confirmation); results shown without a toast are announced; `noValidate` forms move focus to the first invalid field |
 | effects | `@/components/effects` (lazy BlurText, CountUp, GradientText, ShinyText, SpotlightCard + `WhenIdle`) | original code (see §11) |
 | i18n | `useT(ns)`, `loadNamespaces([...])`, `t(ns, key)` from `@/i18n` | dictionaries in `src/i18n/<locale>/<namespace>.json` |
 | Tokens | `src/styles/theme.css` (HIG tokens → HeroUI vars → Tailwind) | see §2 for utility names |
@@ -66,9 +67,10 @@ Sources: <https://heroui.com/en/docs/react/getting-started/quick-start> · <http
   `noUncheckedSideEffectImports: true`.
 * `web/tsconfig.app.json` also enables `verbatimModuleSyntax` (write `import type { X }`), `erasableSyntaxOnly` (no `enum`, `namespace` or
   constructor parameter properties), and **`noUncheckedIndexedAccess`**: `arr[i]` has type `T | undefined`, so guard it.
-* Theme bootstrap: `syncTheme()` runs in `main.tsx` before render, and the "system" theme is pure CSS (`prefers-color-scheme`). A *forced* theme still
-  flashes for one frame until the module executes. To remove that flash, add an inline pre-paint script that reads `gg-ui` and sets `data-theme`. The CSP then needs its
-  `'sha256-…'` hash (with nonces, React Aria reads `<meta property="csp-nonce">`, per the HeroUI frameworks page).
+* Theme bootstrap: the "system" theme is pure CSS (`prefers-color-scheme`). A *forced* theme is on `<html data-theme>` before the first paint: the build
+  writes `markTheme` (`web/scripts/session-mark.mjs`) into a blocking same-origin script, `assets/theme-*.js` in the shell and part of `assets/boot-*.js` on
+  the prerendered pages, so the CSP stays `script-src 'self'` with no inline script and no hash. `syncTheme()` in `main.tsx` then takes over before render.
+  `markTheme` reads `gg-ui` by the same rules as `applyTheme`; `src/test/session-mark.test.ts` compares the two, so change them together.
 
 ---
 

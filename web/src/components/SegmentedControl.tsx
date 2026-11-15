@@ -12,8 +12,8 @@
  * Look (app.css `.gg-segmented*`): hug-content grey track (`--segment-track`, 2 px inset, 9 px radius), 32 px
  * segments (28 px `size="sm"`) with 13 px semibold labels, one white (dark #636366) pill with a soft shadow that
  * slides to the selection, hairline dividers between unselected segments. On narrow screens the track scrolls
- * inside an edge-faded container and keeps the selection in view. Motion is CSS only (the global
- * reduced-motion rule turns the slide into a jump).
+ * inside an edge-faded container and keeps the selection in view. Motion is CSS only (with reduced motion the
+ * pill jumps instead of sliding).
  *
  * Semantics: `SegmentedControl` = React Aria `ToggleButtonGroup` (radiogroup + radio) with radio keyboard
  * behaviour — one tab stop (the selected segment), ←/→/↑/↓ move AND select (wrapping), Home/End.
@@ -40,6 +40,7 @@ import {
   ToggleButtonGroup,
   useLocale,
 } from 'react-aria-components'
+import { useScrollFade } from '@/hooks/useScrollFade'
 import { cx } from '@/lib/cn'
 
 export interface SegmentItem<K extends string = string> {
@@ -79,16 +80,10 @@ function useSegmentTrack(value: string | null, layoutKey: string) {
     const pill = pillRef.current
     if (!scroller || !track || !pill) return
 
-    const fades = () => {
-      const max = scroller.scrollWidth - scroller.clientWidth
-      scroller.toggleAttribute('data-fade-start', max > 1 && scroller.scrollLeft > 1)
-      scroller.toggleAttribute('data-fade-end', max > 1 && scroller.scrollLeft < max - 1)
-    }
     const place = (reveal: boolean) => {
       const selected = track.querySelector<HTMLElement>('.gg-segmented__item[data-selected]')
       if (!selected || selected.offsetWidth === 0) {
         pill.toggleAttribute('data-hidden', true)
-        fades()
         return
       }
       pill.style.setProperty('--seg-x', `${selected.offsetLeft}px`)
@@ -102,11 +97,10 @@ function useSegmentTrack(value: string | null, layoutKey: string) {
         if (start - edge < left) left = Math.max(0, start - edge)
         else if (end + edge > left + scroller.clientWidth) left = end + edge - scroller.clientWidth
         if (left !== scroller.scrollLeft) {
-          if (typeof scroller.scrollTo === 'function') scroller.scrollTo({ left, behavior: 'smooth' })
-          else scroller.scrollLeft = left
+          // Smooth or instant is the stylesheet's call (`scroll-behavior`, off with reduced motion).
+          scroller.scrollLeft = left
         }
       }
-      fades()
     }
 
     place(true)
@@ -116,13 +110,14 @@ function useSegmentTrack(value: string | null, layoutKey: string) {
     const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(() => place(false)) : null
     observer?.observe(scroller)
     observer?.observe(track)
-    scroller.addEventListener('scroll', fades, { passive: true })
     return () => {
       cancelAnimationFrame(frame)
       observer?.disconnect()
-      scroller.removeEventListener('scroll', fades)
     }
   }, [value, layoutKey])
+
+  // Edge fades while the track does not fit (CSS scroll-driven animation; script only as a fallback).
+  useScrollFade(scrollerRef, layoutKey)
 
   return { scrollerRef, trackRef, pillRef }
 }
@@ -243,7 +238,7 @@ export function SegmentedControl<K extends string>({
   const control = (
     <div
       ref={scrollerRef}
-      className={cx('gg-segmented-scroll', !label && className)}
+      className={cx('gg-segmented-scroll gg-scroll-fade', !label && className)}
       onKeyDownCapture={onKeyDownCapture}
     >
       <div ref={trackRef} className="gg-segmented" data-size={size} data-disabled={isDisabled || undefined}>
@@ -335,7 +330,7 @@ function SegmentedTabList<K extends string>({
   const selected = state?.selectedKey == null ? null : String(state.selectedKey)
   const { scrollerRef, trackRef, pillRef } = useSegmentTrack(selected, layoutKeyOf(items))
   return (
-    <div ref={scrollerRef} className={cx('gg-segmented-scroll', className)}>
+    <div ref={scrollerRef} className={cx('gg-segmented-scroll gg-scroll-fade', className)}>
       <div ref={trackRef} className="gg-segmented" data-size={size}>
         <TabList className="gg-segmented__list" {...labelling}>
           {items.map((item) => (

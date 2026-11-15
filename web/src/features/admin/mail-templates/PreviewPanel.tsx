@@ -114,10 +114,10 @@ export function PreviewPanel({ name, draft }: PreviewPanelProps) {
                   // Empty sandbox: no scripts, forms, popups, navigation or same-origin access.
                   sandbox=""
                   referrerPolicy="no-referrer"
-                  className="block h-[min(75vh,760px)] min-h-[560px] w-full bg-canvas"
+                  className="block h-[min(75dvh,760px)] min-h-[560px] w-full bg-canvas"
                 />
               ) : (
-                <pre className="h-[min(75vh,760px)] min-h-[560px] overflow-auto bg-elevated-secondary p-4 font-mono text-footnote leading-5 whitespace-pre-wrap break-words text-label">
+                <pre className="h-[min(75dvh,760px)] min-h-[560px] overflow-auto bg-elevated-secondary p-4 font-mono text-footnote leading-5 whitespace-pre-wrap break-words text-label">
                   {shown.text}
                 </pre>
               )}

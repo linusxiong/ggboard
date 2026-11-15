@@ -336,7 +336,8 @@ See `AGENTS.md` §7.
 - Public routes are prerendered at build time (`web/scripts/prerender.mjs`, run by `pnpm build` when a Chrome/Chromium
   binary is available; the Docker web stage installs Chromium): `/` → `index.html`, `/login` → `login/index.html`,
   `/register`, `/forgot`. A snapshot page paints before the app's JS: it loads only CSS plus a tiny `assets/boot-*.js`,
-  which marks a live session on `<html data-session>` before the first paint and starts the app after it; the app replaces
+  which marks a live session (`<html data-session>`) and a forced theme (`<html data-theme>`) before the first paint and
+  starts the app after it (the shell loads `assets/theme-*.js` for the theme, with or without prerendering); the app replaces
   the snapshot with an identical tree in one commit (no hydration, see `web/src/main.tsx`). The boot script is a same-origin
   file, not inline, so the CSP stays `script-src 'self'`. Snapshots are taken signed out and carry both variants of
   session-dependent parts. Snapshot forms are inert until the swap and typed values are carried over.
