@@ -17,8 +17,8 @@ jobs:
     name: Go (build, vet, test)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           # Latest 1.27 patch release, not the go.mod minimum (1.27.1 has stdlib CVEs fixed in 1.27.2/1.27.3:
           # net/http, http2, crypto/x509, html/template; see docs/REVIEW_2026-10-22.md).
@@ -41,16 +41,16 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: false
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Detect frontend
         id: detect
         run: |
           if [ -f web/package.json ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; fi
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         if: steps.detect.outputs.present == 'true'
         with:
           version: 12
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         if: steps.detect.outputs.present == 'true'
         with:
           node-version: 24
