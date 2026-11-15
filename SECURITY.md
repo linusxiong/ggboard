@@ -35,7 +35,9 @@ Deployment details are in [docs/DEPLOY.md](docs/DEPLOY.md). Every item matches w
       containing the backport; version numbers alone cannot identify vendor patches. Reboot into the patched kernel
       and check `uname -r` on the host. WSL2 kernels must be updated through WSL, not the guest's Linux package manager.
 - [ ] **Check both application and development dependencies.** CI runs `govulncheck ./...` and `pnpm -C web audit`
-      (including development dependencies). Rebuild releases with a patched Go toolchain and fresh base images.
+      (including development dependencies), and Dependabot (`.github/dependabot.yml`) proposes updates every week.
+      These tools only know advisories that have reached the public databases; a maintainer's own advisory can
+      be out for days before that, so read the advisories of the direct dependencies before a release. Rebuild releases with a patched Go toolchain and fresh base images.
       See the [2026-10-30 dependency review](docs/SECURITY_REVIEW_2026-10-30.md) for findings and scope.
 
 ### Network and TLS

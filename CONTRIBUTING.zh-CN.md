@@ -49,8 +49,8 @@ README 截图没有 pnpm 脚本：对运行中的实例执行 `node web/scripts/
 
 ## 提交前
 
-CI（`.github/workflows/ci.yml`）会跑：`gofmt`、`go build ./...`、`go vet ./...`、`go test ./... -race -count=1`，以及
-`pnpm -C web install --frozen-lockfile`、`lint`、`build`。CI 不跑前端类型检查和单测，请本地补上
+CI（`.github/workflows/ci.yml`）会跑：`gofmt`、`go build ./...`、`go vet ./...`、`govulncheck`、
+`go test ./... -race -count=1`，以及 `pnpm -C web install --frozen-lockfile`、`audit`、`lint`、`build`。CI 不跑前端类型检查和单测，请本地补上
 （手动触发的 `.github/workflows/docker.yml` 负责构建并推送多架构镜像，见 [docs/DEPLOY.zh-CN.md](docs/DEPLOY.zh-CN.md)）：
 
 ```bash
@@ -96,6 +96,19 @@ Go 测试用 `internal/testutil`：
 - `GGBOARD_TEST_LOG=1 go test ./...` 把测试应用的日志打到 stderr。
 - 订阅格式用 golden 文件（`internal/subscription/formats/testdata/*.golden`），有意改动输出后执行
   `go test ./internal/subscription/formats -update` 重新生成并审阅 diff。
+
+## 依赖
+
+- **Dependabot**（`.github/dependabot.yml`）每周一检查 Go 模块、前端、工作流用到的 Action 和 Dockerfile 的基础镜像。更新按组合并：
+  Go 的次版本和补丁版本一个 PR；React、HeroUI 与 React Aria、TanStack、构建工具、Lighthouse 工具链各一个。一个版本公开满 3 天
+  （大版本 14 天）才会被提出。安全更新是另一套机制，公告一发布就会开 PR。
+- **合并前**：CI 必须通过。`build-tools` 组还要本地跑 `pnpm -C web lh`，因为 CI 不跑 Lighthouse；HeroUI 先读它的发布说明和
+  `docs/FRONTEND.md`。前端任务如果卡在锁文件上，检出该分支执行 `pnpm -C web install` 再推上去：lint 工具链通过
+  `web/.pnpmfile.cjs` 使用单独的 TypeScript，override 写在 `web/pnpm-workspace.yaml`。
+- **扫描器比上游慢。** `govulncheck`、`pnpm audit` 和 Dependabot 告警只认已经进入公共数据库的公告，这可能比维护者发布公告晚好几天
+  （MISTAKES #310）。发版前要读一遍有待更新的直接依赖的安全公告：`gh api repos/<owner>/<repo>/security-advisories`。
+- **手动升级**：Go 用 `go get <module>@<version>`，前端用 `pnpm -C web add <package>@<range>`，然后执行“提交前”里的命令。
+  优先选已经发布几天的版本。
 
 ## 新增插件
 

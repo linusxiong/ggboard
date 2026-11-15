@@ -1,0 +1,103 @@
+# Dependabot version updates: one run a week per ecosystem, grouped so a normal week brings a few pull requests
+# instead of one per package. Options: https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference
+#
+# Security updates are a separate feature (Settings -> Advanced Security, on for this repository). They open as soon
+# as an advisory is published: `schedule`, `cooldown` and `open-pull-requests-limit` below do not apply to them.
+#
+# Cooldown: a version must have been public for a few days before it is proposed, so a hijacked release is usually
+# withdrawn first. pnpm applies its own minimum release age when it resolves versions, so keep this at least as long.
+#
+# Before merging: CI (build, vet, tests, govulncheck, pnpm audit, lint, build) must pass. Frontend build-tool updates
+# also need `pnpm lh` locally, because CI does not run Lighthouse. See CONTRIBUTING.md -> Dependencies.
+version: 2
+
+updates:
+  # ---- Go modules (go.mod). Direct dependencies only; indirect ones still get security updates.
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 3
+      semver-major-days: 14
+    commit-message:
+      prefix: fix(deps)
+    groups:
+      # One pull request for everything that should not change behaviour; a major version comes on its own.
+      go:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  # ---- Frontend (web/package.json + pnpm-lock.yaml; pnpm uses the npm ecosystem).
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 3
+      semver-major-days: 14
+    # Raise the range in package.json as well as the lockfile, so the minimum is always the version that was tested.
+    versioning-strategy: increase
+    commit-message:
+      prefix: fix(deps)
+      prefix-development: chore(deps-dev)
+    open-pull-requests-limit: 8
+    groups:
+      # First match wins. Packages that must move together get a group of their own.
+      react:
+        patterns: [react, react-dom, '@types/react', '@types/react-dom']
+      heroui:
+        # HeroUI is pinned exactly and builds on React Aria: check docs/FRONTEND.md and the release notes on a bump.
+        patterns: ['@heroui/*', react-aria, react-aria-components, '@react-aria/*', '@internationalized/*']
+        update-types: [minor, patch]
+      tanstack:
+        patterns: ['@tanstack/*']
+        update-types: [minor, patch]
+      build-tools:
+        # These decide the bundle: run `pnpm lh` before merging.
+        patterns: [vite, '@vitejs/*', 'vite-plugin-*', tailwindcss, '@tailwindcss/*', tw-animate-css, typescript]
+        update-types: [minor, patch]
+      lighthouse:
+        # Held together by the overrides in web/pnpm-workspace.yaml; drop an override once upstream no longer needs it.
+        patterns: ['@lhci/cli', puppeteer-core]
+      web-runtime:
+        dependency-type: production
+        update-types: [minor, patch]
+      web-dev:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  # ---- GitHub Actions used by .github/workflows.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 3
+    commit-message:
+      prefix: ci(deps)
+    groups:
+      actions:
+        patterns: ['*']
+
+  # ---- Base images in deploy/Dockerfile. The tags float (node:24-alpine, golang:1.27-alpine), so patch releases
+  # arrive with every image build. What is left to propose is a new Node major or Go minor, and those are
+  # repository-wide decisions (CI's node-version, go.mod, the workflows and the docs move with them), not a one-line
+  # pull request.
+  - package-ecosystem: docker
+    directory: /deploy
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 3
+    commit-message:
+      prefix: build(deps)
+    ignore:
+      - dependency-name: node
+        update-types: ['version-update:semver-major']
+      - dependency-name: golang
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']

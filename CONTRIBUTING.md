@@ -50,8 +50,8 @@ in the comment at the top of the script and in [web/README.md](web/README.md)).
 
 ## Before you open a PR
 
-CI (`.github/workflows/ci.yml`) runs `gofmt`, `go build ./...`, `go vet ./...` and `go test ./... -race -count=1`, plus
-`pnpm -C web install --frozen-lockfile`, `lint` and `build`. CI does not run the frontend type check or unit tests, so
+CI (`.github/workflows/ci.yml`) runs `gofmt`, `go build ./...`, `go vet ./...`, `govulncheck` and
+`go test ./... -race -count=1`, plus `pnpm -C web install --frozen-lockfile`, `audit`, `lint` and `build`. CI does not run the frontend type check or unit tests, so
 run them locally (the manually triggered `.github/workflows/docker.yml` builds and pushes the multi-arch image; see
 [docs/DEPLOY.md](docs/DEPLOY.md)):
 
@@ -107,6 +107,24 @@ Go tests use `internal/testutil`:
 - `GGBOARD_TEST_LOG=1 go test ./...` prints the test app's logs to stderr.
 - Subscription formats use golden files (`internal/subscription/formats/testdata/*.golden`). After an intended change to
   the output, run `go test ./internal/subscription/formats -update` to regenerate them, and review the diff.
+
+## Dependencies
+
+- **Dependabot** (`.github/dependabot.yml`) looks at the Go modules, the frontend, the workflow actions and the
+  Dockerfile base images every Monday. Updates are grouped: one pull request for Go minor and patch versions, and one
+  each for React, HeroUI with React Aria, TanStack, the build tools and the Lighthouse toolchain. A version is proposed
+  once it has been public for 3 days (14 for a major). Security updates are separate and open as soon as an advisory
+  is published.
+- **Merging one**: CI must pass. For the `build-tools` group also run `pnpm -C web lh`, because CI does not run
+  Lighthouse; for HeroUI read its release notes and `docs/FRONTEND.md` first. If the frontend job fails on the
+  lockfile, check the branch out, run `pnpm -C web install` and push the result: the lint toolchain gets its own
+  TypeScript from `web/.pnpmfile.cjs`, and the overrides are in `web/pnpm-workspace.yaml`.
+- **Scanners lag behind upstream.** `govulncheck`, `pnpm audit` and Dependabot alerts only know an advisory once it
+  is in the public databases, which can be days after the maintainer published it (MISTAKES #310). Before a release,
+  read the advisories of the direct dependencies that have an update waiting:
+  `gh api repos/<owner>/<repo>/security-advisories`.
+- **By hand**: `go get <module>@<version>` for Go, `pnpm -C web add <package>@<range>` for the frontend, then the
+  commands in "Before you open a PR". Prefer a version that is a few days old.
 
 ## Adding a plugin
 
