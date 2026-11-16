@@ -19,13 +19,16 @@ LH_BASE=http://127.0.0.1:18090 pnpm lh:mobile           # same against a running
 LH_BASE=… LH_TARGET=auth pnpm lh:desktop                 # signed-in /dashboard, /subscription (LH_USER/LH_PASSWORD)
 BASE=http://127.0.0.1:18090 pnpm ui:smoke --axe          # crawl every page: console/network errors, i18n leaks, overflow, axe
                                                          # (--quick, --only=guest|user|admin, --shots=<dir>)
+BASE=http://127.0.0.1:18090 pnpm ui:diff snapshot a.json # box + computed style of every element, and of the overlays it
+pnpm ui:diff diff a.json b.json                          # can open; then compare two builds served from one panel
 BASE=http://127.0.0.1:18090 node scripts/screenshots.mjs # README screenshots → ../docs/screenshots (no pnpm script)
 pnpm format              # prettier (format:check = check only)
 ```
 
-`prerender.mjs`, `ui-smoke.mjs` and `screenshots.mjs` drive the system Chrome through `puppeteer-core` (`CHROME_PATH`;
-nothing is downloaded). The last two sign in through the API with `USER_EMAIL`/`USER_PASSWORD` and
-`ADMIN_EMAIL`/`ADMIN_PASSWORD` (accounts without 2FA, e.g. seeded by `scripts/e2e-full.sh` from the repo root);
+`prerender.mjs`, `ui-smoke.mjs`, `ui-diff.mjs` and `screenshots.mjs` drive the system Chrome through `puppeteer-core`
+(`CHROME_PATH`; nothing is downloaded). All but the first sign in through the API with `USER_EMAIL`/`USER_PASSWORD` and
+`ADMIN_EMAIL`/`ADMIN_PASSWORD` (accounts without 2FA, e.g. seeded by `scripts/e2e-full.sh` from the repo root;
+`ui-diff.mjs` only needs the administrator and changes no data);
 `lh-login.cjs` (the `LH_TARGET=auth` sign-in) uses `LH_USER`/`LH_PASSWORD`.
 
 Dev-only mock backends (in-memory, fake data on example.com, never bundled): `pnpm exec vite --config
@@ -79,8 +82,8 @@ src/
   test/                    vitest setup + cross-feature tests (autofill, login/MFA, security, dashboard, effects,
                            subscription, subscription profiles / security, Telegram)
 scripts/                   gen-routes.mjs, heroui-css.ts (per-component CSS), check-css-vars.mjs (build check),
-                           preview.ts (prod-like preview + mock API), prerender.mjs, ui-smoke.mjs, screenshots.mjs,
-                           lh-login.cjs, fixtures/, mock/
+                           preview.ts (prod-like preview + mock API), prerender.mjs, ui-smoke.mjs, ui-diff.mjs
+                           (compare two builds), screenshots.mjs, lh-login.cjs, fixtures/, mock/
 public/                    favicon.svg, apple-touch-icon.png, manifest.webmanifest, robots.txt
 ```
 

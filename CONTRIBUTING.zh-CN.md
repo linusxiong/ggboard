@@ -104,7 +104,7 @@ Go 测试用 `internal/testutil`：
   （大版本 14 天）才会被提出。安全更新是另一套机制，公告一发布就会开 PR。
 - **合并前**：CI 必须通过。对前端来说这还不够：CI 只做 lint 和构建，不会打开页面。凡是会进产物的更新（`build-tools`、HeroUI、
   TanStack 和运行时依赖各组），还要和上一个构建对比首屏体积和 Lighthouse（`web/README.md` 的 Performance rules）；
-  `pnpm -C web lh` 不在 CI 里。HeroUI 先读它的发布说明和 `docs/FRONTEND.md` §2，再在浏览器里对比新旧两个构建：我们的皮肤覆盖了
+  `pnpm -C web lh` 不在 CI 里。HeroUI 先读它的发布说明和 `docs/FRONTEND.md` §2，再在浏览器里对比新旧两个构建（`pnpm -C web ui:diff`）：我们的皮肤覆盖了
   HeroUI 的 CSS，它底下的实现一变，组件可能坏掉而没有任何检查报错（MISTAKES #313）。前端任务如果卡在锁文件上，检出该分支执行
   `pnpm -C web install` 再推上去：lint 工具链通过 `web/.pnpmfile.cjs` 使用单独的 TypeScript，override 写在
   `web/pnpm-workspace.yaml`。

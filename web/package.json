@@ -23,7 +23,8 @@
     "lh:mobile": "LH_PRESET=mobile lhci autorun --config=./lighthouserc.cjs",
     "routes": "node scripts/gen-routes.mjs",
     "lh:desktop": "LH_PRESET=desktop lhci autorun --config=./lighthouserc.cjs",
-    "ui:smoke": "node scripts/ui-smoke.mjs"
+    "ui:smoke": "node scripts/ui-smoke.mjs",
+    "ui:diff": "node scripts/ui-diff.mjs"
   },
   "dependencies": {
     "@heroui/react": "3.2.7",

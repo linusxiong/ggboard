@@ -143,8 +143,10 @@ breaks:
 **On a HeroUI update** our skin (`styles/app.css`, layer `gg-overrides`) can collide with a changed implementation:
 3.2.7 moved the switch thumb from a margin to `inset-inline-start: var(--switch-thumb-offset)`, and the old margin
 override pushed the selected thumb out of the track. CI does not see that. Before merging, serve the old and the
-new `dist/` from one panel (`GGBOARD_FRONTEND_DIR`) and compare them: positions and computed styles of the elements on
-every page, opened dialogs and menus, a toggled switch (MISTAKES #313).
+new `dist/` from one throwaway panel (`GGBOARD_FRONTEND_DIR`) and compare them with `scripts/ui-diff.mjs` (usage in
+its header): the box and the computed style of every element on every page, at desktop and phone width, light and
+dark, and the menus, list boxes and popovers it can open with the animations they start. Then open a dialog and a
+drawer and toggle a switch by hand (MISTAKES #313).
 
 ```css
 @import "tailwindcss";          /* 1st — then the HeroUI foundations (order matters) */
