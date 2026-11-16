@@ -148,7 +148,7 @@ scripts/                e2e.sh（冒烟）、e2e-full.sh（API 全流程，也�
   流量上报批量写入（事务 + 批量 upsert）；N+1 查询禁止。
 - **金额**：整数“分”，货币从设置读取。**流量**：字节（int64）。**时间**：DB 用 datetime，
   API 用 RFC3339 字符串，可空字段用 `null`。
-- **代码风格**：`gofmt`/`go vet` 必须干净；前端 `eslint` + `tsc --noEmit` 必须干净。
+- **代码风格**：`gofmt`/`go vet` 必须干净；前端 `oxlint`（`pnpm -C web lint`，带类型信息）+ `tsc --noEmit` 必须干净。
 - **测试命令**：`make test`（Go）、`pnpm -C web test`（前端单元）、`make e2e`（启动服务跑冒烟）。
 - **提交**：Conventional Commits（`feat: ...`、`fix: ...`、`docs: ...`）。
 - **文档中英两版**：面向用户的文档每篇两个文件，`X.md` 英文（GitHub 默认显示）、`X.zh-CN.md` 简体中文，顶部互相链接，

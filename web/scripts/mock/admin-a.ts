@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-base-to-string, @typescript-eslint/restrict-template-expressions -- dev mock over untyped JSON rows */
+/* oxlint-disable typescript/no-base-to-string, typescript/restrict-template-expressions -- dev mock over untyped JSON rows */
 /**
  * Dev-only mock of the admin API used by FE-3 (dashboard, users, plans, groups, nodes, routes),
  * plus the guest/passport/me endpoints the shell needs. In-memory, resets on restart.

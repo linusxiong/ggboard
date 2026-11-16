@@ -352,7 +352,7 @@ export function replaceAll(name: string, re: RegExp, template: string): string {
 // ---------------------------------------------------------------- names & emoji
 
 const EMOJI_RE = /[\u{1F1E6}-\u{1F1FF}]|\p{Extended_Pictographic}|\u{FE0F}|\u{200D}|\u{20E3}/gu
-// eslint-disable-next-line no-control-regex -- strips control characters like the server does
+// oxlint-disable-next-line no-control-regex -- strips control characters like the server does
 const CONTROL_RE = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g
 
 /** Server name normalisation: `,` → `，`, `=` → `＝`, control characters dropped, whitespace collapsed. */

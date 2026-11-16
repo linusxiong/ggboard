@@ -12,3 +12,12 @@ overrides:
   # GHSA-g3hv-75wg-m249 (globparts amplification): only 11.0.1+ is patched, and eslint 10 and typescript-eslint still
   # ask for 10.x. 11 exports the same named API.
   'minimatch@<11.0.1': 11.0.3
+peerDependencyRules:
+  allowedVersions:
+    # Oxlint loads @tanstack/eslint-plugin-query as a JS plugin (.oxlintrc.json). The plugin imports AST helpers from
+    # @typescript-eslint/utils, whose packages ask for the classic compiler API (TypeScript below 6.1). Nothing on that
+    # path calls the compiler: type-aware rules run on oxlint-tsgolint.
+    '@typescript-eslint/utils>typescript': '7'
+    '@typescript-eslint/typescript-estree>typescript': '7'
+    '@typescript-eslint/project-service>typescript': '7'
+    '@typescript-eslint/tsconfig-utils>typescript': '7'

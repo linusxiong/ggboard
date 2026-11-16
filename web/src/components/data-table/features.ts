@@ -36,7 +36,7 @@ export const dataTableFeatures = tableFeatures({
 
 export type DataTableFeatures = typeof dataTableFeatures
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- column value types vary per column
+// oxlint-disable-next-line typescript/no-explicit-any -- column value types vary per column
 export type DataTableColumn<TData extends RowData> = ColumnDef<DataTableFeatures, TData, any>
 
 /**

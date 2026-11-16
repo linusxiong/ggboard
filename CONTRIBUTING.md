@@ -40,7 +40,7 @@ Until you run `make web`, the binary only holds a placeholder page ("Frontend no
 ## Frontend scripts
 
 `pnpm -C web <script>`: `dev`, `build`, `preview`, `preview:mock` (preview with mock data, used for Lighthouse),
-`typecheck` (`tsc -b`), `lint` (ESLint), `format` / `format:check` (Prettier), `test` / `test:watch` (Vitest), `lh`
+`typecheck` (`tsc -b`), `lint` (Oxlint, type-aware), `format` / `format:check` (Prettier), `test` / `test:watch` (Vitest), `lh`
 (builds, then runs the two Lighthouse CI suites `lh:desktop` and `lh:mobile` in turn; all four categories must score
 100), `ui:smoke` (walks every page of a running instance with puppeteer and checks for console errors, failed requests,
 untranslated i18n keys and horizontal overflow; `--axe` also runs axe-core), `routes`.
@@ -79,7 +79,7 @@ Taken from [AGENTS.md](AGENTS.md) §3, §4, §8 and §9. Where they disagree, AG
 - **Ownership**: change only the directories assigned to you. Shared files (`go.mod`, `internal/model/*`, the route
   table, `web/package.json`, navigation, shared i18n strings) are append-only; don't run `go mod tidy`; don't change
   someone else's tests to make your code pass.
-- **Style**: `gofmt` / `go vet` clean; frontend ESLint + `tsc` clean. The UI follows the Apple HIG (AGENTS.md §5) and the
+- **Style**: `gofmt` / `go vet` clean; frontend Oxlint + `tsc` clean. The UI follows the Apple HIG (AGENTS.md §5) and the
   performance budget (§6), uses only color tokens and loads no web fonts.
 - **Commit messages**: Conventional Commits, e.g. `feat(api): ...`, `fix(web): ...`, `docs: ...`.
 - **Mistake log**: every pitfall you hit (repeated compile errors, a misread contract, a misused library API, breaking
@@ -121,8 +121,8 @@ Go tests use `internal/testutil`:
   part of CI. For HeroUI read its release notes and `docs/FRONTEND.md` §2 first, then compare the old and the new
   build in a browser (`pnpm -C web ui:diff`): our skin overrides HeroUI's CSS, and an implementation that changed
   underneath it can break a component without failing anything (MISTAKES #313). If the frontend job fails on the lockfile, check the branch
-  out, run `pnpm -C web install` and push the result: the lint toolchain gets its own TypeScript from
-  `web/.pnpmfile.cjs`, and the overrides are in `web/pnpm-workspace.yaml`.
+  out, run `pnpm -C web install` and push the result: the overrides and the peer dependency rules are in
+  `web/pnpm-workspace.yaml`.
 - **Scanners lag behind upstream.** `govulncheck`, `pnpm audit` and Dependabot alerts only know an advisory once it
   is in the public databases, which can be days after the maintainer published it (MISTAKES #310). Before a release,
   read the advisories of the direct dependencies that have an update waiting:

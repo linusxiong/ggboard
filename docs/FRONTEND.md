@@ -14,10 +14,10 @@ Versions below are the ones resolved in `web/pnpm-lock.yaml`.
 | `react` / `react-dom` | 19.3.1 | `zustand` | 5.1.0 |
 | `@tanstack/react-router` / `router-plugin` | 1.170.46 / 1.169.0 | `motion` | 14.13.0 |
 | `@tanstack/react-query` | 5.107.1 | `lucide-react` | 1.72.0 |
-| `typescript` (lint tooling: 6.0.3, §1) | 7.0.2 | `@simplewebauthn/browser` | 14.0.0 |
+| `typescript` | 7.0.2 | `@simplewebauthn/browser` | 14.0.0 |
 | `vite-plugin-compression2` / `@lhci/cli` | 2.5.4 / 0.16.1 | `react-aria-components` / `react-aria` | 1.22.1 / 3.53.1 |
 | `marked` / `dompurify` | 18.2.0 / 3.4.18 | `qrcode` | 1.5.4 |
-| `vitest` / `jsdom` | 5.1.0 / 30.1.3 | `eslint` / `typescript-eslint` | 10.14.0 / 8.72.2 |
+| `vitest` / `jsdom` | 5.1.0 / 30.1.3 | `oxlint` / `oxlint-tsgolint` | 1.93.0 / 7.0.2007 |
 | `puppeteer-core` (scripts only: prerender, screenshots, ui-smoke) | 25.17.0 | `tw-animate-css` | 1.4.0 |
 
 There is **no schema library** (no Zod): search params and form fields are validated with plain functions
@@ -55,13 +55,16 @@ There is **no schema library** (no Zod): search params and form fields are valid
 
 Sources: <https://heroui.com/en/docs/react/getting-started/quick-start> · <https://tailwindcss.com/docs/installation/using-vite> ·
 <https://tanstack.com/router/latest/docs/installation/with-vite> · <https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/> ·
-`npm view @heroui/react peerDependencies` · `npm view typescript-eslint peerDependencies` · Vite `react-ts` template `tsconfig.app.json`
+`npm view @heroui/react peerDependencies` · <https://oxc.rs/docs/guide/usage/linter/type-aware.html> · <https://oxc.rs/docs/guide/usage/linter/js-plugins.html> · Vite `react-ts` template `tsconfig.app.json`
 
 * HeroUI's peers (`react-aria`, `react-aria-components`, `@react-aria/ssr`, `@react-aria/utils`, `@internationalized/date`, `tailwindcss>=4`, `react>=19`)
   have **no** `peerDependenciesMeta`. They are mandatory and must stay in `web/package.json`. `@internationalized/date` became a peer in 3.2.6.
-* **TS 7 ships no compiler API.** `typescript-eslint@8.72` declares `typescript: >=4.8.4 <6.1.0`. The TS 7 announcement documents an alias
-  (`"typescript": "npm:@typescript/typescript6@^6.0.2"`). We solve it in `web/.pnpmfile.cjs` instead: a `readPackage` hook gives
-  `typescript-eslint`, `@typescript-eslint/*` and `ts-api-utils` their own `typescript@6.0.3`, while the project (`tsc -b`) uses TS 7.0.2.
+* **TS 7 ships no compiler API**, and `typescript-eslint@8.72` declares `typescript: >=4.8.4 <6.1.0`, so it cannot run on the project's
+  compiler. Lint is **Oxlint** (`web/.oxlintrc.json`): its type-aware rules run on `oxlint-tsgolint`, which is built on the same TypeScript 7
+  compiler as `tsc -b` (59 of typescript-eslint's 61 type-aware rules), and the React Compiler rules are native. The one ESLint plugin left is
+  `@tanstack/eslint-plugin-query`, loaded as an Oxlint JS plugin. JS plugins get no type information, so its `no-void-query-fn` rule cannot
+  run. The plugin imports AST helpers from `@typescript-eslint/utils`; `web/pnpm-workspace.yaml` allows TypeScript 7 for that peer range,
+  because nothing on that path calls the compiler.
 * TS 7 hard errors: `baseUrl`, `moduleResolution: node|node10|classic`, `target: es5`, `module: amd|umd|system|none`, `esModuleInterop:false`.
   New defaults: `strict: true`, `types: []` (so `"types": ["vite/client"]` is required for `import.meta.env`, `*.css` and `*.svg`), `rootDir: ./`,
   `noUncheckedSideEffectImports: true`.
@@ -764,7 +767,7 @@ Checklist of scored audit IDs:
 12. **Virtual + React 19**: set `useFlushSync: false`. **zustand v5**: selectors must return stable references (`useShallow`), and `persist` no longer writes the initial state.
 13. **Vite 8**: `rolldownOptions` plus `output.codeSplitting.groups`; `rollupOptions`/`manualChunks` are deprecated or removed, and there is no esbuild by default.
 14. **TypeScript 7**:
-    * There is no compiler API, so typescript-eslint gets TypeScript 6.0.3 through `web/.pnpmfile.cjs` (§1).
+    * There is no compiler API, so lint runs on Oxlint with `oxlint-tsgolint` instead of typescript-eslint (§1).
     * `types` defaults to `[]`, and `baseUrl` is removed.
     * `noUncheckedIndexedAccess` is on in `tsconfig.app.json`, so `arr[i]` may be `undefined`.
     * `erasableSyntaxOnly` rules out `enum` and parameter properties.

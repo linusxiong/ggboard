@@ -177,7 +177,7 @@ export function useT(namespaces: string | readonly string[]): TFunction {
   use((missing.length > 0 ? trackStatus(loadNamespaces(missing, locale)) : READY) as Promise<void>)
   const primary = list[0] ?? 'common'
   const key = list.join('|')
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` captures the namespace list
+  // oxlint-disable-next-line react/exhaustive-deps -- `key` captures the namespace list
   return useMemo<TFunction>(() => (k, params) => t(primary, k, params, locale), [primary, locale, key])
 }
 
