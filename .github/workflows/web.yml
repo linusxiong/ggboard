@@ -1,0 +1,68 @@
+name: Web
+
+# Frontend checks. Every check is its own job, so they all run at the same time and each reports on its own: the wall
+# time is the slowest job, not the sum. The unit tests are the slowest part, so they are split into shards.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    # A pull request runs this only when its diff can reach the frontend. Pushes to main always run it.
+    # If a branch protection rule ever requires these jobs, a pull request that is filtered out here would wait on them
+    # forever: move the filter into a job-level `if` first.
+    paths:
+      - web/**
+      # Read by the frontend tests (src/test/subscription*.test.tsx, src/features/subscription/ruleProfile.test.ts).
+      - internal/subscription/rulesets/**
+      - .github/workflows/web.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Lint
+            run: pnpm lint
+          - name: Typecheck
+            run: pnpm typecheck
+          - name: Build
+            run: pnpm build
+          # Vitest's own split by file. Filling the shards by recorded duration was measured and left out: the slowest
+          # of three shards is 2 to 4 seconds from a perfect split, which does not pay for storing timings between runs.
+          - name: Test (1/3)
+            run: pnpm test --shard=1/3
+          - name: Test (2/3)
+            run: pnpm test --shard=2/3
+          - name: Test (3/3)
+            run: pnpm test --shard=3/3
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Vulnerability scan (including development tools)
+        if: matrix.name == 'Lint'
+        run: pnpm audit
+      - name: ${{ matrix.name }}
+        run: ${{ matrix.run }}

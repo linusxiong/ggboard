@@ -1,9 +1,15 @@
 name: CI
 
+# Backend checks. The frontend has its own workflow, web.yml, so the two never wait for each other.
+
 on:
   push:
     branches: [main]
   pull_request:
+    # A pull request that only touches web/ cannot change anything this job checks (web.yml covers it). Pushes to main
+    # always run it. See the note in web.yml before making this job a required check.
+    paths-ignore:
+      - web/**
 
 permissions:
   contents: read
@@ -35,36 +41,3 @@ jobs:
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
       - name: Test
         run: go test ./... -race -count=1
-
-  web:
-    name: Web (install, lint, build)
-    runs-on: ubuntu-latest
-    continue-on-error: false
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Detect frontend
-        id: detect
-        run: |
-          if [ -f web/package.json ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; fi
-      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-        if: steps.detect.outputs.present == 'true'
-        with:
-          version: 12
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        if: steps.detect.outputs.present == 'true'
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
-      - name: Install
-        if: steps.detect.outputs.present == 'true'
-        run: pnpm -C web install --frozen-lockfile
-      - name: Vulnerability scan (including development tools)
-        if: steps.detect.outputs.present == 'true'
-        run: pnpm -C web audit
-      - name: Lint
-        if: steps.detect.outputs.present == 'true'
-        run: pnpm -C web lint
-      - name: Build
-        if: steps.detect.outputs.present == 'true'
-        run: pnpm -C web build

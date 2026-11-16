@@ -10,8 +10,8 @@ conventions), [MISTAKES.md](MISTAKES.md) (the mistake log) and the contract docs
 | Tool | Version | Source |
 | --- | --- | --- |
 | Go | ≥ 1.27.4 | `go.mod` (CI uses `1.27.x`, the Dockerfile uses `golang:1.27-alpine`) |
-| Node.js | ≥ 22 (CI and the Dockerfile use 24) | `web/package.json` `engines`, `.github/workflows/ci.yml` |
-| pnpm | 12 (the Dockerfile pins `pnpm@12.4.1`) | `ci.yml`, `deploy/Dockerfile` |
+| Node.js | ≥ 22 (CI and the Dockerfile use 24) | `web/package.json` `engines`, `.github/workflows/web.yml` |
+| pnpm | 12 (the Dockerfile pins `pnpm@12.4.1`) | `web.yml`, `deploy/Dockerfile` |
 | golangci-lint | v2 (optional) | `.golangci.yml`; without it, `make lint` falls back to `go vet` + `gofmt` |
 
 ```bash
@@ -50,9 +50,12 @@ in the comment at the top of the script and in [web/README.md](web/README.md)).
 
 ## Before you open a PR
 
-CI (`.github/workflows/ci.yml`) runs `gofmt`, `go build ./...`, `go vet ./...`, `govulncheck` and
-`go test ./... -race -count=1`, plus `pnpm -C web install --frozen-lockfile`, `audit`, `lint` and `build`. CI does not run the frontend type check or unit tests, so
-run them locally (the manually triggered `.github/workflows/docker.yml` builds and pushes the multi-arch image; see
+CI is two workflows. `.github/workflows/ci.yml` runs `gofmt`, `go build ./...`, `go vet ./...`, `govulncheck` and
+`go test ./... -race -count=1`. `.github/workflows/web.yml` runs the frontend checks as separate jobs at the same time:
+`audit` and `lint`, `typecheck`, `build`, and the unit tests in three shards. A pull request runs a workflow only when
+its diff can reach it: a change under `web/` alone skips the Go job, and the frontend jobs need a change under `web/` or
+`internal/subscription/rulesets/` (the frontend tests read the catalog). Pushes to `main` run both. Run the same checks
+locally first (the manually triggered `.github/workflows/docker.yml` builds and pushes the multi-arch image; see
 [docs/DEPLOY.md](docs/DEPLOY.md)):
 
 ```bash
@@ -115,12 +118,13 @@ Go tests use `internal/testutil`:
   each for React, HeroUI with React Aria, TanStack, the build tools and the Lighthouse toolchain. A version is proposed
   once it has been public for 3 days (14 for a major). Security updates are separate and open as soon as an advisory
   is published.
-- **Merging one**: CI must pass. For the frontend that is not enough: CI lints and builds, it does not open a page.
+- **Merging one**: CI must pass. For the frontend that is not enough: CI lints, type-checks, builds and runs the unit
+  tests, it does not open a page.
   For anything that ends up in the bundle (the `build-tools`, HeroUI, TanStack and runtime groups) also compare the
   first load and Lighthouse with the previous build (`web/README.md` → Performance rules); `pnpm -C web lh` is not
   part of CI. For HeroUI read its release notes and `docs/FRONTEND.md` §2 first, then compare the old and the new
   build in a browser (`pnpm -C web ui:diff`): our skin overrides HeroUI's CSS, and an implementation that changed
-  underneath it can break a component without failing anything (MISTAKES #313). If the frontend job fails on the lockfile, check the branch
+  underneath it can break a component without failing anything (MISTAKES #313). If the frontend jobs fail on the lockfile, check the branch
   out, run `pnpm -C web install` and push the result: the overrides and the peer dependency rules are in
   `web/pnpm-workspace.yaml`.
 - **Scanners lag behind upstream.** `govulncheck`, `pnpm audit` and Dependabot alerts only know an advisory once it
