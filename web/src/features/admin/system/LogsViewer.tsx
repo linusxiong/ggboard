@@ -50,7 +50,7 @@ export function LogsViewer() {
   // expanded attrs change their height.
   // Only long lists are virtualized; short ones keep the plain layout (also what jsdom tests see).
   const virtual = rows.length > VIRTUAL_THRESHOLD
-  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual returns non-memoizable functions by design
+  // oxlint-disable-next-line react/incompatible-library -- TanStack Virtual returns non-memoizable functions by design
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,

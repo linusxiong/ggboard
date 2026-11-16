@@ -40,7 +40,7 @@ pnpm -C web install && pnpm -C web dev     # Vite 开发服务器，/api 与 /s/
 ## 前端脚本
 
 `pnpm -C web <script>`：`dev`、`build`、`preview`、`preview:mock`（mock 数据预览，Lighthouse 用）、`typecheck`（`tsc -b`）、
-`lint`（ESLint）、`format` / `format:check`（Prettier）、`test` / `test:watch`（Vitest）、`lh`（构建后依次跑 `lh:desktop` 与
+`lint`（Oxlint，带类型信息）、`format` / `format:check`（Prettier）、`test` / `test:watch`（Vitest）、`lh`（构建后依次跑 `lh:desktop` 与
 `lh:mobile` 两套 Lighthouse CI，要求四项 100）、`ui:smoke`（对运行中的实例用 puppeteer 逐页巡检：控制台错误、失败请求、
 漏翻的 i18n 键、横向溢出；`--axe` 加跑 axe-core）、`routes`。
 `typecheck`、`lint`、`test` 会先运行 `scripts/gen-routes.mjs` 生成 `src/routeTree.gen.ts`（已 gitignore）。
@@ -72,7 +72,7 @@ pnpm -C web typecheck && pnpm -C web lint && pnpm -C web test && pnpm -C web bui
 - **路由**：每个 API 包在自己的 `Register` 里挂路由，由 `internal/router/router.go` 统一调用。
 - **所有权**：只改分配给你的目录。共享文件（`go.mod`、`internal/model/*`、路由总表、`web/package.json`、导航、i18n 公共词条）只做追加；
   不要跑 `go mod tidy`；不要为了让自己的代码通过而修改别人的测试。
-- **风格**：`gofmt` / `go vet` 干净；前端 ESLint + `tsc` 干净。界面遵循 Apple HIG（AGENTS.md §5）与性能预算（§6），
+- **风格**：`gofmt` / `go vet` 干净；前端 Oxlint + `tsc` 干净。界面遵循 Apple HIG（AGENTS.md §5）与性能预算（§6），
   颜色只用 token，不加载 web 字体。
 - **提交信息**：Conventional Commits，如 `feat(api): ...`、`fix(web): ...`、`docs: ...`。
 - **错题本**：踩过的坑（反复的编译错误、误解契约、库 API 用错、破坏他人代码、性能回退、安全问题）都要追加到
@@ -106,8 +106,7 @@ Go 测试用 `internal/testutil`：
   TanStack 和运行时依赖各组），还要和上一个构建对比首屏体积和 Lighthouse（`web/README.md` 的 Performance rules）；
   `pnpm -C web lh` 不在 CI 里。HeroUI 先读它的发布说明和 `docs/FRONTEND.md` §2，再在浏览器里对比新旧两个构建（`pnpm -C web ui:diff`）：我们的皮肤覆盖了
   HeroUI 的 CSS，它底下的实现一变，组件可能坏掉而没有任何检查报错（MISTAKES #313）。前端任务如果卡在锁文件上，检出该分支执行
-  `pnpm -C web install` 再推上去：lint 工具链通过 `web/.pnpmfile.cjs` 使用单独的 TypeScript，override 写在
-  `web/pnpm-workspace.yaml`。
+  `pnpm -C web install` 再推上去：override 和 peer 依赖规则写在 `web/pnpm-workspace.yaml`。
 - **扫描器比上游慢。** `govulncheck`、`pnpm audit` 和 Dependabot 告警只认已经进入公共数据库的公告，这可能比维护者发布公告晚好几天
   （MISTAKES #310）。发版前要读一遍有待更新的直接依赖的安全公告：`gh api repos/<owner>/<repo>/security-advisories`。
 - **手动升级**：Go 用 `go get <module>@<version>`，前端用 `pnpm -C web add <package>@<range>`，然后执行“提交前”里的命令。
