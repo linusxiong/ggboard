@@ -211,7 +211,7 @@ function LoginPage() {
           .then((lib) => lib.WebAuthnAbortService.cancelCeremony())
           .catch(() => undefined)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- restart only on these triggers
+    // oxlint-disable-next-line react/exhaustive-deps -- restart only on these triggers
   }, [passkeyEnabled, showPassword, autofillRun])
 
   const restartFromMfa = (reason?: MfaRestartReason) => {

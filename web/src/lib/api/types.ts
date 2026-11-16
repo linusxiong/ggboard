@@ -1243,7 +1243,7 @@ export interface NodeStatus {
   /** online = push within W, idle = only checks within W, offline. Derived client-side when absent. */
   state?: NodeStatusState
 }
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- merged declaration must repeat the type parameter
+// oxlint-disable-next-line no-unused-vars -- merged declaration must repeat the type parameter
 export interface Node<T extends NodeType = NodeType> {
   /** Parent of a child (relay) node, `null` otherwise. */
   parent?: { id: ID; name: string } | null
@@ -1681,7 +1681,7 @@ export interface GeoIPUpdateResult extends GeoIPStatus {
 }
 
 // ---- Per-node token (admin) — docs/NODE_PROTOCOLS.md, docs/API.md "Nodes"
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- merged declaration must repeat the type parameter
+// oxlint-disable-next-line no-unused-vars -- merged declaration must repeat the type parameter
 export interface Node<T extends NodeType = NodeType> {
   /**
    * The node's own backend secret (admin view). `""` = the shared `server_token`. Child nodes never
