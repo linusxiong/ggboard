@@ -10,8 +10,8 @@
 | 工具 | 版本 | 来源 |
 | --- | --- | --- |
 | Go | ≥ 1.27.4 | `go.mod`（CI 用 `1.27.x`，Dockerfile 用 `golang:1.27-alpine`） |
-| Node.js | ≥ 22（CI 与 Dockerfile 用 24） | `web/package.json` `engines`、`.github/workflows/ci.yml` |
-| pnpm | 12（Dockerfile 固定 `pnpm@12.4.1`） | `ci.yml`、`deploy/Dockerfile` |
+| Node.js | ≥ 22（CI 与 Dockerfile 用 24） | `web/package.json` `engines`、`.github/workflows/web.yml` |
+| pnpm | 12（Dockerfile 固定 `pnpm@12.4.1`） | `web.yml`、`deploy/Dockerfile` |
 | golangci-lint | v2（可选） | `.golangci.yml`；没装时 `make lint` 退回 `go vet` + `gofmt` |
 
 ```bash
@@ -40,7 +40,7 @@ pnpm -C web install && pnpm -C web dev     # Vite 开发服务器，/api 与 /s/
 ## 前端脚本
 
 `pnpm -C web <script>`：`dev`、`build`、`preview`、`preview:mock`（mock 数据预览，Lighthouse 用）、`typecheck`（`tsc -b`）、
-`lint`（ESLint）、`format` / `format:check`（Prettier）、`test` / `test:watch`（Vitest）、`lh`（构建后依次跑 `lh:desktop` 与
+`lint`（Oxlint，带类型信息）、`format` / `format:check`（Prettier）、`test` / `test:watch`（Vitest）、`lh`（构建后依次跑 `lh:desktop` 与
 `lh:mobile` 两套 Lighthouse CI，要求四项 100）、`ui:smoke`（对运行中的实例用 puppeteer 逐页巡检：控制台错误、失败请求、
 漏翻的 i18n 键、横向溢出；`--axe` 加跑 axe-core）、`routes`。
 `typecheck`、`lint`、`test` 会先运行 `scripts/gen-routes.mjs` 生成 `src/routeTree.gen.ts`（已 gitignore）。
@@ -49,8 +49,10 @@ README 截图没有 pnpm 脚本：对运行中的实例执行 `node web/scripts/
 
 ## 提交前
 
-CI（`.github/workflows/ci.yml`）会跑：`gofmt`、`go build ./...`、`go vet ./...`、`govulncheck`、
-`go test ./... -race -count=1`，以及 `pnpm -C web install --frozen-lockfile`、`audit`、`lint`、`build`。CI 不跑前端类型检查和单测，请本地补上
+CI 分成两个工作流。`.github/workflows/ci.yml` 跑 `gofmt`、`go build ./...`、`go vet ./...`、`govulncheck`、
+`go test ./... -race -count=1`。`.github/workflows/web.yml` 把前端检查拆成同时运行的几个任务：`audit` 和 `lint`、`typecheck`、`build`，
+以及分成三片的单测。PR 只运行改动能影响到的工作流：只改 `web/` 时跳过 Go 任务；前端任务需要改动落在 `web/` 或
+`internal/subscription/rulesets/`（前端测试会读这份目录）。推到 `main` 时两个都跑。推之前先在本地跑同样的检查
 （手动触发的 `.github/workflows/docker.yml` 负责构建并推送多架构镜像，见 [docs/DEPLOY.zh-CN.md](docs/DEPLOY.zh-CN.md)）：
 
 ```bash
@@ -72,7 +74,7 @@ pnpm -C web typecheck && pnpm -C web lint && pnpm -C web test && pnpm -C web bui
 - **路由**：每个 API 包在自己的 `Register` 里挂路由，由 `internal/router/router.go` 统一调用。
 - **所有权**：只改分配给你的目录。共享文件（`go.mod`、`internal/model/*`、路由总表、`web/package.json`、导航、i18n 公共词条）只做追加；
   不要跑 `go mod tidy`；不要为了让自己的代码通过而修改别人的测试。
-- **风格**：`gofmt` / `go vet` 干净；前端 ESLint + `tsc` 干净。界面遵循 Apple HIG（AGENTS.md §5）与性能预算（§6），
+- **风格**：`gofmt` / `go vet` 干净；前端 Oxlint + `tsc` 干净。界面遵循 Apple HIG（AGENTS.md §5）与性能预算（§6），
   颜色只用 token，不加载 web 字体。
 - **提交信息**：Conventional Commits，如 `feat(api): ...`、`fix(web): ...`、`docs: ...`。
 - **错题本**：踩过的坑（反复的编译错误、误解契约、库 API 用错、破坏他人代码、性能回退、安全问题）都要追加到
@@ -102,12 +104,11 @@ Go 测试用 `internal/testutil`：
 - **Dependabot**（`.github/dependabot.yml`）每周一检查 Go 模块、前端、工作流用到的 Action 和 Dockerfile 的基础镜像。更新按组合并：
   Go 的次版本和补丁版本一个 PR；React、HeroUI 与 React Aria、TanStack、构建工具、Lighthouse 工具链各一个。一个版本公开满 3 天
   （大版本 14 天）才会被提出。安全更新是另一套机制，公告一发布就会开 PR。
-- **合并前**：CI 必须通过。对前端来说这还不够：CI 只做 lint 和构建，不会打开页面。凡是会进产物的更新（`build-tools`、HeroUI、
+- **合并前**：CI 必须通过。对前端来说这还不够：CI 做 lint、类型检查、构建和单测，不会打开页面。凡是会进产物的更新（`build-tools`、HeroUI、
   TanStack 和运行时依赖各组），还要和上一个构建对比首屏体积和 Lighthouse（`web/README.md` 的 Performance rules）；
   `pnpm -C web lh` 不在 CI 里。HeroUI 先读它的发布说明和 `docs/FRONTEND.md` §2，再在浏览器里对比新旧两个构建（`pnpm -C web ui:diff`）：我们的皮肤覆盖了
   HeroUI 的 CSS，它底下的实现一变，组件可能坏掉而没有任何检查报错（MISTAKES #313）。前端任务如果卡在锁文件上，检出该分支执行
-  `pnpm -C web install` 再推上去：lint 工具链通过 `web/.pnpmfile.cjs` 使用单独的 TypeScript，override 写在
-  `web/pnpm-workspace.yaml`。
+  `pnpm -C web install` 再推上去：override 和 peer 依赖规则写在 `web/pnpm-workspace.yaml`。
 - **扫描器比上游慢。** `govulncheck`、`pnpm audit` 和 Dependabot 告警只认已经进入公共数据库的公告，这可能比维护者发布公告晚好几天
   （MISTAKES #310）。发版前要读一遍有待更新的直接依赖的安全公告：`gh api repos/<owner>/<repo>/security-advisories`。
 - **手动升级**：Go 用 `go get <module>@<version>`，前端用 `pnpm -C web add <package>@<range>`，然后执行“提交前”里的命令。

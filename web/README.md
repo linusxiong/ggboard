@@ -452,8 +452,16 @@ MISTAKES #138 / #145); the single-select segmented control is a `radio` group.
 
 - `src/routeTree.gen.ts` is generated and git-ignored; `pnpm typecheck|lint|test` regenerate it first
   (`pnpm routes` = resolve the Vite config, which runs the router generator).
-- TypeScript 7 (`tsc -b`) has no compiler API; `.pnpmfile.cjs` gives typescript-eslint its own TypeScript 6.0 so
-  type-aware lint works (see `docs/FRONTEND.md` §1).
+- Lint is Oxlint (`.oxlintrc.json`), not ESLint: typescript-eslint needs the compiler API that TypeScript 7 no longer
+  ships, and Oxlint's type-aware rules run on `oxlint-tsgolint`, which is built on the same TypeScript 7 compiler as
+  `tsc -b`. The config turns on the `correctness`, `suspicious` and `perf` categories, plus the rules the old ESLint
+  presets had from other categories (React Compiler rules included). Rules that are off are listed there with the
+  reason. Disable a finding with `// oxlint-disable-next-line <rule> -- reason`. The TanStack Query rules still come
+  from `@tanstack/eslint-plugin-query`, loaded as an Oxlint JS plugin; JS plugins get no type information, so its
+  `no-void-query-fn` rule is not available (see `docs/FRONTEND.md` §1).
+- CI (`.github/workflows/web.yml`) runs lint, typecheck, build and the unit tests as separate jobs at the same time;
+  the tests are split into three shards with `vitest --shard`. `testTimeout` is 20 s when `CI` is set (5 s otherwise),
+  because hosted runners are slower.
 - `pnpm-workspace.yaml` (pnpm ≥ 10 settings; standalone project). New packages younger than pnpm's minimum release age are
   held back. `minimumReleaseAgeExclude` is for an urgent fix only and is removed again afterwards (no entries now).
   Dependabot proposes updates weekly with its own cooldown (`.github/dependabot.yml`, CONTRIBUTING.md → Dependencies).

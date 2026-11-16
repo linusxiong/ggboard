@@ -31,6 +31,8 @@ function LandingPage() {
   const { config } = Route.useLoaderData()
   const signedIn = useAuthStore((s) => Boolean(s.token))
   const appName = config?.app_name || t('core:appName')
+  // oxlint-disable-next-line react/purity -- the footer year: read on every render on purpose
+  const year = new Date().getFullYear()
 
   useEffect(() => {
     document.title = `${appName} — ${t('hero.eyebrow')}`
@@ -86,7 +88,7 @@ function LandingPage() {
 
       <footer className="hairline-t">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-4 py-8 text-footnote text-label-secondary sm:flex-row sm:px-6">
-          <p>{t('footer.rights', { year: new Date().getFullYear(), name: appName })}</p>
+          <p>{t('footer.rights', { year, name: appName })}</p>
           <div className="flex items-center gap-4">
             {config?.tos_url ? (
               <a href={config.tos_url} className="underline-offset-2 hover:underline" rel="noopener">

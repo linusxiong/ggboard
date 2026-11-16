@@ -12,7 +12,7 @@ WORKDIR /src/web
 # Chromium prerenders the public routes at build time (web/scripts/prerender.mjs); build stage only.
 RUN apk add --no-cache chromium && npm install -g pnpm@12.4.1
 ENV CHROME_PATH=/usr/bin/chromium
-COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml web/.pnpmfile.cjs ./
+COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY web/ ./
 RUN pnpm build

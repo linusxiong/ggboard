@@ -132,7 +132,7 @@ export function SystemPage() {
             ),
         }),
       ]),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `num` only depends on locale
+    // oxlint-disable-next-line react/exhaustive-deps -- `num` only depends on locale
     [t, locale],
   )
 

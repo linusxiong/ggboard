@@ -7,7 +7,7 @@
 # Cooldown: a version must have been public for a few days before it is proposed, so a hijacked release is usually
 # withdrawn first. pnpm applies its own minimum release age when it resolves versions, so keep this at least as long.
 #
-# Before merging: CI (build, vet, tests, govulncheck, pnpm audit, lint, build) must pass. Frontend updates that end up
+# Before merging: CI (build, vet, tests, govulncheck; pnpm audit, lint, type check, build, unit tests) must pass. Frontend updates that end up
 # in the bundle also need a first-load and Lighthouse comparison with the previous build, because CI does not open a
 # page. See CONTRIBUTING.md -> Dependencies.
 version: 2

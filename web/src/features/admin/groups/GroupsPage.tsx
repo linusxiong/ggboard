@@ -100,7 +100,7 @@ export function GroupsPage() {
         }),
       ]),
     // saveRename reads `editing`, which is already a dependency
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
     [t, fmt, editing],
   )
 

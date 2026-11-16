@@ -63,11 +63,13 @@ function DashboardPage() {
   const currency = config.data ? { currency: config.data.currency, symbol: config.data.currency_symbol } : {}
 
   const name = user?.email.split('@')[0] ?? ''
+  // oxlint-disable-next-line react/purity -- the greeting follows the clock: read on every render on purpose
+  const hour = new Date().getHours()
   const days = logs.data ? lastDays(logs.data.items, 7) : undefined
   const weekTotal = days?.reduce((sum, d) => sum + d.total, 0) ?? 0
 
   return (
-    <PageShell title={t(greetingKey(new Date().getHours()), { name })} setDocumentTitle={false}>
+    <PageShell title={t(greetingKey(hour), { name })} setDocumentTitle={false}>
       <title>{`${t('title')} · GG Bond`}</title>
 
       <div className="grid gap-4 lg:grid-cols-3">
