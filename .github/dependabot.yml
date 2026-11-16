@@ -7,8 +7,9 @@
 # Cooldown: a version must have been public for a few days before it is proposed, so a hijacked release is usually
 # withdrawn first. pnpm applies its own minimum release age when it resolves versions, so keep this at least as long.
 #
-# Before merging: CI (build, vet, tests, govulncheck, pnpm audit, lint, build) must pass. Frontend build-tool updates
-# also need `pnpm lh` locally, because CI does not run Lighthouse. See CONTRIBUTING.md -> Dependencies.
+# Before merging: CI (build, vet, tests, govulncheck, pnpm audit, lint, build) must pass. Frontend updates that end up
+# in the bundle also need a first-load and Lighthouse comparison with the previous build, because CI does not open a
+# page. See CONTRIBUTING.md -> Dependencies.
 version: 2
 
 updates:
@@ -28,6 +29,13 @@ updates:
       go:
         patterns: ['*']
         update-types: [minor, patch]
+    ignore:
+      # 1.1.0 prints `[=true|false]` after every boolean flag in --help and has no switch to turn that off
+      # (https://github.com/spf13/pflag/issues/454). Only this release is skipped; the next one is proposed as usual,
+      # and this entry goes away once ggboard is on it. Keep the `=`: for Go modules a bare `1.1.0` means `^1.1.0`,
+      # which would hide every later 1.x as well.
+      - dependency-name: github.com/spf13/pflag
+        versions: ['= 1.1.0']
 
   # ---- Frontend (web/package.json + pnpm-lock.yaml; pnpm uses the npm ecosystem).
   - package-ecosystem: npm
@@ -45,11 +53,17 @@ updates:
       prefix-development: chore(deps-dev)
     open-pull-requests-limit: 8
     groups:
-      # First match wins. Packages that must move together get a group of their own.
+      # Packages that must move together get a group of their own. Dependabot gives a package to the group whose
+      # pattern names it most precisely: an exact name beats a wildcard, and '*' ranks last. A group with no
+      # `patterns` ranks above every wildcard, so the two catch-all groups at the end must keep `patterns: ['*']`;
+      # without it they take `@heroui/*`, `@tanstack/*` and the build plugins away from the groups above. After
+      # changing a group, read the "Checking specificity" lines in the next Dependabot run log.
       react:
         patterns: [react, react-dom, '@types/react', '@types/react-dom']
       heroui:
-        # HeroUI is pinned exactly and builds on React Aria: check docs/FRONTEND.md and the release notes on a bump.
+        # HeroUI is pinned exactly and builds on React Aria. Our skin overrides its CSS, so a green CI does not show
+        # that a component still looks right: read the release notes and compare the old and the new build in a
+        # browser first (docs/FRONTEND.md §2, MISTAKES #313).
         patterns: ['@heroui/*', react-aria, react-aria-components, '@react-aria/*', '@internationalized/*']
         update-types: [minor, patch]
       tanstack:
@@ -63,9 +77,11 @@ updates:
         # Held together by the overrides in web/pnpm-workspace.yaml; drop an override once upstream no longer needs it.
         patterns: ['@lhci/cli', puppeteer-core]
       web-runtime:
+        patterns: ['*']
         dependency-type: production
         update-types: [minor, patch]
       web-dev:
+        patterns: ['*']
         dependency-type: development
         update-types: [minor, patch]
 
