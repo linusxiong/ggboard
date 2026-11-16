@@ -25,7 +25,7 @@ The original contract had gaps; these decisions are implemented and kept here as
    and charges can't be created. `coinbase` implements the **Coinbase Business Checkouts API** (§6, settles in USDC;
    US and Singapore merchants). The Xboard importer imports Xboard "Coinbase" payments **disabled**, because their
    keys no longer work.
-2. **Stripe:** module **`github.com/stripe/stripe-go/v87`** (v87.0.0, API `2026-09-30.endive`, pulls in
+2. **Stripe:** module **`github.com/stripe/stripe-go/v87`** (v87.1.0, API `2026-10-28.endive`, pulls in
    `github.com/shopspring/decimal`). v87 removed `PaymentMethodTypes`; `AllowedPaymentMethodTypes` filters the methods
    enabled in the Dashboard. No `publishable_key` (hosted Checkout doesn't need it).
    `checkout.session.async_payment_succeeded` is handled. A `currency` different from the site currency needs an
@@ -468,13 +468,14 @@ sha256 = c4f73092a9a24c5300711a639602e1b66c0b925e015ddf44d30399473baa78ef
 
 ## 5. Stripe Checkout: `stripe`
 
-Sources: stripe-go **v87.0.0** source (`checkout_session.go`, `checkout_session_service.go`, `webhooks.go`,
-`stripe.go`, `api_version.go`, `CHANGELOG.md`); Go module proxy (v86.4.2 2026-09-09, v87.0.0 2026-10-01, only
-v87.1.0 pre-releases after it); docs.stripe.com *Supported currencies*, *WeChat Pay with Checkout*; Xboard fork
+Sources: stripe-go **v87.1.0** source (`checkout_session.go`, `checkout_session_service.go`, `webhooks.go`,
+`stripe.go`, `api_version.go`, `CHANGELOG.md`); Go module proxy (v86.4.2 2026-09-09, v87.0.0 2026-10-01, v87.1.0
+2026-10-29); docs.stripe.com *Supported currencies*, *WeChat Pay with Checkout*; Xboard fork
 `StripeALLInOne.php` (pins `2026-04-22.dahlia`).
 
-Install with `go get github.com/stripe/stripe-go/v87@v87.0.0`. After that, `stripe.APIVersion ==
-"2026-09-30.endive"`.
+Install with `go get github.com/stripe/stripe-go/v87@v87.1.0`. After that, `stripe.APIVersion ==
+"2026-10-28.endive"`. 87.1.0 moved the pinned version within the `endive` release (87.0.0 had `2026-09-30.endive`);
+releases inside one named version do not break compatibility, and the webhook ignores the version anyway (below).
 
 | key | label | type | req | description |
 | --- | --- | --- | --- | --- |
@@ -531,7 +532,8 @@ s, err := sc.V1CheckoutSessions.Create(ctx, p) // → PayResult{Type: "url", Dat
   `auto` on an account where WeChat Pay is *disabled* Stripe may reject the option, so a 400 mentioning
   `wechat_pay` is retried once without it.
 - **Idempotency:** stripe-go adds an `Idempotency-Key` automatically to every POST and reuses it across its own
-  network retries (`stripe.go`). Don't set a custom key: `ExpiresAt` changes between clicks, and reusing a key
+  network retries (`stripe.go`; since 87.1.0 it first follows the `Stripe-Should-Retry` response header, then the
+  status code). Don't set a custom key: `ExpiresAt` changes between clicks, and reusing a key
   with different params fails with `idempotency_error`. Each re-click creates a new session; stale sessions expire
   on their own.
 - Errors are `*stripe.Error` (`HTTPStatusCode`, `Code`, `Msg`); `amount_too_small` (and a converted amount ≤ 0 or a
@@ -551,7 +553,7 @@ ev, err := stripe.ConstructEvent(raw, r.Header.Get("Stripe-Signature"), cfg["web
 - **What `ConstructEvent` checks:**
   - `t` is no older than 300 s;
   - some `v1` equals HMAC-SHA256(key = the **whole** secret string including `whsec_`, msg = `"<t>." + raw`);
-  - the secret is not empty.
+  - the secret is not empty (since 87.1.0: not made of whitespace only; the gateway trims it and requires it first).
 - **Version mismatch:** by default it also *rejects* events from another API release train than the SDK's
   `endive`; the endpoint's version is fixed when it's created. Ignore the mismatch and decode only stable fields
   from `ev.Data.Raw`:
