@@ -123,5 +123,8 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
     restoreMocks: true,
+    // Hosted CI runners are slower than a developer machine: the heaviest test takes 3.5 s on four idle cores and
+    // crossed the default 5 s as soon as the machine was busy.
+    testTimeout: process.env.CI ? 20_000 : 5_000,
   },
 })

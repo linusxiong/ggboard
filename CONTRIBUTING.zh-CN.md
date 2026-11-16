@@ -10,8 +10,8 @@
 | 工具 | 版本 | 来源 |
 | --- | --- | --- |
 | Go | ≥ 1.27.4 | `go.mod`（CI 用 `1.27.x`，Dockerfile 用 `golang:1.27-alpine`） |
-| Node.js | ≥ 22（CI 与 Dockerfile 用 24） | `web/package.json` `engines`、`.github/workflows/ci.yml` |
-| pnpm | 12（Dockerfile 固定 `pnpm@12.4.1`） | `ci.yml`、`deploy/Dockerfile` |
+| Node.js | ≥ 22（CI 与 Dockerfile 用 24） | `web/package.json` `engines`、`.github/workflows/web.yml` |
+| pnpm | 12（Dockerfile 固定 `pnpm@12.4.1`） | `web.yml`、`deploy/Dockerfile` |
 | golangci-lint | v2（可选） | `.golangci.yml`；没装时 `make lint` 退回 `go vet` + `gofmt` |
 
 ```bash
@@ -49,8 +49,10 @@ README 截图没有 pnpm 脚本：对运行中的实例执行 `node web/scripts/
 
 ## 提交前
 
-CI（`.github/workflows/ci.yml`）会跑：`gofmt`、`go build ./...`、`go vet ./...`、`govulncheck`、
-`go test ./... -race -count=1`，以及 `pnpm -C web install --frozen-lockfile`、`audit`、`lint`、`build`。CI 不跑前端类型检查和单测，请本地补上
+CI 分成两个工作流。`.github/workflows/ci.yml` 跑 `gofmt`、`go build ./...`、`go vet ./...`、`govulncheck`、
+`go test ./... -race -count=1`。`.github/workflows/web.yml` 把前端检查拆成同时运行的几个任务：`audit` 和 `lint`、`typecheck`、`build`，
+以及分成三片的单测。PR 只运行改动能影响到的工作流：只改 `web/` 时跳过 Go 任务；前端任务需要改动落在 `web/` 或
+`internal/subscription/rulesets/`（前端测试会读这份目录）。推到 `main` 时两个都跑。推之前先在本地跑同样的检查
 （手动触发的 `.github/workflows/docker.yml` 负责构建并推送多架构镜像，见 [docs/DEPLOY.zh-CN.md](docs/DEPLOY.zh-CN.md)）：
 
 ```bash
@@ -102,7 +104,7 @@ Go 测试用 `internal/testutil`：
 - **Dependabot**（`.github/dependabot.yml`）每周一检查 Go 模块、前端、工作流用到的 Action 和 Dockerfile 的基础镜像。更新按组合并：
   Go 的次版本和补丁版本一个 PR；React、HeroUI 与 React Aria、TanStack、构建工具、Lighthouse 工具链各一个。一个版本公开满 3 天
   （大版本 14 天）才会被提出。安全更新是另一套机制，公告一发布就会开 PR。
-- **合并前**：CI 必须通过。对前端来说这还不够：CI 只做 lint 和构建，不会打开页面。凡是会进产物的更新（`build-tools`、HeroUI、
+- **合并前**：CI 必须通过。对前端来说这还不够：CI 做 lint、类型检查、构建和单测，不会打开页面。凡是会进产物的更新（`build-tools`、HeroUI、
   TanStack 和运行时依赖各组），还要和上一个构建对比首屏体积和 Lighthouse（`web/README.md` 的 Performance rules）；
   `pnpm -C web lh` 不在 CI 里。HeroUI 先读它的发布说明和 `docs/FRONTEND.md` §2，再在浏览器里对比新旧两个构建（`pnpm -C web ui:diff`）：我们的皮肤覆盖了
   HeroUI 的 CSS，它底下的实现一变，组件可能坏掉而没有任何检查报错（MISTAKES #313）。前端任务如果卡在锁文件上，检出该分支执行
