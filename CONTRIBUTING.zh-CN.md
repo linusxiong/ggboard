@@ -102,9 +102,12 @@ Go 测试用 `internal/testutil`：
 - **Dependabot**（`.github/dependabot.yml`）每周一检查 Go 模块、前端、工作流用到的 Action 和 Dockerfile 的基础镜像。更新按组合并：
   Go 的次版本和补丁版本一个 PR；React、HeroUI 与 React Aria、TanStack、构建工具、Lighthouse 工具链各一个。一个版本公开满 3 天
   （大版本 14 天）才会被提出。安全更新是另一套机制，公告一发布就会开 PR。
-- **合并前**：CI 必须通过。`build-tools` 组还要本地跑 `pnpm -C web lh`，因为 CI 不跑 Lighthouse；HeroUI 先读它的发布说明和
-  `docs/FRONTEND.md`。前端任务如果卡在锁文件上，检出该分支执行 `pnpm -C web install` 再推上去：lint 工具链通过
-  `web/.pnpmfile.cjs` 使用单独的 TypeScript，override 写在 `web/pnpm-workspace.yaml`。
+- **合并前**：CI 必须通过。对前端来说这还不够：CI 只做 lint 和构建，不会打开页面。凡是会进产物的更新（`build-tools`、HeroUI、
+  TanStack 和运行时依赖各组），还要和上一个构建对比首屏体积和 Lighthouse（`web/README.md` 的 Performance rules）；
+  `pnpm -C web lh` 不在 CI 里。HeroUI 先读它的发布说明和 `docs/FRONTEND.md` §2，再在浏览器里对比新旧两个构建：我们的皮肤覆盖了
+  HeroUI 的 CSS，它底下的实现一变，组件可能坏掉而没有任何检查报错（MISTAKES #313）。前端任务如果卡在锁文件上，检出该分支执行
+  `pnpm -C web install` 再推上去：lint 工具链通过 `web/.pnpmfile.cjs` 使用单独的 TypeScript，override 写在
+  `web/pnpm-workspace.yaml`。
 - **扫描器比上游慢。** `govulncheck`、`pnpm audit` 和 Dependabot 告警只认已经进入公共数据库的公告，这可能比维护者发布公告晚好几天
   （MISTAKES #310）。发版前要读一遍有待更新的直接依赖的安全公告：`gh api repos/<owner>/<repo>/security-advisories`。
 - **手动升级**：Go 用 `go get <module>@<version>`，前端用 `pnpm -C web add <package>@<range>`，然后执行“提交前”里的命令。

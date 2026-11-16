@@ -115,10 +115,14 @@ Go tests use `internal/testutil`:
   each for React, HeroUI with React Aria, TanStack, the build tools and the Lighthouse toolchain. A version is proposed
   once it has been public for 3 days (14 for a major). Security updates are separate and open as soon as an advisory
   is published.
-- **Merging one**: CI must pass. For the `build-tools` group also run `pnpm -C web lh`, because CI does not run
-  Lighthouse; for HeroUI read its release notes and `docs/FRONTEND.md` first. If the frontend job fails on the
-  lockfile, check the branch out, run `pnpm -C web install` and push the result: the lint toolchain gets its own
-  TypeScript from `web/.pnpmfile.cjs`, and the overrides are in `web/pnpm-workspace.yaml`.
+- **Merging one**: CI must pass. For the frontend that is not enough: CI lints and builds, it does not open a page.
+  For anything that ends up in the bundle (the `build-tools`, HeroUI, TanStack and runtime groups) also compare the
+  first load and Lighthouse with the previous build (`web/README.md` → Performance rules); `pnpm -C web lh` is not
+  part of CI. For HeroUI read its release notes and `docs/FRONTEND.md` §2 first, then compare the old and the new
+  build in a browser: our skin overrides HeroUI's CSS, and an implementation that changed underneath it can break a
+  component without failing anything (MISTAKES #313). If the frontend job fails on the lockfile, check the branch
+  out, run `pnpm -C web install` and push the result: the lint toolchain gets its own TypeScript from
+  `web/.pnpmfile.cjs`, and the overrides are in `web/pnpm-workspace.yaml`.
 - **Scanners lag behind upstream.** `govulncheck`, `pnpm audit` and Dependabot alerts only know an advisory once it
   is in the public databases, which can be days after the maintainer published it (MISTAKES #310). Before a release,
   read the advisories of the direct dependencies that have an update waiting:

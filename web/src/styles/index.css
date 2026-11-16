@@ -10,8 +10,12 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-/* HeroUI v3 foundations (selective import, see heroui.com/docs → Theming → Import strategies) */
-@import '@heroui/styles/base' layer(base);
+/*
+ * HeroUI v3 foundations (selective import, see heroui.com/docs → Theming → Import strategies).
+ * `_base.css` is `@heroui/styles/base` without the overlay keyframes; scripts/heroui-css.ts writes it and
+ * attaches the keyframes to the components that animate with them.
+ */
+@import '../../.heroui-css/_base.css' layer(base);
 @import '@heroui/styles/base/scrollbar.css' layer(base);
 @import '@heroui/styles/themes/default';
 @import '@heroui/styles/utilities';

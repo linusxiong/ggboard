@@ -6,6 +6,14 @@ Notable changes to GG Bond (ggboard), per version. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Changed
+
+- HeroUI is updated to 3.2.7. Dialogs, menus and tooltips now open and close by fading and moving only, which mid-range phones keep up with. On a phone, an action menu no longer shrinks narrower than its labels, and a picker list leaves room for the check mark beside a long option.
+
+### Fixed
+
+- Switches, text fields and selects animate their state changes: the thumb slides, and borders and backgrounds fade, as HeroUI designs them. These transitions read theme variables that were missing from the built CSS, so browsers ignored them. The same gap put an invisible 3 px border inside search fields; it is gone.
+
 ### Security
 
 - The PostgreSQL driver pgx is updated to 5.13.0, which fixes three advisories. Two are rated high: SQL injection in simple-protocol batches ([GHSA-j38q-h3ph-jjpq](https://github.com/jackc/pgx/security/advisories/GHSA-j38q-h3ph-jjpq)), which ggboard does not use, and `require_auth` / `channel_binding` in the connection string not being enforced when the server skips authentication ([GHSA-95fj-3fxw-g62g](https://github.com/jackc/pgx/security/advisories/GHSA-95fj-3fxw-g62g)), which matters if your DSN sets either. The third is a panic on a malformed server response ([GHSA-w9rp-vfrh-q8vv](https://github.com/jackc/pgx/security/advisories/GHSA-w9rp-vfrh-q8vv)). SQLite and MySQL installations are not affected.

@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/prerender.mjs",
+    "build": "vite build && node scripts/check-css-vars.mjs && node scripts/prerender.mjs",
     "preview": "vite preview",
     "preview:mock": "vite preview --mode lighthouse",
     "typecheck": "node scripts/gen-routes.mjs && tsc -b",

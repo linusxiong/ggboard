@@ -8,17 +8,17 @@ Versions below are the ones resolved in `web/pnpm-lock.yaml`.
 
 | package | version | package | version |
 | --- | --- | --- | --- |
-| `@heroui/react` / `@heroui/styles` | 3.2.6 / 3.2.6 | `@tanstack/react-table` | 9.3.1 |
-| `tailwindcss` / `@tailwindcss/vite` | 4.3.3 | `@tanstack/react-form` | 1.33.5 |
-| `vite` / `@vitejs/plugin-react` | 8.3.8 / 6.1.2 | `@tanstack/react-virtual` | 3.14.21 |
-| `react` / `react-dom` | 19.3.1 | `zustand` | 5.0.15 |
-| `@tanstack/react-router` / `router-plugin` | 1.170.45 / 1.168.47 | `motion` | 14.4.0 |
-| `@tanstack/react-query` | 5.104.5 | `lucide-react` | 1.60.0 |
+| `@heroui/react` / `@heroui/styles` | 3.2.7 / 3.2.7 | `@tanstack/react-table` | 9.3.1 |
+| `tailwindcss` / `@tailwindcss/vite` | 4.3.5 | `@tanstack/react-form` | 1.33.5 |
+| `vite` / `@vitejs/plugin-react` | 8.3.8 / 6.3.0 | `@tanstack/react-virtual` | 3.14.26 |
+| `react` / `react-dom` | 19.3.1 | `zustand` | 5.1.0 |
+| `@tanstack/react-router` / `router-plugin` | 1.170.46 / 1.169.0 | `motion` | 14.13.0 |
+| `@tanstack/react-query` | 5.107.1 | `lucide-react` | 1.72.0 |
 | `typescript` (lint tooling: 6.0.3, §1) | 7.0.2 | `@simplewebauthn/browser` | 14.0.0 |
-| `vite-plugin-compression2` / `@lhci/cli` | 2.5.3 / 0.15.1 | `react-aria-components` / `react-aria` | 1.22.1 / 3.53.1 |
+| `vite-plugin-compression2` / `@lhci/cli` | 2.5.4 / 0.16.1 | `react-aria-components` / `react-aria` | 1.22.1 / 3.53.1 |
 | `marked` / `dompurify` | 18.2.0 / 3.4.18 | `qrcode` | 1.5.4 |
-| `vitest` / `jsdom` | 5.0.5 / 30.1.3 | `eslint` / `typescript-eslint` | 10.13.0 / 8.72.0 |
-| `puppeteer-core` (scripts only: prerender, screenshots, ui-smoke) | 25.16.0 | `tw-animate-css` | 1.4.0 |
+| `vitest` / `jsdom` | 5.1.0 / 30.1.3 | `eslint` / `typescript-eslint` | 10.14.0 / 8.72.2 |
+| `puppeteer-core` (scripts only: prerender, screenshots, ui-smoke) | 25.17.0 | `tw-animate-css` | 1.4.0 |
 
 There is **no schema library** (no Zod): search params and form fields are validated with plain functions
 (`validateSearch` functions, `@/lib/validators`).
@@ -116,9 +116,35 @@ maps all of these to Tailwind as `--color-*` (`bg-surface`, `text-muted`, `bg-ac
 **Mechanics** (all verified, and all used by `styles/index.css` + `theme.css`). HeroUI's full `@import "@heroui/styles"` is
 **not** used: it made the render-blocking CSS 457 KB (MISTAKES #25). `index.css` declares
 `@layer theme, base, components, gg-overrides, utilities;`, imports `tailwindcss` and `tw-animate-css`, then only HeroUI's
-foundations (`@heroui/styles/base` in `layer(base)`, `themes/default`, `utilities`, `variants`), then `theme.css` and
+foundations (its base stylesheet in `layer(base)`, `themes/default`, `utilities`, `variants`), then `theme.css` and
 `utilities.css`; each component's own stylesheet is attached to the JS chunk that renders it (`scripts/heroui-css.ts`,
 `import 'heroui-css:button'` for native elements).
+
+Each component stylesheet is a Tailwind build of its own (`@reference` to `index.css`). The plugin covers what that
+breaks:
+
+* **Theme variables.** Tailwind writes a theme variable only into the build that uses it, and never into a
+  `@reference` build. HeroUI's component CSS reads theme variables with a bare `var()` (`var(--ease-smooth)`,
+  `var(--color-field)`, `var(--radius-2xl)`). When nothing defines the variable the whole declaration is void: a
+  `transition` or an `animation` does not run, a border width falls back to `medium`, and nothing reports it. Every
+  wrapper therefore defines the theme variables its component reads, as `--x: --theme(--x inline)`, so the value comes
+  from Tailwind and the app's own `@theme` applies. They sit in `@layer theme.heroui`: a sublayer ranks below
+  everything written directly in `theme` and in every later layer, so they are defaults and never overrides.
+  `pnpm build` runs `scripts/check-css-vars.mjs`, which fails when the built CSS still reads a variable that no
+  stylesheet defines; a variable set from JavaScript goes on that script's `RUNTIME` list.
+* **Overlay keyframes.** Since 3.2.7 `@heroui/styles/base` imports `base/overlay-motion.css`, the 19
+  `heroui-overlay-*` keyframes that popovers, menus and dialogs animate with. No public page renders one, and the
+  entry stylesheet has about 100 B to spare before it needs a second round trip (`web/README.md` → Performance rules).
+  `index.css` imports `.heroui-css/_base.css`, a generated copy of the base stylesheet without that import, and the
+  keyframes load with the components that use them (`import 'heroui-css:overlay-motion'` next to
+  `import 'heroui-css:popover'` on a native element). The build stops when HeroUI changes what its base stylesheet
+  imports.
+
+**On a HeroUI update** our skin (`styles/app.css`, layer `gg-overrides`) can collide with a changed implementation:
+3.2.7 moved the switch thumb from a margin to `inset-inline-start: var(--switch-thumb-offset)`, and the old margin
+override pushed the selected thumb out of the track. CI does not see that. Before merging, serve the old and the
+new `dist/` from one panel (`GGBOARD_FRONTEND_DIR`) and compare them: positions and computed styles of the elements on
+every page, opened dialogs and menus, a toggled switch (MISTAKES #313).
 
 ```css
 @import "tailwindcss";          /* 1st — then the HeroUI foundations (order matters) */
@@ -147,7 +173,7 @@ Do **not** set `--color-*: initial`, because it wipes HeroUI's bridge. **No hex 
 
 ---
 
-## 3. HeroUI v3 (`@heroui/react` 3.2.6)
+## 3. HeroUI v3 (`@heroui/react` 3.2.7)
 
 Sources: `https://heroui.com/en/docs/react/components/{button,text-field,input,number-field,text-area,select,checkbox,switch,radio-group,card,modal,
 drawer,alert-dialog,tabs,chip,badge,avatar,dropdown,table,tooltip,progress-bar,skeleton,toast,alert,form,link,breadcrumbs,pagination,accordion,popover,
@@ -334,7 +360,7 @@ component: () => { const { data } = useSuspenseQuery(ordersQuery(Route.useLoader
 
 ---
 
-## 5. TanStack Query 5.104
+## 5. TanStack Query 5.107
 
 Sources: `https://tanstack.com/query/latest/docs/framework/react/guides/{query-options,paginated-queries,query-invalidation,invalidations-from-mutations,
 mutations,important-defaults}` · reference/classes/QueryClient · deprecations confirmed in `@tanstack/query-core@5.104.5` `.d.ts`
@@ -544,7 +570,7 @@ skips React re-renders during scroll, but requires `ref={v.containerRef}` on the
 
 ---
 
-## 9. zustand 5.0
+## 9. zustand 5.1
 
 Sources: zustand repo `docs/reference/middlewares/persist.md`, `docs/reference/migrations/migrating-to-v5.md`, `docs/learn/guides/beginner-typescript.md`,
 `docs/reference/integrations/persisting-store-data.md` (<https://zustand.docs.pmnd.rs>)
@@ -654,7 +680,7 @@ Sources: <https://vite.dev/guide/migration> · <https://vite.dev/config/build-op
 
 ---
 
-## 14. Lighthouse 100 (`@lhci/cli` 0.15)
+## 14. Lighthouse 100 (`@lhci/cli` 0.16, Lighthouse 13.6)
 
 Sources: <https://github.com/GoogleChrome/lighthouse-ci/blob/main/docs/configuration.md> · Lighthouse `core/config/default-config.js` (scored audits) ·
 `core/lib/network-request.js` (localhost counts as secure) · `core/audits/seo/robots-txt.js`

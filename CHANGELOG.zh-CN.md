@@ -6,6 +6,14 @@
 
 ## [Unreleased]
 
+### 变更
+
+- HeroUI 升级到 3.2.7。对话框、菜单和提示的出现与消失只做淡入淡出和位移，中端手机也跟得上。手机上的操作菜单不会再缩得比菜单文字还窄，选择列表里长选项旁边留出了勾选标记的位置。
+
+### 修复
+
+- 开关、输入框和下拉选择在状态变化时有过渡动画了：滑块滑动，边框和背景渐变，这是 HeroUI 设计的效果。这些过渡用到的主题变量之前没有进入构建出的 CSS，浏览器直接忽略了它们。同一个原因还让搜索框里多出一圈看不见的 3 px 边框，现在没有了。
+
 ### 安全
 
 - PostgreSQL 驱动 pgx 升级到 5.13.0，修复三条公告。其中两条为高危：simple-protocol 批量查询的 SQL 注入（[GHSA-j38q-h3ph-jjpq](https://github.com/jackc/pgx/security/advisories/GHSA-j38q-h3ph-jjpq)），ggboard 没有用到；以及服务器跳过认证时，连接串里的 `require_auth` / `channel_binding` 不生效（[GHSA-95fj-3fxw-g62g](https://github.com/jackc/pgx/security/advisories/GHSA-95fj-3fxw-g62g)），DSN 里设置了这两项的站点受影响。第三条是服务器返回畸形响应时 panic（[GHSA-w9rp-vfrh-q8vv](https://github.com/jackc/pgx/security/advisories/GHSA-w9rp-vfrh-q8vv)）。使用 SQLite 或 MySQL 的站点不受影响。

@@ -104,7 +104,13 @@
     height: 26px;
     border-radius: 999px;
   }
+  /*
+   * HeroUI slides the selected thumb with `inset-inline-start: var(--switch-thumb-offset)` (since 3.2.7; a margin
+   * before that) and sets the offset per size. The margin stays 2px in both states, so the offset is
+   * track - thumb - 2 * 2px, the same for every size because the thumb is.
+   */
   .switch__thumb {
+    --switch-thumb-offset: calc(100% - 26px);
     width: 22px;
     height: 22px;
     border-radius: 999px;
@@ -117,7 +123,6 @@
   }
   .switch[data-selected='true'] .switch__thumb,
   .switch[aria-checked='true'] .switch__thumb {
-    margin-inline-start: calc(100% - 24px);
     background-color: var(--tint-foreground);
   }
   @media (min-width: 768px) {
@@ -126,12 +131,9 @@
       height: 22px;
     }
     .switch__thumb {
+      --switch-thumb-offset: calc(100% - 22px);
       width: 18px;
       height: 18px;
-    }
-    .switch[data-selected='true'] .switch__thumb,
-    .switch[aria-checked='true'] .switch__thumb {
-      margin-inline-start: calc(100% - 20px);
     }
   }
   .switch__content {

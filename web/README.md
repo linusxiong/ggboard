@@ -78,8 +78,9 @@ src/
   shims/                   use-sync-external-store.ts (React 19 built-in, aliased in vite.config.ts)
   test/                    vitest setup + cross-feature tests (autofill, login/MFA, security, dashboard, effects,
                            subscription, subscription profiles / security, Telegram)
-scripts/                   gen-routes.mjs, heroui-css.ts (per-component CSS), preview.ts (prod-like preview + mock
-                           API), prerender.mjs, ui-smoke.mjs, screenshots.mjs, lh-login.cjs, fixtures/, mock/
+scripts/                   gen-routes.mjs, heroui-css.ts (per-component CSS), check-css-vars.mjs (build check),
+                           preview.ts (prod-like preview + mock API), prerender.mjs, ui-smoke.mjs, screenshots.mjs,
+                           lh-login.cjs, fixtures/, mock/
 public/                    favicon.svg, apple-touch-icon.png, manifest.webmanifest, robots.txt
 ```
 
@@ -372,9 +373,9 @@ No hex colors in components. Dark mode follows the OS; `useUiStore().setTheme('l
 
 ## Performance rules (AGENTS §6)
 
-- **First-load budget: ≤ 120 KB gzip JS** for landing/login. Last measured on the 1.0.4 build (2026-11-15, gzip sizes
+- **First-load budget: ≤ 120 KB gzip JS** for landing/login. Last measured on 2026-11-15 with HeroUI 3.2.7 (gzip sizes
   of `dist/`): the prerendered pages load 112.5–115.0 kB of JS each (boot script plus their preload list: `/` 113.6,
-  `/login` 115.0, `/register` 113.3, `/forgot` 112.5) and the shell `spa.html` 115.6 kB; the entry CSS is 16.7 kB.
+  `/login` 115.0, `/register` 113.3, `/forgot` 112.5) and the shell `spa.html` 115.8 kB; the entry CSS is 16.7 kB.
   (2026-10-22, `docs/E2E_2026-10-22.md`: entry JS 112.0 KB, entry CSS 15.8 KB.) The public pages are prerendered, so
   this JS no longer gates their first paint (it loads after it). The signed-in skin (`app.css`, incl. the segmented
   control) never loads on them.
@@ -384,6 +385,16 @@ No hex colors in components. Dark mode follows the OS; `useUiStore().setTheme('l
   the authenticated shells.
 - HeroUI CSS is per component (`scripts/heroui-css.ts` attaches each component's stylesheet to its JS module); in a
   native element use `import 'heroui-css:button'`. The entry (global) CSS stays ≈ 16–17 KB gzip (16.7 kB on 2026-11-15).
+- **The entry CSS has to fit the first TCP round trip.** A new connection delivers about 14.6 kB (10 segments) before it
+  waits for an acknowledgement, so a render-blocking response of 14.7 kB costs one more round trip than one of 14.5 kB:
+  150 ms of FCP and LCP on Lighthouse's slow 4G. With its headers the entry CSS is 14.5 kB on the wire (14,032 B of
+  Brotli on 2026-11-15), so it has about 100 B to spare. Anything only signed-in pages use belongs in `app.css` or with
+  its component, not in `styles/index.css`. Check a change with `ls -l dist/assets/index-*.css.br`, and compare the
+  metrics with the previous build, not only the score (MISTAKES #308, #313).
+- Each HeroUI component stylesheet is its own Tailwind build, and Tailwind writes a theme variable only into the build
+  that uses it. `scripts/heroui-css.ts` therefore gives every component the theme variables it reads with a bare
+  `var()`, and keeps HeroUI's overlay keyframes out of the entry CSS (`docs/FRONTEND.md` §2, Mechanics). `pnpm build`
+  runs `scripts/check-css-vars.mjs`, which fails when the built CSS reads a variable that nothing defines.
 - Route-level code splitting is automatic; lazy-load anything heavy (charts, editors, Markdown, QR, effects) and start
   animations after idle (`useAnimationsReady`, `WhenIdle`). Give async content a fixed-size placeholder (CLS 0).
 - Vendor groups (`vite.config.ts` → `rolldownOptions.output.codeSplitting.groups`): `react`, `tanstack`, `tanstack-query`,
@@ -444,8 +455,9 @@ MISTAKES #138 / #145); the single-select segmented control is a `radio` group.
   held back. `minimumReleaseAgeExclude` is for an urgent fix only and is removed again afterwards (no entries now).
   Dependabot proposes updates weekly with its own cooldown (`.github/dependabot.yml`, CONTRIBUTING.md → Dependencies).
   Node ≥ 22 (`engines`).
-- Security overrides in that file update LHCI's transitive tools without changing its Lighthouse scoring version.
-  Keep uuid on its patched CommonJS-compatible 11.x line while LHCI requires it. `minimatch` is forced to 11.x (the
-  only patched line) for eslint; LHCI's old `chrome-launcher` 0.13 is replaced by 0.15.2 because glob 7 (via rimraf 3)
-  breaks on minimatch 11. Remove overrides when upstream
-  dependencies provide safe versions; validate with `pnpm audit` (including dev dependencies), build and Lighthouse.
+- Three overrides are left in that file, each with its reason next to it: `basic-ftp` 6.2.6 for the proxy agents of
+  LHCI and Puppeteer (5.x has open advisories), `minimatch` 11.x (the only patched line) for eslint, and
+  `chrome-launcher` 0.15.2 in place of the 0.13 LHCI asks for, because glob 7 (via rimraf 3) breaks on minimatch 11.
+  LHCI 0.16 made the others unnecessary (uuid, tmp, body-parser, puppeteer-core, the proxy agent of
+  `@puppeteer/browsers`). Remove an override when upstream provides a safe version: delete it, run `pnpm install`,
+  and validate with `pnpm audit` (including dev dependencies), `pnpm exec lhci healthcheck`, build and Lighthouse.
