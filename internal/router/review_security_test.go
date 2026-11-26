@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/linusxiong/ggboard/internal/httpx"
+	"github.com/linusxiong/ggboard/internal/model"
 	"github.com/linusxiong/ggboard/internal/router"
 	"github.com/linusxiong/ggboard/internal/testutil"
 )
@@ -40,6 +41,55 @@ func TestReviewPassportRefusesNonJSONBodies(t *testing.T) {
 	rec := testutil.Do(t, e, http.MethodPost, "/api/v1/passport/login", map[string]any{"email": "nobody@example.com", "password": "wrong-password"}, "")
 	if got := testutil.DecodeError(t, rec); got.Status != http.StatusUnauthorized {
 		t.Fatalf("JSON login = %d %s, want 401", rec.Code, rec.Body.String())
+	}
+}
+
+// Security audit 2026-11-25 §4: API responses (the login JWT, admin settings with secrets) carried no
+// Cache-Control. They default to no-store now; handlers with their own caching keep it, and the node endpoints'
+// ETag/304 still works.
+func TestReviewAPIResponsesAreNotCacheable(t *testing.T) {
+	a := testutil.NewTestApp(t, testutil.WithSettings(map[string]any{"server_token": "router-cache-token-0123456789abcdef"}))
+	e, err := router.New(a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cc := func(rec *httptest.ResponseRecorder) string { return rec.Header().Get("Cache-Control") }
+
+	u := testutil.CreateUser(t, a, "cache@example.com")
+	rec := testutil.Do(t, e, http.MethodPost, "/api/v1/passport/login", map[string]any{"email": u.Email, "password": testutil.Password}, "")
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"token"`) || cc(rec) != "no-store" {
+		t.Fatalf("login = %d Cache-Control %q", rec.Code, cc(rec))
+	}
+	admin := testutil.Login(t, a, testutil.CreateAdmin(t, a, "cache-admin@example.com"))
+	for _, p := range []string{"/api/v1/admin/settings", "/api/v1/user/subscription", "/healthz"} {
+		if rec := testutil.Do(t, e, http.MethodGet, p, nil, admin); rec.Code != http.StatusOK || cc(rec) != "no-store" {
+			t.Errorf("GET %s = %d Cache-Control %q, want no-store", p, rec.Code, cc(rec))
+		}
+	}
+	// Own values are kept: the public rule-set catalog, the passkey well-known document and static files (HTML and
+	// assets: internal/static tests).
+	for p, want := range map[string]string{
+		"/api/v1/guest/rulesets/catalog":  "public, max-age=300",
+		"/.well-known/passkey-endpoints":  "public, max-age=3600",
+		"/assets/does-not-exist-12345.js": "no-cache",
+	} {
+		if rec := testutil.Do(t, e, http.MethodGet, p, nil, ""); cc(rec) != want {
+			t.Errorf("GET %s Cache-Control = %q, want %q", p, cc(rec), want)
+		}
+	}
+	// A node's user list: no-store, and a revalidation with its ETag is still a 304.
+	users := "/api/v1/server/UniProxy/user?node_id=1&node_type=vless&token=router-cache-token-0123456789abcdef"
+	if err := a.DB.Create(&model.Node{ID: 1, Type: "vless", Name: "n", Host: "n.example.com", Port: "443", ServerPort: 443}).Error; err != nil {
+		t.Fatal(err)
+	}
+	rec = testutil.Do(t, e, http.MethodGet, users, nil, "")
+	tag := rec.Header().Get("ETag")
+	if rec.Code != http.StatusOK || tag == "" || cc(rec) != "no-store" {
+		t.Fatalf("node users = %d ETag %q Cache-Control %q", rec.Code, tag, cc(rec))
+	}
+	rec = testutil.DoWithHeaders(t, e, http.MethodGet, users, nil, "", map[string]string{"If-None-Match": tag})
+	if rec.Code != http.StatusNotModified || rec.Header().Get("ETag") != tag {
+		t.Fatalf("node users revalidation = %d ETag %q", rec.Code, rec.Header().Get("ETag"))
 	}
 }
 
