@@ -172,3 +172,41 @@ func TestSecurityValidateSettingsMinLen(t *testing.T) {
 		t.Errorf("warnings: %v", im.rep.Warnings)
 	}
 }
+
+// Security audit 2026-11-25 §5: the link settings (app_url, logo, tos_url, *_download_url) are http(s) URLs now.
+// A legacy value that is not one is dropped with a report line instead of being written and then silently ignored
+// on load; a host without a scheme is stored with https:// like the settings service does; a rejected value is not
+// printed (it may carry credentials).
+func TestSecurityValidateSettingsURLs(t *testing.T) {
+	im := &importer{rep: &Report{}, log: slog.New(slog.DiscardHandler)}
+	out := map[string]any{
+		"app_url":              "board.example.com",
+		"logo":                 "javascript:alert(1)",
+		"tos_url":              "/tos.html",
+		"windows_download_url": " https://dl.example.com/client.exe ",
+		"android_download_url": "https://user:hunter2@dl.example.com/client.apk",
+		"macos_download_url":   "",
+	}
+	im.validateSettings(out)
+	want := map[string]any{
+		"app_url":              "https://board.example.com",
+		"windows_download_url": "https://dl.example.com/client.exe",
+		"macos_download_url":   "",
+	}
+	if len(out) != len(want) {
+		t.Errorf("kept %v, want %v", out, want)
+	}
+	for k, v := range want {
+		if out[k] != v {
+			t.Errorf("%s = %#v, want %#v", k, out[k], v)
+		}
+	}
+	for _, k := range []string{"logo", "tos_url", "android_download_url"} {
+		if !hasWarning(im.rep, "settings", k+": not an absolute http(s) URL; kept ggboard's default") {
+			t.Errorf("no warning for %s: %v", k, im.rep.Warnings)
+		}
+	}
+	if hasWarning(im.rep, "", "hunter2") || hasWarning(im.rep, "", "javascript") {
+		t.Errorf("a warning repeats the rejected value: %v", im.rep.Warnings)
+	}
+}

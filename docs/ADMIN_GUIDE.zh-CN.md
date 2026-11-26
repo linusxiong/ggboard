@@ -55,6 +55,9 @@ ggboard admin promote --email user@example.com              # 把已有用户提
 | `default_locale` | `zh-CN` | `zh-CN` 或 `en` |
 | `show_info_to_user` | `true` | 关闭后用户节点列表不显示主机与端口 |
 
+链接类设置（`app_url`、`logo`、`tos_url`、`telegram_discuss_link`、客户端下载地址和 GeoIP 地址）只接受完整的 `http(s)` 地址；
+没写协议时自动补 `https://`。升级后，以前保存的不符合要求的值（相对路径、`tg://`、`mailto:`）会被忽略，字段显示为空，请重新填写完整地址。
+
 ### 注册与登录 `register`
 
 界面分为 **注册**、**试用**、**防滥用**、**人机验证** 四个小节：

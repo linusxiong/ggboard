@@ -748,16 +748,18 @@ Built-in templates (no override) render exactly as before.
 ### Settings keys
 
 Source of truth: `internal/settings/defs.go`. Types: `string`, `int` (inclusive range), `bool`, `strings` (JSON array, or a
-comma/newline separated string; elements must be among the options when a key lists them), `json`. Secrets are returned to
+comma/newline separated string; elements must be among the options when a key lists them), `json`; `string (URL)` is `""` or
+an absolute `http`/`https` URL with a host and no credentials, trimmed, with `https://` added when the scheme is missing
+(relative paths, `javascript:`, `mailto:`, `tg:` … → 400; a stored value that does not pass is ignored on load). Secrets are returned to
 admins only and masked in logs; `server_token` and `telegram_webhook_secret` are generated (32 chars) on first boot when empty.
 
 | group | key | type | default | notes |
 | --- | --- | --- | --- | --- |
 | site | `app_name` | string | `"GG Bond"` | |
 | site | `app_description` | string | `""` | |
-| site | `app_url` | string | `""` | public base URL: links, passkey RP id, payment return/notify fallback |
-| site | `logo` | string | `""` | |
-| site | `tos_url` | string | `""` | |
+| site | `app_url` | string (URL) | `""` | public base URL: links, passkey RP id, payment return/notify fallback |
+| site | `logo` | string (URL) | `""` | image in the e-mail layout header |
+| site | `tos_url` | string (URL) | `""` | terms-of-service link on the landing and sign-up pages |
 | site | `currency` | string | `"CNY"` | |
 | site | `currency_symbol` | string | `"¥"` | |
 | site | `default_locale` | string | `"zh-CN"` | `zh-CN` or `en` |
@@ -831,10 +833,10 @@ admins only and masked in logs; `server_token` and `telegram_webhook_secret` are
 | frontend | `frontend_background_url` | string | `""` | editable, not exposed by `/guest/config` yet |
 | frontend | `frontend_customer_service_url` | string | `""` | editable, not exposed by `/guest/config` yet |
 | frontend | `frontend_footer_html` | string | `""` | editable, not exposed by `/guest/config` yet |
-| app | `windows_download_url`, `windows_version` | string | `""` | `downloads.windows` in `/guest/config` |
-| app | `macos_download_url`, `macos_version` | string | `""` | `downloads.macos` |
-| app | `android_download_url`, `android_version` | string | `""` | `downloads.android` |
-| app | `ios_download_url`, `ios_version` | string | `""` | `downloads.ios` |
+| app | `windows_download_url` (URL), `windows_version` | string | `""` | `downloads.windows` in `/guest/config` |
+| app | `macos_download_url` (URL), `macos_version` | string | `""` | `downloads.macos` |
+| app | `android_download_url` (URL), `android_version` | string | `""` | `downloads.android` |
+| app | `ios_download_url` (URL), `ios_version` | string | `""` | `downloads.ios` |
 | security | `passkey_rp_id` | string | `""` | empty → host of `app_url` |
 | security | `passkey_origins` | strings | `[]` | extra allowed origins (the `app_url` origin is always allowed) |
 | security | `admin_mfa_required` | bool | `false` | admins/staff need TOTP or a passkey for `/admin/*` |
@@ -843,7 +845,7 @@ admins only and masked in logs; `server_token` and `telegram_webhook_secret` are
 | telegram | `telegram_admin_chat_ids` | strings | `[]` | chats receiving administrator events (numeric ids, `-100…` groups/channels or `@channel`) |
 | telegram | `telegram_events` | strings | `["order_paid","admin_login","ticket_new","ticket_user_reply","withdraw","subscription_leak"]` | administrator events; each element one of `order_new`, `order_paid`, `order_cancel`, `admin_login`, `ticket_new`, `ticket_reply`, `withdraw`, `subscription_leak` (anything else → 400) |
 | telegram | `telegram_user_notify` | bool | `true` | bound users get their own `order_paid`, `ticket_reply`, expiry and traffic reminders and `subscription_reset` |
-| telegram | `telegram_discuss_link` | string | `""` | community link shown to users (`/user/telegram`, bot help) |
+| telegram | `telegram_discuss_link` | string (URL) | `""` | community link shown to users (`/user/telegram`, bot help) |
 | telegram | `telegram_webhook_secret` | string (secret, ≥ 16) | generated | last path segment of the webhook URL and Telegram `secret_token`; generated (32 chars) on first boot; `null` regenerates it |
 
 Note: `PUT /admin/settings {"server_token": null}` (likewise `telegram_webhook_secret`) stores a fresh random 32-character value

@@ -83,9 +83,9 @@ const (
 var defs = []Def{
 	s(GroupSite, "app_name", "GG Bond"),
 	s(GroupSite, "app_description", ""),
-	s(GroupSite, "app_url", ""),
-	s(GroupSite, "logo", ""),
-	s(GroupSite, "tos_url", ""),
+	withURL(s(GroupSite, "app_url", "")),
+	withURL(s(GroupSite, "logo", "")),
+	withURL(s(GroupSite, "tos_url", "")),
 	s(GroupSite, "currency", "CNY"),
 	s(GroupSite, "currency_symbol", "¥"),
 	s(GroupSite, "default_locale", "zh-CN", "zh-CN", "en"),
@@ -168,13 +168,13 @@ var defs = []Def{
 	s(GroupFrontend, "frontend_customer_service_url", ""),
 	s(GroupFrontend, "frontend_footer_html", ""),
 
-	s(GroupApp, "windows_download_url", ""),
+	withURL(s(GroupApp, "windows_download_url", "")),
 	s(GroupApp, "windows_version", ""),
-	s(GroupApp, "macos_download_url", ""),
+	withURL(s(GroupApp, "macos_download_url", "")),
 	s(GroupApp, "macos_version", ""),
-	s(GroupApp, "android_download_url", ""),
+	withURL(s(GroupApp, "android_download_url", "")),
 	s(GroupApp, "android_version", ""),
-	s(GroupApp, "ios_download_url", ""),
+	withURL(s(GroupApp, "ios_download_url", "")),
 	s(GroupApp, "ios_version", ""),
 
 	// Two-factor authentication and passkeys (internal/service/mfa). Empty passkey_rp_id = host of app_url;
@@ -191,7 +191,7 @@ var defs = []Def{
 	withOptions(ss(GroupTelegram, "telegram_events", "order_paid", "admin_login", "ticket_new", "ticket_user_reply", "withdraw", "subscription_leak"),
 		"order_new", "order_paid", "order_cancel", "admin_login", "ticket_new", "ticket_user_reply", "ticket_reply", "withdraw", "subscription_leak"),
 	b(GroupTelegram, "telegram_user_notify", true),
-	s(GroupTelegram, "telegram_discuss_link", ""),
+	withURL(s(GroupTelegram, "telegram_discuss_link", "")),
 	withMinLen(secret(GroupTelegram, "telegram_webhook_secret"), 16),
 
 	// IP locations in the subscription access log (internal/geoip): the 纯真 qqwry.dat from metowolf/qqwry.dat,

@@ -61,6 +61,10 @@ with the UI label in parentheses.
 | `default_locale` | `zh-CN` | `zh-CN` or `en` |
 | `show_info_to_user` | `true` | When off, the user node list does not show hosts and ports |
 
+Link settings (`app_url`, `logo`, `tos_url`, `telegram_discuss_link`, the client download URLs and the GeoIP URLs) take a
+full `http(s)` address; without a scheme, `https://` is added. After an upgrade, a value saved earlier that is not such an
+address (a relative path, `tg://`, `mailto:`) is ignored and the field shows empty: enter it again as a full URL.
+
 ### Sign-up and sign-in `register`
 
 The page has four sections: **Sign-up**, **Trial**, **Abuse protection** and **CAPTCHA**:

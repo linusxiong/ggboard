@@ -397,7 +397,8 @@ func (im *importer) translateCaptcha(src *settingSource, out map[string]any) {
 	}
 }
 
-// validateSettings drops values ggboard would reject (type, range, enum), with a warning each.
+// validateSettings drops values ggboard would reject (type, range, enum, URL), with a warning each, and stores URL
+// settings the way the settings service normalizes them.
 func (im *importer) validateSettings(out map[string]any) {
 	keys := make([]string, 0, len(out))
 	for k := range out {
@@ -432,6 +433,13 @@ func (im *importer) validateSettings(out map[string]any) {
 				msg = fmt.Sprintf("%q is not one of %s", s, strings.Join(d.Options, ", "))
 			case d.MinLen != nil && s != "" && len(s) < *d.MinLen:
 				msg = fmt.Sprintf("shorter than %d characters", *d.MinLen) // no value: MinLen keys are secrets
+			case d.URL:
+				// No value in the warning: a rejected URL may carry credentials (https://user:pass@…).
+				if u, valid := settings.NormalizeURL(s); valid {
+					out[k] = u
+				} else {
+					msg = "not an absolute http(s) URL"
+				}
 			}
 		case settings.TypeBool:
 			if _, isBool := v.(bool); !isBool {
