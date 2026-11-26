@@ -285,7 +285,7 @@ func (s *Store) AliveCountsMode(mode int) map[uint64]int {
 }
 
 // CountIPs counts distinct IPs; when relaxed, IPv4 addresses are collapsed to /24 and IPv6 to /64.
-// Entries that are not IP addresses (e.g. "ip_node" strings) are counted verbatim.
+// Node reports store only canonical IP addresses (nodesvc.AliveIP); anything else is counted verbatim.
 func CountIPs(ips []string, relaxed bool) int {
 	set := make(map[string]struct{}, len(ips))
 	for _, raw := range ips {

@@ -2,7 +2,9 @@ package node_test
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
@@ -163,5 +165,43 @@ func TestNodeReportsOnlyServedUsers(t *testing.T) {
 	hits := nodesvc.New(e.a).AuditHits(b.ID)
 	if len(hits) != 1 || hits[0].UserID != member.ID {
 		t.Fatalf("audit hits = %+v", hits)
+	}
+}
+
+// Security review 2026-11-25: alive entries were any string of up to 64 bytes, and each one counted as a device on
+// every node (V2bX enforces device_limit from alivelist). The operator of one node could push a user it shares with
+// other operators to 256 "devices" and lock them out everywhere. Only IP addresses count now, in one spelling each.
+func TestNodeAliveReportsCountOnlyIPAddresses(t *testing.T) {
+	e := newEnv(t)
+	g := e.group("shared")
+	b := e.node(model.Node{Type: "vmess", Host: "b.example.com", ServerPort: 443, Rate: 1, GroupIDs: model.JSONSlice[uint64]{g}, ProtocolSettings: model.JSONMap{}})
+	other := e.node(model.Node{Type: "vmess", Host: "c.example.com", ServerPort: 443, Rate: 1, GroupIDs: model.JSONSlice[uint64]{g}, ProtocolSettings: model.JSONMap{}})
+	devices := 3
+	member := e.user("member@example.com", "", g, nil, &devices)
+
+	fake := make([]string, 0, 260)
+	for i := range 250 {
+		fake = append(fake, fmt.Sprintf("%q", fmt.Sprintf("device-%03d", i)))
+	}
+	fake = append(fake, `"198.51.100.2"`, `"198.51.100.2_7"`, `"::ffff:198.51.100.2"`, `"[2001:db8::1]:443"`, `"2001:DB8::1"`)
+	uni := fmt.Sprintf(`{"%d":[%s]}`, member.ID, strings.Join(fake, ","))
+	expectBody(t, e.do(http.MethodPost, uniURL("alive", b.ID, "vmess"), uni, nil), http.StatusOK, `{"data":true}`)
+	soga := fmt.Sprintf(`[{"id":%d,"ips":["phone","tablet","203.0.113.9"]}]`, member.ID)
+	expectBody(t, e.do(http.MethodPost, "/api/v1/alive_ip", soga, sogaHeaders(other.ID, "vmess")), http.StatusOK, `{"code":0,"message":""}`)
+
+	if ips := e.a.Online.AliveIPs(member.ID); strings.Join(ips, ",") != "198.51.100.2,2001:db8::1,203.0.113.9" {
+		t.Fatalf("alive IPs = %v", ips)
+	}
+	for _, id := range []uint64{b.ID, other.ID} {
+		expectBody(t, e.do(http.MethodGet, uniURL("alivelist", id, "vmess"), nil, nil), http.StatusOK, fmt.Sprintf(`{"alive":{"%d":3}}`, member.ID))
+	}
+	var warned []string
+	for _, l := range e.a.Logs.Entries(slog.LevelWarn, 0) {
+		if strings.Contains(l.Msg, "not IP addresses") {
+			warned = append(warned, fmt.Sprint(l.Attrs["node_id"], "/", l.Attrs["dropped"], "/", l.Attrs["example"]))
+		}
+	}
+	if want := []string{fmt.Sprint(other.ID, "/2/phone"), fmt.Sprint(b.ID, "/250/device-000")}; !slices.Equal(warned, want) {
+		t.Fatalf("warnings = %q, want one per report %q", warned, want)
 	}
 }

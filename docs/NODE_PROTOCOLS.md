@@ -441,12 +441,18 @@ XrayR and V2bX send it only when at least one user has traffic [XrayR controller
 ### 2.4 `POST /alive` (V2bX; XrayR newV2board's `ReportNodeOnlineUsers` is a no-op)
 
 Body: `{"<uid>":["1.2.3.4","2001:db8::1"], ...}`. V2bX sends it every push interval, only for users above
-`DeviceOnlineMinTraffic`.
+`DeviceOnlineMinTraffic`. Current V2bX sends the client's source IP as is (`::ffff:` stripped); V2bX releases up to
+late 2023 sent `"<ip>_<node id>"` (`fmt.Sprintf("%s_%d", ip, nodeID)`, which wyx2685/v2board splits on `_`).
 
 For each uid P serves (the same filter as §2.3: alive IPs count against a user's device limit on every node, so other
 users are dropped):
 
-1. Normalise each IP: strip `:port`, and turn `[v6]:port` into `v6`. Addresses longer than 64 bytes are dropped.
+1. Normalise each entry (`nodesvc.AliveIP`): trim, strip a `_<digits>` node-id suffix, strip `:port` and turn
+   `[v6]:port` into `v6`; the rest must parse as an IP address (`netip.ParseAddr`). It is stored in canonical form:
+   IPv4-mapped IPv6 becomes IPv4, IPv6 is lower case and compressed, a `%zone` is dropped, so one address has one
+   spelling. **Anything else is dropped** (host names, free-form strings, entries longer than 64 bytes): each entry
+   counts as a device on every node. A report with dropped entries logs one WARN (`node_id`, `dropped`, the first
+   dropped entry as `example`).
 2. Deduplicate; keep at most 256 addresses per user and node (memory bound of the online store).
 3. **Replace** the IP set stored for `(uid, P)` with this list, stamped `now` (Xboard `setDevices`). Users not in the body
    keep their entries until the TTL expires (§5.2), but count as online only while the stamp is within W (§5.1).
@@ -596,7 +602,8 @@ soga may skip users below `submit_traffic_min_traffic` KB.
 Body: `[{"id":uid,"ips":["1.2.3.4"]}]`. Same handling as §2.4 (including the served-users filter).
 
 IPs may arrive CIDR-masked, e.g. `192.168.1.0`, when soga sets `user_ip_limit_cidr_prefix_v4/v6` without `submit_real_ip`.
-Store them as given. soga skips users below `submit_alive_ip_min_traffic` KB.
+They are addresses, so they are kept (in canonical form, like every entry). soga skips users below
+`submit_alive_ip_min_traffic` KB.
 
 ### 3.7 `POST /api/v1/audit_log`
 
@@ -698,6 +705,11 @@ their next poll.
   - XrayR newV2board: ignores the panel's `device_limit`.
 
   The panel never blocks anything itself. `/admin/nodes/:id/online` shows these IPs for the online users of §5.1.
+- **Trust limit**: alive IPs are whatever the node reports. The panel keeps only IP addresses of users the node serves
+  (§2.4, §2.3), but it cannot verify that a client really connects from them: a node operator can still report up to
+  256 plausible addresses for a user it serves and so raise that user's count, and lock them out through `alivelist`,
+  on every node. This is by design. When nodes are run by different operators, keep users shared between them out of
+  `device_limit`, or give each operator's nodes their own server groups.
 - **Behind a relay** (a forwarding machine in front of the backend, including the entrances of §5.3), every user's
   connections arrive from the relay's IP, so a user counts as one device however many clients they run and
   `device_limit` never triggers. It works again only when the relay sends PROXY protocol and the backend accepts it
@@ -910,6 +922,8 @@ With the wrong key, the response is 403 `{"code":403,"message":"invalid API-KEY"
 - Node config ETag is `sha1(body)`, not "per node `updated_at`" as ARCHITECTURE currently says.
 - Optional per-node tokens bound to their node (§1.1); traffic, alive and audit reports only count for users the node
   serves (§2.3). Xboard has one shared token and charges any existing uid.
+- Alive entries must be IP addresses (or old V2bX's `<ip>_<node id>`) and are stored in canonical form (§2.4); Xboard
+  stores any string.
 - Alive-IP TTL is `max(300, 2×push_interval)`. This reconciles DATA_MODEL (2× push) with ARCHITECTURE (600 s).
 - Online status follows the three-state model in §5.1. `device_limit_mode` follows §5.2.
 - Admin validation (`nodesvc.ValidateRoute`, `nodesvc.CheckNode`): route `match` must compile as a Go regexp when joined

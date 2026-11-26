@@ -9,6 +9,7 @@ import (
 	"maps"
 	"math"
 	"net"
+	"net/netip"
 	"slices"
 	"sort"
 	"strconv"
@@ -183,23 +184,57 @@ func NormalizeIP(s string) string {
 	return strings.TrimSuffix(strings.TrimPrefix(s, "["), "]")
 }
 
-// Bounds on alive reports: an address longer than MaxAliveIPLen is not an IP (the longest IPv6 text form with a
-// zone is well below it), and one user cannot be online from more than MaxAliveIPsPerUser addresses on one node.
-// Both keep a misbehaving node from growing the in-memory online store without limit.
+// Bounds on alive reports: an entry longer than MaxAliveIPLen is not an address (the longest IPv6 text form with a
+// zone and a node-id suffix is well below it), and one user cannot be online from more than MaxAliveIPsPerUser
+// addresses on one node. Both keep a misbehaving node from growing the in-memory online store without limit.
 const (
 	MaxAliveIPLen      = 64
 	MaxAliveIPsPerUser = 256
 )
 
-func normalizeIPs(ips []string) []string {
+// AliveIP returns the canonical form of one reported alive address (docs/NODE_PROTOCOLS.md §2.4): an IP address,
+// optionally with a port ("1.2.3.4:5", "[2001:db8::1]:443") or with the "_<node id>" suffix V2bX releases up to
+// late 2023 append ("1.2.3.4_12"). IPv4-mapped IPv6 becomes IPv4 and a zone is dropped, so one address has one
+// spelling and a node cannot count one device several times. ok is false for anything else: every entry counts as a
+// device against the user's device_limit on every node, so free-form strings are refused.
+func AliveIP(raw string) (ip string, ok bool) {
+	s := strings.TrimSpace(raw)
+	if s == "" || len(s) > MaxAliveIPLen {
+		return "", false
+	}
+	if i := strings.LastIndexByte(s, '_'); i > 0 && i < len(s)-1 && strings.Trim(s[i+1:], "0123456789") == "" {
+		s = s[:i]
+	}
+	addr, err := netip.ParseAddr(NormalizeIP(s))
+	if err != nil {
+		return "", false
+	}
+	return addr.Unmap().WithZone("").String(), true
+}
+
+// AliveReport is a parsed alive report: the canonical addresses per user, and the entries dropped because they are
+// not IP addresses (RecordAlive logs them once per report).
+type AliveReport struct {
+	IPs     map[uint64][]string
+	Invalid int    // number of dropped entries
+	Sample  string // the first dropped entry (at most MaxAliveIPLen bytes), for the log
+}
+
+// normalize canonicalizes, de-duplicates and bounds the alive addresses of one user, counting the entries that are
+// not addresses.
+func (r *AliveReport) normalize(ips []string) []string {
 	seen := make(map[string]struct{}, min(len(ips), MaxAliveIPsPerUser))
 	out := make([]string, 0, min(len(ips), MaxAliveIPsPerUser))
 	for _, raw := range ips {
 		if len(out) == MaxAliveIPsPerUser {
 			break
 		}
-		ip := NormalizeIP(raw)
-		if ip == "" || len(ip) > MaxAliveIPLen {
+		ip, ok := AliveIP(raw)
+		if !ok {
+			if r.Invalid++; r.Sample == "" {
+				s := strings.TrimSpace(raw)
+				r.Sample = strings.ToValidUTF8(s[:min(len(s), MaxAliveIPLen)], "")
+			}
 			continue
 		}
 		if _, dup := seen[ip]; !dup {
@@ -226,35 +261,37 @@ func stringsOf(raw json.RawMessage) []string {
 	return out
 }
 
-// ParseUniProxyAlive parses {"<uid>":["ip",...]} (the literal [] is empty). IPs are normalised and deduplicated.
-func ParseUniProxyAlive(body []byte) (map[uint64][]string, error) {
-	out := map[uint64][]string{}
+// ParseUniProxyAlive parses {"<uid>":["ip",...]} (the literal [] is empty). Addresses are canonicalized (AliveIP)
+// and de-duplicated; other entries are dropped and counted.
+func ParseUniProxyAlive(body []byte) (AliveReport, error) {
+	out := AliveReport{IPs: map[uint64][]string{}}
 	if isEmptyArray(body) {
 		return out, nil
 	}
 	if topLevel(body) != '{' {
-		return nil, ErrBadReport
+		return AliveReport{}, ErrBadReport
 	}
 	var m map[string]json.RawMessage
 	if err := json.Unmarshal(body, &m); err != nil {
-		return nil, ErrBadReport
+		return AliveReport{}, ErrBadReport
 	}
 	for k, v := range m {
 		uid, ok := ParseUserID(k)
 		if !ok {
 			continue
 		}
-		out[uid] = normalizeIPs(stringsOf(v))
+		out.IPs[uid] = out.normalize(stringsOf(v))
 	}
 	return out, nil
 }
 
-// ParseSogaAlive parses [{"id":uid,"ips":["ip"]}] (null and [] are empty). Duplicate ids are merged.
-func ParseSogaAlive(body []byte) (map[uint64][]string, error) {
-	out := map[uint64][]string{}
+// ParseSogaAlive parses [{"id":uid,"ips":["ip"]}] (null and [] are empty). Duplicate ids are merged; addresses are
+// handled as in ParseUniProxyAlive.
+func ParseSogaAlive(body []byte) (AliveReport, error) {
+	out := AliveReport{IPs: map[uint64][]string{}}
 	items, err := sogaArray(body)
 	if err != nil {
-		return nil, err
+		return AliveReport{}, err
 	}
 	for _, raw := range items {
 		var e struct {
@@ -268,7 +305,7 @@ func ParseSogaAlive(body []byte) (map[uint64][]string, error) {
 		if !ok {
 			continue
 		}
-		out[uid] = normalizeIPs(append(out[uid], stringsOf(e.IPs)...))
+		out.IPs[uid] = out.normalize(append(out.IPs[uid], stringsOf(e.IPs)...))
 	}
 	return out, nil
 }
@@ -414,9 +451,13 @@ func (s *Service) RecordTraffic(ctx context.Context, r *Resolved, entries map[ui
 
 // RecordAlive replaces the alive IPs of every reported user P serves; users not in the report keep their entries
 // until the alive TTL expires (docs/NODE_PROTOCOLS.md §2.4). Other users are dropped: their alive IPs would count
-// against their device limit on every node.
-func (s *Service) RecordAlive(ctx context.Context, r *Resolved, alive map[uint64][]string) error {
-	alive, err := keepServed(ctx, s, r, "alive", alive)
+// against their device limit on every node. Entries that were not IP addresses are logged once per report.
+func (s *Service) RecordAlive(ctx context.Context, r *Resolved, rep AliveReport) error {
+	if rep.Invalid > 0 {
+		s.a.Log.Warn("node alive report has entries that are not IP addresses; dropped", "node_id", r.P.ID,
+			"dropped", rep.Invalid, "example", rep.Sample)
+	}
+	alive, err := keepServed(ctx, s, r, "alive", rep.IPs)
 	if err != nil {
 		return err
 	}
