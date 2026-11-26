@@ -27,8 +27,8 @@
     "ui:diff": "node scripts/ui-diff.mjs"
   },
   "dependencies": {
-    "@heroui/react": "3.2.7",
-    "@heroui/styles": "3.2.7",
+    "@heroui/react": "3.2.8",
+    "@heroui/styles": "3.2.8",
     "@internationalized/date": "^3.12.4",
     "@react-aria/ssr": "^3.10.1",
     "@react-aria/utils": "^3.34.1",
