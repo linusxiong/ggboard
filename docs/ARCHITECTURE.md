@@ -106,10 +106,13 @@ tables (lipgloss) on a terminal. `serve` prints a startup summary unless `log.fo
   An empty success is `{"data": true}`.
 - Errors are status + `{"code", "message", "errors": {"field": ["msg"]}}`.
   - Standard codes: `validation_failed` (400), `unauthorized` (401), `payment_failed` (402), `forbidden` (403),
-    `not_found` (404), `conflict` (409), `payload_too_large` (413), `rate_limited` (429), `internal` (500).
+    `not_found` (404), `conflict` (409), `payload_too_large` (413), `unsupported_media_type` (415), `rate_limited` (429),
+    `internal` (500).
   - MFA adds `mfa_invalid` (401), `mfa_expired` (401) and `mfa_setup_required` (403).
   - A 429 carries `Retry-After`.
 - Body limit: 1 MiB. Node push routes raise it to 8 MiB (`httpx.LargeBody(httpx.NodeBodyLimit)`).
+- Request bodies are JSON: `httpx.Bind` decodes `application/json`, `application/*+json` or a body without
+  `Content-Type`, and answers any other type with 415 before reading it.
 - Auth: `Authorization: Bearer <JWT>` (HS256). Claims are `{sub: user id, email, uuid, ver: password_version, amr: sign-in method, iat, exp, iss: "ggboard"}`.
   - A `ver` mismatch → 401 (password change / security reset signs every session out). An `email` or random account `uuid`
     that differs from the row now owning `sub` → 401: ids and emails are reusable after deletion, import or restore, so the
