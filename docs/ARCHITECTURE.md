@@ -153,11 +153,11 @@ Middleware chain: request id (`X-Request-ID`, reused when sane) â†’ access log â
 | Telegram bot username (`getMe`) | `telegram.BotUsername` (keyed by a hash of the token) | 1 h; after a failed `getMe`, `/user/telegram` stops asking for 1 min |
 | MFA "has a second factor" | `mfasvc` (admin gate) | 30 s |
 
-Node responses (`config`, `user`, soga `node`/`users`/`audit_rules`) carry `ETag: "<sha1 hex of the body>"`. A request
-whose `If-None-Match` contains the tag gets 304 (substring compare, so quoted, bare and `W/` forms all match).
+Node responses (`config`, `user`, soga `node`/`users`/`audit_rules`) carry `ETag: "<sha1 hex of the body>"`.
 Subscriptions are generated per request and carry `ETag: "<sha1 of the plaintext>"` (`-age-<key tag>` appended when the body is
-age-encrypted, because the ciphertext changes on every request). Their `If-None-Match` must name that exact tag (quoted, bare
-or `W/`, in a list); a substring is not enough, so a plaintext tag never matches an encrypted response.
+age-encrypted, because the ciphertext changes on every request). For both, a request gets 304 when its `If-None-Match` names
+that exact tag (`httpx.ETagMatches`: quoted, bare or `W/`, in a list, or `*`); a substring is not enough, so a plaintext tag
+never matches an encrypted response.
 
 ## Runtime node state
 

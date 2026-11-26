@@ -14,7 +14,6 @@ import (
 	"filippo.io/age/armor"
 	"gopkg.in/yaml.v3"
 
-	"github.com/linusxiong/ggboard/internal/api/client"
 	"github.com/linusxiong/ggboard/internal/model"
 	"github.com/linusxiong/ggboard/internal/subscription/engine"
 	"github.com/linusxiong/ggboard/internal/subscription/guard"
@@ -191,20 +190,5 @@ func TestSubscribeProfileSelection(t *testing.T) {
 	}
 	if body := e.get(t, e.sub("&flag=clash-meta"), nil).Body.String(); body != w {
 		t.Fatal("the new default profile must be used without ?profile=")
-	}
-}
-
-func TestETagMatches(t *testing.T) {
-	cases := []struct {
-		inm, tag string
-		want     bool
-	}{
-		{`"abc"`, "abc", true}, {`W/"abc"`, "abc", true}, {`abc`, "abc", true}, {`"x", W/"abc"`, "abc", true},
-		{`*`, "abc", true}, {`"abc-age-1"`, "abc", false}, {`"abc"`, "abc-age-1", false}, {``, "abc", false},
-	}
-	for _, c := range cases {
-		if got := client.ETagMatches(c.inm, c.tag); got != c.want {
-			t.Errorf("ETagMatches(%q, %q) = %v", c.inm, c.tag, got)
-		}
 	}
 }

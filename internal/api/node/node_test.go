@@ -180,10 +180,18 @@ func TestUniProxyWorkedExample(t *testing.T) {
 	if et := rec.Header().Get("ETag"); et != userTag {
 		t.Fatalf("user etag %s", et)
 	}
-	for _, inm := range []string{userTag, "W/" + userTag, strings.Trim(userTag, `"`)} {
+	for _, inm := range []string{userTag, "W/" + userTag, strings.Trim(userTag, `"`), `"other", ` + userTag, "*"} {
 		rec = e.do(http.MethodGet, uniURL("user", 3, "vless"), nil, map[string]string{"If-None-Match": inm})
 		if rec.Code != http.StatusNotModified || rec.Body.Len() != 0 || rec.Header().Get("ETag") != userTag {
 			t.Fatalf("If-None-Match %s: %d %q %s", inm, rec.Code, rec.Body.String(), rec.Header().Get("ETag"))
+		}
+	}
+	// Tags are compared whole (MISTAKES #115): a header that merely contains the tag is another version.
+	bare := strings.Trim(userTag, `"`)
+	for _, inm := range []string{`"` + bare + `-age-1"`, `"x` + bare + `"`, bare + bare} {
+		rec = e.do(http.MethodGet, uniURL("user", 3, "vless"), nil, map[string]string{"If-None-Match": inm})
+		if rec.Code != http.StatusOK || rec.Body.Len() == 0 {
+			t.Fatalf("If-None-Match %s: %d, want 200", inm, rec.Code)
 		}
 	}
 

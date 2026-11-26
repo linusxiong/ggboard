@@ -107,7 +107,7 @@ func subscribeWithGenerator(a *app.App, lim *limits, tokenOf func(*gin.Context) 
 			// The ciphertext differs on every request; the ETag names the plaintext and the key instead.
 			res.ETag += "-age-" + guard.KeyTag(key.PublicKey)
 		}
-		unmodified := ETagMatches(c.GetHeader("If-None-Match"), res.ETag)
+		unmodified := httpx.ETagMatches(c.GetHeader("If-None-Match"), res.ETag)
 		body, ct := res.Body, res.ContentType
 		if encrypt && !unmodified {
 			if body, err = guard.Encrypt(body, key.PublicKey); err != nil {
@@ -155,23 +155,6 @@ func sameID(a, b *uint64) bool { return a == nil && b == nil || a != nil && b !=
 
 func sameTime(a, b *time.Time) bool {
 	return a == nil && b == nil || a != nil && b != nil && a.Equal(*b)
-}
-
-// ETagMatches reports whether the If-None-Match header value names etag (quoted, bare or weak, in a list,
-// or "*"). Tags are compared whole: an encrypted body's tag "<sha1>-age-<key>" must not match the plaintext
-// "<sha1>" or the other way round.
-func ETagMatches(inm, etag string) bool {
-	for _, t := range strings.Split(inm, ",") {
-		t = strings.TrimSpace(t)
-		if t == "*" {
-			return true
-		}
-		t = strings.Trim(strings.TrimPrefix(t, "W/"), `"`)
-		if t != "" && t == etag {
-			return true
-		}
-	}
-	return false
 }
 
 // SetHeaders writes the subscription response headers of docs/SUBSCRIPTION.md.
