@@ -100,7 +100,7 @@ docker image prune -f                      # 可选：清理旧镜像
 | 项 | 值 |
 | --- | --- |
 | 镜像 | `${GGBOARD_IMAGE:-ghcr.io/linusxiong/ggboard}:${GGBOARD_VERSION:-latest}`；`GGBOARD_IMAGE` 给 fork 和镜像站用 |
-| 项目名 / 数据卷 | 固定为 `ggboard`；数据卷 `ggboard_ggboard-data` → `/data`（`GGBOARD_DATA_DIR=/data`，镜像内属主 65532） |
+| 项目名 / 数据卷 | 固定为 `ggboard`；数据卷 `ggboard_ggboard-data` → `/data`（`GGBOARD_DATA_DIR=/data`，镜像内属主 65532、权限 0700） |
 | 端口 | `127.0.0.1:8080:8080`，**只发布到本机** |
 | 环境变量 | `env_file: .env`（compose 文件旁边的 `.env`，可缺省）；`environment:` 只固定 `GGBOARD_DATA_DIR`。Compose 也用这个 `.env` 解析 `${GGBOARD_VERSION}` |
 | 加固 | `cap_drop: [ALL]` 和 `no-new-privileges`；镜像是 distroless，以 `nonroot`（UID 65532）运行 |
@@ -130,8 +130,9 @@ docker compose -f deploy/docker-compose.yml exec ggboard ggboard admin create --
 | --- | --- |
 | 镜像 | 本地构建，`ggboard:${GGBOARD_VERSION:-latest}`；构建参数 `VERSION` 写入 `ggboard version` |
 | 端口 | `127.0.0.1:8080:8080`，**只发布到本机**，由宿主机上的 nginx / Caddy 对外 |
-| 数据卷 | 命名卷 `ggboard-data` → `/data`（`GGBOARD_DATA_DIR=/data`，镜像内属主 65532） |
+| 数据卷 | 命名卷 `ggboard-data` → `/data`（`GGBOARD_DATA_DIR=/data`，镜像内属主 65532、权限 0700） |
 | 环境变量 | `env_file: ../.env`（仓库根目录的 `.env`，可缺省）；`environment:` 只固定 `GGBOARD_DATA_DIR`。数据库、JWT 等都由 `.env` 决定，SQLite 的 DSN 缺省为 `/data/ggboard.db` |
+| 加固 | `cap_drop: [ALL]` 和 `no-new-privileges`，与方式 A 相同 |
 | 停止 | `restart: unless-stopped`，`stop_grace_period: 20s`（够服务端 10s 排空 + 刷流量 + 发完邮件队列） |
 
 注意：
@@ -140,6 +141,9 @@ docker compose -f deploy/docker-compose.yml exec ggboard ggboard admin create --
   在 `.env` 里写 `GGBOARD_DATABASE_DRIVER` / `GGBOARD_DATABASE_DSN` 即可（见 [§5](#5-数据库)）。
   SQLite 的 DSN 不要写成相对路径：容器的工作目录是 `/data`，`./data/ggboard.db` 会指到 `/data/data/ggboard.db` 而打不开，留空用默认值。
 - 镜像里没有 shell，也没有 `curl`/`sqlite3`；运维命令都用 `docker compose exec ggboard ggboard <子命令>`。
+- 镜像里的 `/data` 权限是 0700，新建的数据卷第一次使用时沿用这个权限。之前的镜像建出来的数据卷仍是 0755，收紧一次即可
+  （卷名用 `docker volume ls` 查，例如 `deploy_ggboard-data`）：`docker run --rm -v deploy_ggboard-data:/data alpine chmod 700 /data`。
+  目录里 SQLite 以 0644 创建 `ggboard.db`，面板以 0600 写 `jwt.secret`，两者都靠 0700 的目录挡住其他用户。
 - 定时任务按进程时区运行（`scheduler.New(..., time.Local)`）。容器默认 UTC，需要北京时间可在 `environment:` 加
   `TZ: Asia/Shanghai`（二进制已内嵌 `time/tzdata`）。
 - 反向代理在宿主机时，容器看到的来源 IP 是 Docker 网桥网关，所以 `GGBOARD_SERVER_TRUSTED_PROXIES` 要填网桥网段

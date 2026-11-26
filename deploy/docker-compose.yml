@@ -26,6 +26,11 @@ services:
     volumes:
       - ggboard-data:/data
     stop_grace_period: 20s
+    # The process is non-root and listens on 8080: it needs no capabilities and must never gain any.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   ggboard-data:
