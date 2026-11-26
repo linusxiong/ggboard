@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"fmt"
+	"html"
 	"slices"
 	"strconv"
 	"strings"
@@ -22,9 +23,10 @@ import (
 
 // The custom-template pipeline (BACKEND.md §6): {{name}} placeholders become opaque alphanumeric tokens, goldmark
 // renders the Markdown (GFM, raw HTML allowed: the author is an administrator, single line breaks kept), the AST
-// gets the layout's inline e-mail styles, and the tokens are replaced by HTML-escaped values in one pass (so a value
-// is never read as Markdown, HTML or another placeholder). The plain-text part is derived from the same AST with
-// the raw values.
+// gets the layout's inline e-mail styles, and the tokens are replaced in one pass by HTML-escaped values, or by
+// character references where an administrator's raw HTML puts them inside markup (substituteHTML), so a value is
+// never read as Markdown, HTML or another placeholder. The plain-text part is derived from the same AST with the raw
+// values.
 //
 // Two conventions make the Markdown read like the built-in mails: a top-level paragraph that is nothing but a link
 // is rendered as the layout's button, and a link whose address is empty once substituted (no url, app_url unset) is
@@ -156,18 +158,186 @@ func newTokens(vals map[string]customValue) *tokens {
 	return t
 }
 
-// replacer substitutes every token in one pass with its HTML (html) or raw value.
-func (t *tokens) replacer(html bool) *strings.Replacer {
+// Forms of a value, by where its token stands.
+const (
+	formText   = iota // the plain-text part: the raw value
+	formHTML          // an HTML text node: customValue.html (escaped, or notify's trusted HTML)
+	formQuoted        // a quoted attribute value: escaped (trusted HTML falls back to its text)
+	formMarkup        // anywhere else in markup: every character as a numeric character reference
+)
+
+// replacer substitutes every token in one pass with its value in form.
+func (t *tokens) replacer(form int) *strings.Replacer {
 	pairs := make([]string, 0, 2*len(t.order))
 	for _, tok := range t.order {
 		v := t.vals[tok]
-		if html {
-			pairs = append(pairs, tok, v.html)
-		} else {
-			pairs = append(pairs, tok, v.text)
+		var s string
+		switch form {
+		case formText:
+			s = v.text
+		case formHTML:
+			s = v.html
+		case formQuoted:
+			s = v.html
+			if v.trusted {
+				s = html.EscapeString(v.text)
+			}
+		default:
+			s = charRefs(v.text)
 		}
+		pairs = append(pairs, tok, s)
 	}
 	return strings.NewReplacer(pairs...)
+}
+
+// charRefs writes every character of s as a decimal numeric character reference. An attribute value (quoted or
+// not) and RCDATA decode it back to s, so the value reads the same; in a tag or attribute name, after "<" or in the
+// raw text of <style>/<script> it is inert: it cannot start a tag, an attribute or a style rule.
+func charRefs(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		b.WriteString("&#")
+		b.WriteString(strconv.Itoa(int(r)))
+		b.WriteByte(';')
+	}
+	return b.String()
+}
+
+// rawTextElements are the elements whose content the tokenizer reads as raw text or RCDATA.
+var rawTextElements = map[string]bool{
+	"iframe": true, "noembed": true, "noframes": true, "noscript": true, "plaintext": true, "script": true,
+	"style": true, "textarea": true, "title": true, "xmp": true,
+}
+
+// substituteHTML replaces the tokens in the rendered card HTML with each value in the form its position needs. In
+// text nodes, comments and quoted attribute values the escaped value is enough (it cannot close the quote, the
+// comment or open a tag), and those are written exactly as before. Anywhere else in markup — a tag or attribute
+// name, an unquoted attribute value, an end tag, the raw text of <style> or <script>, an unterminated tag at the
+// end — only an administrator's raw HTML can place a token (`<{{ticketSubject}}>`, `<span title={{ticketSubject}}>`),
+// and the escaped value would let a user's text open tags or add attributes, so it is written as character
+// references (charRefs).
+func (t *tokens) substituteHTML(s string) string {
+	text, quoted, markup := t.replacer(formHTML), t.replacer(formQuoted), t.replacer(formMarkup)
+	var b strings.Builder
+	b.Grow(len(s))
+	z := xhtml.NewTokenizer(strings.NewReader(s))
+	off, rawText := 0, false
+	for {
+		tt := z.Next()
+		if tt == xhtml.ErrorToken {
+			break
+		}
+		raw := string(z.Raw())
+		off += len(raw)
+		switch {
+		case tt == xhtml.TextToken && !rawText, tt == xhtml.CommentToken:
+			b.WriteString(text.Replace(raw))
+		case tt == xhtml.StartTagToken, tt == xhtml.SelfClosingTagToken:
+			writeStartTag(&b, raw, quoted, markup)
+		default:
+			b.WriteString(markup.Replace(raw))
+		}
+		rawText = false
+		if tt == xhtml.StartTagToken || tt == xhtml.SelfClosingTagToken {
+			name, _ := z.TagName() // after Raw was copied: TagName lower-cases the buffer in place
+			rawText = rawTextElements[string(name)]
+		}
+	}
+	// What the tokenizer did not return (an unterminated tag) continues into the layout's markup.
+	b.WriteString(markup.Replace(s[off:]))
+	return b.String()
+}
+
+// writeStartTag writes the raw start tag raw (from "<" to ">") with its tokens substituted: escaped inside quoted
+// attribute values, as character references everywhere else. The states follow the HTML tokenizer's from the tag
+// name to the end of the tag.
+func writeStartTag(b *strings.Builder, raw string, quoted, markup *strings.Replacer) {
+	const (
+		tagName = iota
+		beforeName
+		attrName
+		afterName
+		beforeValue
+		doubleQuoted
+		singleQuoted
+		unquoted
+		afterQuoted
+		selfClosing
+	)
+	space := func(c byte) bool { return c == ' ' || c == '\t' || c == '\n' || c == '\f' || c == '\r' }
+	state, run, runQuoted := tagName, 0, false
+	for i := 1; i < len(raw); i++ {
+		c := raw[i]
+		if state == selfClosing && c != '>' {
+			state = beforeName // reconsume
+		}
+		if state == afterQuoted && !space(c) && c != '/' && c != '>' {
+			state = beforeName // reconsume
+		}
+		switch state {
+		case tagName:
+			if space(c) {
+				state = beforeName
+			} else if c == '/' {
+				state = selfClosing
+			}
+		case beforeName:
+			if c == '/' {
+				state = selfClosing
+			} else if !space(c) && c != '>' {
+				state = attrName // "=" here starts a name too
+			}
+		case attrName, afterName:
+			switch {
+			case space(c):
+				state = afterName
+			case c == '/':
+				state = selfClosing
+			case c == '=':
+				state = beforeValue
+			case c != '>':
+				state = attrName
+			}
+		case beforeValue:
+			switch {
+			case c == '"':
+				state = doubleQuoted
+			case c == '\'':
+				state = singleQuoted
+			case !space(c) && c != '>':
+				state = unquoted
+			}
+		case doubleQuoted, singleQuoted:
+			if (state == doubleQuoted && c == '"') || (state == singleQuoted && c == '\'') {
+				state = afterQuoted
+			}
+		case unquoted:
+			if space(c) {
+				state = beforeName
+			}
+		case afterQuoted:
+			if space(c) {
+				state = beforeName
+			} else if c == '/' {
+				state = selfClosing
+			}
+		}
+		// A byte belongs to a quoted run while the state is inside the quotes (the closing quote ends the run).
+		inQuotes := state == doubleQuoted || state == singleQuoted
+		if inQuotes != runQuoted {
+			flushRun(b, raw[run:i], runQuoted, quoted, markup)
+			run, runQuoted = i, inQuotes
+		}
+	}
+	flushRun(b, raw[run:], runQuoted, quoted, markup)
+}
+
+func flushRun(b *strings.Builder, s string, inQuotes bool, quoted, markup *strings.Replacer) {
+	if inQuotes {
+		b.WriteString(quoted.Replace(s))
+	} else {
+		b.WriteString(markup.Replace(s))
+	}
 }
 
 // renderMarkdown renders a custom body with vals: the HTML of the card's content and the plain text.
@@ -180,14 +350,14 @@ func renderMarkdown(body string, vals map[string]customValue) (string, string, e
 		return m // unknown placeholders stay literal (preview)
 	}))
 	doc := customMarkdown.Parser().Parse(text.NewReader(source))
-	raw := tok.replacer(false)
+	raw := tok.replacer(formText)
 	prepareDoc(doc, source, tok, raw)
 	var buf bytes.Buffer
 	if err := customMarkdown.Renderer().Render(&buf, source, doc); err != nil {
 		return "", "", err
 	}
 	d := textDeriver{src: source, raw: raw}
-	return tok.replacer(true).Replace(buf.String()), raw.Replace(d.blocks(doc, "\n\n")), nil
+	return tok.substituteHTML(buf.String()), raw.Replace(d.blocks(doc, "\n\n")), nil
 }
 
 // prepareDoc applies the two conventions (empty links, buttons), the trusted-HTML block and the inline styles.
