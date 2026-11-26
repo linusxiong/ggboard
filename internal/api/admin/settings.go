@@ -11,6 +11,7 @@ import (
 	"github.com/linusxiong/ggboard/internal/auth"
 	"github.com/linusxiong/ggboard/internal/httpx"
 	"github.com/linusxiong/ggboard/internal/mail"
+	"github.com/linusxiong/ggboard/internal/model"
 	usersvc "github.com/linusxiong/ggboard/internal/service/user"
 	"github.com/linusxiong/ggboard/internal/settings"
 )
@@ -76,7 +77,10 @@ func settingsPutHandler(a *app.App) gin.HandlerFunc {
 			return
 		}
 		if err := a.Settings.SetContextIf(c.Request.Context(), in, func(tx *gorm.DB) error {
-			return settingsLiveAdmin(c, tx, true)
+			if err := settingsLiveAdmin(c, tx, true); err != nil {
+				return err
+			}
+			return serverTokenNotNodeToken(tx, in["server_token"])
 		}); err != nil {
 			httpx.Fail(c, err)
 			return
@@ -87,6 +91,24 @@ func settingsPutHandler(a *app.App) gin.HandlerFunc {
 		httpx.Logger(c).Info("admin saved settings", "admin_id", auth.CurrentUser(c).ID, "keys", slices.Sorted(maps.Keys(in)))
 		httpx.OK(c, true)
 	}
+}
+
+// serverTokenNotNodeToken refuses a new server_token that is some node's own token: every holder of the shared
+// token would then pass that node's own-token check (docs/NODE_PROTOCOLS.md §1.1; nodesvc.CheckNode refuses the
+// same pair from the node side).
+func serverTokenNotNodeToken(tx *gorm.DB, v any) error {
+	token, _ := v.(string)
+	if token == "" {
+		return nil
+	}
+	var n int64
+	if err := tx.Model(&model.Node{}).Where("token = ?", token).Count(&n).Error; err != nil {
+		return err
+	}
+	if n > 0 {
+		return httpx.FieldError("server_token", "must differ from every node's own token")
+	}
+	return nil
 }
 
 // settingsMailTestHandler sends the notify template synchronously with the current mail settings and returns

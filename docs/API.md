@@ -506,7 +506,7 @@ Plan, group and route reads and writes recheck the current administrator account
 | PATCH | `/admin/groups/:id` | `{name*}` | group with counts |
 | DELETE | `/admin/groups/:id` | — | `true` (409 while users, plans or nodes reference it) |
 | GET | `/admin/nodes` | — | unpaginated `[Node]` (with status) by `sort`, `id` |
-| POST | `/admin/nodes` | Node fields (`type*`, `name*`, `host*`, `port*` as a number or a string `"443"`, `"20000-30000"`, `"443,8443"`; `server_port*` unless a child inherits its parent's; `rate` default 1; `token` `""` or 16–64 visible ASCII characters, trimmed, cleared on a child — docs/NODE_PROTOCOLS.md §1.1) | 201 `Node` |
+| POST | `/admin/nodes` | Node fields (`type*`, `name*`, `host*`, `port*` as a number or a string `"443"`, `"20000-30000"`, `"443,8443"`; `server_port*` unless a child inherits its parent's; `rate` default 1; `token` `""` or 16–64 visible ASCII characters, trimmed, cleared on a child, never equal to `server_token` (field error `token`) — docs/NODE_PROTOCOLS.md §1.1) | 201 `Node` |
 | GET | `/admin/nodes/:id` | — | `Node` |
 | PATCH | `/admin/nodes/:id` | any subset of Node fields (`parent_id: null` detaches; `protocol_settings` is replaced, not merged) | `Node` |
 | DELETE | `/admin/nodes/:id` | — | `true` (409 while the node has children; stats are kept) |
@@ -800,7 +800,7 @@ admins only and masked in logs; `server_token` and `telegram_webhook_secret` are
 | invite | `commission_distribution_l1` | int 0..100 | `0` | percent |
 | invite | `commission_distribution_l2` | int 0..100 | `0` | percent |
 | invite | `commission_distribution_l3` | int 0..100 | `0` | percent |
-| server | `server_token` | string (secret, ≥ 16) | generated | node API key; at least 16 characters when set by an admin; `null` generates a new token immediately (see the note below) |
+| server | `server_token` | string (secret, ≥ 16) | generated | node API key; at least 16 characters when set by an admin, never equal to a node's own `token` (field error `server_token`); `null` generates a new token immediately (see the note below) |
 | server | `server_pull_interval` | int 10..86400 | `60` | seconds |
 | server | `server_push_interval` | int 10..86400 | `60` | seconds |
 | server | `server_white_list` | strings | `[]` | soga `white_list` |

@@ -377,3 +377,39 @@ func TestAdminNodeOwnToken(t *testing.T) {
 		t.Fatal("after clearing, the shared token serves the node again")
 	}
 }
+
+// Security review 2026-11-25: an own token equal to server_token passed the node's own-token check for every holder
+// of the shared token, which silently undid the binding. Both sides refuse the pair: the node form and the settings.
+func TestAdminNodeOwnTokenDiffersFromServerToken(t *testing.T) {
+	e := newNodesAdminEnv(t)
+	g := e.group("g")
+	const own = "admin-node-own-token-0123456789"
+	uni := func(id uint64, token string) int {
+		t.Helper()
+		return testutil.Do(t, e.r, http.MethodGet, fmt.Sprintf("/api/v1/server/UniProxy/user?node_id=%d&node_type=vless&token=%s", id, token), nil, "").Code
+	}
+
+	body := nodesAdminVless("HK 01", []uint64{g})
+	body["token"] = " " + nodesAdminServerToken + " " // trimmed before the comparison
+	if f := nodesAdminFields(t, e.do(http.MethodPost, "/nodes", body)); len(f) != 1 || f[0] != "token" {
+		t.Fatalf("create with server_token: fields %v", f)
+	}
+	body["token"] = own
+	n := e.createNode(body)
+	if f := nodesAdminFields(t, e.do(http.MethodPatch, fmt.Sprintf("/nodes/%d", n.ID), map[string]any{"token": nodesAdminServerToken})); len(f) != 1 || f[0] != "token" {
+		t.Fatalf("patch to server_token: fields %v", f)
+	}
+	if uni(n.ID, nodesAdminServerToken) != http.StatusForbidden || uni(n.ID, own) != http.StatusOK {
+		t.Fatal("the refused edit must not change which key serves the node")
+	}
+
+	// The other way round: server_token cannot become a node's own token.
+	rec := e.do(http.MethodPut, "/settings", map[string]any{"server_token": own})
+	if er := testutil.DecodeError(t, rec); rec.Code != http.StatusBadRequest || len(er.Errors["server_token"]) != 1 {
+		t.Fatalf("server_token = own token: %d %s", rec.Code, rec.Body.String())
+	}
+	if e.a.Settings.String("server_token") != nodesAdminServerToken || uni(n.ID, nodesAdminServerToken) != http.StatusForbidden {
+		t.Fatal("the refused settings write must not change server_token")
+	}
+	testutil.ExpectStatus(t, e.do(http.MethodPut, "/settings", map[string]any{"server_token": "another-shared-token-0123456789"}), http.StatusOK)
+}
