@@ -1,6 +1,7 @@
 package subscription
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -65,6 +66,66 @@ func TestUniqueNames(t *testing.T) {
 	}
 	if strings.Join(got, "|") != "A|A 2|Proxy 2|direct 2|A 2 2" {
 		t.Fatalf("names = %v", got)
+	}
+}
+
+// uniqueNamesByScan is the previous UniqueNames: every collision scans the suffixes from 2.
+func uniqueNamesByScan(proxies []Proxy, reserved map[string]bool) {
+	used := map[string]bool{}
+	for k := range reserved {
+		used[k] = true
+	}
+	for i := range proxies {
+		name := proxies[i].Name
+		if !used[name] && !IsReservedName(name) {
+			used[name] = true
+			continue
+		}
+		for n := 2; ; n++ {
+			if cand := name + " " + strconv.Itoa(n); !used[cand] && !IsReservedName(cand) {
+				proxies[i].Name, used[cand] = cand, true
+				break
+			}
+		}
+	}
+}
+
+// Many identical names (a large panel, or names cut to MaxProxyNameBytes) used to cost n²/2 lookups and as many
+// string allocations: 5,000 copies took half a second per render. The result must not change.
+func TestUniqueNamesManyDuplicates(t *testing.T) {
+	const n = 3000
+	mk := func() []Proxy {
+		ps := make([]Proxy, 0, n+8)
+		for i := range n {
+			ps = append(ps, Proxy{Name: "HK"})
+			if i%500 == 0 { // suffixed names that collide with generated ones, and reserved ones
+				ps = append(ps, Proxy{Name: "HK " + strconv.Itoa(i/100+3)}, Proxy{Name: "Proxy"}, Proxy{Name: "REJECT"})
+			}
+		}
+		return ps
+	}
+	got, want := mk(), mk()
+	UniqueNames(got, map[string]bool{"Proxy": true, "HK 2": true})
+	uniqueNamesByScan(want, map[string]bool{"Proxy": true, "HK 2": true})
+	seen := map[string]bool{}
+	for i := range got {
+		if got[i].Name != want[i].Name {
+			t.Fatalf("proxy %d: %q, want %q", i, got[i].Name, want[i].Name)
+		}
+		if seen[got[i].Name] {
+			t.Fatalf("duplicate %q", got[i].Name)
+		}
+		seen[got[i].Name] = true
+	}
+	// "HK 2" is reserved and "HK 3" comes in as its own name, so the first copy gets "HK 4".
+	if names := got[0].Name + "|" + got[1].Name + "|" + got[2].Name + "|" + got[4].Name; names != "HK|HK 3|Proxy 2|HK 4" {
+		t.Fatalf("first names = %s", names)
+	}
+	// Linear: a few allocations per proxy, not one per tried suffix.
+	in := mk()
+	allocs := testing.AllocsPerRun(3, func() { UniqueNames(append([]Proxy(nil), in...), nil) })
+	if allocs > 10*float64(len(in)) {
+		t.Fatalf("%.0f allocations for %d proxies", allocs, len(in))
 	}
 }
 
