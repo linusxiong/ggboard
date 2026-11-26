@@ -108,7 +108,7 @@ tables (lipgloss) on a terminal. `serve` prints a startup summary unless `log.fo
   - Standard codes: `validation_failed` (400), `unauthorized` (401), `payment_failed` (402), `forbidden` (403),
     `not_found` (404), `conflict` (409), `payload_too_large` (413), `unsupported_media_type` (415), `rate_limited` (429),
     `internal` (500).
-  - MFA adds `mfa_invalid` (401), `mfa_expired` (401) and `mfa_setup_required` (403).
+  - MFA adds `mfa_invalid` (401), `mfa_expired` (401), `mfa_setup_required` (403) and `mfa_reauth_required` (403).
   - A 429 carries `Retry-After`.
 - Body limit: 1 MiB. Node push routes raise it to 8 MiB (`httpx.LargeBody(httpx.NodeBodyLimit)`).
 - Request bodies are JSON: `httpx.Bind` decodes `application/json`, `application/*+json` or a body without
@@ -268,7 +268,8 @@ maintenance / subscription leak hook ──Emit──▶ 2 lanes (256+1024) ─�
   `password_version`.
 - **Second factor**: TOTP (RFC 6238, ±1 step, replay guard via `totp_last_step`) with single-use backup codes, and
   passkeys (WebAuthn discoverable credentials, usernameless login).
-  - With `admin_mfa_required`, admins and staff without a second factor get `403 mfa_setup_required` on `/admin/*`.
+  - With `admin_mfa_required`, admins and staff without a second factor get `403 mfa_setup_required` on `/admin/*`, and
+    those whose session signed in with the password alone (`amr` claim) get `403 mfa_reauth_required`.
   - TOTP secrets are encrypted with a key derived from `jwt.secret`.
 - **Rate limits**:
   - `/passport/*`: 30 requests/min per IP; `send-code`: 10 requests/h per IP and 60/h per IPv6 /48, plus a global budget
