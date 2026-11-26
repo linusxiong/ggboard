@@ -99,10 +99,10 @@ updates:
       actions:
         patterns: ['*']
 
-  # ---- Base images in deploy/Dockerfile. The tags float (node:24-alpine, golang:1.27-alpine), so patch releases
-  # arrive with every image build. What is left to propose is a new Node major or Go minor, and those are
-  # repository-wide decisions (CI's node-version, go.mod, the workflows and the docs move with them), not a one-line
-  # pull request.
+  # ---- Base images in deploy/Dockerfile, pinned as tag@sha256:digest (node:24-alpine, golang:1.27-alpine, distroless).
+  # Dependabot proposes the new digest of the same tag, so patch releases come as a weekly pull request instead of
+  # silently with the next build. A new Node major or Go minor is not proposed: those are repository-wide decisions
+  # (CI's node-version, go.mod, the workflows and the docs move with them), not a one-line pull request.
   - package-ecosystem: docker
     directory: /deploy
     schedule:

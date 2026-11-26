@@ -112,6 +112,10 @@ Go 测试用 `internal/testutil`：
   （MISTAKES #310）。发版前要读一遍有待更新的直接依赖的安全公告：`gh api repos/<owner>/<repo>/security-advisories`。
 - **手动升级**：Go 用 `go get <module>@<version>`，前端用 `pnpm -C web add <package>@<range>`，然后执行“提交前”里的命令。
   优先选已经发布几天的版本。
+- **按摘要固定**：工作流里的 Action 写成某个发布版本的完整提交 SHA，版本号写在注释里（`uses: actions/checkout@<40 位 sha> # v7.0.1`），
+  Dockerfile 的基础镜像写成 `image:tag@sha256:<digest>`，因为标签可以被挪到别的代码上（发布工作流能写仓库、推镜像）。新的 Action
+  用 `gh api repos/<owner>/<repo>/git/ref/tags/<tag>` 解析（附注标签还要再查一次 `gh api repos/<owner>/<repo>/git/tags/<sha>`），
+  镜像用 `docker buildx imagetools inspect <image>:<tag>`；两种固定方式 Dependabot 都会更新。
 
 ## 新增插件
 
