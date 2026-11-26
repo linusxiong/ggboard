@@ -42,3 +42,20 @@ func TestReviewPassportRefusesNonJSONBodies(t *testing.T) {
 		t.Fatalf("JSON login = %d %s, want 401", rec.Code, rec.Body.String())
 	}
 }
+
+// Security audit 2026-11-25 §2: gin routes on the slash-cleaned path, but the SPA fallback judged the raw one, so
+// "//s/<token>/" and "//api/v1/<unknown>" were answered with the HTML shell and 200 instead of the JSON 404.
+func TestReviewDoubleSlashAPIPathsAreNotSPA(t *testing.T) {
+	a := testutil.NewTestApp(t)
+	e, err := router.New(a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{"//s/tok/", "///s/tok/", "//api/v1/nothing", "//soga/api/v1/nothing"} {
+		rec := testutil.Do(t, e, http.MethodGet, p, nil, "")
+		if rec.Code != http.StatusNotFound || !strings.HasPrefix(rec.Header().Get("Content-Type"), "application/json") ||
+			!strings.Contains(rec.Body.String(), `"code":"`+httpx.CodeNotFound+`"`) {
+			t.Errorf("GET %s = %d %s, want the JSON 404", p, rec.Code, rec.Header().Get("Content-Type"))
+		}
+	}
+}
