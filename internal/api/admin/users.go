@@ -52,18 +52,24 @@ func usersListHandler(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		q := f.Apply(a.DB.WithContext(c.Request.Context()).Model(&model.User{}), time.Now())
-		users, total, err := httpx.Paginate[model.User](c, q, usersSort, "id DESC")
-		if err != nil {
-			httpx.Fail(c, err)
-			return
-		}
-		views, err := adminuser.New(a).Views(c.Request.Context(), users)
-		if err != nil {
-			httpx.Fail(c, err)
-			return
-		}
-		err = withLiveStaff(c, a, func(admin bool) error {
+		var (
+			views []adminuser.View
+			total int64
+		)
+		err := withLiveStaffTx(c, a, func(tx *gorm.DB, admin bool) error {
+			if !admin {
+				// Staff never see uuid or token, so they cannot search by them either: filtering would confirm a
+				// guessed or leaked subscription token and reveal whose it is.
+				f.UUID, f.Token = "", ""
+			}
+			users, n, err := httpx.Paginate[model.User](c, f.Apply(tx.Model(&model.User{}), time.Now()), usersSort, "id DESC")
+			if err != nil {
+				return err
+			}
+			total = n
+			if views, err = adminuser.New(a).ViewsWithDB(tx, users); err != nil {
+				return err
+			}
 			if !admin {
 				for i := range views {
 					views[i].Redact()

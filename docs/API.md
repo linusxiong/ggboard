@@ -463,8 +463,10 @@ nodes/users keep their ranking rows with an empty `name`/`email`.
 | POST | `/admin/users/mail` | `{<filters>, subject* (≤255), content*}` | `{queued}` |
 
 Users rules (`internal/service/adminuser`): only `GET /admin/users` and `GET /admin/users/:id` are open to staff, and staff get `uuid`
-and `token` blanked. The live role is rechecked under the caller's user row lock after the view is built: a demoted admin
-gets the staff-redacted view, and an account no longer staff/admin gets 403. `AdminUser` = self view + `token`, `commission_type`, `remarks`, `invite_user_id`, `invite_user_email`,
+and `token` blanked; the `uuid` and `token` list filters are ignored for staff (they would confirm a guessed or leaked
+subscription token). The live role is rechecked under the caller's user row lock (for the list, before the query runs
+in the same transaction; for the detail, after the view is built): a demoted admin gets the staff-redacted view and
+staff filters, and an account no longer staff/admin gets 403. `AdminUser` = self view + `token`, `commission_type`, `remarks`, `invite_user_id`, `invite_user_email`,
 `last_login_ip`, `telegram_id`, `updated_at` (never the password). Filters: `email`/`remarks` are case-insensitive substrings; `plan_id`, `group_id`,
 `invite_user_id` = `0` select null; `expired` partitions users into `active` (expires in the future), `expired` (expired) and `never`
 (no expiry). `sort` accepts `id email expired_at created_at u d transfer_enable balance last_login_at` (default `-id`).

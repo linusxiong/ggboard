@@ -493,7 +493,8 @@ The catalog and template formats are in [RULESETS.md](RULESETS.md), the subscrip
 ## 6. Users and content
 
 - **Users**: search by email; the segmented control filters by status (Any status / Active / Banned), and there are also
-  plan, group, role and expiry filters and **More filters** (User ID, Inviter ID, Subscription token, Remarks). Toolbar:
+  plan, group, role and expiry filters and **More filters** (User ID, Inviter ID, Subscription token — admins only, staff
+  get the full list — Remarks). Toolbar:
   **New user**, **Generate** (downloads a CSV that includes the passwords), **Send mail** (to the users matching the
   current filters; the body is sent as plain text with blank lines separating paragraphs, and a background queue sends it
   asynchronously), **Export CSV**.
