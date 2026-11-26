@@ -1,12 +1,14 @@
 package geoip_test
 
 import (
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/linusxiong/ggboard/internal/geoip"
 	"github.com/linusxiong/ggboard/internal/geoip/geoiptest"
@@ -90,7 +92,11 @@ func TestReviewUpdateErrorsDoNotQuoteABanner(t *testing.T) {
 			if err != nil {
 				return
 			}
+			// Like a real SSH server: send the banner, then read what the client sends before hanging up. Closing at once
+			// made the client's request write fail now and then (broken pipe) before it read the banner.
 			_, _ = c.Write([]byte("SSH-2.0-OpenSSH_9.9 INTERNAL-BANNER\r\n"))
+			_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
+			_, _ = io.Copy(io.Discard, c)
 			_ = c.Close()
 		}
 	}()
