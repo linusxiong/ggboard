@@ -14,7 +14,7 @@ import (
 )
 
 func TestCredentialReadsRejectInFlightDemotion(t *testing.T) {
-	for _, target := range []string{"payments", "payment", "nodes", "node", "export"} {
+	for _, target := range []string{"payments", "payment", "nodes", "node", "export", "orders", "order"} {
 		t.Run(target, func(t *testing.T) {
 			a := testutil.NewTestApp(t)
 			admin := testutil.CreateAdmin(t, a, "admin@example.com")
@@ -27,6 +27,13 @@ func TestCredentialReadsRejectInFlightDemotion(t *testing.T) {
 			n := model.Node{Type: model.NodeVless, Name: "Private", Host: "node.example.com", Port: "443", ServerPort: 443,
 				ProtocolSettings: model.JSONMap{"private_key": "node-secret"}}
 			if err := a.DB.Create(&n).Error; err != nil {
+				t.Fatal(err)
+			}
+			buyer := testutil.CreateUser(t, a, "buyer@example.com")
+			o := model.Order{TradeNo: "2026112500000000000042", UserID: buyer.ID, PlanID: 1, Type: model.OrderTypeNew,
+				Period: model.PeriodMonthly, TotalAmount: 1000, PaymentID: &p.ID, CallbackNo: "gateway-txn-42",
+				Status: model.OrderStatusCompleted}
+			if err := a.DB.Create(&o).Error; err != nil {
 				t.Fatal(err)
 			}
 			r := gin.New()
@@ -45,11 +52,15 @@ func TestCredentialReadsRejectInFlightDemotion(t *testing.T) {
 				path = "/api/v1/admin/nodes/" + strconv.FormatUint(n.ID, 10)
 			case "export":
 				method, path = http.MethodPost, "/api/v1/admin/users/export"
+			case "order":
+				path = "/api/v1/admin/orders/" + strconv.FormatUint(o.ID, 10)
 			}
 			rec := testutil.Do(t, r, method, path, map[string]any{}, tok)
-			if rec.Code != http.StatusForbidden || strings.Contains(rec.Body.String(), "payment-secret") ||
-				strings.Contains(rec.Body.String(), "node-secret") || strings.Contains(rec.Body.String(), admin.Email) {
-				t.Fatalf("%s after demotion: %d %s", target, rec.Code, rec.Body.String())
+			body := rec.Body.String()
+			if rec.Code != http.StatusForbidden || strings.Contains(body, "payment-secret") ||
+				strings.Contains(body, "node-secret") || strings.Contains(body, admin.Email) ||
+				strings.Contains(body, buyer.Email) || strings.Contains(body, o.TradeNo) || strings.Contains(body, o.CallbackNo) {
+				t.Fatalf("%s after demotion: %d %s", target, rec.Code, body)
 			}
 		})
 	}

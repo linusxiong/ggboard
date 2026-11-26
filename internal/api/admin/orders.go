@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/auth"
@@ -78,48 +79,56 @@ func adminListOrders(a *app.App) gin.HandlerFunc {
 			return
 		}
 		ctx := c.Request.Context()
-		db := a.DB.WithContext(ctx).Model(&model.Order{})
-		if q.TradeNo != "" {
-			db = db.Where("trade_no = ?", strings.TrimSpace(q.TradeNo))
-		}
-		if q.UserID != nil {
-			db = db.Where("user_id = ?", *q.UserID)
-		}
-		if q.Email != "" {
-			db = db.Where("user_id IN (?)", a.DB.Model(&model.User{}).Select("id").Where("email = ?", usersvc.NormalizeEmail(q.Email)))
-		}
-		if q.Status != nil {
-			db = db.Where("status = ?", *q.Status)
-		}
-		if q.CommissionStatus != nil {
-			db = db.Where("commission_status = ?", *q.CommissionStatus)
-		}
-		if q.PlanID != nil {
-			db = db.Where("plan_id = ?", *q.PlanID)
-		}
-		if q.PaymentID != nil {
-			db = db.Where("payment_id = ?", *q.PaymentID)
-		}
-		if q.InviteUserID != nil {
-			db = db.Where("invite_user_id = ?", *q.InviteUserID)
-		}
-		if q.Type != nil {
-			db = db.Where("type = ?", *q.Type)
-		}
-		if from != nil {
-			db = db.Where("created_at >= ?", *from)
-		}
-		if to != nil {
-			db = db.Where("created_at < ?", *to)
-		}
-		orders, total, err := httpx.Paginate[model.Order](c, db, map[string]string{
-			"id": "id", "created_at": "created_at", "paid_at": "paid_at", "total_amount": "total_amount", "status": "status",
-		}, "id DESC")
-		if err != nil {
-			httpx.Fail(c, err)
-			return
-		}
-		views, err := ordersvc.AdminViews(ctx, a.DB, orders)
+		var (
+			views []ordersvc.AdminView
+			total int64
+		)
+		// Buyer emails and payment references: read under the live admin check (MISTAKES #270/#274).
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			db := tx.Model(&model.Order{})
+			if q.TradeNo != "" {
+				db = db.Where("trade_no = ?", strings.TrimSpace(q.TradeNo))
+			}
+			if q.UserID != nil {
+				db = db.Where("user_id = ?", *q.UserID)
+			}
+			if q.Email != "" {
+				db = db.Where("user_id IN (?)", tx.Model(&model.User{}).Select("id").Where("email = ?", usersvc.NormalizeEmail(q.Email)))
+			}
+			if q.Status != nil {
+				db = db.Where("status = ?", *q.Status)
+			}
+			if q.CommissionStatus != nil {
+				db = db.Where("commission_status = ?", *q.CommissionStatus)
+			}
+			if q.PlanID != nil {
+				db = db.Where("plan_id = ?", *q.PlanID)
+			}
+			if q.PaymentID != nil {
+				db = db.Where("payment_id = ?", *q.PaymentID)
+			}
+			if q.InviteUserID != nil {
+				db = db.Where("invite_user_id = ?", *q.InviteUserID)
+			}
+			if q.Type != nil {
+				db = db.Where("type = ?", *q.Type)
+			}
+			if from != nil {
+				db = db.Where("created_at >= ?", *from)
+			}
+			if to != nil {
+				db = db.Where("created_at < ?", *to)
+			}
+			orders, n, err := httpx.Paginate[model.Order](c, db, map[string]string{
+				"id": "id", "created_at": "created_at", "paid_at": "paid_at", "total_amount": "total_amount", "status": "status",
+			}, "id DESC")
+			if err != nil {
+				return err
+			}
+			total = n
+			views, err = ordersvc.AdminViews(ctx, tx, orders)
+			return err
+		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -135,51 +144,65 @@ type adminOrderDetail struct {
 	SurplusOrders  []ordersvc.AdminView  `json:"surplus_orders"`
 }
 
-func adminOrderResponse(c *gin.Context, a *app.App, o *model.Order) {
+// adminOrderDetailIn builds the detail of o from tx, which holds the live admin check.
+func adminOrderDetailIn(c *gin.Context, tx *gorm.DB, o *model.Order) (*adminOrderDetail, error) {
 	ctx := c.Request.Context()
-	views, err := ordersvc.AdminViews(ctx, a.DB, []model.Order{*o})
+	views, err := ordersvc.AdminViews(ctx, tx, []model.Order{*o})
 	if err != nil {
-		httpx.Fail(c, err)
-		return
+		return nil, err
 	}
-	d := adminOrderDetail{AdminView: views[0], CommissionLogs: []model.CommissionLog{}, SurplusOrders: []ordersvc.AdminView{}}
-	if err := a.DB.WithContext(ctx).Where("trade_no = ?", o.TradeNo).Order("id").Find(&d.CommissionLogs).Error; err != nil {
-		httpx.Fail(c, err)
-		return
+	d := &adminOrderDetail{AdminView: views[0], CommissionLogs: []model.CommissionLog{}, SurplusOrders: []ordersvc.AdminView{}}
+	if err := tx.Where("trade_no = ?", o.TradeNo).Order("id").Find(&d.CommissionLogs).Error; err != nil {
+		return nil, err
 	}
 	if len(o.SurplusOrderIDs) > 0 {
 		var surplus []model.Order
-		if err := a.DB.WithContext(ctx).Where("id IN ?", []uint64(o.SurplusOrderIDs)).Order("id").Find(&surplus).Error; err != nil {
-			httpx.Fail(c, err)
-			return
+		if err := tx.Where("id IN ?", []uint64(o.SurplusOrderIDs)).Order("id").Find(&surplus).Error; err != nil {
+			return nil, err
 		}
-		if d.SurplusOrders, err = ordersvc.AdminViews(ctx, a.DB, surplus); err != nil {
-			httpx.Fail(c, err)
-			return
+		if d.SurplusOrders, err = ordersvc.AdminViews(ctx, tx, surplus); err != nil {
+			return nil, err
 		}
+	}
+	return d, nil
+}
+
+// adminOrderResponse writes the detail of o (after an order action), read under the live admin check.
+func adminOrderResponse(c *gin.Context, a *app.App, o *model.Order) {
+	var d *adminOrderDetail
+	err := withLiveAdmin(c, a, func(tx *gorm.DB) error {
+		var err error
+		d, err = adminOrderDetailIn(c, tx, o)
+		return err
+	})
+	if err != nil {
+		httpx.Fail(c, err)
+		return
 	}
 	httpx.OK(c, d)
 }
 
-func adminLoadOrder(c *gin.Context, a *app.App) (*model.Order, bool) {
-	id, err := httpx.ParamID(c, "id")
-	if err != nil {
-		httpx.Fail(c, err)
-		return nil, false
-	}
-	var o model.Order
-	if err := a.DB.WithContext(c.Request.Context()).First(&o, id).Error; err != nil {
-		httpx.Fail(c, err)
-		return nil, false
-	}
-	return &o, true
-}
-
 func adminGetOrder(a *app.App) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if o, ok := adminLoadOrder(c, a); ok {
-			adminOrderResponse(c, a, o)
+		id, err := httpx.ParamID(c, "id")
+		if err != nil {
+			httpx.Fail(c, err)
+			return
 		}
+		var d *adminOrderDetail
+		err = withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			var o model.Order
+			if err := tx.First(&o, id).Error; err != nil {
+				return err
+			}
+			d, err = adminOrderDetailIn(c, tx, &o)
+			return err
+		})
+		if err != nil {
+			httpx.Fail(c, err)
+			return
+		}
+		httpx.OK(c, d)
 	}
 }
 
@@ -206,8 +229,11 @@ func adminAssignOrder(a *app.App) gin.HandlerFunc {
 			return
 		}
 		httpx.Logger(c).Info("order assigned by admin", "trade_no", o.TradeNo, "admin_id", auth.CurrentUser(c).ID)
-		views, err := ordersvc.AdminViews(c.Request.Context(), a.DB, []model.Order{*o})
-		if err != nil {
+		var views []ordersvc.AdminView
+		if err := withLiveAdmin(c, a, func(tx *gorm.DB) error {
+			views, err = ordersvc.AdminViews(c.Request.Context(), tx, []model.Order{*o})
+			return err
+		}); err != nil {
 			httpx.Fail(c, err)
 			return
 		}
