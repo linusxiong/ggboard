@@ -204,6 +204,7 @@ func (s *Service) SetContextIf(ctx context.Context, values map[string]any, autho
 		reset bool
 	}
 	writes := make([]write, 0, len(values))
+	next := make(map[string]any, len(values)) // the values the save leaves, for crossCheck
 	keys := slices.Sorted(maps.Keys(values))
 	for _, k := range keys {
 		d, ok := defIndex[k]
@@ -213,6 +214,7 @@ func (s *Service) SetContextIf(ctx context.Context, values map[string]any, autho
 		}
 		if values[k] == nil {
 			writes = append(writes, write{key: k, reset: true})
+			next[k] = Defaults[k]
 			continue
 		}
 		v, err := normalize(d, values[k])
@@ -226,6 +228,7 @@ func (s *Service) SetContextIf(ctx context.Context, values map[string]any, autho
 			continue
 		}
 		writes = append(writes, write{key: k, value: string(b)})
+		next[k] = v
 	}
 	if len(errs) > 0 {
 		return errs
@@ -233,6 +236,9 @@ func (s *Service) SetContextIf(ctx context.Context, values map[string]any, autho
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if errs := crossCheck(s.snapshot(), next); len(errs) > 0 {
+		return errs
+	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if authorize != nil {
 			if err := authorize(tx); err != nil {
@@ -261,6 +267,39 @@ func (s *Service) SetContextIf(ctx context.Context, values map[string]any, autho
 		return fmt.Errorf("settings: save: %w", err)
 	}
 	return s.Reload(ctx)
+}
+
+// commissionLevels are the three commission_distribution shares, each a percentage of one order's commission.
+var commissionLevels = []string{"commission_distribution_l1", "commission_distribution_l2", "commission_distribution_l3"}
+
+// crossCheck validates the rules between settings on the values a save leaves (cur overlaid with next, read under
+// s.mu so concurrent saves cannot combine into a violation). A rule is checked only when the save touches one of its
+// keys, so a stored violation (imported, or saved before the rule) does not block unrelated saves; the messages go
+// to the touched keys. Rules: commission_distribution_l1 + _l2 + _l3 ≤ 100, as more would pay out more than the
+// order's commission.
+func crossCheck(cur, next map[string]any) FieldErrors {
+	get := func(k string) any {
+		if v, ok := next[k]; ok {
+			return v
+		}
+		return cur[k]
+	}
+	errs := FieldErrors{}
+	sum, touched := 0, false
+	for _, k := range commissionLevels {
+		n, _ := get(k).(int)
+		sum += n
+		_, in := next[k]
+		touched = touched || in
+	}
+	if touched && sum > 100 {
+		for _, k := range commissionLevels {
+			if _, in := next[k]; in {
+				errs[k] = append(errs[k], "the three commission levels add up to more than 100%")
+			}
+		}
+	}
+	return errs
 }
 
 var errType = errors.New("invalid type")

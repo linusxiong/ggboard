@@ -820,9 +820,9 @@ admins only and masked in logs; `server_token` and `telegram_webhook_secret` are
 | invite | `commission_withdraw_method` | strings | `["USDT","Alipay"]` | |
 | invite | `withdraw_close_enable` | bool | `false` | no withdrawals; settled commission goes to `balance` instead |
 | invite | `commission_distribution_enable` | bool | `false` | split each commission across up to three upline levels (l1/l2/l3 %) |
-| invite | `commission_distribution_l1` | int 0..100 | `0` | percent |
-| invite | `commission_distribution_l2` | int 0..100 | `0` | percent |
-| invite | `commission_distribution_l3` | int 0..100 | `0` | percent |
+| invite | `commission_distribution_l1` | int 0..100 | `0` | percent; l1 + l2 + l3 ≤ 100: a save that touches one of the three and leaves a larger sum (with the stored values of the others) → 400 on the touched keys, nothing written |
+| invite | `commission_distribution_l2` | int 0..100 | `0` | percent (sum rule: see l1) |
+| invite | `commission_distribution_l3` | int 0..100 | `0` | percent (sum rule: see l1) |
 | server | `server_token` | string (secret, ≥ 16) | generated | node API key; at least 16 characters when set by an admin, never equal to a node's own `token` (field error `server_token`); `null` generates a new token immediately (see the note below) |
 | server | `server_pull_interval` | int 10..86400 | `60` | seconds |
 | server | `server_push_interval` | int 10..86400 | `60` | seconds |

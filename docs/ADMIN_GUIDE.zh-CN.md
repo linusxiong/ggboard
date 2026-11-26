@@ -116,7 +116,7 @@ ggboard admin promote --email user@example.com              # 把已有用户提
 | `commission_withdraw_limit` | 100 | 最低提现金额（站点货币单位） |
 | `commission_withdraw_method` | `["USDT","Alipay"]` | 允许的提现方式（后端校验） |
 | `withdraw_close_enable` | `false` | 关闭提现，佣金只能转入余额 |
-| `commission_distribution_enable` / `_l1` / `_l2` / `_l3` | `false` / 0 | 三级分销比例 % |
+| `commission_distribution_enable` / `_l1` / `_l2` / `_l3` | `false` / 0 | 三级分销比例 %，三级合计不超过 100（超过时保存会被拒绝） |
 
 ### 节点通讯 `server`
 
