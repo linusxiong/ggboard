@@ -86,6 +86,14 @@ export function setMfaSetupRequiredHandler(handler: (() => void) | null) {
   mfaSetupRequiredHandler = handler
 }
 
+// Admin/staff routes answer 403 `mfa_reauth_required` to a session signed in with the password alone while the
+// account has 2FA or a passkey: the session is dropped and the user signs in again with the second factor.
+let mfaReauthRequiredHandler: (() => void) | null = null
+/** Registered once by the router: sends the user to `/login` (back to the current page afterwards). */
+export function setMfaReauthRequiredHandler(handler: (() => void) | null) {
+  mfaReauthRequiredHandler = handler
+}
+
 export function buildQuery(query?: QueryParams | object): string {
   if (!query) return ''
   const params = new URLSearchParams()
@@ -156,6 +164,10 @@ async function send(method: HttpMethod, path: string, opts: RequestOptions = {})
       unauthorizedHandler?.()
     }
     if (res.status === 403 && error.code === 'mfa_setup_required') mfaSetupRequiredHandler?.()
+    if (res.status === 403 && error.code === 'mfa_reauth_required' && token && !opts.keepSession) {
+      useAuthStore.getState().logout()
+      mfaReauthRequiredHandler?.()
+    }
     throw error
   }
   return res

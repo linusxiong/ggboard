@@ -22,9 +22,9 @@ type AuthResult struct {
 	User  account.UserView `json:"user"`
 }
 
-// respond issues a session token for u and writes {token, user}.
-func respond(c *gin.Context, a *app.App, svc *account.Service, u *model.User) {
-	tok, err := auth.Issue(a, u)
+// respond issues a session token for u, signed in with method (auth.AMR*), and writes {token, user}.
+func respond(c *gin.Context, a *app.App, svc *account.Service, u *model.User, method string) {
+	tok, err := auth.Issue(a, u, method)
 	if err != nil {
 		httpx.Fail(c, err)
 		return
@@ -71,7 +71,7 @@ func register(a *app.App) gin.HandlerFunc {
 			plan = *u.PlanID
 		}
 		httpx.Logger(c).Info("user registered", "user_id", u.ID, "invite_user_id", inviter, "trial_plan_id", plan)
-		respond(c, a, svc, u)
+		respond(c, a, svc, u, auth.AMRPassword)
 	}
 }
 
@@ -114,7 +114,7 @@ func login(a *app.App) gin.HandlerFunc {
 		svc.RecordLogin(ctx, u, c.ClientIP())
 		httpx.Logger(c).Info("user logged in", "user_id", u.ID)
 		notifyStaffLogin(c, a, u, notify.MethodPassword)
-		respond(c, a, svc, u)
+		respond(c, a, svc, u, auth.AMRPassword)
 	}
 }
 
@@ -136,7 +136,7 @@ func loginToken(a *app.App) gin.HandlerFunc {
 			return
 		}
 		httpx.Logger(c).Info("user logged in with one-time token", "user_id", u.ID)
-		respond(c, a, svc, u)
+		respond(c, a, svc, u, auth.AMRLoginAs)
 	}
 }
 

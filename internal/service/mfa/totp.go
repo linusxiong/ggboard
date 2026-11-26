@@ -90,7 +90,7 @@ func matchTOTP(secret, code string, now time.Time) (int64, bool) {
 }
 
 // SetupTOTP generates a new secret for u, kept pending (SetupTTL) until EnableTOTP confirms a code.
-// 409 when TOTP is already enabled.
+// 409 when TOTP is already enabled. Callers re-authenticate u first (ConfirmPassword).
 func (s *Service) SetupTOTP(ctx context.Context, u *model.User) (TOTPSetup, error) {
 	on, err := s.TOTPEnabled(ctx, u.ID)
 	if err != nil {

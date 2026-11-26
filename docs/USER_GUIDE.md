@@ -244,7 +244,7 @@ All of this is under **Profile → Security** (`/profile?tab=security`).
 
 ### 5.1 Two-factor authentication (TOTP)
 
-1. Click **Turn on 2FA** and scan the QR code with an authenticator app (1Password, Google Authenticator, Microsoft
+1. Click **Turn on 2FA**, confirm with your current password, and scan the QR code with an authenticator app (1Password, Google Authenticator, Microsoft
    Authenticator and so on), or enter the key by hand. On a phone you can tap **Open in an authenticator on this
    device**.
 2. Enter the 6-digit code to finish.
@@ -258,13 +258,14 @@ neither, only an administrator can help.
 
 ### 5.2 Passkeys
 
-- **Add a passkey**: first give it a name (such as MacBook, iPhone, 1Password), then follow the prompts of your browser
+- **Add a passkey**: first give it a name (such as MacBook, iPhone, 1Password) and enter your current password, then follow the prompts of your browser
   or password manager. Passkeys can be stored in iCloud Keychain, 1Password, Bitwarden and the like, and synced across
   devices. The same device or password manager cannot add a second passkey for the same account.
 - You can **Rename** each passkey. **Remove** asks for your current password; remember to remove the passkey from the
   device or password manager too.
 - On the sign-in page, **Sign in with a passkey** signs you in without a password. Accounts with two-factor
-  authentication on need no code when they sign in with a passkey.
+  authentication on need no code when they sign in with a passkey, but the passkey must verify you (PIN, fingerprint or
+  face): a security key used without its PIN is refused.
 - You have to open the site on its official domain; otherwise you see "This passkey doesn't match this address". When
   the site has not set up passkeys, the sign-in page shows no passkey option.
 

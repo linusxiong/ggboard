@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/linusxiong/ggboard/internal/app"
+	"github.com/linusxiong/ggboard/internal/auth"
 	"github.com/linusxiong/ggboard/internal/httpx"
 	"github.com/linusxiong/ggboard/internal/service/account"
 	mfasvc "github.com/linusxiong/ggboard/internal/service/mfa"
@@ -38,6 +39,6 @@ func loginMFA(a *app.App) gin.HandlerFunc {
 		svc.RecordLogin(ctx, u, c.ClientIP())
 		httpx.Logger(c).Info("user logged in with second factor", "user_id", u.ID)
 		notifyStaffLogin(c, a, u, secondFactorMethod(in.Code))
-		respond(c, a, svc, u)
+		respond(c, a, svc, u, auth.AMRMFA)
 	}
 }

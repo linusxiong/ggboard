@@ -56,14 +56,30 @@ func getSecurity(a *app.App) gin.HandlerFunc {
 	}
 }
 
+// totpSetup is POST /totp/setup {password}: the current password is confirmed before a secret is generated
+// (mfasvc.ConfirmPassword).
 func totpSetup(a *app.App) gin.HandlerFunc {
+	type req struct {
+		Password string `json:"password" binding:"required,max=256"`
+	}
 	return func(c *gin.Context) {
+		var in req
+		if err := httpx.Bind(c, &in); err != nil {
+			httpx.Fail(c, err)
+			return
+		}
 		u, err := freshUser(c, a)
 		if err != nil {
 			httpx.Fail(c, err)
 			return
 		}
-		out, err := mfasvc.New(a).SetupTOTP(c.Request.Context(), u)
+		svc := mfasvc.New(a)
+		if err := svc.ConfirmPassword(u, in.Password); err != nil {
+			httpx.Logger(c).Warn("two-factor setup rejected", "user_id", u.ID, "reason", httpx.AsError(err).Message)
+			account.Fail(c, err)
+			return
+		}
+		out, err := svc.SetupTOTP(c.Request.Context(), u)
 		if err != nil {
 			httpx.Fail(c, err)
 			return
@@ -150,9 +166,12 @@ func regenerateBackupCodes(a *app.App) gin.HandlerFunc {
 	}
 }
 
+// passkeyBegin is POST /passkeys/begin {password, name?}: the current password is confirmed before the
+// registration ceremony starts (mfasvc.ConfirmPassword).
 func passkeyBegin(a *app.App) gin.HandlerFunc {
 	type req struct {
-		Name string `json:"name" binding:"max=64"`
+		Password string `json:"password" binding:"required,max=256"`
+		Name     string `json:"name" binding:"max=64"`
 	}
 	return func(c *gin.Context) {
 		var in req
@@ -165,7 +184,13 @@ func passkeyBegin(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		out, err := mfasvc.New(a).BeginRegistration(c.Request.Context(), u, in.Name)
+		svc := mfasvc.New(a)
+		if err := svc.ConfirmPassword(u, in.Password); err != nil {
+			httpx.Logger(c).Warn("passkey registration rejected", "user_id", u.ID, "reason", httpx.AsError(err).Message)
+			account.Fail(c, err)
+			return
+		}
+		out, err := svc.BeginRegistration(c.Request.Context(), u, in.Name)
 		if err != nil {
 			httpx.Fail(c, err)
 			return

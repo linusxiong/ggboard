@@ -70,9 +70,16 @@ describe('profile → security', () => {
       'GET /guest/config': { ...GUEST_CONFIG, passkey_enabled: true },
       'GET /user/me': TEST_USER,
       'GET /user/security': () => overview,
-      'POST /user/security/totp/setup': {
-        secret: 'JBSWY3DPEHPK3PXP',
-        otpauth_url: 'otpauth://totp/GG%20Bond:demo%40example.com?secret=JBSWY3DPEHPK3PXP&issuer=GG%20Bond',
+      'POST /user/security/totp/setup': ({ body }: { body: unknown }) => {
+        if ((body as { password: string }).password !== 'current-pass')
+          return json(
+            { code: 'validation_failed', message: 'invalid', errors: { password: ['is incorrect'] } },
+            400,
+          )
+        return {
+          secret: 'JBSWY3DPEHPK3PXP',
+          otpauth_url: 'otpauth://totp/GG%20Bond:demo%40example.com?secret=JBSWY3DPEHPK3PXP&issuer=GG%20Bond',
+        }
       },
       'POST /user/security/totp/enable': ({ body }: { body: unknown }) => {
         if ((body as { code: string }).code !== '123456')
@@ -94,7 +101,21 @@ describe('profile → security', () => {
     await user.click(await screen.findByRole('button', { name: /开启两步验证/ }, { timeout: 8000 }))
 
     const dialog = await screen.findByRole('dialog')
+    // The current password comes first: nothing is generated without it.
+    await user.click(within(dialog).getByRole('button', { name: '继续' }))
+    expect(await within(dialog).findByText('请输入当前密码')).toBeInTheDocument()
+    expect(bodiesOf(fetchMock, 'POST /user/security/totp/setup')).toHaveLength(0)
+    const password = within(dialog).getByLabelText('当前密码')
+    expect(password).toHaveAttribute('autocomplete', 'current-password')
+    await user.type(password, 'wrong-pass{Enter}')
+    expect(await within(dialog).findByText('密码不正确')).toBeInTheDocument()
+    await user.clear(within(dialog).getByLabelText('当前密码'))
+    await user.type(within(dialog).getByLabelText('当前密码'), 'current-pass{Enter}')
     expect(await within(dialog).findByText('JBSW Y3DP EHPK 3PXP')).toBeInTheDocument()
+    expect(bodiesOf(fetchMock, 'POST /user/security/totp/setup')).toEqual([
+      { password: 'wrong-pass' },
+      { password: 'current-pass' },
+    ])
     expect(within(dialog).getByRole('link', { name: '在本设备的验证器中打开' })).toHaveAttribute(
       'href',
       expect.stringMatching(/^otpauth:\/\/totp\//),
@@ -150,11 +171,18 @@ describe('profile → security', () => {
     const name = within(dialog).getByLabelText('名称')
     await user.clear(name)
     await user.type(name, 'Work laptop')
+    // The current password is required before the ceremony starts.
+    await user.click(within(dialog).getByRole('button', { name: '创建' }))
+    expect(await within(dialog).findByText('请输入当前密码')).toBeInTheDocument()
+    expect(bodiesOf(fetchMock, 'POST /user/security/passkeys/begin')).toHaveLength(0)
+    await user.type(within(dialog).getByLabelText('当前密码'), 'current-pass')
     await user.click(within(dialog).getByRole('button', { name: '创建' }))
 
     expect(await screen.findByText('Work laptop')).toBeInTheDocument()
     expect(webauthn.startRegistration).toHaveBeenCalledWith({ optionsJSON: OPTIONS })
-    expect(bodiesOf(fetchMock, 'POST /user/security/passkeys/begin')).toEqual([{ name: 'Work laptop' }])
+    expect(bodiesOf(fetchMock, 'POST /user/security/passkeys/begin')).toEqual([
+      { password: 'current-pass', name: 'Work laptop' },
+    ])
     expect(bodiesOf(fetchMock, 'POST /user/security/passkeys/finish')).toEqual([
       { challenge_id: 'ch-1', credential: CREDENTIAL, name: 'Work laptop' },
     ])
@@ -199,6 +227,7 @@ describe('profile → security', () => {
     const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: /添加通行密钥/ }, { timeout: 8000 }))
     const dialog = await screen.findByRole('dialog', { name: '添加通行密钥' })
+    await user.type(within(dialog).getByLabelText('当前密码'), 'current-pass')
     await user.click(within(dialog).getByRole('button', { name: '创建' }))
 
     expect(await within(dialog).findByRole('alert')).toBeInTheDocument()
@@ -209,6 +238,25 @@ describe('profile → security', () => {
         credentialId: 'cred-id',
       })
     }
+  })
+
+  it('shows a wrong current password next to the field and never starts the ceremony', async () => {
+    mockApi({
+      'GET /guest/config': { ...GUEST_CONFIG, passkey_enabled: true },
+      'GET /user/me': TEST_USER,
+      'GET /user/security': () => overview,
+      'POST /user/security/passkeys/begin': () =>
+        json({ code: 'validation_failed', message: 'invalid', errors: { password: ['is incorrect'] } }, 400),
+    })
+    renderAt('/profile?tab=security')
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: /添加通行密钥/ }, { timeout: 8000 }))
+    const dialog = await screen.findByRole('dialog', { name: '添加通行密钥' })
+    await user.type(within(dialog).getByLabelText('当前密码'), 'wrong-pass')
+    await user.click(within(dialog).getByRole('button', { name: '创建' }))
+    expect(await within(dialog).findByText('密码不正确')).toBeInTheDocument()
+    await waitFor(() => expect(within(dialog).getByLabelText('当前密码')).toHaveFocus())
+    expect(webauthn.startRegistration).not.toHaveBeenCalled()
   })
 
   it('treats a cancelled ceremony (NotAllowedError) as a gentle notice', async () => {
@@ -225,6 +273,7 @@ describe('profile → security', () => {
     const user = userEvent.setup()
     await user.click(await screen.findByRole('button', { name: /添加通行密钥/ }, { timeout: 8000 }))
     const dialog = await screen.findByRole('dialog', { name: '添加通行密钥' })
+    await user.type(within(dialog).getByLabelText('当前密码'), 'current-pass')
     await user.click(within(dialog).getByRole('button', { name: '创建' }))
     expect(await within(dialog).findByText('已取消创建通行密钥，可随时重试。')).toHaveAttribute(
       'role',

@@ -43,6 +43,8 @@
     "enable": "Turn on 2FA",
     "disable": "Turn off 2FA",
     "setupTitle": "Turn on two-factor authentication",
+    "confirmPassword": "Confirm with your current password to continue.",
+    "continue": "Continue",
     "step1": "Scan the QR code with an authenticator app.",
     "apps": "Authenticator apps",
     "appsHint": "For example 1Password, Google Authenticator or Microsoft Authenticator.",
@@ -83,7 +85,7 @@
     "hint": "Sign in with your fingerprint, face or device PIN instead of a password. Passkeys can live in iCloud Keychain, 1Password, Bitwarden and other password managers and sync across devices.",
     "add": "Add a passkey",
     "addTitle": "Add a passkey",
-    "addHint": "Name it so you can recognise it later, then follow your browser's or password manager's prompt.",
+    "addHint": "Name it so you can recognise it later and confirm with your current password, then follow your browser's or password manager's prompt.",
     "name": "Name",
     "namePlaceholder": "For example: MacBook, iPhone, 1Password",
     "nameRequired": "Enter a name",
@@ -119,7 +121,8 @@
     "passwordWrong": "Incorrect password"
   },
   "mfaRequired": {
-    "toast": "The admin area requires two-factor authentication or a passkey. Set one up first."
+    "toast": "The admin area requires two-factor authentication or a passkey. Set one up first.",
+    "reauth": "The admin area needs a sign-in with your two-factor code or a passkey. Sign in again."
   },
   "telegram": {
     "title": "Telegram",

@@ -42,7 +42,7 @@ func (s *Service) Challenge(ctx context.Context, u *model.User) (*LoginChallenge
 	if err != nil || !on {
 		return nil, err
 	}
-	n, err := s.PasskeyCount(ctx, u.ID)
+	n, err := s.UsablePasskeyCount(ctx, u.ID)
 	if err != nil {
 		return nil, err
 	}

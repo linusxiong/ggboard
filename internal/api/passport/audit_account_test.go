@@ -172,7 +172,7 @@ func TestAuditUnverifiedAccountIsReclaimedOnPasswordReset(t *testing.T) {
 		t.Fatal("a registration without an email code must not be marked verified")
 	}
 	sub := testutil.Decode[userapi.Subscription](t, testutil.Do(t, r, http.MethodGet, "/api/v1/user/subscription", nil, session))
-	cer := testutil.Decode[ceremony](t, testutil.Do(t, r, http.MethodPost, "/api/v1/user/security/passkeys/begin", map[string]any{"name": "registrant"}, session))
+	cer := testutil.Decode[ceremony](t, testutil.Do(t, r, http.MethodPost, "/api/v1/user/security/passkeys/begin", map[string]any{"name": "registrant", "password": "registrant-pass"}, session))
 	key := mfatest.New(t, rpID, rpOrigin)
 	testutil.ExpectStatus(t, testutil.Do(t, r, http.MethodPost, "/api/v1/user/security/passkeys/finish",
 		map[string]any{"challenge_id": cer.ChallengeID, "credential": key.Register(t, cer.Options)}, session), 200)

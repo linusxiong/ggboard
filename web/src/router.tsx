@@ -2,7 +2,11 @@ import { createRouter } from '@tanstack/react-router'
 import { LoadingPage } from '@/components/LoadingPage'
 import { NotFound } from '@/components/NotFound'
 import { RouteError } from '@/components/RouteError'
-import { setMfaSetupRequiredHandler, setUnauthorizedHandler } from '@/lib/api/client'
+import {
+  setMfaReauthRequiredHandler,
+  setMfaSetupRequiredHandler,
+  setUnauthorizedHandler,
+} from '@/lib/api/client'
 import { loadNamespaces, t } from '@/i18n'
 import { toast } from '@/lib/toast'
 import { routeTree } from './routeTree.gen'
@@ -39,4 +43,13 @@ setMfaSetupRequiredHandler(() => {
   if (pathname === '/profile') return
   void router.navigate({ to: '/profile', search: { tab: 'security' }, replace: true })
   void loadNamespaces(['security']).then(() => toast.warning(t('security', 'mfaRequired.toast')))
+})
+
+// Admin/staff API → 403 `mfa_reauth_required` (session cleared in the API client) → sign in again with the
+// 2FA code or a passkey, then come back.
+setMfaReauthRequiredHandler(() => {
+  const { pathname, searchStr } = router.state.location
+  void loadNamespaces(['security']).then(() => toast.warning(t('security', 'mfaRequired.reauth')))
+  if (pathname === '/login') return
+  void router.navigate({ to: '/login', search: { redirect: `${pathname}${searchStr}` }, replace: true })
 })

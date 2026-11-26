@@ -98,7 +98,9 @@ func (s *Service) LoginWithToken(ctx context.Context, token string) (*model.User
 // email_verify was off, so possibly by someone else with the owner's address), the reset is an ownership
 // change (usersvc.ReclaimAccount): uuid and subscription token are rotated, passkeys, TOTP / backup codes, the
 // Telegram binding and the hosted age key are removed, and email_verified_at is stamped; reclaimed is then true
-// and the caller revokes a pending Telegram bind code.
+// and the caller revokes a pending Telegram bind code. Administrator and staff accounts are never reclaimed (an
+// operator vouched for them; otherwise reading the mailbox would be enough to strip their second factors): their
+// reset is an ordinary one that also stamps email_verified_at.
 func (s *Service) ResetPassword(ctx context.Context, email, code, password string) (u *model.User, reclaimed bool, err error) {
 	email = usersvc.NormalizeEmail(email)
 	if err := s.ConsumeCode(PurposeForgot, email, code); err != nil {
@@ -111,6 +113,11 @@ func (s *Service) ResetPassword(ctx context.Context, email, code, password strin
 	}
 	if err != nil {
 		return nil, false, err
+	}
+	if u.EmailVerifiedAt == nil && u.IsStaffOrAdmin() {
+		if err := s.users.MarkEmailVerified(ctx, u); err != nil {
+			return nil, false, err
+		}
 	}
 	if u.EmailVerifiedAt == nil {
 		r, err := s.users.ReclaimAccount(ctx, u, password)
@@ -133,9 +140,10 @@ func (s *Service) ResetPassword(ctx context.Context, email, code, password strin
 }
 
 // ChangePassword verifies oldPassword and stores newPassword against the authenticated snapshot u,
-// bumping password_version. Wrong passwords count towards the password lockout.
+// bumping password_version. Wrong passwords count towards the account's confirmation lockout
+// (ReserveReauthAttempt).
 func (s *Service) ChangePassword(ctx context.Context, u *model.User, oldPassword, newPassword string) (*model.User, error) {
-	if _, err := s.ReservePasswordAttempt(u.Email); err != nil {
+	if _, err := s.ReserveReauthAttempt(u.ID); err != nil {
 		return nil, err
 	}
 	if !auth.VerifyPassword(u.PasswordHash, oldPassword) {
@@ -147,6 +155,7 @@ func (s *Service) ChangePassword(ctx context.Context, u *model.User, oldPassword
 		}
 		return nil, err
 	}
+	s.ClearReauthFailures(u.ID)
 	s.ClearPasswordFailures(u.Email)
 	auth.InvalidateUser(s.a, u.ID)
 	return u, nil

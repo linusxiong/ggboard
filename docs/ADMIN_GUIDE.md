@@ -561,7 +561,10 @@ The full mappings and the meaning of each warning are in [IMPORT_XBOARD.md](IMPO
 - **Require MFA for admins**: with `admin_mfa_required` on, admins and staff who have neither two-factor authentication
   nor a passkey get `403 mfa_setup_required` from the admin API; the frontend tells them and sends them to
   **Profile → Security** to set it up (that page is not restricted). Turn it on for yourself before you turn on the
-  switch.
+  switch. Having a second factor is not enough on its own: the session must have used it. A session signed in with the
+  password alone (for example by an admin whose only second factor is a passkey) gets `403 mfa_reauth_required`, and the
+  frontend signs it out and asks for a sign-in with the 2FA code or the passkey. After turning on 2FA, sign in again.
+  Passkey sign-ins of admins and staff must include user verification (PIN, fingerprint or face).
   Regular users are not affected by this switch and can turn it on if they want.
 - **Passkey prerequisites**: `app_url` (or `passkey_rp_id`) must be set; otherwise `passkey_enabled` is `false` in the
   public config and the frontend hides passkeys. Users must visit the site through its official domain (HTTPS).

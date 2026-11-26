@@ -15,7 +15,9 @@ Base path `/api/v1` (exceptions: `/healthz`, `/.well-known/*`, the short subscri
   `password_version` changes (password change or reset, subscription reset, admin password change or `reset-secret`) or the
   account's email or UUID no longer matches the token's `email` / `uuid` claims (admin email edit, or the id now belongs to
   another account after a deletion, `import xboard --force` or a restore); bans and role changes apply immediately because the
-  user is reloaded (30 s cache, dropped on every admin change). Tokens without `uuid` are rejected: upgrading from versions
+  user is reloaded (30 s cache, dropped on every admin change). The `amr` claim records how the session signed in: `pwd`
+  (password, also registration), `mfa` (password + TOTP or backup code), `passkey` or `otl` (an administrator's one-time
+  "log in as" token); tokens without it count as `pwd`. Tokens without `uuid` are rejected: upgrading from versions
   without this account-instance binding signs out all existing sessions and invalidates pending login/enrolment tokens.
 
 | status | `code` | when |
@@ -25,7 +27,8 @@ Base path `/api/v1` (exceptions: `/healthz`, `/.well-known/*`, the short subscri
 | 401 | `mfa_invalid`, `mfa_expired` | second login step (§Passport) |
 | 402 | `payment_failed` | the payment gateway failed during checkout |
 | 403 | `forbidden` | banned account, admin/staff only, feature switched off, invalid subscription or node token |
-| 403 | `mfa_setup_required` | `/admin/*` while `admin_mfa_required` is on and the caller has neither TOTP nor a passkey |
+| 403 | `mfa_setup_required` | `/admin/*` while `admin_mfa_required` is on and the caller has neither TOTP nor a usable passkey |
+| 403 | `mfa_reauth_required` | `/admin/*` while `admin_mfa_required` is on and the caller has TOTP or a passkey but the session signed in with the password alone (`amr` not `mfa`/`passkey`) |
 | 404 | `not_found` | unknown route or resource (also a non-numeric or zero `:id`) |
 | 406 | `not_acceptable` | client subscription in a format that cannot be age-encrypted while the user's key is on and `subscribe_age_strict` is set |
 | 409 | `conflict` | state conflict or duplicate |
@@ -143,7 +146,7 @@ Second factor (TOTP) — `internal/service/mfa`:
 - `/login/mfa`: TOTP accepts the current step ±1 (30 s steps) and never the same or an older step twice; a backup code is consumed.
   Wrong code → 401 `mfa_invalid`; the 5th wrong code for a token revokes it → 429 (`Retry-After`); unknown, used or expired token
   (or TOTP disabled meanwhile) → 401 `mfa_expired`; banned → 403. Independently, 20 wrong second-factor codes per user per hour
-  (login, disable, backup-codes) → 429 with `Retry-After` until the window ends.
+  and 30 per 24 hours (login, disable, backup-codes) → 429 with `Retry-After` until the window ends.
 
 Passkeys (WebAuthn, go-webauthn) — never need a second step:
 
@@ -154,7 +157,9 @@ Passkeys (WebAuthn, go-webauthn) — never need a second step:
   challenge, so the response never reveals whether the account exists.
 - The challenge lives 2 min, is single use (consumed by the first `finish`, even a failed one) and is bound to the RP id.
 - `finish`: unknown/expired challenge → 401; malformed `credential` → 400 on `credential`; failed verification (signature, origin,
-  RP id hash, foreign credential, sign counter not increasing — a possible clone) → 401; banned → 403. On success `sign_count`,
+  RP id hash, foreign credential, sign counter not increasing — a possible clone) → 401; banned → 403. An assertion without the
+  user-verified flag (a security key used without its PIN) → 401 for administrators, staff and accounts with TOTP on: a passkey
+  login replaces the password and the TOTP step, so possession alone is not enough there. On success `sign_count`,
   `backup_state` and `last_used_at` are updated and `last_login_*` recorded.
 - Options JSON (`options`, pass as `optionsJSON` to `@simplewebauthn/browser` `startAuthentication`):
   `{"challenge":"<b64url>","timeout":120000,"rpId":"panel.example.com","allowCredentials":[{"type":"public-key","id":"<b64url>","transports":["internal","hybrid"]}],"userVerification":"preferred"}`
@@ -179,7 +184,7 @@ Every route requires a valid JWT (401) of a user who is not banned (403).
 | --- | --- | --- | --- |
 | GET | `/user/me` | — | `User` |
 | PATCH | `/user/me` | `{remind_expire?, remind_traffic?}` | `User` (write is bound to the JWT account snapshot; 401 if it changed) |
-| POST | `/user/password` | `{old_password*, new_password* (8..128)}` | `true`; bumps `password_version`, so every session (the caller's too) must sign in again; wrong `old_password` → 400 on `old_password` (counts towards the password lockout, 429) |
+| POST | `/user/password` | `{old_password*, new_password* (8..128)}` | `true`; bumps `password_version`, so every session (the caller's too) must sign in again; wrong `old_password` → 400 on `old_password` (counts towards the account's confirmation lockout, 429) |
 | GET | `/user/stats` | — | `{pending_orders, open_tickets, notices_count, invite_count, commission_pending}` (`commission_pending` as in `/user/invite` `stat`); 401 if the authenticated account snapshot changed before the read |
 | GET | `/user/subscription` | — | `{subscribe_url, token, plan, transfer_enable, u, d, expired_at, next_reset_at, reset_day, device_limit, conn_limit, speed_limit, profiles}` (`plan` is `{id,name}` or null; `subscribe_url` = a random entry of `subscribe_url`, else `app_url`, + `/api/v1/client/subscribe?token=`; `profiles` = `[{slug, name, is_default, subscribe_url}]`, the default profile's link is `subscribe_url`, the others append `&profile=<slug>`; a user without stored profiles gets the virtual `default` / `默认`; 401 if the account snapshot changes before profile read) |
 | POST | `/user/subscription/reset` | — | `{subscribe_url, token, auth_token}` (new uuid + token; the reset bumps `password_version`, so `auth_token` is the caller's new session JWT) |
@@ -290,16 +295,19 @@ Knowledge index and article reads use the same account snapshot for the plan ent
 | method | path | req | res |
 | --- | --- | --- | --- |
 | GET | `/user/security` | — | `{totp_enabled, totp_enabled_at, backup_codes_remaining, passkeys:[Passkey]}` (`totp_enabled_at` null when off); read against the authenticated account snapshot, 401 if it changed during the request |
-| POST | `/user/security/totp/setup` | — | `{secret, otpauth_url}` (pending secret kept 10 min; issuer = `mfa_issuer` or `app_name`, account = email; 409 when already enabled) |
+| POST | `/user/security/totp/setup` | `{password*}` | `{secret, otpauth_url}` (wrong password → 400 on `password`, counts towards the confirmation lockout; pending secret kept 10 min; issuer = `mfa_issuer` or `app_name`, account = email; 409 when already enabled) |
 | POST | `/user/security/totp/enable` | `{code*}` | `{backup_codes:[10 × "xxxxx-xxxxx"]}` (shown once; wrong code → 400 on `code`, the pending secret is discarded after 5; no pending setup → 400 on `code`; 409 when already enabled) |
-| POST | `/user/security/totp/disable` | `{password*, code*}` | `true` (`code` = TOTP or backup code; deletes secret and backup codes; wrong password → 400 on `password` (counts towards the password lockout), wrong code → 400 on `code`; 409 when not enabled) |
+| POST | `/user/security/totp/disable` | `{password*, code*}` | `true` (`code` = TOTP or backup code; deletes secret and backup codes; wrong password → 400 on `password` (counts towards the confirmation lockout), wrong code → 400 on `code`; 409 when not enabled) |
 | POST | `/user/security/backup-codes` | `{code*}` | `{backup_codes}` (regenerates all 10; `code` = TOTP or backup code; 409 when TOTP is off) |
-| POST | `/user/security/passkeys/begin` | `{name?}` (max 64) | `{challenge_id, options}` (`options` = `PublicKeyCredentialCreationOptionsJSON`) |
+| POST | `/user/security/passkeys/begin` | `{password*, name?}` (name max 64) | `{challenge_id, options}` (`options` = `PublicKeyCredentialCreationOptionsJSON`; wrong password → 400 on `password`, counts towards the confirmation lockout) |
 | POST | `/user/security/passkeys/finish` | `{challenge_id*, credential*, name?}` (`credential` = `RegistrationResponseJSON`) | 200 `Passkey` (bad/expired/foreign challenge → 400 on `challenge_id`; failed attestation → 400 on `credential`; already registered → 409) |
 | PATCH | `/user/security/passkeys/:id` | `{name*}` (max 64) | `Passkey` (404 when not yours) |
-| DELETE | `/user/security/passkeys/:id` | JSON body `{password*}` | `true` (wrong password → 400 on `password`, counts towards the lockout; 404 when not yours) |
+| DELETE | `/user/security/passkeys/:id` | JSON body `{password*}` | `true` (wrong password → 400 on `password`, counts towards the confirmation lockout; 404 when not yours) |
 
-Rules: enabling/disabling TOTP and adding/removing passkeys keep every session valid (`password_version` is not bumped). Backup codes
+Rules: adding a second factor (TOTP setup, passkey registration) needs the current password, so a stolen session alone cannot plant a
+passkey that outlives a password change or a TOTP secret that locks the owner out. The password confirmations of a signed-in user
+(here and `/user/password`) have their own lockout per account with the `password_limit_*` settings: wrong passwords typed at the
+sign-in form do not block them. Enabling/disabling TOTP and adding/removing passkeys keep every session valid (`password_version` is not bumped). Backup codes
 are 10 lower-case Crockford base32 characters shown as `xxxxx-xxxxx` (input is case-insensitive, the dash optional) and are stored as
 SHA-256 hashes; the TOTP secret is stored AES-256-GCM encrypted with a key derived (HKDF-SHA256) from `jwt.secret`, so rotating the JWT
 secret invalidates enrolled authenticators. Every `/user/security/*` route: 60 requests/min per user.
@@ -317,7 +325,9 @@ Options JSON (pass as `optionsJSON` to `startRegistration`):
 `{"id","rawId","type":"public-key","response":{"clientDataJSON","attestationObject","transports":[…],"publicKeyAlgorithm","publicKey","authenticatorData"},"clientExtensionResults":{},"authenticatorAttachment":"platform"}`
 (only `id`, `rawId`, `type`, `response.clientDataJSON`, `response.attestationObject` are required; `transports` is stored).
 Admin enforcement: with `admin_mfa_required` on, `/admin/*` answers 403 `mfa_setup_required` to admins/staff without TOTP and without
-a passkey (`mfasvc.AdminGate`, mounted right after `RequireStaff`); `/user/security` stays reachable to enrol.
+a passkey registered for the current RP id, and 403 `mfa_reauth_required` to those who have one but whose session signed in with the
+password alone (`amr` claim, see Authentication): they sign in again with the TOTP step or a passkey (`mfasvc.AdminGate`, mounted right
+after `RequireStaff`). `/user/security` stays reachable to enrol. Sessions issued before the `amr` claim existed count as password-only.
 
 ### Telegram binding
 

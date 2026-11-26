@@ -4,13 +4,16 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/linusxiong/ggboard/internal/app"
 	"github.com/linusxiong/ggboard/internal/auth"
@@ -355,6 +358,32 @@ func TestUserFailureLimit(t *testing.T) {
 	}
 }
 
+// Audit 2026-11-25: the hourly limit alone allowed 480 guesses a day from someone who knows the password.
+func TestUserFailureDayLimit(t *testing.T) {
+	a := testutil.NewTestApp(t)
+	now := mfatest.FixClock(t, &TOTPNow, time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC))
+	u := testutil.CreateUser(t, a, "erin@example.com")
+	enable(t, a, u, now)
+	s := New(a)
+	for i := range UserFailureDayLimit {
+		if i > 0 && i%UserFailureLimit == 0 {
+			a.KV.Delete(idKey(kvFailures, u.ID)) // the hourly window ended
+		}
+		if _, err := s.RegenerateBackupCodes(ctx, u, "00000-00000"); status(err) != http.StatusBadRequest {
+			t.Fatalf("wrong #%d = %v", i+1, err)
+		}
+	}
+	a.KV.Delete(idKey(kvFailures, u.ID))
+	_, err := s.RegenerateBackupCodes(ctx, u, "00000-00000")
+	var re *account.RetryError
+	if status(err) != http.StatusTooManyRequests || !errors.As(err, &re) || re.RetryAfter <= UserFailureWindow {
+		t.Fatalf("locked for the day = %v", err)
+	}
+	if n, ok := a.KV.Get(idKey(kvFailures, u.ID)); ok && n.(int) != 0 {
+		t.Fatalf("a refused attempt must not count against the hourly window: %v", n)
+	}
+}
+
 func TestLoginToken(t *testing.T) {
 	a := testutil.NewTestApp(t)
 	now := mfatest.FixClock(t, &TOTPNow, time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC))
@@ -416,19 +445,56 @@ func TestAdminGate(t *testing.T) {
 	if ping(staff) != 403 {
 		t.Fatal("staff without mfa must be blocked")
 	}
-	// TOTP opens the gate immediately (cache dropped on change).
+	// Owning TOTP is not enough: the session must have proved it (cache dropped on change).
 	enable(t, a, admin, now)
-	if ping(admin) != 200 {
-		t.Fatal("admin with totp must pass")
+	pingAs := func(u *model.User, method string) *httptest.ResponseRecorder {
+		return testutil.Do(t, r, http.MethodGet, "/api/v1/admin/ping", nil, testutil.LoginWith(t, a, u, method))
 	}
-	// A passkey counts too.
+	for _, method := range []string{auth.AMRPassword, auth.AMRLoginAs} {
+		if e := testutil.DecodeError(t, pingAs(admin, method)); e.Status != 403 || e.Code != CodeReauth {
+			t.Fatalf("admin with totp, %s session = %+v", method, e)
+		}
+	}
+	// A token from before the amr claim existed has no method: password only.
+	legacy, err := jwt.NewWithClaims(jwt.SigningMethodHS256, auth.Claims{Email: admin.Email, UUID: admin.UUID,
+		Ver: admin.PasswordVersion, RegisteredClaims: jwt.RegisteredClaims{Issuer: auth.Issuer,
+			Subject: strconv.FormatUint(admin.ID, 10), IssuedAt: jwt.NewNumericDate(time.Now()),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour))}}).SignedString([]byte(testutil.JWTSecret))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e := testutil.DecodeError(t, testutil.Do(t, r, http.MethodGet, "/api/v1/admin/ping", nil, legacy)); e.Status != 403 || e.Code != CodeReauth {
+		t.Fatalf("admin with totp, legacy session = %+v", e)
+	}
+	for _, method := range []string{auth.AMRMFA, auth.AMRPasskey} {
+		if rec := pingAs(admin, method); rec.Code != 200 {
+			t.Fatalf("admin with totp, %s session = %d", method, rec.Code)
+		}
+	}
+	// A passkey counts too, but only one registered for the current relying party ID.
+	if err := a.DB.Create(&model.Passkey{UserID: staff.ID, RPID: "old.example.net", CredentialHash: "h0", CredentialID: "w",
+		Credential: "{}", Name: "Old key"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	New(a).changed(staff.ID)
+	if e := testutil.DecodeError(t, pingAs(staff, auth.AMRPasskey)); e.Status != 403 || e.Code != CodeSetupRequired {
+		t.Fatalf("staff with an unusable passkey = %+v", e)
+	}
+	if err := a.Settings.Set(map[string]any{"passkey_rp_id": "example.com"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := a.DB.Create(&model.Passkey{UserID: staff.ID, RPID: "example.com", CredentialHash: "h1", CredentialID: "x",
 		Credential: "{}", Name: "Key"}).Error; err != nil {
 		t.Fatal(err)
 	}
 	New(a).changed(staff.ID)
-	if ping(staff) != 200 {
-		t.Fatal("staff with passkey must pass")
+	// The password alone still does not open it (audit 2026-11-25: a passkey-only admin signed in with the
+	// password got a full admin session).
+	if e := testutil.DecodeError(t, pingAs(staff, auth.AMRPassword)); e.Status != 403 || e.Code != CodeReauth {
+		t.Fatalf("staff with passkey, password session = %+v", e)
+	}
+	if pingAs(staff, auth.AMRPasskey).Code != 200 {
+		t.Fatal("staff with passkey, passkey session must pass")
 	}
 	// Without an authenticated user the gate refuses (misconfigured mount).
 	bare := testutil.NewRouterWith(t, a, func(r gin.IRouter, a *app.App) {

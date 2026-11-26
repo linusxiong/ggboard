@@ -99,7 +99,7 @@ func TestAuditTokenRequiresEmailClaim(t *testing.T) {
 		t.Fatal("a token without an email claim must not parse")
 	}
 	testutil.ExpectStatus(t, testutil.Do(t, r, http.MethodGet, "/user", nil, noEmail), http.StatusUnauthorized)
-	if _, err := auth.IssueWith([]byte(testutil.JWTSecret), time.Hour, &model.User{ID: u.ID, Email: "  "}, now); err == nil {
+	if _, err := auth.IssueWith([]byte(testutil.JWTSecret), time.Hour, &model.User{ID: u.ID, Email: "  "}, now, auth.AMRPassword); err == nil {
 		t.Fatal("issuing a token without an email must fail")
 	}
 }
@@ -137,7 +137,7 @@ func TestTokenRequiresAccountUUID(t *testing.T) {
 		t.Fatal("legacy token without an account UUID was accepted")
 	}
 	u.UUID = ""
-	if _, err := auth.Issue(a, u); err == nil {
+	if _, err := auth.Issue(a, u, auth.AMRPassword); err == nil {
 		t.Fatal("issued a session without an account UUID")
 	}
 }

@@ -191,10 +191,16 @@ func CreateStaff(t testing.TB, a *app.App, email string) *model.User {
 	return CreateUser(t, a, email, usersvc.CreateOptions{IsStaff: true})
 }
 
-// Login returns a session JWT for u.
+// Login returns a password-only session JWT for u.
 func Login(t testing.TB, a *app.App, u *model.User) string {
 	t.Helper()
-	tok, err := auth.Issue(a, u)
+	return LoginWith(t, a, u, auth.AMRPassword)
+}
+
+// LoginWith returns a session JWT for u signed in with method (auth.AMR*).
+func LoginWith(t testing.TB, a *app.App, u *model.User, method string) string {
+	t.Helper()
+	tok, err := auth.Issue(a, u, method)
 	if err != nil {
 		t.Fatalf("testutil: issue token: %v", err)
 	}

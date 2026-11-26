@@ -22,7 +22,7 @@ func TestJWTIssueParse(t *testing.T) {
 	secret := []byte(testutil.JWTSecret)
 	u := &model.User{ID: 42, UUID: "10000000-0000-4000-8000-000000000001", Email: "a@example.com", PasswordVersion: 3}
 	now := time.Now()
-	tok, err := auth.IssueWith(secret, time.Hour, u, now)
+	tok, err := auth.IssueWith(secret, time.Hour, u, now, auth.AMRPassword)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func TestJWTIssueParse(t *testing.T) {
 	if _, err := auth.ParseWith([]byte("other-secret"), tok); err == nil {
 		t.Fatal("wrong secret must fail")
 	}
-	expired, _ := auth.IssueWith(secret, time.Minute, u, now.Add(-2*time.Hour))
+	expired, _ := auth.IssueWith(secret, time.Minute, u, now.Add(-2*time.Hour), auth.AMRPassword)
 	if _, err := auth.ParseWith(secret, expired); err == nil {
 		t.Fatal("expired token must fail")
 	}
@@ -52,7 +52,7 @@ func TestJWTIssueParse(t *testing.T) {
 	if _, err := auth.ParseWith(secret, badSub); err == nil {
 		t.Fatal("non-numeric subject must fail")
 	}
-	if _, err := auth.IssueWith(nil, time.Hour, u, now); err == nil {
+	if _, err := auth.IssueWith(nil, time.Hour, u, now, auth.AMRPassword); err == nil {
 		t.Fatal("empty secret must fail")
 	}
 }

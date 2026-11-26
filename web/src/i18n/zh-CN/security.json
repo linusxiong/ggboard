@@ -43,6 +43,8 @@
     "enable": "开启两步验证",
     "disable": "关闭两步验证",
     "setupTitle": "开启两步验证",
+    "confirmPassword": "请先输入当前密码确认身份。",
+    "continue": "继续",
     "step1": "使用身份验证器 App 扫描二维码。",
     "apps": "身份验证器 App",
     "appsHint": "例如 1Password、Google Authenticator、Microsoft Authenticator。",
@@ -83,7 +85,7 @@
     "hint": "使用指纹、面容或设备密码登录，无需输入密码；可保存在 iCloud 钥匙串、1Password、Bitwarden 等密码管理器中并跨设备同步。",
     "add": "添加通行密钥",
     "addTitle": "添加通行密钥",
-    "addHint": "起个名字方便日后辨认，然后按浏览器或密码管理器的提示完成创建。",
+    "addHint": "起个名字方便日后辨认，并输入当前密码确认，然后按浏览器或密码管理器的提示操作。",
     "name": "名称",
     "namePlaceholder": "例如：MacBook、iPhone、1Password",
     "nameRequired": "请输入名称",
@@ -119,7 +121,8 @@
     "passwordWrong": "密码不正确"
   },
   "mfaRequired": {
-    "toast": "管理后台要求开启两步验证或通行密钥，请先完成设置。"
+    "toast": "管理后台要求开启两步验证或通行密钥，请先完成设置。",
+    "reauth": "管理后台需要用两步验证码或通行密钥登录，请重新登录。"
   },
   "telegram": {
     "title": "Telegram",

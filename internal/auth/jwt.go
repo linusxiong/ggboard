@@ -25,8 +25,23 @@ type Claims struct {
 	Email string `json:"email"`
 	UUID  string `json:"uuid"`
 	Ver   int    `json:"ver"`
+	// Method is how the session was signed in (one of the AMR* constants). Tokens issued before the claim
+	// existed have none, which counts as a password-only sign-in.
+	Method string `json:"amr,omitempty"`
 	jwt.RegisteredClaims
 }
+
+// Sign-in methods recorded in the "amr" claim of a session token.
+const (
+	AMRPassword = "pwd"     // password only (also registration)
+	AMRMFA      = "mfa"     // password plus a TOTP or backup code
+	AMRPasskey  = "passkey" // WebAuthn passkey
+	AMRLoginAs  = "otl"     // one-time token of an administrator's "log in as"
+)
+
+// SecondFactor reports whether the session was signed in with more than a password: password + TOTP / backup
+// code, or a passkey. The admin MFA gate (admin_mfa_required) requires it.
+func (c *Claims) SecondFactor() bool { return c.Method == AMRMFA || c.Method == AMRPasskey }
 
 // UserID parses the subject.
 func (c *Claims) UserID() (uint64, error) {
@@ -47,13 +62,13 @@ func (c *Claims) BoundTo(u *model.User) bool {
 		normEmail(c.Email) != "" && normEmail(c.Email) == normEmail(u.Email)
 }
 
-// Issue signs a session token for u valid for cfg.JWT.TTL.
-func Issue(a *app.App, u *model.User) (string, error) {
-	return IssueWith([]byte(a.Cfg.JWT.Secret), a.Cfg.JWT.TTL, u, time.Now())
+// Issue signs a session token for u valid for cfg.JWT.TTL; method is how u signed in (AMR*).
+func Issue(a *app.App, u *model.User, method string) (string, error) {
+	return IssueWith([]byte(a.Cfg.JWT.Secret), a.Cfg.JWT.TTL, u, time.Now(), method)
 }
 
-// IssueWith signs a token with an explicit secret, ttl and issue time.
-func IssueWith(secret []byte, ttl time.Duration, u *model.User, now time.Time) (string, error) {
+// IssueWith signs a token with an explicit secret, ttl, issue time and sign-in method.
+func IssueWith(secret []byte, ttl time.Duration, u *model.User, now time.Time, method string) (string, error) {
 	if len(secret) == 0 {
 		return "", errors.New("auth: empty jwt secret")
 	}
@@ -63,10 +78,16 @@ func IssueWith(secret []byte, ttl time.Duration, u *model.User, now time.Time) (
 	if u.UUID == "" {
 		return "", errors.New("auth: user has no uuid")
 	}
+	switch method {
+	case AMRPassword, AMRMFA, AMRPasskey, AMRLoginAs:
+	default:
+		return "", fmt.Errorf("auth: unknown sign-in method %q", method)
+	}
 	claims := Claims{
-		Email: u.Email,
-		UUID:  u.UUID,
-		Ver:   u.PasswordVersion,
+		Email:  u.Email,
+		UUID:   u.UUID,
+		Ver:    u.PasswordVersion,
+		Method: method,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    Issuer,
 			Subject:   strconv.FormatUint(u.ID, 10),

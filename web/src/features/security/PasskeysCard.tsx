@@ -1,5 +1,6 @@
 /**
- * Passkeys: list with last use, add (name → `startRegistration` → finish), rename, delete with password.
+ * Passkeys: list with last use, add (name + current password → `startRegistration` → finish), rename, delete
+ * with password.
  * The backend asks for discoverable credentials (`residentKey: required`), so 1Password / Bitwarden /
  * iCloud Keychain / Google Password Manager store a passkey usable for usernameless sign-in.
  */
@@ -130,7 +131,7 @@ export function PasskeysCard({
         </ul>
       )}
 
-      {dialog?.kind === 'add' ? <AddDialog onClose={close} /> : null}
+      {dialog?.kind === 'add' ? <AddDialog email={email} onClose={close} /> : null}
       {dialog?.kind === 'rename' ? <RenameDialog passkey={dialog.passkey} onClose={close} /> : null}
       {dialog?.kind === 'delete' ? (
         <DeleteDialog passkey={dialog.passkey} email={email} onClose={close} />
@@ -188,28 +189,38 @@ function FormDialog({
   )
 }
 
-function AddDialog({ onClose }: { onClose: () => void }) {
+function AddDialog({ email, onClose }: { email: string; onClose: () => void }) {
   const t = useT(['security', 'common'])
   const queryClient = useQueryClient()
   const mapError = useSecurityError()
   const [name, setName] = useState(() => guessDeviceName())
+  const [password, setPassword] = useState('')
+  const [passwordError, setPasswordError] = useState<string>()
   const [error, setError] = useState<string>()
   const [notice, setNotice] = useState<string>()
   const [pending, setPending] = useState(false)
 
-  const submit = async (event: FormEvent) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    const form = event.currentTarget
     const trimmed = name.trim()
     if (trimmed.length > NAME_MAX) {
       setError(t('passkeys.nameTooLong', { max: NAME_MAX }))
       return
     }
+    // The server confirms the current password before the ceremony starts (a stolen session alone must not
+    // be able to add a passkey that outlives a password change).
+    if (!password) {
+      setPasswordError(t('password.oldRequired'))
+      return focusFirstInvalid(form)
+    }
     setError(undefined)
+    setPasswordError(undefined)
     setNotice(undefined)
     setPending(true)
     try {
       const { startRegistration } = await loadWebAuthn()
-      const begin = await passkeyRegisterBegin(trimmed || undefined)
+      const begin = await passkeyRegisterBegin(password, trimmed || undefined)
       const credential = await startRegistration({ optionsJSON: begin.options })
       try {
         await passkeyRegisterFinish({
@@ -230,7 +241,10 @@ function AddDialog({ onClose }: { onClose: () => void }) {
       onClose()
     } catch (err) {
       const kind = webAuthnFailure(err)
-      if (isApiError(err)) {
+      if (isApiError(err) && err.fieldError('password')) {
+        setPasswordError(mapError(err).password)
+        focusFirstInvalid(form)
+      } else if (isApiError(err)) {
         if (err.status === 409) setError(t('passkeys.duplicate'))
         else if (err.status === 401 || err.fieldError('credential') || err.fieldError('challenge_id'))
           setError(t('passkeys.verifyFailed'))
@@ -270,8 +284,21 @@ function AddDialog({ onClose }: { onClose: () => void }) {
         onChange={(v) => setName(v.slice(0, NAME_MAX))}
         autoComplete="off"
         maxLength={NAME_MAX}
-        autoFocus
         placeholder={t('passkeys.namePlaceholder')}
+      />
+      <UsernameHint email={email} />
+      <PlainField
+        name="password"
+        type="password"
+        label={t('password.current')}
+        value={password}
+        onChange={(v) => {
+          setPassword(v)
+          setPasswordError(undefined)
+        }}
+        autoComplete="current-password"
+        autoFocus
+        error={passwordError}
       />
     </FormDialog>
   )

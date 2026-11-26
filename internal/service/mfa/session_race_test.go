@@ -433,7 +433,7 @@ func TestPasskeyLoginCannotOutliveAccountReclaim(t *testing.T) {
 	if n, err := s.PasskeyCount(ctx, u.ID); err != nil || n != 0 {
 		t.Fatalf("reclaim did not remove the previous holder's passkey: %d, %v", n, err)
 	}
-	token, err := auth.Issue(a, loggedIn)
+	token, err := auth.Issue(a, loggedIn, auth.AMRPassword)
 	if err != nil {
 		t.Fatal(err)
 	}
