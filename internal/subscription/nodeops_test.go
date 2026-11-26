@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/linusxiong/ggboard/internal/model"
 	"github.com/linusxiong/ggboard/internal/subscription"
@@ -140,6 +141,41 @@ func TestNaturalLess(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %q", got)
+	}
+}
+
+// A rename rule may copy the name up to 128 times ("$1" × 128 fits the 256-byte replacement limit), so each such rule
+// multiplied the name by 128: three rules built a 10 MiB name, five a 171 GiB one and the panel died with an
+// unrecoverable out-of-memory error. Every step is cut to MaxProxyNameBytes at a character boundary.
+func TestApplyNodeOpsCapsNameGrowth(t *testing.T) {
+	grow := subscription.RenameRule{Match: "^(.*)$", Replace: strings.Repeat("$1", 128)}
+	spread := subscription.RenameRule{Match: "x*", Replace: strings.Repeat("香", 85)} // matches the empty string everywhere
+	for _, tc := range []struct {
+		name string
+		ops  subscription.NodeOps
+	}{
+		{"copies", subscription.NodeOps{Rename: []subscription.RenameRule{grow, grow, grow}}},
+		{"copies, flag, prefix and suffix", subscription.NodeOps{Rename: []subscription.RenameRule{grow, grow, grow},
+			Emoji: subscription.EmojiAdd, Prefix: strings.Repeat("前", 32), Suffix: strings.Repeat("后", 32)}},
+		{"empty matches", subscription.NodeOps{Rename: []subscription.RenameRule{spread, spread, grow}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			in := []subscription.Proxy{opsProxy(1, model.NodeVmess, "香港 HK 01", "h", 1), opsProxy(2, model.NodeVmess, "Tokyo", "j", 1)}
+			for _, p := range subscription.ApplyNodeOps(in, tc.ops.Normalized()) {
+				if len(p.Name) > subscription.MaxProxyNameBytes || len(p.Name) < subscription.MaxProxyNameBytes-utf8.UTFMax || !utf8.ValidString(p.Name) {
+					t.Fatalf("node %d: name of %d bytes (valid UTF-8: %v)", p.NodeID, len(p.Name), utf8.ValidString(p.Name))
+				}
+				if want := tc.ops.Prefix; !strings.HasPrefix(p.Name, want) {
+					t.Fatalf("node %d: prefix lost: %.40q", p.NodeID, p.Name)
+				}
+			}
+		})
+	}
+	// Names under the cap are untouched, also when a step grows them close to it.
+	ops := subscription.NodeOps{Rename: []subscription.RenameRule{{Match: "^(.*)$", Replace: strings.Repeat("$1", 100)}}}
+	got := subscription.ApplyNodeOps([]subscription.Proxy{opsProxy(1, model.NodeVmess, "HK 01-", "h", 1)}, ops)
+	if want := strings.Repeat("HK 01-", 100); got[0].Name != want {
+		t.Fatalf("name = %q", got[0].Name)
 	}
 }
 

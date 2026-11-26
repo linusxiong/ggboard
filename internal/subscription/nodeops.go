@@ -1,6 +1,7 @@
 package subscription
 
 import (
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -156,11 +157,16 @@ func ApplyNodeOps(proxies []Proxy, ops NodeOps) []Proxy {
 		kept = uniq
 	}
 
-	// Names.
+	// Names, cut to MaxProxyNameBytes after every step: the input of each step is capped too, so the work per node
+	// stays bounded however the rules multiply the name.
+	repls := make([][]string, len(ops.Rename))
+	for j, r := range ops.Rename {
+		repls[j] = splitTemplate(r.Replace)
+	}
 	for i := range kept {
-		name := kept[i].p.Name
-		for _, r := range ops.Rename {
-			name = includeRegexp(r.Match).ReplaceAllString(name, r.Replace)
+		name := capName(kept[i].p.Name)
+		for j, r := range ops.Rename {
+			name = renameStep(includeRegexp(r.Match), name, repls[j])
 		}
 		switch ops.Emoji {
 		case EmojiStrip:
@@ -172,7 +178,7 @@ func ApplyNodeOps(proxies []Proxy, ops NodeOps) []Proxy {
 				}
 			}
 		}
-		kept[i].p.Name = ops.Prefix + name + ops.Suffix
+		kept[i].p.Name = capName(ops.Prefix + name + ops.Suffix)
 	}
 
 	switch ops.Sort {
@@ -203,6 +209,75 @@ func ApplyNodeOps(proxies []Proxy, ops NodeOps) []Proxy {
 		out = append(out, it.p)
 	}
 	return out
+}
+
+// renameStep is re.ReplaceAllString(src, template) cut to MaxProxyNameBytes, with the template split by
+// splitTemplate. Matches and template parts are expanded one at a time and the loop stops as soon as the result
+// passes the cap, so a step costs one scan of src (itself at most the cap) and builds at most about three times the
+// cap, however many matches there are and however often the template copies them ("$1" × 128).
+func renameStep(re *regexp.Regexp, src string, template []string) string {
+	matches := re.FindAllStringSubmatchIndex(src, -1)
+	if matches == nil {
+		return capName(src)
+	}
+	size := len(src)
+	for _, part := range template {
+		size += len(part)
+	}
+	buf := make([]byte, 0, min(size, MaxProxyNameBytes+1))
+	last := 0
+	for _, m := range matches {
+		buf = append(buf, src[last:m[0]]...)
+		last = m[1]
+		for _, part := range template {
+			if buf = re.ExpandString(buf, part, src, m); len(buf) > MaxProxyNameBytes {
+				return string(buf[:nameCut(buf)])
+			}
+		}
+	}
+	buf = append(buf, src[last:]...)
+	return string(buf[:nameCut(buf)])
+}
+
+// splitTemplate splits a replacement template before every "$" that does not belong to a "$$" pair, so every part
+// holds at most one reference at its start. A reference never contains "$", so expanding the parts one after the
+// other gives exactly what expanding the whole template gives (malformed references stay a literal "$").
+func splitTemplate(t string) []string {
+	var parts []string
+	start := 0
+	for i := 0; i < len(t); i++ {
+		switch {
+		case t[i] != '$':
+		case i+1 < len(t) && t[i+1] == '$':
+			i++ // "$$" is a literal "$"
+		default:
+			if i > start {
+				parts = append(parts, t[start:i])
+			}
+			start = i
+		}
+	}
+	if start < len(t) {
+		parts = append(parts, t[start:])
+	}
+	return parts
+}
+
+// capName cuts s to at most MaxProxyNameBytes bytes without splitting a UTF-8 sequence.
+func capName(s string) string { return s[:nameCut(s)] }
+
+// nameCut returns the length s is cut to: len(s) when it fits, else the last character boundary at or before
+// MaxProxyNameBytes (invalid UTF-8 is cut after at most utf8.UTFMax-1 steps back).
+func nameCut[T string | []byte](s T) int {
+	n := len(s)
+	if n <= MaxProxyNameBytes {
+		return n
+	}
+	n = MaxProxyNameBytes
+	for k := 1; k < utf8.UTFMax && n > 0 && !utf8.RuneStart(s[n]); k++ {
+		n--
+	}
+	return n
 }
 
 func anyMatch(exprs []string, s string) bool {

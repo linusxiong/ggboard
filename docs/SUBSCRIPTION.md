@@ -262,6 +262,13 @@ protocol prefix (`show_protocol_to_server_enable`). Expressions are RE2, unancho
 node name (add `(?i)` for case-insensitive matching); an expression that no longer compiles (stored before a rule change)
 matches literally.
 
+Node names are capped at **1024 bytes** (`subscription.MaxProxyNameBytes`, cut at a character boundary): after every
+rename rule, after the emoji and prefix/suffix steps, and again after the final normalization and protocol prefix. A
+replacement may copy the name many times (`"$1"` × 128 fits the 256-byte limit), so without the cap a few rules would grow
+it exponentially; a rule's expansion also stops as soon as the result passes the cap, so the work per node and rule stays
+bounded. Names no rule grows practically never reach it (admin names are at most 191 characters, the prefix and suffix
+32 each).
+
 ```jsonc
 NodeOps {
   "include": ["香港|HK", "(?i)japan"],   // RE2; empty = every node
