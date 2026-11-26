@@ -3,16 +3,20 @@ package geoip
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"hash"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
+	"syscall"
 	"time"
 )
 
@@ -165,13 +169,18 @@ func (s *Service) fetch(ctx context.Context) (bool, error) {
 }
 
 // validateDownload parses data and checks that it looks like a full release.
+//
+// The errors of a download, a version check and a request end up as last_error in GET /admin/geoip (and in the
+// log). The URLs are admin settings that may point at internal services (allowed, MISTAKES #53), so these errors
+// say what was wrong without repeating what the other side sent: no field values, offsets or lengths read from
+// a body, no quoted status line, no redirect target.
 func validateDownload(data []byte) (*DB, error) {
 	db, err := Parse(data)
 	if err != nil {
-		return nil, err
+		return nil, ErrFormat // Parse's detail (index bounds, length) is read from the body
 	}
 	if db.Count() < minRecords {
-		return nil, fmt.Errorf("%d ranges, expected at least %d", db.Count(), minRecords)
+		return nil, fmt.Errorf("fewer than %d IP ranges", minRecords)
 	}
 	if db.Locate(probeIP) == "" {
 		return nil, fmt.Errorf("%s has no location", probeIP)
@@ -190,10 +199,10 @@ func (s *Service) latestVersion(ctx context.Context, url string) (string, error)
 		Latest string `json:"latest"`
 	}
 	if err := json.NewDecoder(io.LimitReader(body, maxVersionFile)).Decode(&v); err != nil {
-		return "", fmt.Errorf("decode: %w", err)
+		return "", errors.New(`the version file is not JSON like {"latest": "YYYYMMDD"}`)
 	}
 	if !versionRe.MatchString(v.Latest) {
-		return "", fmt.Errorf("unexpected latest version %q", v.Latest)
+		return "", errors.New(`"latest" in the version file is not a YYYYMMDD date`)
 	}
 	return v.Latest, nil
 }
@@ -224,17 +233,82 @@ func (s *Service) get(ctx context.Context, url string) (io.ReadCloser, error) {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "ggboard/"+s.a.Version+" (geoip)")
+	name := filepath.Base(req.URL.Path)
 	resp, err := s.client.Do(req) //nolint:gosec // the URL is an admin setting (http/https only)
 	if err != nil {
-		return nil, err
+		return nil, &requestError{msg: "GET " + name + ": " + requestFailure(err), err: err}
 	}
 	if resp.StatusCode != http.StatusOK {
 		_ = resp.Body.Close()
-		return nil, fmt.Errorf("GET %s: HTTP %d", filepath.Base(req.URL.Path), resp.StatusCode)
+		return nil, fmt.Errorf("GET %s: HTTP %d", name, resp.StatusCode)
 	}
 	if resp.ContentLength > maxDownload {
 		_ = resp.Body.Close()
-		return nil, fmt.Errorf("%w (%d bytes)", errTooLarge, resp.ContentLength)
+		return nil, fmt.Errorf("%w (more than %d bytes)", errTooLarge, maxDownload)
 	}
 	return resp.Body, nil
+}
+
+// maxRedirects is how many redirects one GET follows (Go's default; the release URL takes two).
+const maxRedirects = 10
+
+var (
+	errTooManyRedirects = errors.New("too many redirects")
+	errInsecureRedirect = errors.New("redirect from https to plain http refused")
+)
+
+// checkRedirect is the update client's CheckRedirect. Redirects to other hosts are followed: the default download
+// URL moves from github.com to release-assets.githubusercontent.com. A step down from https to plain http is not.
+func checkRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= maxRedirects {
+		return errTooManyRedirects
+	}
+	if via[len(via)-1].URL.Scheme == "https" && req.URL.Scheme != "https" {
+		return errInsecureRedirect
+	}
+	return nil
+}
+
+// requestError is a failed request: Error() is the redacted message, Unwrap the original error (for errors.Is).
+type requestError struct {
+	msg string
+	err error
+}
+
+func (e *requestError) Error() string { return e.msg }
+func (e *requestError) Unwrap() error { return e.err }
+
+// requestFailure says why client.Do failed without repeating the other side's words: the *url.Error names the
+// last URL (a redirect target) and Go's transport quotes a malformed status line (`malformed HTTP response
+// "SSH-2.0-…"`, a banner grab).
+func requestFailure(err error) string {
+	var (
+		dnsErr  *net.DNSError
+		netErr  net.Error
+		certErr *tls.CertificateVerificationError
+		hdrErr  tls.RecordHeaderError
+	)
+	switch {
+	case errors.Is(err, errTooManyRedirects):
+		return errTooManyRedirects.Error()
+	case errors.Is(err, errInsecureRedirect):
+		return errInsecureRedirect.Error()
+	case errors.Is(err, context.Canceled):
+		return "canceled"
+	case errors.Is(err, context.DeadlineExceeded), errors.As(err, &netErr) && netErr.Timeout():
+		return "timed out"
+	case errors.As(err, &dnsErr):
+		return "host not found"
+	case errors.Is(err, syscall.ECONNREFUSED):
+		return "connection refused"
+	case errors.Is(err, syscall.ECONNRESET), errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
+		return "the connection closed without a response"
+	case errors.As(err, &certErr):
+		return "TLS certificate not trusted"
+	case errors.As(err, &hdrErr):
+		return "the server did not answer with TLS"
+	case strings.Contains(err.Error(), "malformed HTTP"):
+		return "the server did not answer with HTTP"
+	}
+	return "request failed"
 }

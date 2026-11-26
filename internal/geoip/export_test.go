@@ -15,3 +15,6 @@ func SetLimits(t *testing.T, records int, maxBytes int64, delay time.Duration) {
 
 // Boot runs the start hook body.
 func (s *Service) Boot() { s.boot() }
+
+// CheckRedirect is the update client's redirect policy.
+var CheckRedirect = checkRedirect
