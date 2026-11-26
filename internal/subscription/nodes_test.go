@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/linusxiong/ggboard/internal/app/online"
 	"github.com/linusxiong/ggboard/internal/model"
@@ -76,5 +77,33 @@ func TestAvailableNodes(t *testing.T) {
 	// Users without a group see nothing.
 	if none, err := subscription.AvailableNodes(ctx, a, &model.User{ID: 2}); err != nil || none != nil {
 		t.Fatal("no group")
+	}
+}
+
+// The final normalization can grow a name ("," and "=" become 3-byte full-width forms, the protocol prefix is
+// added), so NodeProxies caps it again: 128 copies of "HK,01=" fit the cap inside the node operations (768 bytes)
+// and come out at 1,288 bytes without it.
+func TestNodeProxiesCapsNames(t *testing.T) {
+	a := testutil.NewTestApp(t)
+	gid := uint64(1)
+	n := &model.Node{Type: model.NodeVmess, Name: "HK,01=", Host: "hk.example.com", Port: "443", ServerPort: 443,
+		GroupIDs: []uint64{gid}, Rate: 1, Show: true}
+	if err := a.DB.Create(n).Error; err != nil {
+		t.Fatal(err)
+	}
+	u := &model.User{ID: 1, UUID: "3b1b6f5e-7c2a-4d8e-9f10-2a3b4c5d6e7f", GroupID: &gid}
+	nodes, err := subscription.AvailableNodes(context.Background(), a, u)
+	if err != nil || len(nodes) != 1 {
+		t.Fatalf("nodes = %d, %v", len(nodes), err)
+	}
+	ops := subscription.NodeOps{Rename: []subscription.RenameRule{{Match: "^(.*)$", Replace: strings.Repeat("$1", 128)}}}.Normalized()
+	ps := subscription.NodeProxies(u, nodes, subscription.ProxyOptions{ShowProtocol: true, Ops: &ops})
+	if len(ps) != 1 {
+		t.Fatalf("proxies = %d", len(ps))
+	}
+	name := ps[0].Name
+	if len(name) > subscription.MaxProxyNameBytes || !utf8.ValidString(name) || !strings.HasPrefix(name, "[vmess] HK，01＝HK，01＝") ||
+		strings.TrimSpace(name) != name {
+		t.Fatalf("name of %d bytes: %.60q", len(name), name)
 	}
 }

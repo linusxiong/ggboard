@@ -6,7 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/linusxiong/ggboard/internal/api/client"
 	"github.com/linusxiong/ggboard/internal/api/user"
+	"github.com/linusxiong/ggboard/internal/model"
 	usersvc "github.com/linusxiong/ggboard/internal/service/user"
 	"github.com/linusxiong/ggboard/internal/subscription"
 	"github.com/linusxiong/ggboard/internal/subscription/fixture"
@@ -104,5 +106,42 @@ func TestRuleProfileEndpoints(t *testing.T) {
 	v = testutil.Decode[profileView](t, testutil.Do(t, r, http.MethodGet, "/api/v1/user/rule-profile", nil, tok))
 	if v.Editable || !v.Customized || v.Template != "minimal" || v.Effective.Template != "standard" {
 		t.Fatalf("disabled view = %+v", v)
+	}
+}
+
+// Rename rules that copy the name ("$1" × 128) are valid input, and each multiplied the node name by 128: with five
+// of them a subscriber's preview or subscription allocated 171 GiB and the panel died with an out-of-memory error.
+// Three rules on "HK 01" built a 10 MiB name; now every name is capped, so the bodies stay small.
+func TestRuleProfileRenameRulesCannotExhaustMemory(t *testing.T) {
+	a := testutil.NewTestApp(t)
+	gid := uint64(fixture.GroupID)
+	n := &model.Node{Type: model.NodeVmess, Name: "HK 01", Host: "hk.example.com", Port: "443", ServerPort: 443,
+		GroupIDs: []uint64{gid}, Rate: 1, Show: true}
+	if err := a.DB.Create(n).Error; err != nil {
+		t.Fatal(err)
+	}
+	exp := time.Now().Add(24 * time.Hour)
+	u := testutil.CreateUser(t, a, "alice@example.com", usersvc.CreateOptions{GroupID: &gid, TransferEnable: 10 * fixture.GiB, ExpiredAt: &exp})
+	tok := testutil.Login(t, a, u)
+	r := testutil.NewRouterWith(t, a, user.Register, client.Register)
+
+	grow := map[string]any{"match": "^(.*)$", "replace": strings.Repeat("$1", 128)}
+	rec := testutil.Do(t, r, http.MethodPut, "/api/v1/user/rule-profile", map[string]any{
+		"template": "minimal", "nodes": map[string]any{"rename": []any{grow, grow, grow}},
+	}, tok)
+	testutil.ExpectStatus(t, rec, http.StatusOK)
+
+	const small = 64 << 10
+	for app, want := range map[string]string{"clash-meta": "HK 01HK 01", "v2rayN": "vmess://"} {
+		rec := testutil.Do(t, r, http.MethodGet, "/api/v1/user/subscription/preview?client="+app, nil, tok)
+		if rec.Code != http.StatusOK || rec.Body.Len() > small || !strings.Contains(rec.Body.String(), want) {
+			t.Fatalf("preview for %s: %d, %d bytes", app, rec.Code, rec.Body.Len())
+		}
+	}
+	for _, ua := range []string{"clash.meta/1.19.0", "v2rayN/7.0"} {
+		rec := testutil.DoWithHeaders(t, r, http.MethodGet, "/api/v1/client/subscribe?token="+u.Token, nil, "", map[string]string{"User-Agent": ua})
+		if rec.Code != http.StatusOK || rec.Body.Len() > small {
+			t.Fatalf("subscribe as %s: %d, %d bytes", ua, rec.Code, rec.Body.Len())
+		}
 	}
 }

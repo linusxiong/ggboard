@@ -451,12 +451,19 @@ func NodeProxies(u *model.User, nodes []AvailableNode, opt ProxyOptions) []Proxy
 		if opt.ShowProtocol {
 			p.Name = "[" + p.ProtoName() + "] " + p.Name
 		}
+		// The normalization can grow a name ("," and "=" become 3-byte full-width forms) and so can the prefix.
+		p.Name = strings.TrimSpace(capName(p.Name))
 	}
 	return out
 }
 
-// DisplayName normalizes a node name: optional emoji removal, control characters and separators that
-// break line-based client configs (",", "=") replaced, whitespace collapsed.
+// MaxProxyNameBytes bounds a proxy name in bytes. Admin node names are at most 191 characters (764 bytes) and the
+// profile prefix and suffix at most 32 each, so in practice only names grown by rename rules reach it: a replacement
+// may copy the name up to 128 times ("$1" × 128), and without a cap a few rules grow it exponentially until the
+// process runs out of memory. Names are cut at a character boundary after every rename step and after the final
+// normalization (docs/SUBSCRIPTION.md "Node operations").
+const MaxProxyNameBytes = 1024
+
 // UnsafeRune reports runes that must never reach a generated config: control characters, line and paragraph
 // separators (they end a line in the line-based formats) and noncharacters such as U+FFFE (yaml.v3 rejects the
 // whole document). Format characters such as ZWJ stay allowed (emoji sequences use them).
@@ -464,6 +471,8 @@ func UnsafeRune(r rune) bool {
 	return unicode.IsControl(r) || unicode.In(r, unicode.Zl, unicode.Zp, unicode.Noncharacter_Code_Point) || r == utf8.RuneError
 }
 
+// DisplayName normalizes a node name: optional emoji removal, control characters and separators that
+// break line-based client configs (",", "=") replaced, whitespace collapsed.
 func DisplayName(name string, stripEmoji bool) string {
 	var b strings.Builder
 	b.Grow(len(name))
