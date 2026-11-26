@@ -410,8 +410,10 @@ Payment creation, update and deletion make the same check in their write transac
 Node creation, update, deletion, copy and sort do so before changing node configuration.
 Plan and payment sorting likewise recheck admin status within their sort transaction.
 Mail template save and reset recheck admin status inside their write transaction.
-System logs, node online users and audit records, subscription age-key and access-log views, and stored mail-template
-bodies recheck the live admin account before returning data. Subscription age-key reset rechecks the same account
+System logs, node online users and audit records, subscription age-key and access-log views, stored mail-template
+bodies, and orders (`GET /admin/orders`, `GET /admin/orders/:id` and the `AdminOrder` / `AdminOrderDetail` bodies of
+the order actions: buyer emails, trade and gateway transaction numbers) recheck the live admin account before
+returning data. Subscription age-key reset rechecks the same account
 inside the key write transaction; role revocation leaves the old key intact. Staff content and ticket operations
 likewise recheck the live staff role before returning private rows or committing writes.
 Starting a GeoIP update holds the admin account lock through the immediate start decision; a download already started
@@ -551,7 +553,8 @@ Coupon reads and writes use the same live administrator check; a demoted or repl
 
 Admin order assignment, manual payment, cancellation and commission edits recheck the request's account binding and live
 admin role inside the order write transaction. Demotion or ban before commit rolls the change back (403); a changed
-UUID, email or password version returns 401.
+UUID, email or password version returns 401. The list, the detail and the bodies those actions return are read in a
+transaction holding the admin row lock with the same recheck, so a demoted in-flight request gets 403 and no order data.
 | GET | `/admin/coupons` | `code?` (exact), `name?` (substring); `sort` (`id created_at started_at ended_at value`) | paginated `[Coupon + used_count]` (`used_count` = non-cancelled orders) |
 | POST | `/admin/coupons` | `{name*, code?, type* (1 amount in cents, 2 percent ≤ 100), value* (> 0), count? (1..500; > 1 = batch of generated 8-char codes), limit_use? (remaining uses), limit_use_with_user?, limit_plan_ids?, limit_periods?, started_at*, ended_at* (after started_at), show? (default true)}` | 201 `[Coupon + used_count]` (409 duplicate code) |
 | GET | `/admin/coupons/:id` | — | `Coupon + used_count` |

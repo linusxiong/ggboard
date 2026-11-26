@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"net/http"
 	"strings"
 	"time"
 
@@ -117,6 +118,9 @@ func LockActor(tx *gorm.DB, id uint64, claims *auth.Claims) (*model.User, error)
 	return u, nil
 }
 
+// lockAdminActor locks and rechecks the administrator behind an order action, like the other admin endpoints
+// (docs/API.md §Admin): a deleted account or a changed account binding (UUID, email, password version) is 401, a
+// ban or a revoked admin role 403.
 func lockAdminActor(tx *gorm.DB, claims *auth.Claims) error {
 	if claims == nil {
 		return httpx.Unauthorized("session expired, please sign in again")
@@ -125,12 +129,18 @@ func lockAdminActor(tx *gorm.DB, claims *auth.Claims) error {
 	if err != nil {
 		return httpx.Unauthorized("session expired, please sign in again")
 	}
-	u, err := LockActor(tx, id, claims)
+	u, err := lockUser(tx, id)
 	if err != nil {
+		if he := (*httpx.Error)(nil); errors.As(err, &he) && he.Status == http.StatusNotFound {
+			return httpx.Unauthorized("session expired, please sign in again")
+		}
 		return err
 	}
-	if !u.IsAdmin {
-		return httpx.Unauthorized("administrator session expired, please sign in again")
+	if !claims.BoundTo(u) {
+		return httpx.Unauthorized("session expired, please sign in again")
+	}
+	if u.Banned || !u.IsAdmin {
+		return httpx.Forbidden("administrator only")
 	}
 	return nil
 }
