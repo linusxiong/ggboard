@@ -514,19 +514,23 @@ func IsEmoji(r rune) bool {
 }
 
 // UniqueNames renames proxies whose names collide with each other, with reserved (group) names or with
-// built-in policies by appending " 2", " 3", ... (first occurrence keeps its name).
+// built-in policies by appending " 2", " 3", ... (first occurrence keeps its name): the smallest free suffix.
+// Names only ever become used, so the search for a name resumes after the suffix it handed out last; without that,
+// n copies of one name cost n²/2 lookups (5,000 identical names took half a second per render).
 func UniqueNames(proxies []Proxy, reserved map[string]bool) {
 	used := make(map[string]bool, len(proxies)+len(reserved))
 	for k := range reserved {
 		used[k] = true
 	}
+	next := map[string]int{} // name -> first suffix not tried yet
 	for i := range proxies {
 		name := proxies[i].Name
 		if !used[name] && !IsReservedName(name) {
 			used[name] = true
 			continue
 		}
-		for n := 2; ; n++ {
+		n := max(next[name], 2)
+		for ; ; n++ {
 			cand := name + " " + strconv.Itoa(n)
 			if !used[cand] && !IsReservedName(cand) {
 				proxies[i].Name = cand
@@ -534,6 +538,7 @@ func UniqueNames(proxies []Proxy, reserved map[string]bool) {
 				break
 			}
 		}
+		next[name] = n + 1
 	}
 }
 
