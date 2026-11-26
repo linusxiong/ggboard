@@ -2,6 +2,7 @@ package nodesvc
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -187,6 +188,10 @@ func (s *Service) CheckNode(ctx context.Context, n *model.Node) error {
 	}
 	if !ValidNodeToken(n.Token) {
 		errs.Add("token", fmt.Sprintf("must be empty or %d-%d visible ASCII characters without spaces", MinNodeTokenLen, MaxNodeTokenLen))
+	} else if n.Token != "" && subtle.ConstantTimeCompare([]byte(n.Token), []byte(s.a.Settings.String("server_token"))) == 1 {
+		// An own token binds the node to its holder (docs/NODE_PROTOCOLS.md §1.1); equal to the shared token, every
+		// holder of server_token would pass the node's own-token check.
+		errs.Add("token", "must differ from the shared server_token (leave it empty to use server_token)")
 	}
 	if len(n.Tags) > MaxNodeTags {
 		errs.Add("tags", fmt.Sprintf("at most %d tags", MaxNodeTags))

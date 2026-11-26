@@ -40,7 +40,9 @@ the operator of one node can no longer change `node_id` to pull another node's u
 SS2022 server keys) or report traffic for them; with one shared `server_token` (the Xboard model, still the default) any
 holder can. Several nodes may share one own token on purpose (one soga instance serving `node_id=1,2,3` sends one
 `webapi_key`). A child never stores a token: it authenticates with its parent's (§5.3). Own tokens are 16–64 visible
-ASCII characters; copying a node gives the copy a fresh random one. Backends need nothing new: each XrayR/V2bX node entry
+ASCII characters and never equal `server_token` (an own token equal to the shared one would let every holder of
+`server_token` pass the node's own-token check): the node form refuses such a token and the settings refuse such a
+`server_token`. Copying a node gives the copy a fresh random one. Backends need nothing new: each XrayR/V2bX node entry
 and each soga instance already has its own key setting.
 
 The check runs in two steps, so a wrong key costs no node lookup: (1) before anything is loaded, the key must be
