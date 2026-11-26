@@ -31,11 +31,21 @@ func TestReviewWellKnownIsNotSPA(t *testing.T) {
 
 // Security audit 2026-10-22 §8: trailing-slash redirects are off, so "/s/<token>/" no longer redirects to the short
 // link. It must be a 404 like the other API paths, not the SPA shell (a 200 a client would parse as a subscription).
+// Security audit 2026-11-25 §2: the check ran on the raw path while gin routes on the slash-cleaned one, so
+// "//s/<token>/" and "//api/..." still got the shell with 200.
 func TestReviewSubscriptionShortLinkIsNotSPA(t *testing.T) {
 	e := router(t, dist())
-	for _, p := range []string{"/s/abc/", "/s/", "/s/abc/x"} {
+	for _, p := range []string{
+		"/s/abc/", "/s/", "/s/abc/x", "//s/abc/", "///s/abc/", "//s/", "/./s/abc/", "//api/v1/x", "//api", "///soga/api/v1/x",
+	} {
 		if r := get(t, e, p, ""); r.code != 404 || strings.Contains(r.body, "<title>") {
-			t.Fatalf("%s = %d %q", p, r.code, r.body)
+			t.Errorf("%s = %d %q", p, r.code, r.body)
+		}
+	}
+	// SPA routes that merely look similar still get the shell.
+	for _, p := range []string{"/login", "//login", "/settings/", "/soga", "/apis"} {
+		if r := get(t, e, p, ""); r.code != 200 || !strings.Contains(r.body, "<title>") {
+			t.Errorf("%s = %d %q, want the SPA shell", p, r.code, r.body)
 		}
 	}
 }

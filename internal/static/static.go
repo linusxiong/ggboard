@@ -221,12 +221,22 @@ func isAPIPath(p string) bool {
 	return p == "/api" || strings.HasPrefix(p, "/api/") || strings.HasPrefix(p, "/soga/") || strings.HasPrefix(p, "/s/")
 }
 
+// routedPath is p cleaned the way gin routes it with RemoveExtraSlash (httpx.NewEngine): repeated slashes and
+// "."/".." elements removed, a trailing slash kept. "//s/<token>/" is routed (and must be judged) as "/s/<token>/".
+func routedPath(p string) string {
+	cleaned := path.Clean("/" + p)
+	if strings.HasSuffix(p, "/") && cleaned != "/" {
+		cleaned += "/"
+	}
+	return cleaned
+}
+
 // Serve handles one request: API paths get a JSON 404, existing files are served, a directory with a
 // prerendered index.html is served from it (`/login` → login/index.html), missing asset-like paths get 404
 // and everything else falls back to the SPA shell (spa.html, else index.html).
 func (h *Handler) Serve(c *gin.Context) {
 	p := c.Request.URL.Path
-	if isAPIPath(p) || (c.Request.Method != http.MethodGet && c.Request.Method != http.MethodHead) {
+	if isAPIPath(routedPath(p)) || (c.Request.Method != http.MethodGet && c.Request.Method != http.MethodHead) {
 		httpx.Fail(c, httpx.NotFound("route not found"))
 		return
 	}
