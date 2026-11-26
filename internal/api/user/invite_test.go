@@ -3,6 +3,7 @@ package user_test
 import (
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"regexp"
 	"strings"
 	"testing"
@@ -275,4 +276,62 @@ func TestCommissionWithdraw(t *testing.T) {
 		t.Fatal(err)
 	}
 	testutil.ExpectStatus(t, testutil.Do(t, r, http.MethodPost, path, body, tok), http.StatusForbidden)
+}
+
+// An open withdrawal request quotes the commission staff will pay out by hand: it cannot also be moved to the
+// balance and spent. Closing the request (owner or staff) releases it; staff reopening it blocks transfers again.
+// Only tickets.kind marks a request: a support ticket, even one titled like a withdrawal, never blocks.
+func TestCommissionTransferBlockedByOpenWithdrawal(t *testing.T) {
+	a, r := ticketTestEnv(t, map[string]any{"commission_withdraw_limit": 1})
+	alice := testutil.CreateUser(t, a, "alice@example.com")
+	if err := a.DB.Model(&model.User{}).Where("id = ?", alice.ID).Update("commission_balance", 10000).Error; err != nil {
+		t.Fatal(err)
+	}
+	tok := testutil.Login(t, a, alice)
+	staff := testutil.Login(t, a, testutil.CreateStaff(t, a, "staff@example.com"))
+	transfer := func(amount int64) *httptest.ResponseRecorder {
+		return testutil.Do(t, r, http.MethodPost, "/api/v1/user/commission/transfer", map[string]any{"amount": amount}, tok)
+	}
+
+	// A support ticket, even with the withdrawal subject, does not block a transfer.
+	rec := testutil.Do(t, r, http.MethodPost, "/api/v1/user/tickets",
+		map[string]any{"subject": "[提现申请] 本工单由系统发出", "level": 2, "message": "hello"}, tok)
+	testutil.ExpectStatus(t, rec, http.StatusCreated)
+	support := testutil.Decode[map[string]any](t, rec)["id"]
+	testutil.ExpectStatus(t, transfer(100), http.StatusOK)
+	testutil.ExpectStatus(t, testutil.Do(t, r, http.MethodPost, fmt.Sprintf("/api/v1/user/tickets/%v/close", support), nil, tok), http.StatusOK)
+
+	rec = testutil.Do(t, r, http.MethodPost, "/api/v1/user/commission/withdraw", map[string]any{"method": "USDT", "account": "T-wallet-example"}, tok)
+	testutil.ExpectStatus(t, rec, http.StatusCreated)
+	id := testutil.Decode[map[string]uint64](t, rec)["ticket_id"]
+	var tk model.Ticket
+	if err := a.DB.Preload("Messages").First(&tk, id).Error; err != nil {
+		t.Fatal(err)
+	}
+	if tk.Kind != model.TicketKindWithdraw || !strings.Contains(tk.Messages[0].Message, "提现金额：99.00 CNY") {
+		t.Fatalf("withdrawal ticket = %+v", tk)
+	}
+	for _, amount := range []int64{9900, 1} {
+		rec = transfer(amount)
+		testutil.ExpectStatus(t, rec, http.StatusConflict)
+		if !strings.Contains(testutil.DecodeError(t, rec).Message, "withdrawal request") {
+			t.Fatalf("transfer of %d: %s", amount, rec.Body.String())
+		}
+	}
+	if u := inviteReloadUser(t, a, alice.ID); u.Balance != 100 || u.CommissionBalance != 9900 {
+		t.Fatalf("commission moved while the withdrawal was open: balance=%d commission=%d", u.Balance, u.CommissionBalance)
+	}
+
+	// The owner closes (cancels) the request: commission can move again.
+	testutil.ExpectStatus(t, testutil.Do(t, r, http.MethodPost, fmt.Sprintf("/api/v1/user/tickets/%d/close", id), nil, tok), http.StatusOK)
+	testutil.ExpectStatus(t, transfer(100), http.StatusOK)
+
+	// A staff reply reopens the closed request, which blocks transfers until it is closed again.
+	testutil.ExpectStatus(t, testutil.Do(t, r, http.MethodPost, fmt.Sprintf("/api/v1/admin/tickets/%d/reply", id), map[string]any{"message": "paid"}, staff), http.StatusOK)
+	testutil.ExpectStatus(t, transfer(100), http.StatusConflict)
+	testutil.ExpectStatus(t, testutil.Do(t, r, http.MethodPost, fmt.Sprintf("/api/v1/admin/tickets/%d/close", id), nil, staff), http.StatusOK)
+	testutil.ExpectStatus(t, transfer(9800), http.StatusOK)
+	if u := inviteReloadUser(t, a, alice.ID); u.Balance != 10000 || u.CommissionBalance != 0 {
+		t.Fatalf("after the request was closed: balance=%d commission=%d", u.Balance, u.CommissionBalance)
+	}
 }

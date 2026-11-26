@@ -512,6 +512,12 @@ The catalog and template formats are in [RULESETS.md](RULESETS.md), the subscrip
   each reader's own subscription URL (including the token), so **only admins can write them**: when staff save a new
   body containing them, it is refused (403), but staff can still change the title, category and visibility of an
   admin's article.
+- **Withdrawal requests** arrive as high-priority tickets (subject "[Withdrawal Request] This ticket was opened by the
+  system") stating the method, the account and the commission balance at the time of the request; nothing is deducted.
+  While the ticket is open the user cannot move commission to their balance, so it cannot be spent while you pay it
+  out. To settle one: lower the user's commission balance by the amount you pay in User details → Profile, then pay,
+  then close the ticket. A user closing the ticket cancels the request and can move the commission again afterwards, so
+  do not pay a request that is already closed.
 - **System** (`/admin/system`): runtime status, scheduled jobs, mail queue, cache and logs, refreshed every 30 seconds.
 
 ---

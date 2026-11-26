@@ -2,6 +2,7 @@ package xboardimport
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -253,6 +254,11 @@ func (im *importer) importTickets() error {
 		t := model.Ticket{
 			ID: id, UserID: uid, Subject: im.fit(scope, "subject", r.str("subject"), 255),
 			CreatedAt: im.ts(scope, r["created_at"]), UpdatedAt: im.ts(scope, r["updated_at"]),
+		}
+		// Xboard has no ticket type: its withdrawal requests are known by the subject it writes (§4.10). An open
+		// one keeps blocking commission transfers after the import, as the request quotes the imported balance.
+		if slices.Contains(model.WithdrawalTicketSubjects, strings.TrimSpace(r.str("subject"))) {
+			t.Kind = model.TicketKindWithdraw
 		}
 		switch lv := r.i64("level"); lv {
 		case 0, 1, 2:

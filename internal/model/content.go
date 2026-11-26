@@ -9,6 +9,7 @@ type Ticket struct {
 	User            *User             `gorm:"foreignKey:UserID" json:"user,omitempty"`
 	Subject         string            `gorm:"size:255;not null" json:"subject"`
 	Level           TicketLevel       `gorm:"not null;default:0" json:"level"`
+	Kind            TicketKind        `gorm:"size:16;not null;default:''" json:"kind"`
 	Status          TicketStatus      `gorm:"index;not null;default:0" json:"status"`
 	ReplyStatus     TicketReplyStatus `gorm:"index;not null;default:0" json:"reply_status"`
 	LastReplyUserID *uint64           `json:"last_reply_user_id"`

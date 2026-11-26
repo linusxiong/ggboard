@@ -279,6 +279,7 @@ row but drops the reference to a banned user (docs/IMPORT_XBOARD.md §3.5).
 | user_id | uint64 idx, not null | |
 | subject | varchar(255) not null | |
 | level | int8 | 0 low, 1 medium, 2 high |
+| kind | varchar(16) not null default '' | what opened it: `''` the user (`POST /user/tickets`), `withdraw` a commission withdrawal request (`POST /user/commission/withdraw`; while one is open `POST /user/commission/transfer` answers 409). The upgrade that added the column and `import xboard` mark the existing requests by their system subject (`model.WithdrawalTicketSubjects`); nothing else reads the subject |
 | status | int8 idx | 0 open, 1 closed |
 | reply_status | int8 idx | 0 awaiting staff, 1 replied |
 | last_reply_user_id | *uint64 | |
