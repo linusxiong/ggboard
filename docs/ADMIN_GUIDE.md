@@ -380,7 +380,8 @@ one device no matter how many devices they use, so **the device limit stops work
   `quarterly`, `half_yearly`, `yearly`, `two_yearly`, `three_yearly`, `onetime`, and `reset_traffic` (traffic reset
   pack).
 - **Server group**, traffic per period, speed limit, device limit, connection limit (only soga enforces it, see §3.5),
-  max users (empty = unlimited), traffic reset method (empty = follow the system setting).
+  max users (empty = unlimited; an unpaid order holds a place until it is paid, cancelled or times out, and holders can
+  always renew), traffic reset method (empty = follow the system setting).
   On purchase (renewals included), on trials, and when users are created or generated in bulk in the admin console, the
   plan's speed limit, device limit and connection limit are copied to the user. Editing a plan does not change existing
   users right away (they get the new values with their next paid order), unless you use `force_update` below.

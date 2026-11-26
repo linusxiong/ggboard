@@ -95,7 +95,11 @@ generated from it and pre-fills `Field.Default`); every admin payment response c
    - one open order per user (status 0/1) → 409 `conflict` with `errors.trade_no = [<pending trade_no>]`;
    - shop rules: the period must be known and the plan must have `prices[period]` (400 `period`); a plan with invalid GB traffic outside 0..8,589,934,591 is rejected before charging (400 `plan_id`); a hidden plan
      (`show=false`) is 404 unless the buyer holds it; non-holders need `show && sell` (400 `plan_id`) and free
-     capacity (`capacity_limit` vs active holders, buyer excluded → 409 "sold out"); holders need `renew`, and
+     capacity (`capacity_limit` vs taken seats → 409 "sold out": active holders plus reserved seats, i.e. users with
+     an open order (status 0/1) of the plan who are not active holders of it, the buyer excluded on both sides; the
+     check runs after a no-op UPDATE locks a capacity-limited plan's row, so concurrent purchases of the last seat
+     serialize and one gets 409; a cancelled or timed-out order frees its seat, an active holder's renewal or reset
+     takes none); holders need `renew`, and
      hidden/legacy (`sell=false`) plans only while the subscription is active; `reset_traffic` only for an active
      holder;
    - type: 4 reset_traffic; 3 upgrade (another plan while active; needs `plan_change_enable`, else 403); 2 renew (same

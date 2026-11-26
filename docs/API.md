@@ -73,7 +73,8 @@ Plan (admin) {"id","group_id","name","content","tags","transfer_enable"(GB),"spe
       // speed_limit (Mbps), device_limit (alive IPs), conn_limit (TCP connections per user, 0..100000; only soga enforces it,
       // as tcp_limit, docs/NODE_PROTOCOLS.md §3.2): null or 0 = unlimited; negative values → 400
 PublicPlan {"id","name","content","tags","transfer_enable"(GB),"speed_limit","device_limit","conn_limit","prices","reset_traffic_method",
-      "show","sell","renew","sort","sold_out"(capacity full; never for the holder),"is_current"(user's plan),"created_at","updated_at"}
+      "show","sell","renew","sort","sold_out"(capacity full: active holders + users with an open order of the plan, the
+      viewer's own order excluded, reach capacity_limit; never for the holder),"is_current"(user's plan),"created_at","updated_at"}
       // no group_id / capacity_limit
 Node (admin) {"id","type","name","group_ids","route_ids","parent_id","host","port"(string),"server_port","tags","rate","show","sort",
       "protocol_settings":{...},"token"(own backend key; "" = server_token; always "" on a child),"parent":{"id","name"}|null,

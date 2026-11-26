@@ -64,8 +64,58 @@ func HolderCount(ctx context.Context, db *gorm.DB, planID uint64) (int64, error)
 	return n, err
 }
 
-// HasCapacity reports whether plan can take another subscriber (capacity_limit nil = unlimited). The buyer
-// (excludeUserID) is not counted.
+// openOrderStatuses are the unpaid order statuses (pending, processing).
+var openOrderStatuses = []model.OrderStatus{model.OrderStatusPending, model.OrderStatusProcessing}
+
+// reservedScope restricts orders to the open ones whose buyer is not an active holder of the order's plan: each
+// takes a new seat once paid, so it holds one until it is paid, cancelled or timed out (order_timeout). An active
+// holder's renewal or traffic reset takes no new seat.
+func reservedScope(db *gorm.DB, now time.Time) *gorm.DB {
+	return db.Where("orders.status IN ?", openOrderStatuses).
+		Where("NOT EXISTS (SELECT 1 FROM users WHERE users.id = orders.user_id AND users.plan_id = orders.plan_id"+
+			" AND (users.expired_at IS NULL OR users.expired_at >= ?))", now)
+}
+
+// ReservedSeats returns the number of users with an open order of plan that will take a seat when paid
+// (reservedScope), excluding excludeUserID (0 = none).
+func ReservedSeats(ctx context.Context, db *gorm.DB, planID, excludeUserID uint64, now time.Time) (int64, error) {
+	q := reservedScope(db.WithContext(ctx).Model(&model.Order{}), now).Where("orders.plan_id = ?", planID)
+	if excludeUserID != 0 {
+		q = q.Where("orders.user_id <> ?", excludeUserID)
+	}
+	var n int64
+	err := q.Distinct("orders.user_id").Count(&n).Error
+	return n, err
+}
+
+// TakenSeatCounts returns, per plan id, the seats taken: active subscribers plus the users holding a reserved seat
+// (ReservedSeats), excluding excludeUserID's reservations (0 = none). It is what the sold-out flags read.
+func TakenSeatCounts(ctx context.Context, db *gorm.DB, excludeUserID uint64, now time.Time) (map[uint64]int64, error) {
+	out, err := ActiveUserCounts(ctx, db, now)
+	if err != nil {
+		return nil, err
+	}
+	var rows []struct {
+		PlanID uint64
+		Cnt    int64
+	}
+	q := reservedScope(db.WithContext(ctx).Model(&model.Order{}), now)
+	if excludeUserID != 0 {
+		q = q.Where("orders.user_id <> ?", excludeUserID)
+	}
+	if err := q.Select("orders.plan_id AS plan_id, COUNT(DISTINCT orders.user_id) AS cnt").Group("orders.plan_id").Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		out[r.PlanID] += r.Cnt
+	}
+	return out, nil
+}
+
+// HasCapacity reports whether plan can take another subscriber (capacity_limit nil = unlimited): active
+// subscribers plus reserved seats (open orders that will take one when paid) stay below capacity_limit. The buyer
+// (excludeUserID) is not counted. A purchase serializes the check with other purchases of the plan first (the
+// order service locks the plan row), so two buyers cannot both take the last seat.
 func HasCapacity(ctx context.Context, db *gorm.DB, p *model.Plan, excludeUserID uint64, now time.Time) (bool, error) {
 	if p.CapacityLimit == nil {
 		return true, nil
@@ -74,7 +124,11 @@ func HasCapacity(ctx context.Context, db *gorm.DB, p *model.Plan, excludeUserID 
 	if err != nil {
 		return false, err
 	}
-	return n < int64(*p.CapacityLimit), nil
+	r, err := ReservedSeats(ctx, db, p.ID, excludeUserID, now)
+	if err != nil {
+		return false, err
+	}
+	return n+r < int64(*p.CapacityLimit), nil
 }
 
 // soldOut reports whether a capacity-limited plan is full according to counts.
@@ -134,7 +188,7 @@ func ListForGuest(ctx context.Context, db *gorm.DB, now time.Time) ([]PublicView
 	if err != nil {
 		return nil, err
 	}
-	counts, err := countsIfNeeded(ctx, db, plans, now)
+	counts, err := countsIfNeeded(ctx, db, plans, 0, now)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +213,7 @@ func ListForUser(ctx context.Context, db *gorm.DB, u *model.User, now time.Time)
 	if err := q.Clauses(OrderBySort()).Find(&plans).Error; err != nil {
 		return nil, err
 	}
-	counts, err := countsIfNeeded(ctx, db, plans, now)
+	counts, err := countsIfNeeded(ctx, db, plans, u.ID, now)
 	if err != nil {
 		return nil, err
 	}
@@ -212,11 +266,12 @@ func ListForAdmin(ctx context.Context, db *gorm.DB, now time.Time) ([]AdminView,
 	return out, nil
 }
 
-func countsIfNeeded(ctx context.Context, db *gorm.DB, plans []model.Plan, now time.Time) (map[uint64]int64, error) {
+// countsIfNeeded returns TakenSeatCounts (viewer's own reservations excluded) when a plan is capacity-limited.
+func countsIfNeeded(ctx context.Context, db *gorm.DB, plans []model.Plan, viewerID uint64, now time.Time) (map[uint64]int64, error) {
 	if !slices.ContainsFunc(plans, func(p model.Plan) bool { return p.CapacityLimit != nil }) {
 		return nil, nil
 	}
-	return ActiveUserCounts(ctx, db, now)
+	return TakenSeatCounts(ctx, db, viewerID, now)
 }
 
 // ValidatePrices checks price keys (model.Periods) and non-negative values; it returns field errors keyed

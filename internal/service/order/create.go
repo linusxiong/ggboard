@@ -46,6 +46,16 @@ func loadPlan(tx *gorm.DB, id uint64, u *model.User) (*model.Plan, error) {
 	return &p, nil
 }
 
+// lockPlanSeats serializes the purchases of a capacity-limited plan: a no-op UPDATE takes the plan row's lock (on
+// SQLite the IMMEDIATE transaction already holds the write lock) before the transaction's first plain read, so the
+// capacity check (plansvc.HasCapacity, which counts open orders as taken seats) sees the order of every purchase
+// that held the lock before; under MySQL's REPEATABLE READ the snapshot is taken at that first plain read. The
+// lock order is the buyer's row, then the plan's. Plans without capacity_limit are not locked.
+func lockPlanSeats(tx *gorm.DB, planID uint64) error {
+	return tx.Model(&model.Plan{}).Where("id = ? AND capacity_limit IS NOT NULL", planID).
+		UpdateColumn("capacity_limit", gorm.Expr("capacity_limit")).Error
+}
+
 // Create prices and stores a pending order for userID (POST /user/orders). Balance used by the order is
 // deducted immediately (restored on cancel) and a limited coupon loses one use. An order with nothing left to
 // pay is fulfilled before Create returns (callback_no "free" or "balance").
@@ -58,6 +68,9 @@ func (s *Service) Create(ctx context.Context, userID uint64, in CreateInput) (*m
 	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		u, err := LockActor(tx, userID, in.Actor)
 		if err != nil {
+			return err
+		}
+		if err := lockPlanSeats(tx, in.PlanID); err != nil {
 			return err
 		}
 		if p, err := pendingOrder(tx, u.ID); err != nil {
