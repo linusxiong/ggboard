@@ -183,7 +183,14 @@ func TestRelyingParty(t *testing.T) {
 	if AppBaseURL(a.Settings) != "https://panel.example.com/base" {
 		t.Fatalf("base = %q", AppBaseURL(a.Settings))
 	}
-	if err := a.Settings.Set(map[string]any{"app_url": "ftp://example.com"}); err != nil {
+	// app_url must be an http(s) URL (security audit 2026-11-25 §5); a row stored before that check is ignored on load.
+	if err := a.Settings.Set(map[string]any{"app_url": "ftp://example.com"}); err == nil {
+		t.Fatal("a non-http app_url must be rejected")
+	}
+	if err := a.DB.Save(&model.Setting{Key: "app_url", Value: `"ftp://example.com"`}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := a.Settings.Reload(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if PasskeyEnabled(a.Settings) || AppBaseURL(a.Settings) != "" {

@@ -503,7 +503,8 @@ U's "optimised" table has the same columns; only `value` became `mediumtext`.
 
 | ours | Xboard source | rule |
 | --- | --- | --- |
-| `app_name` `app_description` `app_url` `logo` `tos_url` `currency` `currency_symbol` | same names | verbatim strings |
+| `app_name` `app_description` `currency` `currency_symbol` | same names | verbatim strings |
+| `app_url` `logo` `tos_url` | same names | http(s) URLs as the settings service stores them (`settings.NormalizeURL`: trimmed, `https://` added when the scheme is missing). Anything else (relative path, `javascript:`, other schemes, credentials) → not imported, keep ours, W without the value |
 | `stop_register` `email_verify` `email_whitelist_enable` `invite_force` `register_limit_by_ip_enable` `password_limit_enable` | same | bool |
 | `register_limit_count` `register_limit_expire` `password_limit_count` `password_limit_expire` `try_out_plan_id` | same | int. `try_out_plan_id` must be an imported plan, else 0, W |
 | `try_out_hour` | same | int. Absent → 1 |
@@ -524,7 +525,7 @@ U's "optimised" table has the same columns; only `value` became `mediumtext`.
 | `email_encryption` | same | `ssl` / `tls` verbatim; NULL or `""` → `none` |
 | `remind_mail_enable` | U same; L — (L always sends) | U: bool, **absent → false**. L: leave ours (true) |
 | `frontend_background_url` | same | verbatim |
-| `windows_*`, `macos_*`, `android_*` (`_version`, `_download_url`) | same | verbatim |
+| `windows_*`, `macos_*`, `android_*` (`_version`, `_download_url`) | same | `_version` verbatim; `_download_url` as `app_url` |
 
 Explicitly dropped (listed in the summary): `force_https`, `secure_path`, `frontend_admin_path`, `safe_mode_enable`,
 `email_gmail_limit_enable`, `frontend_theme*`, `email_template` (template sets differ), `telegram_*` (the ggboard bot has its

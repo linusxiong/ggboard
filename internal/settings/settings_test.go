@@ -171,7 +171,7 @@ func TestURLSettings(t *testing.T) {
 	if !s.Bool("geoip_enable") {
 		t.Fatal("geoip_enable defaults to on")
 	}
-	for _, bad := range []string{"ftp://mirror.example.com/qqwry.dat", "mirror.example.com/qqwry.dat", "https://",
+	for _, bad := range []string{"ftp://mirror.example.com/qqwry.dat", "/qqwry.dat", "https://",
 		"https://user:pass@mirror.example.com/qqwry.dat", "https://mirror.example.com/a b", "javascript:alert(1)",
 		"file:///etc/passwd", "https://mirror.example.com/" + strings.Repeat("a", maxURLLen)} {
 		err := s.Set(map[string]any{"geoip_download_url": bad})
@@ -190,8 +190,13 @@ func TestURLSettings(t *testing.T) {
 	if err := s.Set(map[string]any{"geoip_version_url": nil}); err != nil || s.String("geoip_version_url") == "" {
 		t.Fatalf("reset: %v %q", err, s.String("geoip_version_url"))
 	}
+	// A value without a scheme means https (security audit 2026-11-25 §5: how passkeys already read app_url).
+	if err := s.Set(map[string]any{"geoip_download_url": " mirror.example.com/qqwry.dat"}); err != nil ||
+		s.String("geoip_download_url") != "https://mirror.example.com/qqwry.dat" {
+		t.Fatalf("no scheme: %v %q", err, s.String("geoip_download_url"))
+	}
 	// Other string settings are not URL-checked.
-	if err := s.Set(map[string]any{"app_url": "not a url"}); err != nil {
+	if err := s.Set(map[string]any{"app_name": "not a url"}); err != nil {
 		t.Fatal(err)
 	}
 }

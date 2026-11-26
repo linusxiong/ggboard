@@ -280,10 +280,11 @@ func normalize(d Def, v any) (any, error) {
 			return nil, fmt.Errorf("must be at least %d characters", *d.MinLen)
 		}
 		if d.URL {
-			str = strings.TrimSpace(str)
-			if str != "" && !validHTTPURL(str) {
+			u, ok := NormalizeURL(str)
+			if !ok {
 				return nil, fmt.Errorf("must be an http(s) URL")
 			}
+			str = u
 		}
 		return str, nil
 	case TypeInt:
@@ -366,6 +367,24 @@ func normalize(d Def, v any) (any, error) {
 
 // maxURLLen bounds URL settings.
 const maxURLLen = 2048
+
+// NormalizeURL is the check of URL settings (withURL): s trimmed, "" allowed, otherwise an absolute http(s) URL
+// with a host and no credentials. A value without a scheme gets https:// ("panel.example.com", the way passkeys
+// already read app_url), so such values stored before these keys were checked keep working. ok is false for
+// anything else: relative paths, javascript:, mailto:, tg: and other schemes.
+func NormalizeURL(s string) (string, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", true
+	}
+	if !strings.Contains(s, "://") {
+		if withScheme := "https://" + s; validHTTPURL(withScheme) {
+			return withScheme, true
+		}
+		return s, false
+	}
+	return s, validHTTPURL(s)
+}
 
 // validHTTPURL reports whether s is an absolute http or https URL with a host, without credentials, spaces or
 // control characters.
