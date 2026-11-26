@@ -301,13 +301,16 @@ func requestFailure(err error) string {
 		return "host not found"
 	case errors.Is(err, syscall.ECONNREFUSED):
 		return "connection refused"
-	case errors.Is(err, syscall.ECONNRESET), errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
+	case errors.Is(err, syscall.ECONNRESET), errors.Is(err, syscall.EPIPE), errors.Is(err, io.EOF),
+		errors.Is(err, io.ErrUnexpectedEOF):
 		return "the connection closed without a response"
 	case errors.As(err, &certErr):
 		return "TLS certificate not trusted"
 	case errors.As(err, &hdrErr):
 		return "the server did not answer with TLS"
-	case strings.Contains(err.Error(), "malformed HTTP"):
+	// A banner that arrives before the request is written makes Go's transport give up with readLoopPeekFailLocked
+	// (an HTTP server never speaks first); one that arrives after it is a malformed status line.
+	case strings.Contains(err.Error(), "malformed HTTP"), strings.Contains(err.Error(), "readLoopPeekFailLocked"):
 		return "the server did not answer with HTTP"
 	}
 	return "request failed"
