@@ -190,8 +190,13 @@ in `internal/mail/markdown.go`: `{{name}}` placeholders → opaque alphanumeric 
 goldmark (`github.com/yuin/goldmark`, GFM, `html.WithUnsafe()` because the author is an admin, `html.WithHardWraps()`) → AST
 pass: links with an empty address once substituted are dropped, a top-level paragraph holding only a link becomes the layout's
 button (`mailButton` node), every node gets the layout's inline style attribute (code blocks through an own node renderer)
-→ tokens replaced in one `strings.Replacer` pass by HTML-escaped values (`message`/`content` keep line breaks as `<br>`,
-trusted `ContentHTML` is inserted raw) → the usual `layout` (`MailSubject` = the rendered subject, same header and footer).
+→ tokens replaced in one tokenizer pass (`golang.org/x/net/html`) by the value in the form of their position: in text
+nodes, comments and quoted attribute values the HTML-escaped value (`message`/`content` keep line breaks as `<br>`,
+trusted `ContentHTML` is inserted raw in text, escaped as text in an attribute), anywhere else in markup (a tag or
+attribute name, an unquoted attribute value, an end tag, the raw text of `<style>`/`<script>`, an unterminated tag)
+every character as a numeric character reference, so an admin's raw HTML such as `<{{ticketSubject}}>` or
+`<span title={{ticketSubject}}>` cannot let a user's text open tags or attributes (an attribute value still reads the
+same) → the usual `layout` (`MailSubject` = the rendered subject, same header and footer).
 The plain-text part is a walk of the same AST (raw HTML stripped with `golang.org/x/net/html`) with raw values, plus the
 `AppName` header and `--` footer of the built-in text path. Subject: raw values, `strings.Fields`-collapsed; empty → the
 built-in subject.

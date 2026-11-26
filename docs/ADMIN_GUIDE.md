@@ -191,7 +191,8 @@ a line break, and raw HTML is allowed).
 A link that stands alone as a paragraph (for example `[View order]({{url}})`) is rendered as a button in the email; a
 link whose address is empty after substitution (no `app_url` configured) is removed.
 Quote variables used in raw HTML attributes (`<a href="{{url}}">`). Variable values are escaped and are never treated as
-Markdown or HTML.
+Markdown or HTML. A variable written elsewhere inside a tag (`<span title={{ticketSubject}}>`, `<{{ticketSubject}}>`) is
+written as character references, so a user's text there cannot add tags or attributes either.
 
 **Live preview**: while you edit (after a pause of about 0.4 seconds), the real email is rendered with sample data below
 the editor; you can switch between **Email / Plain text**. Links in the preview cannot be clicked. Missing required
