@@ -126,12 +126,12 @@ func resolved(c *gin.Context) *nodesvc.Resolved {
 	return r
 }
 
-// writeBody sends a cached body with its ETag, or 304 when If-None-Match contains the tag
-// (docs/NODE_PROTOCOLS.md §6.6: substring compare accepts quoted, bare and W/ forms). A gzip response sends the
-// body's cached encoding (Body.Gzip) instead of compressing it again.
+// writeBody sends a cached body with its ETag, or 304 when If-None-Match names the tag (docs/NODE_PROTOCOLS.md
+// §6.6: whole-tag compare of the quoted, bare and W/ forms, as for subscriptions). A gzip response sends the body's
+// cached encoding (Body.Gzip) instead of compressing it again.
 func writeBody(c *gin.Context, b *nodesvc.Body) {
 	c.Header("ETag", `"`+b.ETag+`"`)
-	if inm := c.GetHeader("If-None-Match"); inm != "" && strings.Contains(inm, b.ETag) {
+	if httpx.ETagMatches(c.GetHeader("If-None-Match"), b.ETag) {
 		c.Status(http.StatusNotModified)
 		return
 	}

@@ -758,8 +758,11 @@ their next poll.
 6. **ETag**:
    - `tag = hex(sha1(body))`, where `body` is the exact uncompressed bytes sent. Header: `ETag: "<tag>"` (quoted, 40
      lowercase hex characters).
-   - **304** when `strings.Contains(r.Header.Get("If-None-Match"), tag)` (Xboard `str_contains`). This accepts the quoted,
-     bare and `W/` forms. A 304 has no body; also set `ETag` on it, which RFC 9110 allows and both clients tolerate.
+   - **304** when `If-None-Match` names the tag (`httpx.ETagMatches`, the matcher subscriptions use): the header is split
+     on commas and each entry, with `W/` and quotes removed, must equal the tag as a whole (`*` matches). This accepts the
+     quoted, bare and `W/` forms that XrayR, V2bX and soga echo back (they resend the `ETag` header verbatim). Xboard uses
+     `str_contains`; ggboard does not, so a header that merely contains the tag is another version (MISTAKES #115). A 304
+     has no body; also set `ETag` on it, which RFC 9110 allows and both clients tolerate.
    - Applies to UniProxy `config` and `user`, and to soga `node`, `users`, `audit_rules` and `white_list`. Not to
      `alivelist` or to POSTs.
    - Bodies must be deterministic: struct field order, rows sorted by id, and map keys only where `encoding/json` sorts them.
@@ -769,7 +772,7 @@ their next poll.
      per P (UniProxy and soga shapes), rebuilt whenever the underlying per-group-set user list (`usersvc`, 60 s) changes.
      Admin writes to nodes, routes or groups call `nodesvc.Invalidate`, which drops both.
    - gzip middleware may compress the body. It then marks the ETag weak (`W/"<tag>"`, RFC 9110); clients echo it back and the
-     substring comparison still matches, so the tag itself never changes. The encoding is cached with the body
+     comparison ignores `W/`, so the tag itself never changes. The encoding is cached with the body
      (`nodesvc.Body.Gzip`, sent by `httpx.DataPrecompressed`): one deflate per body version, not per response, and the
      encoded `Content-Length` is sent. Clients without `Accept-Encoding: gzip` get the plain JSON as before.
 7. **Bad push/traffic entries**: non-numeric, negative or wrong-length entries are dropped. Unknown uids and users P does
