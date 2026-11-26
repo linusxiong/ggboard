@@ -656,11 +656,18 @@ logs an audit line (admin id, result):
 1. `geoip_version_url` (when set) → `{"latest": "YYYYMMDD"}`; equal to the loaded version → nothing is downloaded (`updated:
    false`). Without a version URL the file is downloaded on every check and compared by SHA-256.
 2. `geoip_download_url` is fetched with the default HTTP transport (`HTTPS_PROXY` / `NO_PROXY` apply), User-Agent
-   `ggboard/<version> (geoip)`, a 10-minute limit and a 128 MiB cap, into a temporary file next to the database.
+   `ggboard/<version> (geoip)`, a 10-minute limit and a 128 MiB cap, into a temporary file next to the database. Up to
+   10 redirects are followed, to any host (the default URL moves from github.com to release-assets.githubusercontent.com),
+   but never from `https` to plain `http`.
 3. The file must parse completely (sorted index, every record and string in bounds), have at least 100 000 ranges and
    resolve 114.114.114.114. It is then synced and renamed over `<data_dir>/geoip/qqwry.dat`, `qqwry.json`
    (version, size, sha256, records, fetched/checked times, source) is rewritten and lookups switch to it at once (cached
    lookups are dropped). Anything else keeps the current database and sets `last_error`.
+
+`last_error` (and the 502 `message`) says what went wrong (`GET qqwry.dat: HTTP 404`, `connection refused`, `timed out`,
+`not a valid qqwry.dat`, `"latest" in the version file is not a YYYYMMDD date`, …) but never repeats what the other side
+sent: no values, offsets or lengths read from a body, no quoted status line, no redirect target. The URLs are admin settings
+and may point at internal hosts, so the answer of such a host stays unread.
 
 Answers: 200 `{…GeoIPStatus, updated}` when the update finished within 60 s; 202 `{…GeoIPStatus (updating: true), updated:
 false}` when it is still downloading (poll `GET /admin/geoip` until `updating` is false); 409 `geoip_update_running` while

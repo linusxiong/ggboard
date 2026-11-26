@@ -164,7 +164,7 @@ func newService(a *app.App) *Service {
 		a:   a,
 		dir: filepath.Join(a.Cfg.DataDir, "geoip"),
 		// The default transport: honours HTTPS_PROXY / HTTP_PROXY / NO_PROXY.
-		client: &http.Client{Timeout: updateTimeout},
+		client: &http.Client{Timeout: updateTimeout, CheckRedirect: checkRedirect},
 		ctx:    ctx,
 		cancel: cancel,
 	}
