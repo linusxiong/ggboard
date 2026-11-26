@@ -37,7 +37,9 @@ RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 # ---- runtime ----
 FROM gcr.io/distroless/static-debian13:nonroot
 COPY --from=build /out/ggboard /usr/local/bin/ggboard
-COPY --from=build --chown=65532:65532 /out/data /data
+# 0700 like StateDirectoryMode in ggboard.service: the database and jwt.secret live here. A new named volume copies this
+# mode; an existing volume keeps its own (docs/DEPLOY.md §1 "Notes" says how to tighten it).
+COPY --from=build --chown=65532:65532 --chmod=0700 /out/data /data
 ENV GGBOARD_DATA_DIR=/data \
 	GGBOARD_SERVER_ADDR=:8080
 WORKDIR /data

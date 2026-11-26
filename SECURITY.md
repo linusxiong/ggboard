@@ -71,8 +71,11 @@ Deployment details are in [docs/DEPLOY.md](docs/DEPLOY.md). Every item matches w
       `server_token` can change `node_id` and pull every node's users and keys (REALITY private keys, SS2022 server
       keys), as in Xboard. A node with its own token accepts only that token, and the token works for no other node.
       Whatever the key, traffic, online and audit reports only count for users of the node's own groups.
-- [ ] **File permissions**: the data directory is created as 0700 and `jwt.secret` as 0600. Use 0750 for `/etc/ggboard`,
-      and make the environment file readable by root only.
+- [ ] **File permissions**: a missing data directory is created as 0700 (an existing one keeps its mode); the systemd
+      unit (`StateDirectoryMode=0700`) and the Docker image's `/data` are 0700 as well. `jwt.secret` is written 0600 and
+      SQLite creates `ggboard.db` 0644, so the 0700 directory is what keeps other users out. A Docker volume created by an
+      earlier image keeps 0755: tighten it once ([DEPLOY.md §1](docs/DEPLOY.md#1-docker-compose), Notes). Use 0750 for
+      `/etc/ggboard`, and make the environment file readable by root only.
 - [ ] **Telegram bot secrets**: `telegram_bot_token` and `telegram_webhook_secret` are only returned by admin endpoints
       and never appear in logs or API errors (the Telegram client strips the request URL, which contains the token, from
       transport errors). The webhook secret is generated on first start. If you suspect it has leaked, use
@@ -216,8 +219,8 @@ The buckets are per process. Run one instance: behind a load balancer every inst
 
 - The access log, as well as the logs for rate limit hits (`rate limited`), 5xx errors (`request failed`) and panics,
   record only the **route template** (e.g. `/s/:token`, `/api/v1/guest/telegram/webhook/:secret`) and never the query
-  string, so subscription tokens and webhook secrets do not end up in the logs. Only 404s that match no route record the
-  raw path. The subscription access log (`subscription_access`) stores only an 8-character hash label of the token.
+  string, so subscription tokens and webhook secrets do not end up in the logs. A request that matches no route is
+  logged as `/[unmatched]`: its path may hold a mistyped token or secret too. The subscription access log (`subscription_access`) stores only an 8-character hash label of the token.
 - The reverse proxy in front logs full URLs by default, including node keys (`/api/v1/server/UniProxy/*?token=`) and
   subscription tokens: log paths without query strings and redact `/s/` there ([DEPLOY.md §3](docs/DEPLOY.md#3-reverse-proxy),
   `deploy/nginx.example.conf`).

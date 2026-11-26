@@ -58,7 +58,10 @@
 - [ ] **由他人运营的节点设置自己的节点密钥**（**节点 → 编辑 → 节点密钥**）。持有共享 `server_token` 的人改一下 `node_id`
       就能拉到所有节点的用户与密钥（REALITY 私钥、SS2022 服务端密钥），Xboard 也是如此。设置了节点密钥的节点只接受这个密钥，
       它也不能用于其他节点。无论用哪种密钥，流量、在线与审计上报都只对本节点权限组内的用户生效。
-- [ ] **文件权限**：数据目录以 0700 创建，`jwt.secret` 为 0600；`/etc/ggboard` 用 0750，环境文件只给 root 读。
+- [ ] **文件权限**：数据目录不存在时以 0700 创建（已有目录保持原权限）；systemd 单元（`StateDirectoryMode=0700`）和 Docker 镜像的
+      `/data` 也是 0700。`jwt.secret` 以 0600 写入，SQLite 以 0644 创建 `ggboard.db`，所以挡住其他用户的是 0700 的目录。
+      之前的镜像建出来的 Docker 数据卷仍是 0755，收紧一次即可（[DEPLOY.zh-CN.md §1](docs/DEPLOY.zh-CN.md#1-docker-compose) 的“注意”）。
+      `/etc/ggboard` 用 0750，环境文件只给 root 读。
 - [ ] **Telegram 机器人密钥**：`telegram_bot_token` 与 `telegram_webhook_secret` 只有管理员接口返回，日志和 API 错误里不会出现
       （Telegram 客户端会从传输错误里去掉含 token 的请求 URL）。webhook 密钥首次启动自动生成；怀疑泄露时在
       **设置 → Telegram → 重新生成密钥**，保存后再点一次“设置 Webhook”。BotFather token 泄露时先在 BotFather 里 `/revoke`。
@@ -165,8 +168,8 @@
 ### 日志
 
 - 访问日志以及限流命中（`rate limited`）、5xx（`request failed`）与 panic 日志都只记录**路由模板**（如 `/s/:token`、
-  `/api/v1/guest/telegram/webhook/:secret`），不记录查询字符串，所以订阅 token 与 webhook 密钥不会进日志；只有未匹配
-  任何路由的 404 记录原始路径。订阅访问日志（`subscription_access`）只存 token 的 8 位哈希标签。
+  `/api/v1/guest/telegram/webhook/:secret`），不记录查询字符串，所以订阅 token 与 webhook 密钥不会进日志；未匹配
+  任何路由的请求记为 `/[unmatched]`，因为路径里也可能有拼错的 token 或密钥。订阅访问日志（`subscription_access`）只存 token 的 8 位哈希标签。
 - 前面的反向代理默认记录完整 URL，其中有节点密钥（`/api/v1/server/UniProxy/*?token=`）和订阅 token：让代理只记录不带
   查询串的路径，并把 `/s/` 脱敏（[DEPLOY.zh-CN.md §3](docs/DEPLOY.zh-CN.md#3-反向代理与-tls)、`deploy/nginx.example.conf`）。
 - 生产环境用 `log.level=info`；日志会采集到别处时用 `log.format=json`。

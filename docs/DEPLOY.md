@@ -110,7 +110,7 @@ Key points of `deploy/docker-compose.prebuilt.yml`:
 | Item | Value |
 | --- | --- |
 | Image | `${GGBOARD_IMAGE:-ghcr.io/linusxiong/ggboard}:${GGBOARD_VERSION:-latest}`; `GGBOARD_IMAGE` is for forks and registry mirrors |
-| Project name / data volume | Fixed to `ggboard`; data volume `ggboard_ggboard-data` → `/data` (`GGBOARD_DATA_DIR=/data`, owned by 65532 inside the image) |
+| Project name / data volume | Fixed to `ggboard`; data volume `ggboard_ggboard-data` → `/data` (`GGBOARD_DATA_DIR=/data`, owned by 65532 with mode 0700 inside the image) |
 | Port | `127.0.0.1:8080:8080`, **published on localhost only** |
 | Environment | `env_file: .env` (the `.env` beside the compose file; may be absent); `environment:` pins only `GGBOARD_DATA_DIR`. Compose also uses this `.env` to resolve `${GGBOARD_VERSION}` |
 | Hardening | `cap_drop: [ALL]` and `no-new-privileges`; the image is distroless and runs as `nonroot` (UID 65532) |
@@ -143,8 +143,9 @@ Key points of `deploy/docker-compose.yml`:
 | --- | --- |
 | Image | Built locally, `ggboard:${GGBOARD_VERSION:-latest}`; the build argument `VERSION` goes into `ggboard version` |
 | Port | `127.0.0.1:8080:8080`, **published on localhost only**; nginx / Caddy on the host faces the outside |
-| Data volume | Named volume `ggboard-data` → `/data` (`GGBOARD_DATA_DIR=/data`, owned by 65532 inside the image) |
+| Data volume | Named volume `ggboard-data` → `/data` (`GGBOARD_DATA_DIR=/data`, owned by 65532 with mode 0700 inside the image) |
 | Environment | `env_file: ../.env` (the `.env` in the repository root; may be absent); `environment:` pins only `GGBOARD_DATA_DIR`. The database, JWT and the rest all come from `.env`; the SQLite DSN defaults to `/data/ggboard.db` |
+| Hardening | `cap_drop: [ALL]` and `no-new-privileges`, as in option A |
 | Stopping | `restart: unless-stopped`, `stop_grace_period: 20s` (enough for the server's 10 s drain, the traffic flush and finishing the mail queue) |
 
 Notes:
@@ -156,6 +157,10 @@ Notes:
   `./data/ggboard.db` points to `/data/data/ggboard.db` and cannot be opened. Leave it empty to use the default.
 - The image has no shell, and no `curl`/`sqlite3`. Run every maintenance command as
   `docker compose exec ggboard ggboard <subcommand>`.
+- The image's `/data` has mode 0700, and a new data volume takes that mode on first use. A volume created by an earlier image
+  keeps 0755; tighten it once (the volume name from `docker volume ls`, e.g. `deploy_ggboard-data`):
+  `docker run --rm -v deploy_ggboard-data:/data alpine chmod 700 /data`. Inside it SQLite creates `ggboard.db` with
+  0644 and the panel writes `jwt.secret` with 0600; the 0700 directory keeps other users out of both.
 - Scheduled jobs run in the process time zone (`scheduler.New(..., time.Local)`). The container defaults to UTC; for
   Beijing time add `TZ: Asia/Shanghai` under `environment:` (the binary embeds `time/tzdata`).
 - When the reverse proxy runs on the host, the source IP the container sees is the Docker bridge gateway, so
