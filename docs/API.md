@@ -11,6 +11,10 @@ Base path `/api/v1` (exceptions: `/healthz`, `/.well-known/*`, the short subscri
   separated; only the fields listed for the endpoint, others are ignored). **Unpaginated** lists return every row with
   `total` = row count. A few endpoints return a bare array in `data` without `total` ("array" below).
 - Errors: `{"code": "...", "message": "...", "errors": {"<json field path>": ["..."]}}` (`errors` only for field errors).
+- Request bodies are JSON (`Content-Type: application/json`, or none); other types get 415 (table below).
+- Responses carry `Cache-Control: no-store` unless an endpoint documents its own caching (`GET /guest/rulesets/catalog`:
+  `public, max-age=300`; `/.well-known/passkey-endpoints`: `public, max-age=3600`). ETag revalidation (node endpoints,
+  subscriptions) is unaffected.
 - Authentication: `Authorization: Bearer <JWT>` (from `/passport/*`, lifetime `jwt.ttl`). A JWT stops working when
   `password_version` changes (password change or reset, subscription reset, admin password change or `reset-secret`) or the
   account's email or UUID no longer matches the token's `email` / `uuid` claims (admin email edit, or the id now belongs to

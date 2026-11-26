@@ -96,6 +96,10 @@ func AccessLog() gin.HandlerFunc {
 // that opened it (or that it opens) gets no window handle: no window.length frame counting (the login page renders a
 // captcha iframe only for signed-out visitors) and no opener navigation. The SPA never uses window.opener, and captcha
 // iframes are unaffected (COOP only concerns top-level windows).
+//
+// Cache-Control defaults to no-store: API answers carry JWTs, subscription and node credentials and admin secrets.
+// A handler that may be cached sets its own value, which replaces this one (static files, the public rule-set
+// catalog, the passkey well-known document); ETag revalidation (node endpoints, subscriptions) works either way.
 func SecurityHeaders() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		h := c.Writer.Header()
@@ -103,6 +107,7 @@ func SecurityHeaders() gin.HandlerFunc {
 		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Cross-Origin-Opener-Policy", "same-origin")
+		h.Set("Cache-Control", "no-store")
 		c.Next()
 	}
 }

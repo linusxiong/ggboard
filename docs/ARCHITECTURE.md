@@ -113,6 +113,9 @@ tables (lipgloss) on a terminal. `serve` prints a startup summary unless `log.fo
 - Body limit: 1 MiB. Node push routes raise it to 8 MiB (`httpx.LargeBody(httpx.NodeBodyLimit)`).
 - Request bodies are JSON: `httpx.Bind` decodes `application/json`, `application/*+json` or a body without
   `Content-Type`, and answers any other type with 415 before reading it.
+- Every response defaults to `Cache-Control: no-store` (`httpx.SecurityHeaders`); a handler that may be cached sets its
+  own value, which replaces it (static files, `GET /guest/rulesets/catalog`, `/.well-known/passkey-endpoints` while
+  `app_url` is set).
 - Auth: `Authorization: Bearer <JWT>` (HS256). Claims are `{sub: user id, email, uuid, ver: password_version, amr: sign-in method, iat, exp, iss: "ggboard"}`.
   - A `ver` mismatch → 401 (password change / security reset signs every session out). An `email` or random account `uuid`
     that differs from the row now owning `sub` → 401: ids and emails are reusable after deletion, import or restore, so the
