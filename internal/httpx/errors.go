@@ -10,15 +10,16 @@ import (
 
 // Error codes (docs/ARCHITECTURE.md §HTTP conventions).
 const (
-	CodeValidation      = "validation_failed" // 400
-	CodeUnauthorized    = "unauthorized"      // 401
-	CodePaymentFailed   = "payment_failed"    // 402
-	CodeForbidden       = "forbidden"         // 403
-	CodeNotFound        = "not_found"         // 404
-	CodeConflict        = "conflict"          // 409
-	CodePayloadTooLarge = "payload_too_large" // 413
-	CodeRateLimited     = "rate_limited"      // 429
-	CodeInternal        = "internal"          // 500
+	CodeValidation           = "validation_failed"      // 400
+	CodeUnauthorized         = "unauthorized"           // 401
+	CodePaymentFailed        = "payment_failed"         // 402
+	CodeForbidden            = "forbidden"              // 403
+	CodeNotFound             = "not_found"              // 404
+	CodeConflict             = "conflict"               // 409
+	CodePayloadTooLarge      = "payload_too_large"      // 413
+	CodeUnsupportedMediaType = "unsupported_media_type" // 415
+	CodeRateLimited          = "rate_limited"           // 429
+	CodeInternal             = "internal"               // 500
 )
 
 // Error is an API error rendered as {"code","message","errors"} with HTTP status Status.
@@ -90,6 +91,11 @@ func Conflict(msg string) *Error { return NewError(http.StatusConflict, CodeConf
 // PayloadTooLarge is a 413 error.
 func PayloadTooLarge(msg string) *Error {
 	return NewError(http.StatusRequestEntityTooLarge, CodePayloadTooLarge, msg)
+}
+
+// UnsupportedMediaType is a 415 error: the request body is in a format the endpoint does not decode.
+func UnsupportedMediaType(msg string) *Error {
+	return NewError(http.StatusUnsupportedMediaType, CodeUnsupportedMediaType, msg)
 }
 
 // RateLimited is a 429 error.

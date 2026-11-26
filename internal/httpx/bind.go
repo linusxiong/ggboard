@@ -50,8 +50,14 @@ func Validate(v any) error {
 }
 
 // Bind decodes the request into req and validates it (binding:"..." tags). GET/HEAD/DELETE bind the query
-// string; other methods bind by Content-Type (JSON by default; an empty body binds nothing and is then
-// validated). Errors are returned as *Error (400/413) ready for Fail.
+// string; other methods decode a JSON body (Content-Type application/json, application/*+json or none; an
+// empty body binds nothing and is then validated). Errors are returned as *Error (400/413/415) ready for Fail.
+//
+// Any other Content-Type is a 415 answered before the body is read. gin's ShouldBind would pick XML, YAML, TOML,
+// msgpack, BSON, protobuf or form decoding from the header: its YAML decoder expands aliases without limit (a
+// few hundred anonymous bytes to /passport/login grew the heap by gigabytes) and its BSON binding skips the
+// binding:"..." validation. Handlers that must read another format (payment notifications: form or query
+// parameters) parse it themselves and never call Bind.
 func Bind(c *gin.Context, req any) error {
 	setup()
 	var err error
@@ -59,20 +65,30 @@ func Bind(c *gin.Context, req any) error {
 	case http.MethodGet, http.MethodHead, http.MethodDelete:
 		err = c.ShouldBindQuery(req)
 	default:
-		switch c.ContentType() {
-		case "", binding.MIMEJSON:
-			err = c.ShouldBindJSON(req)
-			if errors.Is(err, io.EOF) {
-				err = binding.Validator.ValidateStruct(req)
-			}
-		default:
-			err = c.ShouldBind(req)
+		if !jsonMediaType(c.ContentType()) {
+			return UnsupportedMediaType("request body must be JSON (Content-Type: application/json)")
+		}
+		err = c.ShouldBindJSON(req)
+		if errors.Is(err, io.EOF) {
+			err = binding.Validator.ValidateStruct(req)
 		}
 	}
 	if err != nil {
 		return Validation(err)
 	}
 	return nil
+}
+
+// jsonMediaType reports whether a Content-Type media type (parameters already stripped) is one Bind decodes:
+// none, application/json or a structured-syntax "+json" type such as application/merge-patch+json (RFC 6839),
+// compared case-insensitively.
+func jsonMediaType(mt string) bool {
+	mt = strings.ToLower(strings.TrimSpace(mt))
+	if mt == "" || mt == binding.MIMEJSON {
+		return true
+	}
+	sub, ok := strings.CutPrefix(mt, "application/")
+	return ok && len(sub) > len("+json") && strings.HasSuffix(sub, "+json")
 }
 
 // BindQuery binds and validates the query string into req.

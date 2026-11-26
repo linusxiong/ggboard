@@ -33,6 +33,7 @@ Base path `/api/v1` (exceptions: `/healthz`, `/.well-known/*`, the short subscri
 | 406 | `not_acceptable` | client subscription in a format that cannot be age-encrypted while the user's key is on and `subscribe_age_strict` is set |
 | 409 | `conflict` | state conflict or duplicate |
 | 413 | `payload_too_large` | body over 1 MiB (8 MiB for node report endpoints) |
+| 415 | `unsupported_media_type` | a JSON endpoint received a body whose `Content-Type` is not `application/json` (or `application/*+json`, or absent); answered before the body is read. Payment notifications (form or query parameters) and the node endpoints are not affected |
 | 429 | `rate_limited` | always with `Retry-After: <seconds>` |
 | 500 | `internal` | unexpected error (logged with the request id, never detailed to the client) |
 | 502 | `telegram_unavailable` | the Telegram Bot API could not be reached or refused `getMe` (§Telegram) |

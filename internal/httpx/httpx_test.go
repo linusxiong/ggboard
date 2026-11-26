@@ -58,6 +58,7 @@ func TestErrorMapping(t *testing.T) {
 		{httpx.NotFound("x"), 404, httpx.CodeNotFound},
 		{httpx.Conflict("x"), 409, httpx.CodeConflict},
 		{httpx.PayloadTooLarge("x"), 413, httpx.CodePayloadTooLarge},
+		{httpx.UnsupportedMediaType("x"), 415, httpx.CodeUnsupportedMediaType},
 		{httpx.RateLimited("x"), 429, httpx.CodeRateLimited},
 		{fmt.Errorf("wrapped: %w", gorm.ErrRecordNotFound), 404, httpx.CodeNotFound},
 		{gorm.ErrDuplicatedKey, 409, httpx.CodeConflict},
