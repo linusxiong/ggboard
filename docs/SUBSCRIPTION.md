@@ -526,7 +526,10 @@ docs/RULESETS.md is authoritative for source and key selection.
     names none; the panel's preview sends the browser's User-Agent): every rule set carries `download_detour: Proxy`, or
     `direct` with a mirror, and there is no `http_clients` (1.12 / 1.13 reject unknown fields).
   Without rule sets (template `none`, rules off) neither form appears and both buckets get the same body.
-- **surge / surfboard**: managed profile `#!MANAGED-CONFIG <request URL> interval=<hours*3600> strict=false`, `[General]`, `[Proxy]`,
+- **surge / surfboard**: managed profile `#!MANAGED-CONFIG <request URL> interval=<hours*3600> strict=false` (the URL carries the
+  token; its scheme is https when the request came over TLS or a trusted proxy's `X-Forwarded-Proto` says so, and also when
+  the request host is the host of `app_url` or of an `https://` entry of `subscribe_url`, so a TLS proxy missing from
+  `server.trusted_proxies` does not turn refreshes into plain HTTP), `[General]`, `[Proxy]`,
   `[Proxy Group]`, `[Rule]` with `RULE-SET,<url>,<target>` (classical), `DOMAIN-SET,<url>,<target>` (domain), `GEOIP,CN,DIRECT`,
   `FINAL,<final>,dns-failed`.
 - **loon**: `[General]`, `[Proxy]`, `[Proxy Group]`, `[Rule]` (host, `GEOIP,CN,DIRECT`, `FINAL`), `[Remote Rule]`

@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -52,7 +53,7 @@ func subscribeWithGenerator(a *app.App, lim *limits, tokenOf func(*gin.Context) 
 	users := usersvc.New(a)
 	return func(c *gin.Context) {
 		token := tokenOf(c)
-		self := selfURL(c, a.Settings.String("app_url"))
+		self := selfURL(c, append(a.Settings.Strings("subscribe_url"), a.Settings.String("app_url"))...)
 		if inPath {
 			c.Request.URL.Path = "/s/[redacted]"
 			c.Request.URL.RawPath = ""
@@ -232,17 +233,20 @@ func requestHost(c *gin.Context) string {
 	return strings.ToLower(strings.Trim(host, "[]"))
 }
 
-// selfURL is the absolute URL of the request (Surge managed configs refresh from it). The scheme comes from TLS
-// or a trusted proxy's X-Forwarded-Proto; failing both, from app_url when the request is for app_url's host.
-func selfURL(c *gin.Context, appURL string) string {
+// selfURL is the absolute URL of the request (Surge managed configs refresh from it, and it carries the token).
+// The scheme comes from TLS or a trusted proxy's X-Forwarded-Proto; failing both, it is https when the request is
+// for the host of an https base URL: app_url or an entry of subscribe_url (behind a TLS proxy that is not in
+// server.trusted_proxies every request looks like plain http, and the client would refresh over plain http).
+func selfURL(c *gin.Context, bases ...string) string {
 	if c.Request.Host == "" {
 		return ""
 	}
 	scheme := httpx.RequestScheme(c)
-	if scheme == "http" && c.Request.TLS == nil {
-		if u, err := url.Parse(appURL); err == nil && u.Scheme == "https" && strings.EqualFold(u.Host, c.Request.Host) {
-			scheme = "https"
-		}
+	if scheme == "http" && c.Request.TLS == nil && slices.ContainsFunc(bases, func(base string) bool {
+		u, err := url.Parse(strings.TrimSpace(base))
+		return err == nil && u.Scheme == "https" && u.Host != "" && strings.EqualFold(u.Host, c.Request.Host)
+	}) {
+		scheme = "https"
 	}
 	return scheme + "://" + c.Request.Host + c.Request.URL.RequestURI()
 }
