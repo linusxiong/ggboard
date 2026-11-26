@@ -82,7 +82,7 @@ Derived credentials (`model.UserCredentials(u, node)`):
 | speed_limit | *int | Mbps |
 | device_limit | *int | |
 | conn_limit | *int | null = unlimited; copied to the user like `device_limit` (purchase, trial, admin create / generate, `force_update`) |
-| capacity_limit | *int | max active subscribers (null = unlimited) |
+| capacity_limit | *int | max active subscribers (null = unlimited); an open order (status 0/1) of a buyer who is not an active holder holds a seat until it is paid or cancelled |
 | prices | json map[string]int64 | period → cents. Keys: `monthly`, `quarterly`, `half_yearly`, `yearly`, `two_yearly`, `three_yearly`, `onetime`, `reset_traffic`. A missing key means not for sale |
 | reset_traffic_method | *int8 | null = follow the `reset_traffic_method` setting. 0 on the 1st of each month, 1 monthly on the purchase (expiry) day, 2 never, 3 on Jan 1, 4 yearly on the purchase (expiry) day |
 | show | bool | visible in the shop |
