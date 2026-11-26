@@ -6,6 +6,7 @@ import { FormError, useAppForm } from '@/components/form'
 import { submitError } from '@/components/form/submitError'
 import { useT } from '@/i18n'
 import { userApi } from '@/lib/api'
+import { isApiError } from '@/lib/api/client'
 import { qk } from '@/lib/api/queries'
 import { toast } from '@/lib/toast'
 import { useAuthStore } from '@/stores/auth'
@@ -39,7 +40,9 @@ export default function TransferDialog({ isOpen, onOpenChange, available }: Tran
         toast.success(t('transfer.done', { amount: money(cents) }))
         onOpenChange(false)
       } catch (error) {
-        setFormError(submitError(formApi, error))
+        // 409: a withdrawal request is still open, and its ticket quotes this commission.
+        if (isApiError(error) && error.status === 409) setFormError(t('transfer.withdrawalPending'))
+        else setFormError(submitError(formApi, error))
       }
     },
   })

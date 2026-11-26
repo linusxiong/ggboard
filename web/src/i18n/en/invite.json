@@ -54,6 +54,7 @@
     "amount": "Amount",
     "invalid": "Enter an amount greater than 0",
     "tooMuch": "You can move at most {available}",
+    "withdrawalPending": "Your withdrawal request is still open. You can move commission to your balance once its ticket is closed.",
     "submit": "Move to balance",
     "done": "{amount} moved to your balance"
   },
