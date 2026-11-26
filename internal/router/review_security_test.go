@@ -67,15 +67,22 @@ func TestReviewAPIResponsesAreNotCacheable(t *testing.T) {
 		}
 	}
 	// Own values are kept: the public rule-set catalog, the passkey well-known document and static files (HTML and
-	// assets: internal/static tests).
+	// assets: internal/static tests). Without app_url the well-known URLs come from the request Host, so that
+	// document is no-store until app_url is set.
 	for p, want := range map[string]string{
 		"/api/v1/guest/rulesets/catalog":  "public, max-age=300",
-		"/.well-known/passkey-endpoints":  "public, max-age=3600",
+		"/.well-known/passkey-endpoints":  "no-store",
 		"/assets/does-not-exist-12345.js": "no-cache",
 	} {
 		if rec := testutil.Do(t, e, http.MethodGet, p, nil, ""); cc(rec) != want {
 			t.Errorf("GET %s Cache-Control = %q, want %q", p, cc(rec), want)
 		}
+	}
+	if err := a.Settings.Set(map[string]any{"app_url": "https://panel.example.com"}); err != nil {
+		t.Fatal(err)
+	}
+	if rec := testutil.Do(t, e, http.MethodGet, "/.well-known/passkey-endpoints", nil, ""); cc(rec) != "public, max-age=3600" {
+		t.Errorf("GET /.well-known/passkey-endpoints with app_url Cache-Control = %q", cc(rec))
 	}
 	// A node's user list: no-store, and a revalidation with its ETag is still a 304.
 	users := "/api/v1/server/UniProxy/user?node_id=1&node_type=vless&token=router-cache-token-0123456789abcdef"
