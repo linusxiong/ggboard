@@ -126,7 +126,7 @@ unsaved changes. Deployment requirements are in DEPLOY.md §6.
 | `commission_withdraw_limit` | 100 | Minimum withdrawal (in site currency units) |
 | `commission_withdraw_method` | `["USDT","Alipay"]` | Allowed withdrawal methods (checked by the backend) |
 | `withdraw_close_enable` | `false` | Turns withdrawals off; commission can only be moved to the balance |
-| `commission_distribution_enable` / `_l1` / `_l2` / `_l3` | `false` / 0 | Three-level distribution rates % |
+| `commission_distribution_enable` / `_l1` / `_l2` / `_l3` | `false` / 0 | Three-level distribution rates %, together at most 100 (a save above that is refused) |
 
 ### Node connection `server`
 
