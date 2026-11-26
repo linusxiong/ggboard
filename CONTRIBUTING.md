@@ -129,6 +129,12 @@ Go tests use `internal/testutil`:
   `gh api repos/<owner>/<repo>/security-advisories`.
 - **By hand**: `go get <module>@<version>` for Go, `pnpm -C web add <package>@<range>` for the frontend, then the
   commands in "Before you open a PR". Prefer a version that is a few days old.
+- **Pinned by digest**: workflow actions are referenced by the full commit SHA of a release with the version as a
+  comment (`uses: actions/checkout@<40-hex sha> # v7.0.1`), and the Dockerfile base images as `image:tag@sha256:<digest>`,
+  because a tag can be moved to other code (the release workflow can write the repository and push images). Resolve a
+  new action pin with `gh api repos/<owner>/<repo>/git/ref/tags/<tag>` (an annotated tag needs one more
+  `gh api repos/<owner>/<repo>/git/tags/<sha>`) and an image with `docker buildx imagetools inspect <image>:<tag>`;
+  Dependabot updates both kinds of pin.
 
 ## Adding a plugin
 
