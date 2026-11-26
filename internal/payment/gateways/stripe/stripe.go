@@ -294,7 +294,7 @@ func (g *Gateway) Notify(_ context.Context, cfg map[string]string, r *http.Reque
 	}
 	ev, err := sdk.ConstructEvent(raw, r.Header.Get("Stripe-Signature"), strings.TrimSpace(cfg["webhook_secret"]), opts...)
 	if err != nil {
-		return nil, nil, fmt.Errorf("stripe: webhook verification: %w", err)
+		return nil, nil, webhookError(err)
 	}
 	ack := &payment.NotifyResponse{Status: http.StatusOK, Body: `{"received":true}`, ContentType: "application/json"}
 	typ := string(ev.Type)
@@ -329,4 +329,14 @@ func (g *Gateway) Notify(_ context.Context, cfg map[string]string, r *http.Reque
 		return nil, nil, errors.New("stripe: missing or non-positive amount or currency")
 	}
 	return &payment.NotifyResult{TradeNo: tradeNo, CallbackNo: callback, Amount: s.AmountTotal, Currency: s.Currency}, ack, nil
+}
+
+// webhookError is the error of a failed webhook verification (logged by the order service). A signature failure is
+// reported as the SDK's sentinel alone: since stripe-go 87.2.0 its message can quote the length and the last four
+// characters of the configured signing secret, triggered by metadata in a Stripe-Signature header anyone can send.
+func webhookError(err error) error {
+	if errors.Is(err, sdk.ErrWebhookNoValidSignature) {
+		err = sdk.ErrWebhookNoValidSignature
+	}
+	return fmt.Errorf("stripe: webhook verification: %w", err)
 }

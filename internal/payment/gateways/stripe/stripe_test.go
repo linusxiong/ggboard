@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -44,6 +45,23 @@ func TestWebhookVector(t *testing.T) {
 	r.Header.Set("Stripe-Signature", "t=1792584000,v1=ff6756256066e28f04e7e24189356b8c4c5d7068404ca18564d9bbb9ab59bc1d")
 	if _, _, err := (&Gateway{}).Notify(context.Background(), map[string]string{"webhook_secret": secret}, r); err == nil {
 		t.Fatal("stale timestamp must fail")
+	}
+}
+
+// stripe-go 87.2.0 explains a failed signature with metadata from the Stripe-Signature header: a masked "secret" that
+// does not match makes its message quote the length and the last four characters of the configured secret. The
+// header comes from anyone, and the error is logged, so the message must not reach the error.
+func TestWebhookErrorDoesNotQuoteTheSecret(t *testing.T) {
+	payload := `{"id":"evt_test_1","object":"event","type":"checkout.session.completed"}`
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/guest/payment/notify/stripe/"+uuid, strings.NewReader(payload))
+	r.Header.Set("Stripe-Signature", "t="+strconv.FormatInt(time.Now().Unix(), 10)+
+		",v1="+strings.Repeat("0", 64)+",secret=whsec_"+strings.Repeat("*", 30)+"zzzz")
+	_, _, err := (&Gateway{}).Notify(context.Background(), map[string]string{"webhook_secret": secret}, r)
+	if !errors.Is(err, sdk.ErrWebhookNoValidSignature) {
+		t.Fatalf("err = %v, want ErrWebhookNoValidSignature", err)
+	}
+	if msg := err.Error(); strings.Contains(msg, secret[len(secret)-4:]) || strings.Contains(msg, strconv.Itoa(len(secret))+" characters") {
+		t.Fatalf("error quotes the signing secret: %q", msg)
 	}
 }
 

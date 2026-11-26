@@ -25,7 +25,7 @@ The original contract had gaps; these decisions are implemented and kept here as
    and charges can't be created. `coinbase` implements the **Coinbase Business Checkouts API** (§6, settles in USDC;
    US and Singapore merchants). The Xboard importer imports Xboard "Coinbase" payments **disabled**, because their
    keys no longer work.
-2. **Stripe:** module **`github.com/stripe/stripe-go/v87`** (v87.1.0, API `2026-10-28.endive`, pulls in
+2. **Stripe:** module **`github.com/stripe/stripe-go/v87`** (v87.2.0, API `2026-11-18.endive`, pulls in
    `github.com/shopspring/decimal`). v87 removed `PaymentMethodTypes`; `AllowedPaymentMethodTypes` filters the methods
    enabled in the Dashboard. No `publishable_key` (hosted Checkout doesn't need it).
    `checkout.session.async_payment_succeeded` is handled. A `currency` different from the site currency needs an
@@ -468,14 +468,18 @@ sha256 = c4f73092a9a24c5300711a639602e1b66c0b925e015ddf44d30399473baa78ef
 
 ## 5. Stripe Checkout: `stripe`
 
-Sources: stripe-go **v87.1.0** source (`checkout_session.go`, `checkout_session_service.go`, `webhooks.go`,
+Sources: stripe-go **v87.2.0** source (`checkout_session.go`, `checkout_session_service.go`, `webhooks.go`,
 `stripe.go`, `api_version.go`, `CHANGELOG.md`); Go module proxy (v86.4.2 2026-09-09, v87.0.0 2026-10-01, v87.1.0
-2026-10-29); docs.stripe.com *Supported currencies*, *WeChat Pay with Checkout*; Xboard fork
+2026-10-29, v87.2.0 2026-11-18); docs.stripe.com *Supported currencies*, *WeChat Pay with Checkout*; Xboard fork
 `StripeALLInOne.php` (pins `2026-04-22.dahlia`).
 
-Install with `go get github.com/stripe/stripe-go/v87@v87.1.0`. After that, `stripe.APIVersion ==
-"2026-10-28.endive"`. 87.1.0 moved the pinned version within the `endive` release (87.0.0 had `2026-09-30.endive`);
-releases inside one named version do not break compatibility, and the webhook ignores the version anyway (below).
+Install with `go get github.com/stripe/stripe-go/v87@v87.2.0`. After that, `stripe.APIVersion ==
+"2026-11-18.endive"`. 87.1.0 and 87.2.0 each moved the pinned version within the `endive` release (87.0.0 had
+`2026-09-30.endive`, 87.1.0 `2026-10-28.endive`); releases inside one named version do not break compatibility, and
+the webhook ignores the version anyway (below). 87.2.0 also explains a failed signature with metadata read from the
+`Stripe-Signature` header: a masked `secret=` entry that does not match makes the message quote the length and the last
+four characters of the configured signing secret. Anyone can send that header and the error is logged, so the gateway
+reports a signature failure as the bare `ErrWebhookNoValidSignature` (`webhookError`).
 
 | key | label | type | req | description |
 | --- | --- | --- | --- | --- |
