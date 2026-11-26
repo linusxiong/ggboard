@@ -5,6 +5,7 @@ import { type FormEvent, type Key, useState } from 'react'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { useT } from '@/i18n'
 import { adminGroupsQuery, adminPlansQuery } from '@/lib/api/queries'
+import { useIsAdmin } from '@/features/admin/shared/permissions'
 import { activeFilterCount, type UserSearch } from './filters'
 
 const ALL = '__all__'
@@ -57,6 +58,7 @@ export function UserFilterBar({
   onReset: () => void
 }) {
   const t = useT(['admin-users', 'common'])
+  const isAdmin = useIsAdmin()
   const plans = useQuery(adminPlansQuery())
   const groups = useQuery(adminGroupsQuery())
   const [email, setEmail] = useState(search.email ?? '')
@@ -190,22 +192,25 @@ export function UserFilterBar({
               ['token', t('filters.token'), 'text'],
               ['remarks', t('filters.remarks'), 'text'],
             ] as const
-          ).map(([key, label, mode]) => (
-            <TextField
-              key={key}
-              value={draft[key]}
-              onChange={(v) => setDraft((d) => ({ ...d, [key]: v }))}
-              className={key === 'uuid' || key === 'token' ? 'lg:col-span-1' : undefined}
-            >
-              <Label>{label}</Label>
-              <Input
-                inputMode={mode}
-                spellCheck={false}
-                autoComplete="off"
-                className={mode === 'text' && key !== 'remarks' ? 'font-mono text-footnote' : undefined}
-              />
-            </TextField>
-          ))}
+          )
+            // Staff never see UUIDs or subscription tokens, and the server ignores these two filters for them.
+            .filter(([key]) => isAdmin || (key !== 'uuid' && key !== 'token'))
+            .map(([key, label, mode]) => (
+              <TextField
+                key={key}
+                value={draft[key]}
+                onChange={(v) => setDraft((d) => ({ ...d, [key]: v }))}
+                className={key === 'uuid' || key === 'token' ? 'lg:col-span-1' : undefined}
+              >
+                <Label>{label}</Label>
+                <Input
+                  inputMode={mode}
+                  spellCheck={false}
+                  autoComplete="off"
+                  className={mode === 'text' && key !== 'remarks' ? 'font-mono text-footnote' : undefined}
+                />
+              </TextField>
+            ))}
           <Button type="submit" variant="secondary">
             {t('filters.apply')}
           </Button>

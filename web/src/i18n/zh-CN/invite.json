@@ -54,6 +54,7 @@
     "amount": "转入金额",
     "invalid": "请输入大于 0 的金额",
     "tooMuch": "最多可转入 {available}",
+    "withdrawalPending": "你的提现申请仍在处理中，工单关闭后才能把佣金转入余额。",
     "submit": "确认转入",
     "done": "已将 {amount} 转入余额"
   },
