@@ -16,6 +16,29 @@
 
 ### 安全
 
+2026-11-25 安全审计。没有发现伪造支付回调或绕过网关验签的途径。
+
+- 向 `/api/v1/passport/login` 这类匿名 JSON 接口发送 `Content-Type: application/x-yaml` 和几百字节的 YAML 别名，就能耗尽面板内存、让进程退出。JSON 接口现在只接受 `application/json`（或 `application/*+json`，或不带 Content-Type），其他类型在读取请求体之前返回 `415 unsupported_media_type`。BSON 请求体原先还会跳过字段校验，现在同样被拒绝。
+- 订阅用户自己的重命名规则（`allow_user_rule_profile`，默认开启）能让节点名成倍增长，生成订阅或预览时把面板内存耗尽。现在每一步重命名之后节点名都截断到 1024 字节，每一步的计算量也有上限。
+- 开启 `admin_mfa_required` 时，只绑定了通行密钥的管理员或客服仅凭密码就能进入管理后台。会话现在记录登录方式，后台要求本次登录用过两步验证码或通行密钥（否则返回 `403 mfa_reauth_required`，面板会退出该会话并要求这样重新登录）。只有为当前 RP ID 注册的通行密钥才算数。**开启了 `admin_mfa_required` 的站点，升级后管理员和客服需要重新登录一次。**
+- 开启两步验证和添加通行密钥现在需要输入当前密码。被盗的会话无法再植入一把改密码后依然有效的通行密钥，也无法绑定自己的 TOTP 把账户主人锁在外面。
+- 邮箱从未验证过的账户在找回密码时会被清除第二因素（视为邮箱主人收回账户）。被提升的管理员一直处于未验证状态，因此拿到他们的邮箱就能去掉两步验证。现在管理员和客服账户不会再被收回，提升账户（后台或 `ggboard admin promote`）时会把邮箱标记为已验证。
+- 提现申请原先不占用佣金，客服按工单打款的同时，同一笔佣金还能转入余额花掉。现在有未关闭的提现申请时，佣金转入余额会被拒绝（409）。升级前提交的申请和从 Xboard 导入的申请都能识别。处理申请的顺序：先调低用户佣金，再打款，最后关闭工单。
+- 管理员、客服以及开启了两步验证的账户用通行密钥登录时，必须完成用户验证（PIN、指纹或面容）；未输入 PIN 的安全密钥会被拒绝。
+- 两步验证码输错的次数另外限制为每 24 小时 30 次（每小时 20 次的限制不变）。登录框里的错误密码不会再挡住账户主人在已登录会话里的操作：确认当前密码有单独的按账户计数的限制。
+- 节点上报在线时把任意字符串都算作一台设备，一个节点就能让与其他节点共享的用户在所有节点上达到设备上限。现在只统计 IP 地址。
+- Surge 和 Surfboard 的 `#!MANAGED-CONFIG` 链接含有订阅 token。TLS 由不在 `server.trusted_proxies` 里的代理终止时，`subscribe_url` 主机上的这个链接可能还是 `http://`。现在对 `subscribe_url` 里 `https://` 条目的主机一律使用 https。
+- `//s/<token>/` 和 `//api/...` 原先返回前端页面和 200，现在返回 JSON 404。
+- 有容量上限的套餐可能超卖：未支付的订单现在在支付、取消或超时之前占用名额，同时购买最后一个名额也不会再都成功。
+- 针对未知订单或金额不符的支付通知被重放时，每次请求都会给管理员发邮件；现在每笔交易只提醒一次。已支付订单再次收到付款时，现在会提醒管理员，不再只记日志。
+- 请求进行中被降权的管理员，仍能读取订单列表和订单详情。
+- 自定义邮件模板里，写在 HTML 标签内的占位符可能把用户输入的文字（如工单标题）变成标签或属性。
+- GeoIP 更新的错误信息不再复述下载或版本服务器返回的内容，并拒绝从 https 跳转到明文 http。
+- API 响应默认带 `Cache-Control: no-store`。
+- `app_url`、`logo`、`tos_url`、`telegram_discuss_link` 和客户端下载链接必须是 http(s) 网址（没写协议的会补上 `https://`）。已保存的值如果不是（例如相对路径或 `tg://` 链接）会被忽略，需要重新填写；Xboard 导入器会丢弃这样的值并给出提示。
+- 节点自己的 token 不能再等于 `server_token`，`server_token` 也不能再设成某个节点自己的 token。三级佣金比例之和不能再超过 100%。客服不能再按 UUID 或订阅 token 筛选用户（这两个字段对客服本来就不可见）。
+- Docker 镜像以 0700 权限创建 `/data`（新数据卷会继承；已有数据卷可用 `docker run --rm -v <数据卷>:/data alpine chmod 700 /data` 收紧），`deploy/docker-compose.yml` 去掉全部 capability 并启用 `no-new-privileges`。GitHub Actions 固定到提交 SHA，Dockerfile 的基础镜像固定到 digest。
+
 - PostgreSQL 驱动 pgx 升级到 5.13.0，修复三条公告。其中两条为高危：simple-protocol 批量查询的 SQL 注入（[GHSA-j38q-h3ph-jjpq](https://github.com/jackc/pgx/security/advisories/GHSA-j38q-h3ph-jjpq)），ggboard 没有用到；以及服务器跳过认证时，连接串里的 `require_auth` / `channel_binding` 不生效（[GHSA-95fj-3fxw-g62g](https://github.com/jackc/pgx/security/advisories/GHSA-95fj-3fxw-g62g)），DSN 里设置了这两项的站点受影响。第三条是服务器返回畸形响应时 panic（[GHSA-w9rp-vfrh-q8vv](https://github.com/jackc/pgx/security/advisories/GHSA-w9rp-vfrh-q8vv)）。使用 SQLite 或 MySQL 的站点不受影响。
 - go-mail 升级到 0.8.2（[GHSA-f82v-42xw-72cj](https://github.com/wneessen/go-mail/security/advisories/GHSA-f82v-42xw-72cj)、[GHSA-w8w6-94hg-2qpm](https://github.com/wneessen/go-mail/security/advisories/GHSA-w8w6-94hg-2qpm)）。两处问题分别在 EML 解析器和 List-Unsubscribe 辅助函数里，ggboard 都没有用到。
 - DOMPurify 升级到 3.4.18（[GHSA-qm7q-q8h9-jg8q](https://github.com/cure53/DOMPurify/security/advisories/GHSA-qm7q-q8h9-jg8q)，问题在面板没有使用的选项里），marked 升级到 18.2.0，未配对的强调标记不再导致平方级耗时。面板里的 Markdown（如公告和知识库文章）由这两个库渲染。
