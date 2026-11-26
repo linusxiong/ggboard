@@ -110,7 +110,7 @@ tables (lipgloss) on a terminal. `serve` prints a startup summary unless `log.fo
   - MFA adds `mfa_invalid` (401), `mfa_expired` (401) and `mfa_setup_required` (403).
   - A 429 carries `Retry-After`.
 - Body limit: 1 MiB. Node push routes raise it to 8 MiB (`httpx.LargeBody(httpx.NodeBodyLimit)`).
-- Auth: `Authorization: Bearer <JWT>` (HS256). Claims are `{sub: user id, email, uuid, ver: password_version, iat, exp, iss: "ggboard"}`.
+- Auth: `Authorization: Bearer <JWT>` (HS256). Claims are `{sub: user id, email, uuid, ver: password_version, amr: sign-in method, iat, exp, iss: "ggboard"}`.
   - A `ver` mismatch → 401 (password change / security reset signs every session out). An `email` or random account `uuid`
     that differs from the row now owning `sub` → 401: ids and emails are reusable after deletion, import or restore, so the
     token is bound to the exact account instance. Tokens without `email` or `uuid` are refused. A banned user → 403.

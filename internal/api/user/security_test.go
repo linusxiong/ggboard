@@ -55,7 +55,14 @@ func TestSecurityTOTPEndpoints(t *testing.T) {
 		}
 	}
 
-	setup := testutil.Decode[mfasvc.TOTPSetup](t, testutil.Do(t, r, http.MethodPost, sec+"/totp/setup", nil, tok))
+	// Adding a second factor needs the current password: a stolen session alone cannot plant one.
+	expectStatus(t, testutil.Do(t, r, http.MethodPost, sec+"/totp/setup", nil, tok), 400, "password")
+	expectStatus(t, testutil.Do(t, r, http.MethodPost, sec+"/totp/setup", map[string]any{"password": "wrong-password"}, tok), 400, "password")
+	if _, ok := a.KV.Get("mfa:totp_setup:" + strconv.FormatUint(u.ID, 10)); ok {
+		t.Fatal("a rejected setup must not leave a pending secret")
+	}
+	pw := map[string]any{"password": testutil.Password}
+	setup := testutil.Decode[mfasvc.TOTPSetup](t, testutil.Do(t, r, http.MethodPost, sec+"/totp/setup", pw, tok))
 	if setup.Secret == "" || !strings.HasPrefix(setup.OTPAuthURL, "otpauth://totp/Example:alice@example.com?") {
 		t.Fatalf("setup = %+v", setup)
 	}
@@ -74,7 +81,7 @@ func TestSecurityTOTPEndpoints(t *testing.T) {
 	if !ov.TOTPEnabled || ov.TOTPEnabledAt == nil || ov.BackupCodesRemaining != 10 {
 		t.Fatalf("enabled overview = %+v", ov)
 	}
-	expectStatus(t, testutil.Do(t, r, http.MethodPost, sec+"/totp/setup", nil, tok), 409, "")
+	expectStatus(t, testutil.Do(t, r, http.MethodPost, sec+"/totp/setup", pw, tok), 409, "")
 
 	*now = now.Add(30 * time.Second)
 	regen := testutil.Decode[mfasvc.BackupCodes](t, testutil.Do(t, r, http.MethodPost, sec+"/backup-codes",
@@ -109,7 +116,12 @@ func TestSecurityPasskeyEndpoints(t *testing.T) {
 	other := testutil.CreateUser(t, a, "carol@example.com")
 	tok, otherTok := testutil.Login(t, a, u), testutil.Login(t, a, other)
 
-	cer := testutil.Decode[ceremony](t, testutil.Do(t, r, http.MethodPost, sec+"/passkeys/begin", map[string]any{"name": "Laptop"}, tok))
+	expectStatus(t, testutil.Do(t, r, http.MethodPost, sec+"/passkeys/begin", map[string]any{"name": "Laptop"}, tok), 400, "password")
+	expectStatus(t, testutil.Do(t, r, http.MethodPost, sec+"/passkeys/begin",
+		map[string]any{"name": "Laptop", "password": "wrong-password"}, tok), 400, "password")
+	pw := map[string]any{"password": testutil.Password}
+	cer := testutil.Decode[ceremony](t, testutil.Do(t, r, http.MethodPost, sec+"/passkeys/begin",
+		map[string]any{"name": "Laptop", "password": testutil.Password}, tok))
 	var opts struct {
 		RP struct {
 			ID   string `json:"id"`
@@ -150,7 +162,8 @@ func TestSecurityPasskeyEndpoints(t *testing.T) {
 	// Another user cannot finish this ceremony.
 	expectStatus(t, testutil.Do(t, r, http.MethodPost, sec+"/passkeys/finish",
 		map[string]any{"challenge_id": cer.ChallengeID, "credential": credential}, otherTok), 400, "challenge_id")
-	cer = testutil.Decode[ceremony](t, testutil.Do(t, r, http.MethodPost, sec+"/passkeys/begin", map[string]any{"name": "Laptop"}, tok))
+	cer = testutil.Decode[ceremony](t, testutil.Do(t, r, http.MethodPost, sec+"/passkeys/begin",
+		map[string]any{"name": "Laptop", "password": testutil.Password}, tok))
 	pk := testutil.Decode[mfasvc.PasskeyView](t, testutil.Do(t, r, http.MethodPost, sec+"/passkeys/finish",
 		map[string]any{"challenge_id": cer.ChallengeID, "credential": key.Register(t, cer.Options)}, tok))
 	if pk.ID == 0 || pk.Name != "Laptop" || pk.LastUsedAt != nil || pk.BackupEligible ||
@@ -163,7 +176,7 @@ func TestSecurityPasskeyEndpoints(t *testing.T) {
 
 	// The second registration excludes the first credential, keeps the same user handle, and a synced
 	// authenticator gets a default name; registering the same credential again is a conflict.
-	cer2 := testutil.Decode[ceremony](t, testutil.Do(t, r, http.MethodPost, sec+"/passkeys/begin", nil, tok))
+	cer2 := testutil.Decode[ceremony](t, testutil.Do(t, r, http.MethodPost, sec+"/passkeys/begin", pw, tok))
 	if err := json.Unmarshal(cer2.Options, &opts); err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +188,7 @@ func TestSecurityPasskeyEndpoints(t *testing.T) {
 	expectStatus(t, dup, 409, "")
 	synced := mfatest.New(t, "panel.example.com", "https://panel.example.com")
 	synced.Flags = 0x08 | 0x10 // BE | BS
-	cer2 = testutil.Decode[ceremony](t, testutil.Do(t, r, http.MethodPost, sec+"/passkeys/begin", nil, tok))
+	cer2 = testutil.Decode[ceremony](t, testutil.Do(t, r, http.MethodPost, sec+"/passkeys/begin", pw, tok))
 	pk2 := testutil.Decode[mfasvc.PasskeyView](t, testutil.Do(t, r, http.MethodPost, sec+"/passkeys/finish",
 		map[string]any{"challenge_id": cer2.ChallengeID, "credential": synced.Register(t, cer2.Options)}, tok))
 	if pk2.Name != "Synced passkey" || !pk2.BackupEligible {
@@ -183,7 +196,7 @@ func TestSecurityPasskeyEndpoints(t *testing.T) {
 	}
 	// A bad attestation (wrong origin) is rejected.
 	evil := mfatest.New(t, "panel.example.com", "https://evil.example.org")
-	cer2 = testutil.Decode[ceremony](t, testutil.Do(t, r, http.MethodPost, sec+"/passkeys/begin", nil, tok))
+	cer2 = testutil.Decode[ceremony](t, testutil.Do(t, r, http.MethodPost, sec+"/passkeys/begin", pw, tok))
 	expectStatus(t, testutil.Do(t, r, http.MethodPost, sec+"/passkeys/finish",
 		map[string]any{"challenge_id": cer2.ChallengeID, "credential": evil.Register(t, cer2.Options)}, tok), 400, "credential")
 
@@ -222,7 +235,10 @@ func TestSecurityPasskeyEndpoints(t *testing.T) {
 func TestSecurityPasskeysUnavailable(t *testing.T) {
 	a, r := setup(t)
 	u := testutil.CreateUser(t, a, "dave@example.com")
-	expectStatus(t, testutil.Do(t, r, http.MethodPost, sec+"/passkeys/begin", nil, testutil.Login(t, a, u)), 400, "")
+	rec := testutil.Do(t, r, http.MethodPost, sec+"/passkeys/begin", map[string]any{"password": testutil.Password}, testutil.Login(t, a, u))
+	if e := testutil.DecodeError(t, rec); e.Status != 400 || !strings.Contains(e.Message, "not configured") {
+		t.Fatalf("begin without a relying party = %+v", e)
+	}
 }
 
 func itoa(id uint64) string { return strconv.FormatUint(id, 10) }

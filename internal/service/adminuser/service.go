@@ -389,6 +389,12 @@ func (s *Service) changes(tx *gorm.DB, actor, u *model.User, in *UpdateInput, no
 			set[f.col] = f.v.Ptr()
 		}
 	}
+	// An administrator or staff account must not be reclaimable: a password reset of an unverified account
+	// removes its second factors (usersvc.ReclaimAccount), which would let anyone who can read the mailbox strip
+	// TOTP and passkeys from a privileged account. Promotion vouches for the address, as creating it does.
+	if u.EmailVerifiedAt == nil && ((in.IsAdmin != nil && *in.IsAdmin) || (in.IsStaff != nil && *in.IsStaff)) {
+		set["email_verified_at"] = now
+	}
 	if in.CommissionType != nil {
 		set["commission_type"] = *in.CommissionType
 	}

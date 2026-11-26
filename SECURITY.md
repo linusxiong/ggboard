@@ -87,7 +87,9 @@ Deployment details are in [docs/DEPLOY.md](docs/DEPLOY.md). Every item matches w
 
 - [ ] **Require two-factor authentication for admins**: **Settings → Security → `admin_mfa_required`**. Once it is on, an
       admin or staff account with neither TOTP nor a Passkey gets `403 mfa_setup_required` on `/api/v1/admin/*`, but
-      can still enrol at `/user/security`. Enrol yourself before you turn it on.
+      can still enrol at `/user/security`; a session that signed in with the password alone gets
+      `403 mfa_reauth_required` and must sign in again with the 2FA code or the Passkey. Enrol yourself before you turn
+      it on.
 - [ ] **Passkey**: the RP ID defaults to the host name of `app_url` and can be overridden with `passkey_rp_id`. Add any
       other frontend domains to `passkey_origins`.
 - [ ] **Sign-in and sign-up protection** (**Settings → Sign-up & sign-in**): `password_limit_enable` (on by default:

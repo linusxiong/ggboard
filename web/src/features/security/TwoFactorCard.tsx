@@ -1,11 +1,11 @@
 /**
- * TOTP two-factor authentication: enable wizard (setup → QR + manual secret → verify → backup codes),
+ * TOTP two-factor authentication: enable wizard (current password → QR + manual secret → verify → backup codes),
  * regenerate backup codes, disable (password + code).
  */
 import { Button, Chip, Modal } from '@heroui/react'
 import { useQueryClient } from '@tanstack/react-query'
 import { ShieldCheck, Smartphone } from 'lucide-react'
-import { type FormEvent, lazy, type ReactNode, Suspense, useEffect, useRef, useState } from 'react'
+import { type FormEvent, lazy, type ReactNode, Suspense, useRef, useState } from 'react'
 import { CopyButton } from '@/components/CopyButton'
 import { DateTime } from '@/components/Formatters'
 import { FormError } from '@/components/FormError'
@@ -158,27 +158,38 @@ function EnableDialog({ email, appName, onClose }: { email: string; appName: str
   const t = useT(['security', 'common'])
   const queryClient = useQueryClient()
   const mapError = useSecurityError()
+  const [password, setPassword] = useState('')
   const [setup, setSetup] = useState<TotpSetup | null>(null)
   const [codes, setCodes] = useState<string[] | null>(null)
   const [code, setCode] = useState('')
   const [errors, setErrors] = useState<ReturnType<typeof mapError>>({})
   const [pending, setPending] = useState(false)
   const [saved, setSaved] = useState(false)
-  const started = useRef(false)
   // The field auto-submits at 6 digits; Enter (or a password manager filling + submitting) must not POST
   // the same code again — the second call answers 409 "already enabled" (or 400 "step reused").
   const inFlight = useRef(false)
 
-  useEffect(() => {
-    if (started.current) return
-    started.current = true
-    totpSetup()
-      .then(setSetup)
-      .catch((error: unknown) => {
-        setErrors(mapError(error))
-        void queryClient.invalidateQueries({ queryKey: securityKey() })
-      })
-  }, [mapError, queryClient])
+  // Step 0: the server asks for the current password before it generates a secret (a stolen session alone
+  // must not be able to turn on 2FA with someone else's authenticator).
+  const start = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const form = event.currentTarget
+    if (!password) {
+      setErrors({ password: t('password.oldRequired') })
+      return focusFirstInvalid(form)
+    }
+    setPending(true)
+    try {
+      setSetup(await totpSetup(password))
+      setPassword('')
+      setErrors({})
+    } catch (error) {
+      setErrors(mapError(error))
+      focusFirstInvalid(form)
+    } finally {
+      setPending(false)
+    }
+  }
 
   const verify = async (value = code) => {
     if (inFlight.current || codes) return
@@ -226,6 +237,43 @@ function EnableDialog({ email, appName, onClose }: { email: string; appName: str
         }
       >
         <BackupCodesView codes={codes} email={email} appName={appName} />
+      </Frame>
+    )
+  }
+
+  if (!setup) {
+    return (
+      <Frame
+        title={t('totp.setupTitle')}
+        onClose={onClose}
+        onSubmit={(e) => void start(e)}
+        footer={
+          <>
+            <Button variant="tertiary" onPress={onClose}>
+              {t('common:actions.cancel')}
+            </Button>
+            <Button type="submit" isPending={pending}>
+              {t('totp.continue')}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-subhead text-label-secondary">{t('totp.confirmPassword')}</p>
+        <FormError message={errors.form} />
+        <UsernameHint email={email} />
+        <PlainField
+          name="password"
+          type="password"
+          label={t('password.current')}
+          value={password}
+          onChange={(v) => {
+            setPassword(v)
+            setErrors((e) => ({ ...e, password: undefined, form: undefined }))
+          }}
+          autoComplete="current-password"
+          autoFocus
+          error={errors.password}
+        />
       </Frame>
     )
   }

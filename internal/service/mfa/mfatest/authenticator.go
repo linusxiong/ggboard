@@ -32,6 +32,8 @@ type Authenticator struct {
 	Flags        protocol.AuthenticatorFlags // extra flags, e.g. FlagBackupEligible|FlagBackupState
 	Attachment   string                      // authenticatorAttachment: "platform" or "cross-platform"
 	Transports   []string
+	// NoUserVerification leaves the UV flag out of assertions, like a security key used without its PIN.
+	NoUserVerification bool
 }
 
 // New returns an authenticator for rpID used from origin, with a fresh key pair and credential id.
@@ -148,7 +150,11 @@ func (a *Authenticator) Assert(t testing.TB, options json.RawMessage) json.RawMe
 		t.Fatalf("mfatest: request options: %v", err)
 	}
 	a.SignCount++
-	authData := a.authData(protocol.FlagUserPresent|protocol.FlagUserVerified, a.SignCount, nil)
+	flags := protocol.FlagUserPresent | protocol.FlagUserVerified
+	if a.NoUserVerification {
+		flags = protocol.FlagUserPresent
+	}
+	authData := a.authData(flags, a.SignCount, nil)
 	cdj := a.clientData(t, "webauthn.get", opts.Challenge)
 	cdh := sha256.Sum256(cdj)
 	digest := sha256.Sum256(append(append([]byte{}, authData...), cdh[:]...))

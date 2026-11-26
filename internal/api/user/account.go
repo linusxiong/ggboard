@@ -259,7 +259,12 @@ func resetSubscription(a *app.App) gin.HandlerFunc {
 			return
 		}
 		// Sign exactly the version this request stored; a later security change must make this token stale.
-		tok, err := auth.Issue(a, u)
+		// The new session keeps the sign-in method of the one it replaces.
+		method := auth.AMRPassword
+		if cl := auth.CurrentClaims(c); cl != nil && cl.Method != "" {
+			method = cl.Method
+		}
+		tok, err := auth.Issue(a, u, method)
 		if err != nil {
 			httpx.Fail(c, err)
 			return

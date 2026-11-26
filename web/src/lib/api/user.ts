@@ -191,8 +191,8 @@ export const knowledge = (id: ID, signal?: AbortSignal) =>
 export const security = (signal?: AbortSignal) =>
   api.get<SecurityOverview>('/user/security', undefined, { signal })
 
-/** `POST /user/security/totp/setup` → secret + `otpauth://` URL (not active until `enable`). */
-export const totpSetup = () => api.post<TotpSetup>('/user/security/totp/setup')
+/** `POST /user/security/totp/setup {password}` → secret + `otpauth://` URL (not active until `enable`). */
+export const totpSetup = (password: string) => api.post<TotpSetup>('/user/security/totp/setup', { password })
 
 /** `POST /user/security/totp/enable` → backup codes (shown once). */
 export const totpEnable = (code: string) => api.post<BackupCodes>('/user/security/totp/enable', { code })
@@ -205,9 +205,9 @@ export const totpDisable = (input: { password: string; code: string }) =>
 export const regenerateBackupCodes = (code: string) =>
   api.post<BackupCodes>('/user/security/backup-codes', { code })
 
-/** `POST /user/security/passkeys/begin` → creation options (`residentKey: required`). */
-export const passkeyRegisterBegin = (name?: string) =>
-  api.post<PasskeyRegisterBegin>('/user/security/passkeys/begin', name ? { name } : {})
+/** `POST /user/security/passkeys/begin {password, name?}` → creation options (`residentKey: required`). */
+export const passkeyRegisterBegin = (password: string, name?: string) =>
+  api.post<PasskeyRegisterBegin>('/user/security/passkeys/begin', name ? { password, name } : { password })
 
 /** `POST /user/security/passkeys/finish` → the stored passkey. */
 export const passkeyRegisterFinish = (input: {

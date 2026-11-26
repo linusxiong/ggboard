@@ -189,6 +189,10 @@ func adminCmd(a *app.App) *cobra.Command {
 				UpdateColumn("is_admin", true).Error; err != nil {
 				return err
 			}
+			// A privileged account is never reclaimed by a password reset (see usersvc.ReclaimAccount).
+			if err := usersvc.New(a).MarkEmailVerified(cmd.Context(), u); err != nil {
+				return err
+			}
 			auth.InvalidateUser(a, u.ID)
 			p := Output(cmd, a)
 			p.Success(p.Bold(u.Email) + " is now an administrator")

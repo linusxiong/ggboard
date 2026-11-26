@@ -1,6 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore } from '@/stores/auth'
-import { ApiError, api, buildQuery, isApiError, request, requestPage, setUnauthorizedHandler } from './client'
+import {
+  ApiError,
+  api,
+  buildQuery,
+  isApiError,
+  request,
+  requestPage,
+  setMfaReauthRequiredHandler,
+  setMfaSetupRequiredHandler,
+  setUnauthorizedHandler,
+} from './client'
 
 const user = { id: 1, email: 'a@example.com' } as never
 
@@ -19,6 +29,8 @@ describe('api client', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     setUnauthorizedHandler(null)
+    setMfaReauthRequiredHandler(null)
+    setMfaSetupRequiredHandler(null)
   })
 
   it('unwraps {data} and sends JSON + bearer token', async () => {
@@ -100,6 +112,31 @@ describe('api client', () => {
     await expect(api.post('/passport/login', {}, { anonymous: true })).rejects.toMatchObject({ status: 401 })
     expect(useAuthStore.getState().token).toBe('still-valid')
     expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('drops a password-only session the admin area refuses (403 mfa_reauth_required)', async () => {
+    const reauth = vi.fn()
+    const setup = vi.fn()
+    setMfaReauthRequiredHandler(reauth)
+    setMfaSetupRequiredHandler(setup)
+    useAuthStore.setState({ token: 'password-only', user })
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(403, { code: 'mfa_reauth_required', message: 'sign in again with your second factor' }),
+    )
+    await expect(api.get('/admin/users')).rejects.toMatchObject({ status: 403, code: 'mfa_reauth_required' })
+    expect(useAuthStore.getState().token).toBeNull()
+    expect(reauth).toHaveBeenCalledOnce()
+    expect(setup).not.toHaveBeenCalled()
+
+    // mfa_setup_required keeps the session: the user enrols a second factor with it.
+    useAuthStore.setState({ token: 'no-factor-yet', user })
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(403, { code: 'mfa_setup_required', message: 'set up two-factor authentication' }),
+    )
+    await expect(api.get('/admin/users')).rejects.toMatchObject({ status: 403 })
+    expect(useAuthStore.getState().token).toBe('no-factor-yet')
+    expect(setup).toHaveBeenCalledOnce()
+    expect(reauth).toHaveBeenCalledOnce()
   })
 
   it('reports network failures and timeouts as ApiError', async () => {

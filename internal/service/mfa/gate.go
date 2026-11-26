@@ -59,8 +59,10 @@ func (s *Service) overview(ctx context.Context, db *gorm.DB, userID uint64) (Ove
 }
 
 // AdminGate enforces the admin_mfa_required setting: while it is on, administrators and staff who have neither
-// TOTP nor a passkey get 403 mfa_setup_required (they can still use /user/security to enrol). Mount it after
-// auth.RequireAdmin or auth.RequireStaff:
+// TOTP nor a usable passkey get 403 mfa_setup_required (they can still use /user/security to enrol), and those
+// who have one but whose session was signed in with the password alone get 403 mfa_reauth_required: owning a
+// second factor protects nothing unless the session proved it, so they sign in again with the TOTP step or a
+// passkey (auth.Claims.SecondFactor). Mount it after auth.RequireAdmin or auth.RequireStaff:
 //
 //	g := r.Group(httpx.APIPrefix+"/admin", auth.RequireStaff(a), mfasvc.AdminGate(a))
 func AdminGate(a *app.App) gin.HandlerFunc {
@@ -86,6 +88,11 @@ func AdminGate(a *app.App) gin.HandlerFunc {
 		if !ok {
 			httpx.Fail(c, httpx.NewError(http.StatusForbidden, CodeSetupRequired,
 				"set up two-factor authentication or a passkey to use the admin area"))
+			return
+		}
+		if cl := auth.CurrentClaims(c); cl == nil || !cl.SecondFactor() {
+			httpx.Fail(c, httpx.NewError(http.StatusForbidden, CodeReauth,
+				"sign in again with your two-factor code or a passkey to use the admin area"))
 			return
 		}
 		c.Next()

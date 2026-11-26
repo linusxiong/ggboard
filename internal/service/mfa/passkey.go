@@ -261,6 +261,7 @@ func cleanName(name string) string {
 
 // BeginRegistration starts adding a passkey for u: a discoverable credential (resident key required, user
 // verification preferred) that excludes the user's existing passkeys. name is the optional label to store.
+// Callers re-authenticate u first (ConfirmPassword).
 func (s *Service) BeginRegistration(ctx context.Context, u *model.User, name string) (Ceremony, error) {
 	w, rp, err := s.webAuthn()
 	if err != nil {
@@ -517,6 +518,23 @@ func (s *Service) FinishLogin(ctx context.Context, challengeID string, credentia
 		return nil, errPasskeyFailed()
 	}
 	row := rows[idx]
+	// A passkey login stands in for the password and any TOTP step. User verification is only "preferred"
+	// (security keys without a PIN can register), so for accounts that rely on more than one factor (TOTP on)
+	// and for administrators and staff, possession of the authenticator alone must not be enough.
+	if !parsed.Response.AuthenticatorData.Flags.HasUserVerified() {
+		strict := u.IsStaffOrAdmin()
+		if !strict {
+			on, terr := s.TOTPEnabled(ctx, u.ID)
+			if terr != nil {
+				return nil, terr
+			}
+			strict = on
+		}
+		if strict {
+			s.a.Log.Warn("mfa: passkey login without user verification refused", "user_id", ownerID, "passkey_id", row.ID)
+			return nil, httpx.Unauthorized("this passkey did not verify you with a PIN or biometrics; use one that does, or sign in with your password")
+		}
+	}
 	if cred.Authenticator.CloneWarning {
 		s.a.Log.Warn("mfa: passkey sign counter did not increase (possible clone)", "user_id", ownerID,
 			"passkey_id", row.ID, "stored", row.SignCount)

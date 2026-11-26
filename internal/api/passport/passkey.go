@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/linusxiong/ggboard/internal/app"
+	"github.com/linusxiong/ggboard/internal/auth"
 	"github.com/linusxiong/ggboard/internal/httpx"
 	"github.com/linusxiong/ggboard/internal/notify"
 	"github.com/linusxiong/ggboard/internal/service/account"
@@ -60,7 +61,7 @@ func passkeyLoginFinish(a *app.App) gin.HandlerFunc {
 		svc.RecordLogin(ctx, u, c.ClientIP())
 		httpx.Logger(c).Info("user logged in with passkey", "user_id", u.ID)
 		notifyStaffLogin(c, a, u, notify.MethodPasskey)
-		respond(c, a, svc, u)
+		respond(c, a, svc, u, auth.AMRPasskey)
 	}
 }
 
@@ -101,7 +102,12 @@ func passkeyEndpoints(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		c.Header("Cache-Control", "public, max-age=3600")
+		// Without app_url the URLs come from the request's Host: a shared cache must not keep one Host's answer.
+		if mfasvc.AppBaseURL(a.Settings) != "" {
+			c.Header("Cache-Control", "public, max-age=3600")
+		} else {
+			c.Header("Cache-Control", "no-store")
+		}
 		c.Data(http.StatusOK, "application/json", body)
 	}
 }

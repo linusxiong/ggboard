@@ -60,6 +60,7 @@ const (
 	kvCodeCool    = "account:code_cooldown:" // account:code_cooldown:<email> -> true
 	kvCodeFail    = "account:code_fail:"     // account:code_fail:<email> -> int
 	kvLoginFail   = "account:login_fail:"    // account:login_fail:<email> -> int
+	kvReauthFail  = "account:reauth_fail:"   // account:reauth_fail:<user id> -> int
 	kvRegisterIP  = "account:register_ip:"   // account:register_ip:<ip> -> int
 	codeFieldName = "email_code"
 )
@@ -401,6 +402,30 @@ func (s *Service) RecordPasswordFailure(email string) {
 			n, _ := old.(int)
 			return n + 1
 		})
+}
+
+// ReserveReauthAttempt is the lockout of a signed-in user confirming their current password (change password,
+// add or remove a second factor): the same password_limit_* settings as the login lockout, but counted per
+// account and not per email. Wrong passwords typed by anyone at the sign-in form therefore cannot block the
+// owner's own security changes, and a stolen session still gets only password_limit_count guesses per window.
+// Use it like ReservePasswordAttempt and finish with ClearReauthFailures.
+func (s *Service) ReserveReauthAttempt(userID uint64) (release func(), err error) {
+	st := s.a.Settings
+	if !st.Bool("password_limit_enable") {
+		return func() {}, nil
+	}
+	key := kvReauthFail + strconv.FormatUint(userID, 10)
+	release, ok := ReserveAttempt(s.a, key, st.Int("password_limit_count"), minutes(st.Int("password_limit_expire")))
+	if !ok {
+		wait, _ := s.a.KV.TTL(key)
+		return nil, retryError(fmt.Sprintf("too many failed password attempts, try again in %d minutes", waitMinutes(wait)), wait)
+	}
+	return release, nil
+}
+
+// ClearReauthFailures resets the password confirmation counter of userID.
+func (s *Service) ClearReauthFailures(userID uint64) {
+	s.a.KV.Delete(kvReauthFail + strconv.FormatUint(userID, 10))
 }
 
 // ClearPasswordFailures resets the failed-attempt counter of email.

@@ -32,9 +32,10 @@ import (
 
 // Error codes (docs/API.md §Passport, §Security).
 const (
-	CodeInvalid       = "mfa_invalid"        // 401: wrong TOTP / backup code for an MFA token
-	CodeExpired       = "mfa_expired"        // 401: unknown, used or expired MFA token
-	CodeSetupRequired = "mfa_setup_required" // 403: AdminGate, admin/staff without TOTP or passkey
+	CodeInvalid       = "mfa_invalid"         // 401: wrong TOTP / backup code for an MFA token
+	CodeExpired       = "mfa_expired"         // 401: unknown, used or expired MFA token
+	CodeSetupRequired = "mfa_setup_required"  // 403: AdminGate, admin/staff without TOTP or passkey
+	CodeReauth        = "mfa_reauth_required" // 403: AdminGate, admin/staff session signed in with the password only
 )
 
 // Lifetimes and limits.
@@ -47,7 +48,12 @@ const (
 	BackupCodeCount   = 10               // codes per batch
 	UserFailureLimit  = 20               // wrong second-factor codes per user per UserFailureWindow (429 after)
 	UserFailureWindow = time.Hour
-	statusTTL         = 30 * time.Second // cache of Configured (AdminGate)
+	// UserFailureDayLimit caps wrong codes per user per UserFailureDayWindow on top of the hourly limit, so an
+	// attacker who knows the password cannot keep guessing TOTP codes at UserFailureLimit an hour forever
+	// (20/h would be 480 guesses a day; NIST SP 800-63B §5.2.2 asks for at most 100 before a lock).
+	UserFailureDayLimit  = 30
+	UserFailureDayWindow = 24 * time.Hour
+	statusTTL            = 30 * time.Second // cache of Configured (AdminGate)
 )
 
 // KV key prefixes (a.KV) and cache keys (a.Cache).
@@ -57,6 +63,7 @@ const (
 	kvRegister       = "mfa:passkey_register:" // mfa:passkey_register:<challenge id> -> pendingRegistration
 	kvAssertion      = "mfa:passkey_login:"    // mfa:passkey_login:<challenge id> -> pendingAssertion
 	kvFailures       = "mfa:failures:"         // mfa:failures:<user id> -> int
+	kvFailuresDay    = "mfa:failures_day:"     // mfa:failures_day:<user id> -> int
 	cacheStatusKeyNS = "mfa:configured:"       // mfa:configured:<user id> -> bool
 )
 
@@ -166,8 +173,24 @@ func (s *Service) PasskeyCount(ctx context.Context, userID uint64) (int64, error
 	return n, nil
 }
 
-// Configured reports whether userID has TOTP enabled or at least one passkey. The answer is cached for 30 s
-// and dropped whenever the user's second factors change.
+// UsablePasskeyCount returns the number of passkeys of userID that can sign in on this site now: those
+// registered for the current relying party ID (0 while passkeys are not configured). A passkey left from an
+// earlier passkey_rp_id / app_url cannot produce an assertion, so it must not count as a second factor.
+func (s *Service) UsablePasskeyCount(ctx context.Context, userID uint64) (int64, error) {
+	rp, ok := RPFromSettings(s.a.Settings)
+	if !ok {
+		return 0, nil
+	}
+	var n int64
+	if err := s.a.DB.WithContext(ctx).Model(&model.Passkey{}).Where("user_id = ? AND rp_id = ?", userID, rp.ID).
+		Count(&n).Error; err != nil {
+		return 0, fmt.Errorf("mfa: count passkeys: %w", err)
+	}
+	return n, nil
+}
+
+// Configured reports whether userID has TOTP enabled or at least one usable passkey (UsablePasskeyCount). The
+// answer is cached for 30 s and dropped whenever the user's second factors change.
 func (s *Service) Configured(ctx context.Context, userID uint64) (bool, error) {
 	lctx := context.WithoutCancel(ctx) // singleflight: the load is shared by concurrent callers, so it must not fail because the first caller went away
 	ns := idKey(cacheStatusKeyNS, userID)
@@ -178,7 +201,7 @@ func (s *Service) Configured(ctx context.Context, userID uint64) (bool, error) {
 			if err != nil || on {
 				return on, err
 			}
-			n, err := s.PasskeyCount(lctx, userID)
+			n, err := s.UsablePasskeyCount(lctx, userID)
 			return n > 0, err
 		})
 		if key == s.a.Cache.Key(ns, "") {
@@ -196,34 +219,56 @@ func (s *Service) changed(userID uint64) {
 
 // reserveFailure reserves one second-factor attempt of userID (account.ReserveAttempt: the attempt counts as a
 // failure unless released or cleared) and returns a *account.RetryError once userID made UserFailureLimit wrong
-// attempts within UserFailureWindow. Reserving before verifying keeps concurrent requests from all passing a
-// check made before any failure is recorded.
+// attempts within UserFailureWindow, or UserFailureDayLimit within UserFailureDayWindow. Reserving before
+// verifying keeps concurrent requests from all passing a check made before any failure is recorded.
 func (s *Service) reserveFailure(userID uint64) (release func(), err error) {
 	key := idKey(kvFailures, userID)
-	release, ok := account.ReserveAttempt(s.a, key, UserFailureLimit, UserFailureWindow)
-	if ok {
-		return release, nil
+	releaseHour, ok := account.ReserveAttempt(s.a, key, UserFailureLimit, UserFailureWindow)
+	if !ok {
+		return nil, s.failureLimited(key)
 	}
+	dayKey := idKey(kvFailuresDay, userID)
+	releaseDay, ok := account.ReserveAttempt(s.a, dayKey, UserFailureDayLimit, UserFailureDayWindow)
+	if !ok {
+		releaseHour()
+		return nil, s.failureLimited(dayKey)
+	}
+	return func() { releaseHour(); releaseDay() }, nil
+}
+
+// failureLimited is the 429 of reserveFailure for the exhausted counter key.
+func (s *Service) failureLimited(key string) error {
 	wait, _ := s.a.KV.TTL(key)
 	mins := max(1, int(math.Ceil(wait.Minutes())))
-	return nil, &account.RetryError{
+	return &account.RetryError{
 		Err:        httpx.RateLimited(fmt.Sprintf("too many invalid verification codes, try again in %d minutes", mins)),
 		RetryAfter: wait,
 	}
 }
 
-func (s *Service) clearFailures(userID uint64) { s.a.KV.Delete(idKey(kvFailures, userID)) }
+func (s *Service) clearFailures(userID uint64) {
+	s.a.KV.Delete(idKey(kvFailures, userID))
+	s.a.KV.Delete(idKey(kvFailuresDay, userID))
+}
 
-// checkPassword verifies password for u with the login lockout of internal/service/account (wrong passwords
-// count towards password_limit_*): 400 on the "password" field, 429 while locked.
+// checkPassword verifies password for the signed-in u with the account's confirmation lockout
+// (account.ReserveReauthAttempt: wrong passwords count towards password_limit_* per account): 400 on the
+// "password" field, 429 while locked.
 func (s *Service) checkPassword(u *model.User, password string) error {
 	acc := account.New(s.a)
-	if _, err := acc.ReservePasswordAttempt(u.Email); err != nil {
+	if _, err := acc.ReserveReauthAttempt(u.ID); err != nil {
 		return err
 	}
 	if !auth.VerifyPassword(u.PasswordHash, password) {
 		return httpx.FieldError("password", "is incorrect") // the reserved attempt counts
 	}
-	acc.ClearPasswordFailures(u.Email)
+	acc.ClearReauthFailures(u.ID)
 	return nil
+}
+
+// ConfirmPassword re-authenticates the signed-in u before a second factor is added (POST /user/security/totp/setup
+// and /passkeys/begin): a stolen session alone must not be able to plant a passkey that outlives a password
+// change, or a TOTP secret that locks the owner out. Errors as checkPassword.
+func (s *Service) ConfirmPassword(u *model.User, password string) error {
+	return s.checkPassword(u, password)
 }
