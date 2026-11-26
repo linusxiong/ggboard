@@ -2,6 +2,7 @@ package nodesvc
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"slices"
 	"strings"
@@ -57,7 +58,7 @@ func TestParseAlive(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[uint64][]string{1: {"203.0.113.7", "2001:db8::1", "2001:db8::2"}, 2: {}, 3: {}}
-	if !reflect.DeepEqual(got, want) {
+	if !reflect.DeepEqual(got.IPs, want) || got.Invalid != 0 {
 		t.Fatalf("got %#v, want %#v", got, want)
 	}
 	if _, err := ParseUniProxyAlive([]byte(`[1]`)); !errors.Is(err, ErrBadReport) {
@@ -67,8 +68,40 @@ func TestParseAlive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := map[uint64][]string{1: {"203.0.113.7", "198.51.100.9", "192.0.2.0"}}; !reflect.DeepEqual(sg, want) {
+	if want := map[uint64][]string{1: {"203.0.113.7", "198.51.100.9", "192.0.2.0"}}; !reflect.DeepEqual(sg.IPs, want) || sg.Invalid != 0 {
 		t.Fatalf("soga got %#v", sg)
+	}
+}
+
+// Every alive entry counts as a device against the user's device_limit on every node, so only IP addresses are
+// kept, in one spelling each: a node used to be able to push a shared user to 256 "devices" with arbitrary strings
+// (or with 256 spellings of one address).
+func TestParseAliveKeepsOnlyIPAddresses(t *testing.T) {
+	body := `{"1":["fake-device-1","fake-device-2","203.0.113.7_12","203.0.113.7_13","2001:DB8::1","2001:0db8:0::1_5",` +
+		`"::ffff:203.0.113.7","[2001:db8::2]:443","fe80::1%eth0","fe80::1%eth1","192.0.2.0"," 198.51.100.4 ","1.2.3.4_x",` +
+		`"_12","203.0.113.8_","example.com","999.1.1.1","` + strings.Repeat("9", 80) + `"]}`
+	got, err := ParseUniProxyAlive([]byte(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"203.0.113.7", "2001:db8::1", "2001:db8::2", "fe80::1", "192.0.2.0", "198.51.100.4"}
+	if !reflect.DeepEqual(got.IPs[1], want) || got.Invalid != 8 || got.Sample != "fake-device-1" {
+		t.Fatalf("got %q, %d invalid (%q)", got.IPs[1], got.Invalid, got.Sample)
+	}
+	sg, err := ParseSogaAlive([]byte(`[{"id":1,"ips":["x","203.0.113.7"]},{"id":1,"ips":["203.0.113.7_4","y"]}]`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(sg.IPs[1], []string{"203.0.113.7"}) || sg.Invalid != 2 || sg.Sample != "x" {
+		t.Fatalf("soga got %#v", sg)
+	}
+	many := make([]string, 300)
+	for i := range many {
+		many[i] = fmt.Sprintf("%q", fmt.Sprintf("device-%d", i))
+	}
+	fake, err := ParseUniProxyAlive([]byte(`{"1":[` + strings.Join(many, ",") + `]}`))
+	if err != nil || len(fake.IPs[1]) != 0 || fake.Invalid != 300 {
+		t.Fatalf("fake devices kept: %d, invalid %d, %v", len(fake.IPs[1]), fake.Invalid, err)
 	}
 }
 
