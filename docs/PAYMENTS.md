@@ -132,14 +132,20 @@ generated from it and pre-fills `Field.Default`); every admin payment response c
    - unknown/disabled payment, gateway mismatch, unregistered gateway, verification failure → 400 `fail` (WARN/ERROR),
      charged to the caller's per-IP miss bucket (60/min, burst 120; once it is empty the address gets 429 before the
      payment lookup). Verified callbacks are never charged, so gateway retries are not limited;
-   - unknown order → acknowledged, ERROR + admin alert;
+   - unknown order → acknowledged, ERROR + admin alert (once per payment, `trade_no` and `CallbackNo` within
+     `PaymentAlertWindow` = 24 h, per process: after an Xboard import, whose payment uuids and keys are kept but not
+     its orders, a replayed genuine notification such as an EPay return URL would otherwise mail on every request);
    - every successful result must report `Amount > 0`; missing/zero/negative amounts fail verification (400);
    - the charge is `total_amount + handling_amount`. When the order's `payment_id` is another method (the buyer paid
      the page of an earlier checkout after switching methods, or two checkouts raced), the payment is charged at the
      resolved payment's own fee (`HandlingAmount(p, total)`): only a checkout can open a page for the order at p's
      merchant account. The reported amount must match the charge, using `ValidateAmount` when implemented; otherwise
-     the order is NOT paid, ERROR + admin alert, acknowledged;
-   - an already-paid order with a different `CallbackNo` is logged WARN (possible double payment) and acknowledged;
+     the order is NOT paid, ERROR + admin alert (once per transaction, as for an unknown order), acknowledged;
+   - an already-paid order with a different `CallbackNo` (the buyer paid a second checkout page of the order, or the
+     order was confirmed by hand) is logged WARN, the admin is alerted "Possible double payment" (once per
+     transaction, as above), and the notification is acknowledged; the same applies when such a callback loses the
+     claiming update to the one that completed the order. A retry of the completing callback (same `CallbackNo`) is
+     acknowledged silently;
    - a verified payment for a cancelled order is NOT dropped: `callback_no` stored, ERROR, admin alerted (once per
      gateway transaction: replays of the same notification are acknowledged without a new alert);
    - otherwise `Paid(tradeNo, callbackNo)` (conditional `status 0 → 3` update + fulfilment in one transaction, idempotent);

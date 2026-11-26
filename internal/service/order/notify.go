@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -44,9 +45,12 @@ func internalFail() *payment.NotifyResponse {
 //   - unknown/disabled payment, gateway mismatch or failed verification → 400 "fail" (WARN);
 //   - verified non-payment events → the gateway's acknowledgement;
 //   - verified payments: unknown order or amount mismatch → ERROR + admin alert, acknowledged but not paid (a
-//     payment through an earlier checkout's method is charged at that method's fee and re-points the order); an already-paid order with another callback number → WARN (possible double payment); a
-//     cancelled order → callback_no stored, ERROR + admin alert; otherwise the order is paid and fulfilled
-//     (idempotent). Database failures → 500 so the gateway retries.
+//     payment through an earlier checkout's method is charged at that method's fee and re-points the order); an
+//     already-paid order with another callback number, also when a concurrent callback won the claim → WARN +
+//     admin alert (possible double payment); a cancelled order → callback_no stored, ERROR + admin alert; otherwise
+//     the order is paid and fulfilled (idempotent). Each alert goes out once per transaction (the cancelled-order
+//     one per stored callback_no, the others per payment, order and callback number within PaymentAlertWindow), so
+//     retried or replayed notifications cannot flood the mail queue. Database failures → 500 so the gateway retries.
 func (s *Service) HandleNotify(ctx context.Context, gatewayParam, uuid string, r *http.Request) *payment.NotifyResponse {
 	resp, _ := s.HandleNotifyVerified(ctx, gatewayParam, uuid, r)
 	return resp
@@ -101,7 +105,8 @@ func (s *Service) HandleNotifyVerified(ctx context.Context, gatewayParam, uuid s
 	if err := s.a.DB.WithContext(ctx).Where("trade_no = ?", res.TradeNo).First(&o).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			log.Error("verified payment for an unknown order")
-			s.alertAdmin("Payment received for an unknown order",
+			s.alertAdminOnce(paymentAlertKey("unknown_order", &p, res),
+				"Payment received for an unknown order",
 				fmt.Sprintf("Payment method %q (#%d) confirmed a payment for order %s (gateway transaction %s), but the order does not exist. Check the payment provider and refund or credit the customer manually.",
 					p.Name, p.ID, res.TradeNo, res.CallbackNo))
 			return resp, true
@@ -111,9 +116,7 @@ func (s *Service) HandleNotifyVerified(ctx context.Context, gatewayParam, uuid s
 	}
 	switch o.Status {
 	case model.OrderStatusCompleted, model.OrderStatusDiscounted, model.OrderStatusProcessing:
-		if o.CallbackNo != res.CallbackNo {
-			log.Warn("payment notify for an already paid order with another transaction: possible double payment", "order_callback_no", o.CallbackNo)
-		}
+		s.paidTwice(log, &p, &o, res)
 		return resp, true
 	case model.OrderStatusCancelled:
 		return s.paidAfterCancel(ctx, log, &p, &o, res, resp), true
@@ -140,21 +143,67 @@ func (s *Service) HandleNotifyVerified(ctx context.Context, gatewayParam, uuid s
 	}
 	if amountErr != nil {
 		log.Error("verified payment amount mismatch; order not fulfilled", "expected", expected, "err", amountErr, "reported_currency", res.Currency)
-		s.alertAdmin("Payment amount mismatch",
+		s.alertAdminOnce(paymentAlertKey("amount_mismatch", &p, res),
+			"Payment amount mismatch",
 			fmt.Sprintf("Order %s expected a charge for %s %s but payment method %q reported %s (gateway transaction %s). It was NOT fulfilled; verify the payment and confirm the order manually.",
 				o.TradeNo, payment.FormatAmount(expected), s.a.Settings.String("currency"), p.Name, notifyAmount(res), res.CallbackNo))
 		return resp, true
 	}
-	if _, already, err := s.paidVia(ctx, o.TradeNo, res.CallbackNo, &o, p.ID, handling); err != nil {
-		if errors.Is(err, ErrOrderCancelled) {
-			return s.paidAfterCancel(ctx, log, &p, &o, res, resp), true
-		}
+	paid, already, err := s.paidVia(ctx, o.TradeNo, res.CallbackNo, &o, p.ID, handling)
+	switch {
+	case errors.Is(err, ErrOrderCancelled):
+		return s.paidAfterCancel(ctx, log, &p, &o, res, resp), true
+	case err != nil:
 		log.Error("payment notify: fulfil failed", "err", err)
 		return internalFail(), true
-	} else if !already {
+	case already:
+		// Another callback completed the order between the load and the claim: a concurrent retry of this one, or
+		// the payment of another checkout page of the same order.
+		s.paidTwice(log, &p, paid, res)
+	default:
 		log.Info("order paid through gateway")
 	}
 	return resp, true
+}
+
+// PaymentAlertWindow is how long an administrator alert about one verified gateway transaction is not repeated
+// (per process): gateways retry a notification for hours or days, and EPay hands the buyer the signed parameters on
+// the return redirect, so one genuine notification can be replayed any number of times.
+const PaymentAlertWindow = 24 * time.Hour
+
+// paymentAlertKey identifies an alert about one gateway transaction: its kind, the payment method, the order and the
+// gateway's transaction number.
+func paymentAlertKey(kind string, p *model.Payment, res *payment.NotifyResult) string {
+	return fmt.Sprintf("payment-alert:%s:%d:%s:%s", kind, p.ID, res.TradeNo, res.CallbackNo)
+}
+
+// alertAdminOnce is alertAdmin at most once per key within PaymentAlertWindow; it reports whether it sent.
+func (s *Service) alertAdminOnce(key, subject, content string) bool {
+	send := false
+	s.a.KV.Update(key, PaymentAlertWindow, true, func(_ any, seen bool) any {
+		send = !seen
+		return true
+	})
+	if send {
+		s.alertAdmin(subject, content)
+	} else {
+		s.a.Log.Warn("payment alert already sent for this transaction", "subject", subject, "key", key)
+	}
+	return send
+}
+
+// paidTwice handles a verified payment for an order that is already paid. The same callback number is a gateway
+// retry; another one means the buyer was charged again (for example on a second checkout page of the order), which
+// is logged and reported to the administrator once per transaction.
+func (s *Service) paidTwice(log *slog.Logger, p *model.Payment, o *model.Order, res *payment.NotifyResult) {
+	if o.CallbackNo == res.CallbackNo {
+		return
+	}
+	log.Warn("payment notify for an already paid order with another transaction: possible double payment", "order_callback_no", o.CallbackNo)
+	s.alertAdminOnce(paymentAlertKey("double_payment", p, res),
+		"Possible double payment",
+		fmt.Sprintf("Order %s was already paid (transaction %s) when payment method %q (#%d) confirmed another payment of %s (gateway transaction %s). The customer may have been charged twice, for example by paying two checkout pages of the order: check the payment provider and refund the extra payment. If you confirmed the order by hand after this payment, ignore this message.",
+			o.TradeNo, o.CallbackNo, p.Name, p.ID, notifyAmount(res), res.CallbackNo))
 }
 
 // paidAfterCancel records a verified payment for an order that order_timeout (or the user) already
