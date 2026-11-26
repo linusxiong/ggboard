@@ -6,9 +6,15 @@ Notable changes to GG Bond (ggboard), per version. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-26
+
+Most of this release is the fixes of a security audit (see **Security**). Before upgrading: with `admin_mfa_required` on, administrators and staff have to sign in again once, with their two-factor code or a passkey. Turning on two-factor authentication or adding a passkey now asks for the current password. API requests with a body must send JSON; any other content type gets `415`. Saved link settings that are not http(s) URLs are ignored until they are entered again. The database upgrade (a new `tickets.kind` column) runs by itself when the panel starts.
+
 ### Changed
 
-- HeroUI is updated to 3.2.7. Dialogs, menus and tooltips now open and close by fading and moving only, which mid-range phones keep up with. On a phone, an action menu no longer shrinks narrower than its labels, and a picker list leaves room for the check mark beside a long option.
+- HeroUI is updated to 3.2.8. Dialogs, menus and tooltips now open and close by fading and moving only, which mid-range phones keep up with. On a phone, an action menu no longer shrinks narrower than its labels, and a picker list leaves room for the check mark beside a long option. Dialog and confirmation buttons wrap onto a second line when they do not fit side by side.
+- The Stripe SDK is updated to 87.2.0, which sends API version `2026-11-18.endive`. That is the same `endive` release as before, so webhook endpoints need no change.
+- Development: the frontend is linted with Oxlint instead of ESLint, and CI runs the frontend lint, type check, build and unit tests as parallel jobs.
 
 ### Fixed
 
@@ -39,6 +45,9 @@ Security audit of 2026-11-25. It found no way to forge a payment callback or get
 - A node's own token can no longer equal `server_token`, and `server_token` can no longer be set to a node's own token. The three commission distribution levels can no longer add up to more than 100%. Staff can no longer filter users by UUID or subscription token, which they cannot see.
 - The Docker image creates `/data` with mode 0700 (new volumes inherit it; tighten an existing one with `docker run --rm -v <volume>:/data alpine chmod 700 /data`), and `deploy/docker-compose.yml` drops all capabilities with `no-new-privileges`. GitHub Actions are pinned to commit SHAs and the Dockerfile base images to digests.
 
+- The Stripe webhook no longer logs the SDK's explanation of a failed signature. Since stripe-go 87.2.0 that text can quote the length and the last four characters of the configured signing secret, and anyone can trigger it with a crafted `Stripe-Signature` header.
+- The MySQL driver is updated to 1.10.2 ([GHSA-9qjq-77h9-895w](https://github.com/go-sql-driver/mysql/security/advisories/GHSA-9qjq-77h9-895w): a truncated handshake packet crashes the client before TLS starts, which matters if your DSN sets `tls=true`; [GHSA-4v5x-9mc8-gr98](https://github.com/go-sql-driver/mysql/security/advisories/GHSA-4v5x-9mc8-gr98): rows of one query handed to a later one after a failed `LOAD DATA LOCAL INFILE`, which ggboard never runs). SQLite and PostgreSQL installations are not affected.
+- DOMPurify is updated to 3.5.0 ([GHSA-hrxw-jjj6-2g2j](https://github.com/cure53/DOMPurify/security/advisories/GHSA-hrxw-jjj6-2g2j), in the `SAFE_FOR_TEMPLATES` option, which the panel does not use).
 - The PostgreSQL driver pgx is updated to 5.13.0, which fixes three advisories. Two are rated high: SQL injection in simple-protocol batches ([GHSA-j38q-h3ph-jjpq](https://github.com/jackc/pgx/security/advisories/GHSA-j38q-h3ph-jjpq)), which ggboard does not use, and `require_auth` / `channel_binding` in the connection string not being enforced when the server skips authentication ([GHSA-95fj-3fxw-g62g](https://github.com/jackc/pgx/security/advisories/GHSA-95fj-3fxw-g62g)), which matters if your DSN sets either. The third is a panic on a malformed server response ([GHSA-w9rp-vfrh-q8vv](https://github.com/jackc/pgx/security/advisories/GHSA-w9rp-vfrh-q8vv)). SQLite and MySQL installations are not affected.
 - go-mail is updated to 0.8.2 ([GHSA-f82v-42xw-72cj](https://github.com/wneessen/go-mail/security/advisories/GHSA-f82v-42xw-72cj), [GHSA-w8w6-94hg-2qpm](https://github.com/wneessen/go-mail/security/advisories/GHSA-w8w6-94hg-2qpm)). ggboard uses neither the EML parser nor the List-Unsubscribe helper they are in.
 - DOMPurify is updated to 3.4.18 ([GHSA-qm7q-q8h9-jg8q](https://github.com/cure53/DOMPurify/security/advisories/GHSA-qm7q-q8h9-jg8q), in an option the panel does not use) and marked to 18.2.0, which no longer takes quadratic time on unmatched emphasis markers. Both render Markdown in the panel, such as notices and knowledge-base articles.
@@ -209,7 +218,8 @@ The first stable release: a single Go binary with the React frontend, scheduled 
 - Scheduled jobs: order timeout, commission settlement, traffic reset, expiry and traffic reminders, daily statistics; `GET /healthz` for liveness probes.
 - `make bench`: a reproducible load test (10,000 users, 50 nodes); results in `docs/perf/`.
 
-[Unreleased]: https://github.com/linusxiong/ggboard/compare/v1.0.4...HEAD
+[Unreleased]: https://github.com/linusxiong/ggboard/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/linusxiong/ggboard/releases/tag/v1.1.0
 [1.0.4]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.4
 [1.0.3]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.3
 [1.0.2]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.2

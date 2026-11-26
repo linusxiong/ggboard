@@ -6,9 +6,15 @@
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-26
+
+这个版本主要是一次安全审计的修复（见 **安全**）。升级前请注意：开启了 `admin_mfa_required` 的站点，管理员和客服需要用两步验证码或通行密钥重新登录一次。开启两步验证、添加通行密钥现在需要输入当前密码。带请求体的 API 请求必须发送 JSON，其他类型返回 `415`。已保存的链接类设置如果不是 http(s) 网址，会被忽略，需要重新填写。数据库升级（新增 `tickets.kind` 列）在面板启动时自动完成。
+
 ### 变更
 
-- HeroUI 升级到 3.2.7。对话框、菜单和提示的出现与消失只做淡入淡出和位移，中端手机也跟得上。手机上的操作菜单不会再缩得比菜单文字还窄，选择列表里长选项旁边留出了勾选标记的位置。
+- HeroUI 升级到 3.2.8。对话框、菜单和提示的出现与消失只做淡入淡出和位移，中端手机也跟得上。手机上的操作菜单不会再缩得比菜单文字还窄，选择列表里长选项旁边留出了勾选标记的位置。对话框和确认框的按钮放不下一行时会换到第二行。
+- Stripe SDK 升级到 87.2.0，请求使用 API 版本 `2026-11-18.endive`。与之前同属 `endive` 版本系列，webhook 端点无需改动。
+- 开发相关：前端改用 Oxlint 做代码检查（替代 ESLint），CI 把前端的代码检查、类型检查、构建和单元测试拆成并行任务。
 
 ### 修复
 
@@ -39,6 +45,9 @@
 - 节点自己的 token 不能再等于 `server_token`，`server_token` 也不能再设成某个节点自己的 token。三级佣金比例之和不能再超过 100%。客服不能再按 UUID 或订阅 token 筛选用户（这两个字段对客服本来就不可见）。
 - Docker 镜像以 0700 权限创建 `/data`（新数据卷会继承；已有数据卷可用 `docker run --rm -v <数据卷>:/data alpine chmod 700 /data` 收紧），`deploy/docker-compose.yml` 去掉全部 capability 并启用 `no-new-privileges`。GitHub Actions 固定到提交 SHA，Dockerfile 的基础镜像固定到 digest。
 
+- Stripe webhook 不再把 SDK 对验签失败的说明写进日志。从 stripe-go 87.2.0 起，这段说明可能写出所配置签名密钥的长度和末 4 位，而任何人都能用构造的 `Stripe-Signature` 请求头触发它。
+- MySQL 驱动升级到 1.10.2（[GHSA-9qjq-77h9-895w](https://github.com/go-sql-driver/mysql/security/advisories/GHSA-9qjq-77h9-895w)：握手包被截断时客户端在 TLS 建立前崩溃，DSN 里设置了 `tls=true` 的站点受影响；[GHSA-4v5x-9mc8-gr98](https://github.com/go-sql-driver/mysql/security/advisories/GHSA-4v5x-9mc8-gr98)：`LOAD DATA LOCAL INFILE` 失败后，一个查询的结果行会交给后面的查询，ggboard 从不执行这类语句）。使用 SQLite 或 PostgreSQL 的站点不受影响。
+- DOMPurify 升级到 3.5.0（[GHSA-hrxw-jjj6-2g2j](https://github.com/cure53/DOMPurify/security/advisories/GHSA-hrxw-jjj6-2g2j)，问题在面板没有使用的 `SAFE_FOR_TEMPLATES` 选项里）。
 - PostgreSQL 驱动 pgx 升级到 5.13.0，修复三条公告。其中两条为高危：simple-protocol 批量查询的 SQL 注入（[GHSA-j38q-h3ph-jjpq](https://github.com/jackc/pgx/security/advisories/GHSA-j38q-h3ph-jjpq)），ggboard 没有用到；以及服务器跳过认证时，连接串里的 `require_auth` / `channel_binding` 不生效（[GHSA-95fj-3fxw-g62g](https://github.com/jackc/pgx/security/advisories/GHSA-95fj-3fxw-g62g)），DSN 里设置了这两项的站点受影响。第三条是服务器返回畸形响应时 panic（[GHSA-w9rp-vfrh-q8vv](https://github.com/jackc/pgx/security/advisories/GHSA-w9rp-vfrh-q8vv)）。使用 SQLite 或 MySQL 的站点不受影响。
 - go-mail 升级到 0.8.2（[GHSA-f82v-42xw-72cj](https://github.com/wneessen/go-mail/security/advisories/GHSA-f82v-42xw-72cj)、[GHSA-w8w6-94hg-2qpm](https://github.com/wneessen/go-mail/security/advisories/GHSA-w8w6-94hg-2qpm)）。两处问题分别在 EML 解析器和 List-Unsubscribe 辅助函数里，ggboard 都没有用到。
 - DOMPurify 升级到 3.4.18（[GHSA-qm7q-q8h9-jg8q](https://github.com/cure53/DOMPurify/security/advisories/GHSA-qm7q-q8h9-jg8q)，问题在面板没有使用的选项里），marked 升级到 18.2.0，未配对的强调标记不再导致平方级耗时。面板里的 Markdown（如公告和知识库文章）由这两个库渲染。
@@ -209,7 +218,8 @@
 - 定时任务：订单超时、佣金结算、流量重置、到期与流量提醒、每日统计；`GET /healthz` 用于存活探针。
 - `make bench`：可复现的压测（10,000 个用户、50 个节点），结果见 `docs/perf/`。
 
-[Unreleased]: https://github.com/linusxiong/ggboard/compare/v1.0.4...HEAD
+[Unreleased]: https://github.com/linusxiong/ggboard/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/linusxiong/ggboard/releases/tag/v1.1.0
 [1.0.4]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.4
 [1.0.3]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.3
 [1.0.2]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.2
