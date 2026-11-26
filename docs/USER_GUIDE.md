@@ -312,8 +312,9 @@ The **Invite** page:
 - **Move to balance**: move available commission into your account balance to pay for plans.
 - **Withdraw**: enter a withdrawal method (such as USDT or Alipay; it must be one the site allows) and the receiving
   account; you need at least the minimum withdrawal amount. Submitting creates a ticket that staff process by hand (so
-  close any other open ticket first). The site may turn withdrawals off; then you can only move commission to your
-  balance.
+  close any other open ticket first). The request is for your whole commission balance, so while its ticket is open
+  you cannot move commission to your balance; closing the ticket cancels the request. The site may turn withdrawals
+  off; then you can only move commission to your balance.
 
 ---
 

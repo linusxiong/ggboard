@@ -466,6 +466,10 @@ user's live install has 3 EPay rows, all of which import as enabled with no acti
 
 - **tickets**: `id`, `subject` map directly; `user_id` must be an imported user (else skip the ticket and its messages, W).
   `level` = `flexInt` 0/1/2 (withdraw tickets use 2); `status` 0 open, 1 closed; timestamps `ts()`.
+  `kind` = `withdraw` when the trimmed subject is one Xboard writes for a withdrawal request (`[提现申请] 本工单由系统发出`,
+  `[Commission Withdrawal Request] This ticket is opened by the system`; `model.WithdrawalTicketSubjects`), else `''`. An
+  open imported request therefore blocks `POST /user/commission/transfer` like one filed in ggboard (docs/API.md
+  §Invite & commission): it quotes the imported commission balance.
 - **`reply_status`, derived** (ours: 0 = awaiting staff, 1 = replied):
   1. If the ticket has messages, take the newest (max id): its `user_id` = ticket `user_id` → 0, else 1. Set
      `last_reply_user_id` to that `user_id`.

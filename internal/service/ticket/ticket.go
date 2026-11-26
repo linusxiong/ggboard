@@ -95,32 +95,26 @@ func (s *Service) CreateForOwner(ctx context.Context, session *model.User, subje
 	return t, nil
 }
 
-// CreateSystem is Create for tickets the panel opens on the user's behalf (withdrawal requests): the caller
-// sends its own notification, so no ticket_new is emitted.
+// CreateSystem is Create for tickets the panel opens on the user's behalf: the caller sends its own notification,
+// so no ticket_new is emitted.
 func (s *Service) CreateSystem(ctx context.Context, userID uint64, subject string, level model.TicketLevel, message string) (*model.Ticket, error) {
 	t, _, err := s.create(ctx, userID, nil, subject, level, message)
 	return t, err
 }
 
-// CreateSystemBound creates a system ticket only while the authenticated account snapshot remains current.
-func (s *Service) CreateSystemBound(ctx context.Context, session *model.User, subject string, level model.TicketLevel, message string) (*model.Ticket, error) {
-	if session == nil || session.UUID == "" {
-		return nil, ErrSessionExpired
-	}
-	t, _, err := s.create(ctx, session.ID, session, subject, level, message)
-	return t, err
+// CreateWithin opens a ticket of kind for userID inside the caller's transaction tx, which must already hold the
+// owner's row lock (LockOwner or an equivalent): the caller's checks and the one-open-ticket rule then see the same
+// state as the insert. It returns ErrOpenExists like Create and emits nothing; the caller notifies after commit.
+func CreateWithin(tx *gorm.DB, userID uint64, kind model.TicketKind, subject string, level model.TicketLevel, message string) (*model.Ticket, error) {
+	t, err := insert(tx, userID, kind, subject, level, message)
+	return t, wrap(err)
 }
 
 func (s *Service) create(ctx context.Context, userID uint64, session *model.User, subject string, level model.TicketLevel, message string) (*model.Ticket, string, error) {
-	t := &model.Ticket{
-		UserID:          userID,
-		Subject:         subject,
-		Level:           level,
-		Status:          model.TicketStatusOpen,
-		ReplyStatus:     model.TicketAwaitingStaff,
-		LastReplyUserID: &userID,
-	}
-	var owner model.User
+	var (
+		t     *model.Ticket
+		owner model.User
+	)
 	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if session != nil {
 			current, err := LockOwner(tx, session)
@@ -132,29 +126,45 @@ func (s *Service) create(ctx context.Context, userID uint64, session *model.User
 			Select("id", "uuid", "email", "password_version", "banned").Where("id = ?", userID).First(&owner).Error; err != nil {
 			return err
 		}
-		var open int64
-		if err := tx.Model(&model.Ticket{}).
-			Where(map[string]any{"user_id": userID, "status": model.TicketStatusOpen}).
-			Count(&open).Error; err != nil {
-			return err
-		}
-		if open > 0 {
-			return ErrOpenExists
-		}
-		if err := tx.Create(t).Error; err != nil {
-			return err
-		}
-		m := model.TicketMessage{TicketID: t.ID, UserID: userID, Message: message}
-		if err := tx.Create(&m).Error; err != nil {
-			return err
-		}
-		t.Messages = []model.TicketMessage{m}
-		return nil
+		var err error
+		t, err = insert(tx, userID, model.TicketKindSupport, subject, level, message)
+		return err
 	})
 	if err != nil {
 		return nil, "", wrap(err)
 	}
 	return t, owner.Email, nil
+}
+
+// insert applies the one-open-ticket rule and stores the ticket with its first message, in tx under the owner's lock.
+func insert(tx *gorm.DB, userID uint64, kind model.TicketKind, subject string, level model.TicketLevel, message string) (*model.Ticket, error) {
+	var open int64
+	if err := tx.Model(&model.Ticket{}).
+		Where(map[string]any{"user_id": userID, "status": model.TicketStatusOpen}).
+		Count(&open).Error; err != nil {
+		return nil, err
+	}
+	if open > 0 {
+		return nil, ErrOpenExists
+	}
+	t := &model.Ticket{
+		UserID:          userID,
+		Subject:         subject,
+		Level:           level,
+		Kind:            kind,
+		Status:          model.TicketStatusOpen,
+		ReplyStatus:     model.TicketAwaitingStaff,
+		LastReplyUserID: &userID,
+	}
+	if err := tx.Create(t).Error; err != nil {
+		return nil, err
+	}
+	m := model.TicketMessage{TicketID: t.ID, UserID: userID, Message: message}
+	if err := tx.Create(&m).Error; err != nil {
+		return nil, err
+	}
+	t.Messages = []model.TicketMessage{m}
+	return t, nil
 }
 
 // Get loads a ticket with its messages (oldest first). ownerID, when non-zero, restricts the lookup to tickets

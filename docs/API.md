@@ -259,7 +259,7 @@ Both plan reads bind the response to the authenticated account UUID, email and p
 | GET | `/user/invite` | — | `{codes:[{code, pv, created_at}], stat:{register_count, commission_pending, commission_paid, commission_rate, invite_gen_limit}}`; 401 if the authenticated account snapshot changed before the read |
 | POST | `/user/invite/codes` | — | 201 `{code}` (32 alphanumeric chars; 400 when the user already holds `invite_gen_limit` unused codes; 401 if the JWT account snapshot changed before insertion) |
 | GET | `/user/invite/commissions` | `page`, `page_size` | paginated `[{trade_no, order_amount, get_amount, created_at}]`; 401 if the authenticated account snapshot changed before the read |
-| POST | `/user/commission/transfer` | `{amount*}` (cents, > 0) | `User` (commission → balance, atomic and bound to the JWT account snapshot; 400 on `amount` when it exceeds `commission_balance`, 401 if the account security version changed) |
+| POST | `/user/commission/transfer` | `{amount*}` (cents, > 0) | `User` (commission → balance, atomic and bound to the JWT account snapshot; 400 on `amount` when it exceeds `commission_balance`, 401 if the account security version changed, 409 while a withdrawal request is open; see rules) |
 | POST | `/user/commission/withdraw` | `{method*, account*}` | 201 `{ticket_id}` (creates a ticket; 401 if the JWT account snapshot changed before insertion; see rules) |
 
 Invite rules (Xboard): `codes` lists the user's unused codes (`status=false`, newest first; consumed codes can no longer be
@@ -270,8 +270,13 @@ used, whatever `invite_never_expire` says now). `register_count` = users with `i
 null, else `invite_commission` (the commission itself treats a rate of 0 as unset). Commission history skips rows with `get_amount = 0`, newest first. Withdraw: 403 when
 `withdraw_close_enable`; 400 on `method` unless listed in `commission_withdraw_method`; 400 unless `commission_balance > 0`
 and `commission_balance ≥ commission_withdraw_limit × 100`; 409 while the user has an open ticket (the request **is** a
-ticket). It opens a level-2 ticket (subject/message in `default_locale`: method, account, current commission balance +
-`currency`); nothing is deducted, staff settle it manually.
+ticket). It opens a level-2 ticket of `kind` `withdraw` (subject/message in `default_locale`: method, account, current
+commission balance + `currency`); nothing is deducted, staff settle it manually. The balance is read, checked against the
+minimum and quoted under the user's row lock in the transaction that opens the ticket. While the user has an open
+`withdraw` ticket, transfer answers 409 (checked under the same lock, so a racing withdrawal and transfer cannot both
+succeed): the request quotes the commission staff are about to pay out. Closing the ticket (the owner cancelling, or
+staff after settling) allows transfers again; a staff reply reopens it and blocks them again. Support tickets never block
+a transfer, whatever their subject.
 
 ### Support & content
 

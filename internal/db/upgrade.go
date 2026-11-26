@@ -28,9 +28,12 @@ type legacyRuleProfile struct {
 }
 
 // beforeAutoMigrate renames the v1 rule_profiles table (no id column) so AutoMigrate creates the new one,
-// and adds users.email_verified_at with its backfill (addEmailVerifiedAt).
+// and adds users.email_verified_at and tickets.kind with their backfills (addEmailVerifiedAt, addTicketKind).
 func beforeAutoMigrate(db *gorm.DB) error {
 	if err := addEmailVerifiedAt(db); err != nil {
+		return err
+	}
+	if err := addTicketKind(db); err != nil {
 		return err
 	}
 	m := db.Migrator()
@@ -101,6 +104,28 @@ func addEmailVerifiedAt(db *gorm.DB) error {
 	})
 	if err != nil {
 		return fmt.Errorf("db: migrate: add users.email_verified_at: %w", err)
+	}
+	return nil
+}
+
+// addTicketKind adds tickets.kind to an existing tickets table and marks the withdrawal requests filed before the
+// column existed (subject in model.WithdrawalTicketSubjects) as kind "withdraw", so an open request keeps blocking
+// commission transfers after the upgrade. Like addEmailVerifiedAt, the backfill runs only in the upgrade that adds
+// the column: afterwards the subject means nothing and a user's own ticket with that subject stays a support ticket.
+func addTicketKind(db *gorm.DB) error {
+	m := db.Migrator()
+	if !m.HasTable(&model.Ticket{}) || m.HasColumn(&model.Ticket{}, "kind") {
+		return nil
+	}
+	err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Migrator().AddColumn(&model.Ticket{}, "Kind"); err != nil {
+			return err
+		}
+		return tx.Model(&model.Ticket{}).Where("subject IN ?", model.WithdrawalTicketSubjects).
+			UpdateColumn("kind", model.TicketKindWithdraw).Error
+	})
+	if err != nil {
+		return fmt.Errorf("db: migrate: add tickets.kind: %w", err)
 	}
 	return nil
 }

@@ -107,6 +107,10 @@ func commissionTransfer(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, httpx.FieldError("amount", "exceeds your commission balance"))
 			return
 		}
+		if errors.Is(err, invitesvc.ErrWithdrawalPending) {
+			httpx.Fail(c, httpx.Conflict("your withdrawal request is still open; commission can be moved to your balance once its ticket is closed"))
+			return
+		}
 		if err != nil {
 			httpx.Fail(c, err)
 			return

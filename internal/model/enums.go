@@ -148,6 +148,24 @@ const (
 	TicketReplied       TicketReplyStatus = 1
 )
 
+// TicketKind is tickets.kind: what opened the ticket.
+type TicketKind string
+
+// Ticket kinds.
+const (
+	TicketKindSupport  TicketKind = ""         // opened by the user (POST /user/tickets)
+	TicketKindWithdraw TicketKind = "withdraw" // a commission withdrawal request (POST /user/commission/withdraw)
+)
+
+// WithdrawalTicketSubjects are the subjects of withdrawal tickets opened before tickets.kind existed: ggboard's
+// (zh-CN and en) and Xboard's (en; its zh-CN subject is ggboard's). Only the upgrade that adds the column and the
+// Xboard importer read them, to mark such tickets TicketKindWithdraw; everything else reads tickets.kind.
+var WithdrawalTicketSubjects = []string{
+	"[提现申请] 本工单由系统发出",
+	"[Withdrawal Request] This ticket was opened by the system",
+	"[Commission Withdrawal Request] This ticket is opened by the system",
+}
+
 // TicketLevel is tickets.level.
 type TicketLevel int8
 

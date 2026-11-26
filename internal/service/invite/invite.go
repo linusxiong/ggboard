@@ -33,6 +33,7 @@ var (
 	ErrWithdrawClosed         = errors.New("invite: commission withdrawal is disabled")
 	ErrWithdrawMethod         = errors.New("invite: unsupported withdrawal method")
 	ErrWithdrawLimit          = errors.New("invite: commission balance is below the withdrawal minimum")
+	ErrWithdrawalPending      = errors.New("invite: a withdrawal request is still open")
 	ErrUserNotFound           = errors.New("invite: user not found")
 	ErrSessionExpired         = errors.New("invite: session expired")
 )
@@ -229,6 +230,11 @@ func (s *Service) CommissionQueryDB(ctx context.Context, db *gorm.DB, userID uin
 }
 
 // Transfer moves amount cents from commission_balance to balance atomically and returns the reloaded user.
+//
+// It is refused with ErrWithdrawalPending while the user has an open withdrawal ticket: that request quotes the
+// commission balance staff are about to pay out by hand, so moving it to the balance would let the same commission be
+// paid out and spent. The check runs under the user's row lock, which Withdraw holds while it reads the balance and
+// opens the ticket, so a concurrent withdrawal and transfer cannot both go through.
 func (s *Service) Transfer(ctx context.Context, session *model.User, amount int64) (*model.User, error) {
 	if amount <= 0 {
 		return nil, ErrInsufficientCommission
@@ -238,9 +244,18 @@ func (s *Service) Transfer(ctx context.Context, session *model.User, amount int6
 	}
 	var u model.User
 	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if _, err := lockAccount(tx, session); err != nil {
+			return err
+		}
+		pending, err := openWithdrawal(tx, session.ID)
+		if err != nil {
+			return err
+		}
+		if pending {
+			return ErrWithdrawalPending
+		}
 		res := tx.Model(&model.User{}).
-			Where("id = ? AND uuid = ? AND email = ? AND password_version = ? AND banned = ?", session.ID, session.UUID, session.Email, session.PasswordVersion, false).
-			Where("commission_balance >= ? AND balance <= ?", amount, math.MaxInt64-amount).
+			Where("id = ? AND commission_balance >= ? AND balance <= ?", session.ID, amount, math.MaxInt64-amount).
 			Updates(map[string]any{
 				"commission_balance": gorm.Expr("commission_balance - ?", amount),
 				"balance":            gorm.Expr("balance + ?", amount),
@@ -249,20 +264,13 @@ func (s *Service) Transfer(ctx context.Context, session *model.User, amount int6
 			return res.Error
 		}
 		if res.RowsAffected == 0 {
-			var current model.User
-			if err := tx.Select("id", "uuid", "email", "password_version", "banned").Where("id = ?", session.ID).First(&current).Error; err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					return ErrSessionExpired
-				}
-				return err
-			}
-			if current.UUID != session.UUID || current.Email != session.Email || current.PasswordVersion != session.PasswordVersion || current.Banned {
-				return ErrSessionExpired
-			}
 			return ErrInsufficientCommission
 		}
 		return tx.Where("id = ?", session.ID).First(&u).Error
 	})
+	if errors.Is(err, ErrUserNotFound) {
+		return nil, ErrSessionExpired
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -271,14 +279,24 @@ func (s *Service) Transfer(ctx context.Context, session *model.User, amount int6
 	return &u, nil
 }
 
-// Withdraw files a withdrawal request: a high-level ticket stating method, account and the current commission
-// balance. Nothing is deducted (staff settle it manually, as in Xboard). Errors: ErrWithdrawClosed,
-// ErrWithdrawMethod, ErrWithdrawLimit, ticket.ErrOpenExists.
+// openWithdrawal reports whether userID has an open withdrawal ticket (tickets.kind, never the subject).
+func openWithdrawal(tx *gorm.DB, userID uint64) (bool, error) {
+	var n int64
+	err := tx.Model(&model.Ticket{}).
+		Where(map[string]any{"user_id": userID, "status": model.TicketStatusOpen, "kind": model.TicketKindWithdraw}).
+		Count(&n).Error
+	return n > 0, err
+}
+
+// Withdraw files a withdrawal request: a high-level ticket of kind withdraw stating method, account and the current
+// commission balance. Nothing is deducted (staff settle it manually, as in Xboard); while the ticket is open, Transfer
+// refuses to move commission to the balance. The balance is read, checked and quoted under the user's row lock in
+// the transaction that opens the ticket. Errors: ErrWithdrawClosed, ErrWithdrawMethod, ErrWithdrawLimit,
+// ErrSessionExpired, ticket.ErrOpenExists.
 func (s *Service) Withdraw(ctx context.Context, session *model.User, method, account string) (*model.Ticket, error) {
 	if session == nil || session.UUID == "" {
 		return nil, ErrSessionExpired
 	}
-	userID := session.ID
 	st := s.a.Settings
 	if st.Bool("withdraw_close_enable") {
 		return nil, ErrWithdrawClosed
@@ -286,24 +304,28 @@ func (s *Service) Withdraw(ctx context.Context, session *model.User, method, acc
 	if !slices.Contains(st.Strings("commission_withdraw_method"), method) {
 		return nil, ErrWithdrawMethod
 	}
-	var u model.User
-	if err := s.a.DB.WithContext(ctx).Where("id = ?", userID).First(&u).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrUserNotFound
-		}
-		return nil, err
-	}
-	if u.CommissionBalance <= 0 || u.CommissionBalance < st.Int64("commission_withdraw_limit")*100 {
-		return nil, ErrWithdrawLimit
-	}
 	tr := withdrawText(st.String("default_locale"))
-	amount := payment.FormatAmount(u.CommissionBalance) + " " + st.String("currency")
-	message := fmt.Sprintf("%s%s\n%s%s\n%s%s", tr.method, method, tr.account, account, tr.amount, amount)
-	t, err := ticketsvc.New(s.a).CreateSystemBound(ctx, session, tr.subject, model.TicketLevelHigh, message)
-	if err != nil {
-		if errors.Is(err, ticketsvc.ErrSessionExpired) {
-			return nil, ErrSessionExpired
+	var (
+		t *model.Ticket
+		u *model.User
+	)
+	err := s.a.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		if u, err = lockAccount(tx, session); err != nil {
+			return err
 		}
+		if u.CommissionBalance <= 0 || u.CommissionBalance < st.Int64("commission_withdraw_limit")*100 {
+			return ErrWithdrawLimit
+		}
+		amount := payment.FormatAmount(u.CommissionBalance) + " " + st.String("currency")
+		message := fmt.Sprintf("%s%s\n%s%s\n%s%s", tr.method, method, tr.account, account, tr.amount, amount)
+		t, err = ticketsvc.CreateWithin(tx, u.ID, model.TicketKindWithdraw, tr.subject, model.TicketLevelHigh, message)
+		return err
+	})
+	if errors.Is(err, ErrUserNotFound) {
+		return nil, ErrSessionExpired
+	}
+	if err != nil {
 		return nil, err
 	}
 	s.a.Log.Info("invite: withdrawal requested", "user_id", u.ID, "ticket_id", t.ID, "amount", u.CommissionBalance)
@@ -337,26 +359,35 @@ func withdrawText(locale string) withdrawStrings {
 	}
 }
 
-// lockUser takes a row lock on the user (PostgreSQL/MySQL; SQLite transactions are IMMEDIATE) so per-user
-// check-then-insert sequences cannot interleave.
+// LockUser takes a row lock on the user (PostgreSQL/MySQL; SQLite transactions are IMMEDIATE) so per-user
+// check-then-insert sequences cannot interleave, and rechecks the authenticated snapshot.
 func LockUser(tx *gorm.DB, session *model.User) error {
+	_, err := lockAccount(tx, session)
+	return err
+}
+
+// lockAccount is LockUser returning the locked row with its email and balances. The row is read with a locking
+// read, so under MySQL's REPEATABLE READ it is the committed row, not the transaction's first snapshot.
+func lockAccount(tx *gorm.DB, session *model.User) (*model.User, error) {
 	if session == nil || session.UUID == "" {
-		return ErrSessionExpired
+		return nil, ErrSessionExpired
 	}
 	if err := tx.Model(&model.User{}).Where("id = ?", session.ID).
 		UpdateColumn("password_version", gorm.Expr("password_version")).Error; err != nil {
-		return err
+		return nil, err
 	}
 	var u model.User
-	err := tx.Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).Select("id", "uuid", "email", "password_version", "banned").Where("id = ?", session.ID).First(&u).Error
+	err := tx.Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).
+		Select("id", "uuid", "email", "password_version", "banned", "balance", "commission_balance").
+		Where("id = ?", session.ID).First(&u).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return ErrUserNotFound
+		return nil, ErrUserNotFound
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if u.UUID != session.UUID || u.Email != session.Email || u.PasswordVersion != session.PasswordVersion || u.Banned {
-		return ErrSessionExpired
+		return nil, ErrSessionExpired
 	}
-	return nil
+	return &u, nil
 }
