@@ -705,7 +705,7 @@ checks, rollback) is in [MIGRATION_TERABIX.md](MIGRATION_TERABIX.md).
 
 ## 8. Contract follow-ups for other owners
 
-Status as of 2026-10-22: 1, 2 and 5 are implemented; 3, 6 (scheduler zone) and 7 are open; 4 is accepted.
+Status as of 2026-11-28: 1, 2, 4 and 5 are implemented; 3, 6 (scheduler zone) and 7 are open.
 
 1. **auth** (done, `internal/auth/password.go`): verify `xb$<algo>$<salt>$<hash>` (§4.5.1) and upgrade to argon2id on success.
 2. **payment router** (done, `ordersvc.GatewayMatches`): map Xboard class names to gateway ids in `:gateway` (`EPay`,
@@ -714,8 +714,10 @@ Status as of 2026-10-22: 1, 2 and 5 are implemented; 3, 6 (scheduler zone) and 7
 3. **order/invite**: with `commission_first_time_enable`, an invitee who already paid in Xboard looks like a first-time
    buyer. Proposal: add `users.first_paid_at *time`. The importer would fill it from `MIN(paid_at)` over `v2_order` rows with
    status 3 or 4. That reads orders but does not import them. Until then, document the risk.
-4. **upgrade surplus**: upgrade credit is computed from previous orders, so imported users get none on their first upgrade.
-   Accepted limitation.
+4. **upgrade surplus** (done 2026-11-28, `ordersvc.ComputeSurplus`): upgrade credit was computed from previous orders
+   only, so imported users got none on their first upgrade. Remaining time without an order in the panel is now
+   credited at the old plan's cheapest monthly list price (one-time plans: the one-time price × unused traffic share),
+   lowering the price at most to 0 (docs/PAYMENTS.md).
 5. **knowledge** (done, `internal/service/content`): replace `<!--access start-->…<!--access end-->` for users without a
    valid plan. The importer's W text ("ggboard shows to every user") and the checklist line still predate this.
 6. **DATA_MODEL wording**: reset methods 1 and 4 anchor on the **expiry** day (§4.5.2). `stat_users.u/d` = charged bytes and

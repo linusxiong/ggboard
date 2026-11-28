@@ -338,7 +338,7 @@ export), so decide on a rollback within a few hours; any data that must be kept 
 | Order / payment history | 2101 rows | Not migrated (requirement) |
 | Telegram bot | Enabled (`/bind` and other commands; notifications go to admins who have bound Telegram) | Available, but the settings must be filled in again (§5.1); `telegram_id` is imported as is, so the same bot can keep sending messages; admin notifications go to `telegram_admin_chat_ids`; binding uses one-time codes |
 | First-purchase commission check (`commission_first_time_enable`) | Looks at past orders | Currently off, so no effect |
-| Upgrade credit (`surplus_enable`) | Computed from past orders | Imported users get no credit on their first upgrade (IMPORT_XBOARD.md §8.4) |
+| Upgrade credit (`surplus_enable`) | Computed from past orders | Past orders where the panel has them; imported time at the old plan's cheapest monthly list price, at most the new order's price (IMPORT_XBOARD.md §8.4; before 2026-11-28 imported users got no credit) |
 | Themes / email templates | `theme_*`, `email_template` | Not migrated |
 | Subscription short link | None | `https://<sub-domain>/s/<token>` works as well |
 | Time zone | `Asia/Shanghai` | The container sets `TZ=Asia/Shanghai`; traffic reset dates use the same zone |

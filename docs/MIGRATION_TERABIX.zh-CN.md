@@ -291,7 +291,7 @@ Xboard 的库从未被改动，回滚后状态等于停机那一刻。割接后�
 | 订单 / 支付历史 | 2101 条 | 不迁移（需求） |
 | Telegram 机器人 | 启用（`/bind` 等命令，通知发给绑定了 Telegram 的管理员） | 有，但设置需重新填写（§5.1）；`telegram_id` 原样导入，同一机器人可继续推送；管理员通知发往 `telegram_admin_chat_ids`；绑定改用一次性绑定码 |
 | 佣金首购判断（`commission_first_time_enable`） | 看历史订单 | 当前为关闭，无影响 |
-| 升级套餐折抵（`surplus_enable`） | 按历史订单算 | 导入用户首次升级无折抵（IMPORT_XBOARD.md §8.4） |
+| 升级套餐折抵（`surplus_enable`） | 按历史订单算 | 面板里有订单的按订单算；导入的剩余时间按原套餐每月最便宜的标价估算，最多抵到新订单 0 元（IMPORT_XBOARD.md §8.4；2026-11-28 之前导入用户没有折抵） |
 | 主题 / 邮件模板 | `theme_*`、`email_template` | 不迁移 |
 | 订阅短链 | 无 | `https://<sub-domain>/s/<token>` 同样可用 |
 | 时区 | `Asia/Shanghai` | 容器设 `TZ=Asia/Shanghai`，流量重置日期按同一时区 |

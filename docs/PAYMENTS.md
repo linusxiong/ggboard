@@ -107,8 +107,13 @@ generated from it and pre-fills `Field.Default`); every admin payment response c
    - pricing (`ComputeQuote`): user `discount` % and coupon (fixed cents or %) both on the plan price, summed and capped
      at the price → `discount_amount`; upgrade credit `surplus_amount` when `surplus_enable` (`ComputeSurplus`: one-time
      plans by unused traffic share of the last one-time order; periodic plans by remaining time share of the current
-     plan's orders since its last new/upgrade order, capped at the user's `expired_at`), surplus above the price →
-     `refund_amount` (credited on fulfilment); then the balance pays as much as possible → `balance_amount` (deducted
+     plan's orders since its last new/upgrade order, capped at the user's `expired_at`; with no new/upgrade order in
+     the panel, i.e. imported from Xboard or set by an administrator, renewals cover the last months before
+     `expired_at`), surplus above the price → `refund_amount` (credited on fulfilment). Remaining time or traffic no
+     order in the panel paid for is then credited at the current plan's list price: the recurring period with the
+     cheapest price per month, pro rata (one-time plans: the one-time price × unused traffic share), less the user's
+     `discount`. That estimate only lowers the price, at most to 0, and is never refunded; time an administrator
+     added after a purchase in the panel earns nothing. Then the balance pays as much as possible → `balance_amount` (deducted
      now); the rest is `total_amount`. Percentages round half up without integer overflow; a negative stored total is never treated as a free checkout.
    - coupons: `limit_use` is the *remaining* count (Xboard): one use is taken at creation and given back on cancel
      (Xboard never gives it back; changed so that timed-out orders do not burn uses; an imported counter already at the integer maximum stays saturated); `limit_use_with_user` counts the

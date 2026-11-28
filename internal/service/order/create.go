@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -100,18 +101,14 @@ func (s *Service) Create(ctx context.Context, userID uint64, in CreateInput) (*m
 				return err
 			}
 		}
-		var (
-			surplus    int64
-			surplusIDs []uint64
-		)
+		var surplus Surplus
 		if typ == model.OrderTypeUpgrade && s.a.Settings.Bool("surplus_enable") {
-			var completed []model.Order
-			if err := tx.Where("user_id = ? AND status = ?", u.ID, model.OrderStatusCompleted).Find(&completed).Error; err != nil {
+			if surplus, err = upgradeSurplus(tx, u, now); err != nil {
 				return err
 			}
-			surplus, surplusIDs = ComputeSurplus(u, completed, now)
 		}
-		q := ComputeQuote(QuoteInput{Price: price, UserDiscount: u.Discount, Coupon: coupon, Surplus: surplus, Balance: u.Balance})
+		q := ComputeQuote(QuoteInput{Price: price, UserDiscount: u.Discount, Coupon: coupon, Surplus: surplus.Paid,
+			ListedSurplus: surplus.Listed, Balance: u.Balance})
 		if coupon != nil {
 			if err := consumeCoupon(tx, coupon, "coupon_code"); err != nil {
 				return err
@@ -142,7 +139,7 @@ func (s *Service) Create(ctx context.Context, userID uint64, in CreateInput) (*m
 			SurplusAmount:   q.Surplus,
 			RefundAmount:    q.Refund,
 			BalanceAmount:   q.Balance,
-			SurplusOrderIDs: surplusIDs,
+			SurplusOrderIDs: surplus.OrderIDs,
 			Status:          model.OrderStatusPending,
 		}
 		if coupon != nil {
@@ -177,6 +174,26 @@ func (s *Service) Create(ctx context.Context, userID uint64, in CreateInput) (*m
 		return paid, nil
 	}
 	return order, nil
+}
+
+// upgradeSurplus loads what ComputeSurplus needs for u: its completed orders and current plan (nil once deleted).
+func upgradeSurplus(tx *gorm.DB, u *model.User, now time.Time) (Surplus, error) {
+	var completed []model.Order
+	if err := tx.Where("user_id = ? AND status = ?", u.ID, model.OrderStatusCompleted).Find(&completed).Error; err != nil {
+		return Surplus{}, err
+	}
+	var current *model.Plan
+	if u.PlanID != nil {
+		var p model.Plan
+		res := tx.Where("id = ?", *u.PlanID).Limit(1).Find(&p)
+		if res.Error != nil {
+			return Surplus{}, res.Error
+		}
+		if res.RowsAffected > 0 {
+			current = &p
+		}
+	}
+	return ComputeSurplus(u, current, completed, now), nil
 }
 
 // AssignInput is an administrator's order assignment (POST /admin/orders).

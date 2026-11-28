@@ -315,6 +315,40 @@ func TestUpgradeWithSurplusRefund(t *testing.T) {
 	}
 }
 
+// A subscription imported from Xboard has no orders in the panel; its remaining time is credited at the old
+// plan's list price, and never more than the new order costs.
+func TestUpgradeCreditsImportedSubscription(t *testing.T) {
+	f := newFixture(t)
+	hidden := func(p *model.Plan) { p.Show, p.Sell = false, false }
+	old := f.plan("Old", map[string]int64{model.PeriodQuarterly: 3000, model.PeriodHalfYearly: 5700, model.PeriodYearly: 10800}, hidden)
+	bigger := f.plan("Bigger", map[string]int64{model.PeriodQuarterly: 4500, model.PeriodYearly: 16000}, func(p *model.Plan) { p.GroupID = 8 })
+	exp := f.now.AddDate(0, 0, 45)
+	u := f.user("imported@example.com", usersvc.CreateOptions{PlanID: &old.ID, ExpiredAt: &exp, TransferEnable: 100 * model.BytesPerGB})
+	o, err := f.svc.Create(ctx, u.ID, CreateInput{PlanID: bigger.ID, Period: model.PeriodYearly})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := listValue(old, f.now, *f.reload(u).ExpiredAt)
+	if want < 1300 || o.Type != model.OrderTypeUpgrade || o.Status != model.OrderStatusPending || o.SurplusAmount != want ||
+		o.TotalAmount != 16000-want || o.RefundAmount != 0 || len(o.SurplusOrderIDs) != 0 {
+		t.Fatalf("upgrade = %+v, want surplus %d", o, want)
+	}
+
+	// Ten years left (or an expiry an administrator set far ahead): the estimate pays for the order, no more.
+	far := f.now.AddDate(10, 0, 0)
+	long := f.user("long@example.com", usersvc.CreateOptions{PlanID: &old.ID, ExpiredAt: &far, TransferEnable: 100 * model.BytesPerGB})
+	o, err = f.svc.Create(ctx, long.ID, CreateInput{PlanID: bigger.ID, Period: model.PeriodQuarterly})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o.Status != model.OrderStatusCompleted || o.CallbackNo != CallbackFree || o.SurplusAmount != 4500 || o.RefundAmount != 0 || o.TotalAmount != 0 {
+		t.Fatalf("long upgrade = %+v", o)
+	}
+	if got := f.reload(long); got.Balance != 0 || *got.PlanID != bigger.ID {
+		t.Fatalf("long user = %+v", got)
+	}
+}
+
 func TestTimeoutJobRestoresBalanceAndCoupon(t *testing.T) {
 	f := newFixture(t)
 	plan := f.plan("Pro", map[string]int64{model.PeriodMonthly: 1000})

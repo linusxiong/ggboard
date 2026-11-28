@@ -69,12 +69,12 @@ func TestSurplusIgnoresOverflowedUsageAndMoney(t *testing.T) {
 	planID := uint64(1)
 	u := &model.User{PlanID: &planID, TransferEnable: model.BytesPerGB, U: math.MaxInt64, D: 1}
 	orders := []model.Order{{ID: 1, PlanID: planID, Period: model.PeriodOnetime, TotalAmount: 1000}}
-	if credit, _ := ComputeSurplus(u, orders, now); credit != 0 {
+	if credit, _ := paidSurplus(u, orders, now); credit != 0 {
 		t.Fatalf("overflowed usage yielded %d credit", credit)
 	}
 	u.U, u.D = 0, 0
 	orders[0].TotalAmount = math.MaxInt64
-	if credit, _ := ComputeSurplus(u, orders, now); credit != math.MaxInt64 {
+	if credit, _ := paidSurplus(u, orders, now); credit != math.MaxInt64 {
 		t.Fatalf("maximum paid value yielded %d credit", credit)
 	}
 }

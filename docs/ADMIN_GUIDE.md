@@ -91,7 +91,7 @@ The page has six sections: **Subscription hosts**, **Plan changes**, **Content &
 | `subscribe_url` (Subscription URLs) | `[]` | List of subscription domains; empty uses `app_url`. **One is picked at random every time a link is generated** (to spread the load) |
 | `subscribe_update_interval` (Update interval) | 24 | Suggested client update interval (hours, 1–720, sent as `Profile-Update-Interval`) |
 | `plan_change_enable` (Allow plan changes) | `true` | When off, users can only renew their current plan |
-| `surplus_enable` (Upgrade credit) | `true` | When changing plans, the remaining value of the old plan is credited |
+| `surplus_enable` (Upgrade credit) | `true` | When changing plans, the remaining value of the old plan is credited. Time the panel has no order for (imported from Xboard, or set by an administrator) is valued at the old plan's cheapest monthly price; that part only lowers the price, never adds to the balance |
 | `reset_traffic_method` (Default traffic reset) | 0 | 0 on the 1st of every month, 1 monthly on the purchase day, 2 never, 3 every year on January 1, 4 yearly on the purchase day; each plan can set its own |
 | `show_info_to_server_enable` (Show plan info in subscriptions) | `true` | Inserts remaining traffic / expiry at the top of the subscription node list |
 | `show_protocol_to_server_enable` (Show protocol in node names) | `false` | Appends the protocol type to node names |

@@ -794,7 +794,7 @@ admins only and masked in logs; `server_token` and `telegram_webhook_secret` are
 | subscribe | `subscribe_url` | strings | `[]` | alternative subscription hosts (one picked at random; empty → `app_url`) |
 | subscribe | `plan_change_enable` | bool | `true` | allow upgrades to another plan |
 | subscribe | `reset_traffic_method` | int 0..4 | `0` | 0 first day of month, 1 monthly, 2 never, 3 first day of year, 4 yearly (plans may override) |
-| subscribe | `surplus_enable` | bool | `true` | credit the unused value on upgrades |
+| subscribe | `surplus_enable` | bool | `true` | credit the unused value on upgrades (time without an order in the panel at the old plan's list price, never refunded; docs/PAYMENTS.md) |
 | subscribe | `show_info_to_server_enable` | bool | `true` | info entries (traffic, expiry) in subscriptions |
 | subscribe | `show_protocol_to_server_enable` | bool | `false` | prefix node names with the protocol |
 | subscribe | `default_remind_expire` | bool | `true` | default for new users |

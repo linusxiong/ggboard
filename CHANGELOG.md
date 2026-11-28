@@ -6,6 +6,10 @@ Notable changes to GG Bond (ggboard), per version. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+
+- Upgrade credit (`surplus_enable`) now covers subscriptions the panel has no order for. Users imported from Xboard (whose orders are not imported) or given a plan by an administrator got no credit when they switched plans, and the new plan's period started from the day of the upgrade, so their remaining time was lost. That time is now valued at the old plan's cheapest price per month (a one-time plan: its one-time price times the unused share of the traffic), less the user's own discount. This estimated part lowers the new order's price at most to zero and is never added to the balance. Credit for orders paid in the panel works as before.
+
 ## [1.1.0] - 2026-11-26
 
 Most of this release is the fixes of a security audit (see **Security**). Before upgrading: with `admin_mfa_required` on, administrators and staff have to sign in again once, with their two-factor code or a passkey. Turning on two-factor authentication or adding a passkey now asks for the current password. API requests with a body must send JSON; any other content type gets `415`. Saved link settings that are not http(s) URLs are ignored until they are entered again. The database upgrade (a new `tickets.kind` column) runs by itself when the panel starts.

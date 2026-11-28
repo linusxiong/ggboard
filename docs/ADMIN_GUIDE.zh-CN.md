@@ -83,7 +83,7 @@ ggboard admin promote --email user@example.com              # 把已有用户提
 | `subscribe_url`（订阅地址） | `[]` | 订阅域名列表；为空时用 `app_url`。**每次生成链接时随机取一个**（用于分散负载） |
 | `subscribe_update_interval`（订阅更新间隔） | 24 | 建议客户端更新间隔（小时，1–720，写入 `Profile-Update-Interval`） |
 | `plan_change_enable`（允许更换套餐） | `true` | 关闭后用户只能续费当前套餐 |
-| `surplus_enable`（升级折抵） | `true` | 更换套餐时折抵原套餐剩余价值 |
+| `surplus_enable`（升级折抵） | `true` | 更换套餐时折抵原套餐剩余价值。面板里没有订单的剩余时间（从 Xboard 导入，或管理员设置）按原套餐每月最便宜的价格估算；这部分最多抵到 0 元，不退到余额 |
 | `reset_traffic_method`（默认流量重置方式） | 0 | 0 每月 1 日、1 按购买日每月、2 不重置、3 每年 1 月 1 日、4 按购买日每年；套餐可单独设置 |
 | `show_info_to_server_enable`（订阅中显示套餐信息） | `true` | 订阅节点列表顶部插入剩余流量 / 到期时间 |
 | `show_protocol_to_server_enable`（节点名称显示协议） | `false` | 节点名追加协议类型 |
