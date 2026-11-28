@@ -6,6 +6,10 @@ Notable changes to GG Bond (ggboard), per version. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-11-28
+
+A fix for upgrade credit. No database or setting changes.
+
 ### Fixed
 
 - Upgrade credit (`surplus_enable`) now covers subscriptions the panel has no order for. Users imported from Xboard (whose orders are not imported) or given a plan by an administrator got no credit when they switched plans, and the new plan's period started from the day of the upgrade, so their remaining time was lost. That time is now valued at the old plan's cheapest price per month (a one-time plan: its one-time price times the unused share of the traffic), less the user's own discount. This estimated part lowers the new order's price at most to zero and is never added to the balance. Credit for orders paid in the panel works as before.
@@ -222,7 +226,8 @@ The first stable release: a single Go binary with the React frontend, scheduled 
 - Scheduled jobs: order timeout, commission settlement, traffic reset, expiry and traffic reminders, daily statistics; `GET /healthz` for liveness probes.
 - `make bench`: a reproducible load test (10,000 users, 50 nodes); results in `docs/perf/`.
 
-[Unreleased]: https://github.com/linusxiong/ggboard/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/linusxiong/ggboard/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/linusxiong/ggboard/releases/tag/v1.1.1
 [1.1.0]: https://github.com/linusxiong/ggboard/releases/tag/v1.1.0
 [1.0.4]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.4
 [1.0.3]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.3

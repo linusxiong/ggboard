@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-11-28
+
+修复升级折抵。没有数据库或设置变更。
+
 ### 修复
 
 - 升级折抵（`surplus_enable`）现在也算面板里没有订单的订阅。从 Xboard 导入的用户（订单不导入）或由管理员开通套餐的用户，更换套餐时折抵为 0，新套餐又从升级当天起算，剩余时间就没了。现在这段时间按原套餐每月最便宜的价格估算（一次性套餐：一次性价格乘以未用流量的比例），并扣掉用户自己的折扣。估算的这部分最多把新订单抵到 0 元，不会退到余额。面板里付过的订单照旧按订单折抵。
@@ -222,7 +226,8 @@
 - 定时任务：订单超时、佣金结算、流量重置、到期与流量提醒、每日统计；`GET /healthz` 用于存活探针。
 - `make bench`：可复现的压测（10,000 个用户、50 个节点），结果见 `docs/perf/`。
 
-[Unreleased]: https://github.com/linusxiong/ggboard/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/linusxiong/ggboard/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/linusxiong/ggboard/releases/tag/v1.1.1
 [1.1.0]: https://github.com/linusxiong/ggboard/releases/tag/v1.1.0
 [1.0.4]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.4
 [1.0.3]: https://github.com/linusxiong/ggboard/releases/tag/v1.0.3
