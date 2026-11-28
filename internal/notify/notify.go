@@ -24,7 +24,7 @@ import (
 type Type string
 
 // Event types. The first nine can be delivered to administrators (setting telegram_events); the reminders,
-// TypeTest and TypeSubscriptionReset are only ever sent to one recipient.
+// TypeTest, TypeSubscriptionReset and TypeBroadcast are only ever sent to one recipient.
 const (
 	TypeOrderNew         Type = "order_new"         // a user placed an order
 	TypeOrderPaid        Type = "order_paid"        // an order was paid (also sent to its user)
@@ -40,6 +40,7 @@ const (
 	TypeTest             Type = "test"              // admin "send test message"
 
 	TypeSubscriptionReset Type = "subscription_reset" // an administrator reset the user's subscription token / uuid
+	TypeBroadcast         Type = "broadcast"          // an administrator's message to many users (admin bulk mail)
 )
 
 // AdminTypes lists the event types administrators can subscribe to, in display order (the options of
@@ -58,13 +59,15 @@ type Field struct {
 
 // Event is something worth telling administrators and/or one user about.
 type Event struct {
-	Type   Type
-	Title  string  // localized plain text, e.g. "💰 订单已支付"
-	Body   string  // localized plain text (may be empty)
-	Fields []Field // labelled details, in display order
-	UserID *uint64 // recipient user (delivered when the user is reachable on a channel, e.g. bound Telegram)
-	Admin  bool    // deliver to administrators (each channel filters by its own settings)
-	At     time.Time
+	Type  Type
+	Title string // localized plain text, e.g. "💰 订单已支付"
+	Body  string // localized plain text (may be empty); Markdown when Markdown is set
+	// Markdown marks Body as Markdown written by an administrator: channels render it as formatted text.
+	Markdown bool
+	Fields   []Field // labelled details, in display order
+	UserID   *uint64 // recipient user (delivered when the user is reachable on a channel, e.g. bound Telegram)
+	Admin    bool    // deliver to administrators (each channel filters by its own settings)
+	At       time.Time
 }
 
 // Field returns the value of the first field with key ("" when absent).

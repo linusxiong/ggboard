@@ -495,9 +495,11 @@ The catalog and template formats are in [RULESETS.md](RULESETS.md), the subscrip
 - **Users**: search by email; the segmented control filters by status (Any status / Active / Banned), and there are also
   plan, group, role and expiry filters and **More filters** (User ID, Inviter ID, Subscription token — admins only, staff
   get the full list — Remarks). Toolbar:
-  **New user**, **Generate** (downloads a CSV that includes the passwords), **Send mail** (to the users matching the
-  current filters; the body is sent as plain text with blank lines separating paragraphs, and a background queue sends it
-  asynchronously), **Export CSV**.
+  **New user**, **Generate** (downloads a CSV that includes the passwords), **Send a message** (to the users matching the
+  current filters; the body is Markdown with a preview, and a link on a line of its own becomes a button in the e-mail;
+  send it by e-mail, on Telegram or both: Telegram reaches only users who bound it, needs the bot and
+  `telegram_user_notify`, and long text is split into several messages; a background queue sends it asynchronously),
+  **Export CSV**.
 - **User details** has three tabs, **Summary / Profile / Subscription**. Summary shows the plan, traffic, subscription
   token and short link, and the bound Telegram chat ID; Profile edits every field; the **Subscription** tab shows the
   age encryption status and the access log (see §10). The more menu of each row: **Log in as user** (a one-time link,
@@ -657,7 +659,8 @@ all of its sessions) and check its two-factor authentication. Sign-ins of regula
 User side (when `telegram_user_notify` is on, bound users only): their own successful order payments, ticket replies,
 expiry reminders and traffic reminders, the "🚨 Possible subscription leak" alert about their own link
 (`subscription_leak`, sent whether or not the admins subscribe to it above; §10), plus "🔄 Subscription reset" after an
-admin uses **Reset subscription secret** (`subscription_reset`, sent only to that user and not one of the events above).
+admin uses **Reset subscription secret** (`subscription_reset`, sent only to that user and not one of the events above),
+and an admin's **Send a message** with Telegram switched on (`broadcast`).
 Expiry / traffic reminders are sent with the daily 10:00 reminder job and share the "once per 24 hours" limit with the
 email reminders. Turning off `remind_mail_enable` only stops the emails; users bound to Telegram still get the Telegram
 reminders.

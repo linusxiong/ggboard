@@ -959,6 +959,17 @@ export interface AdminUserGenerateResult {
 export interface AdminUserMailInput extends Omit<AdminUserFilters, keyof ListQuery> {
   subject: string
   content: string
+  /** `content` is Markdown (rendered in the e-mail and on Telegram). */
+  markdown?: boolean
+  /** Mail every matching user (default true). */
+  send_email?: boolean
+  /** Also message the matching users who bound Telegram (needs the bot and `telegram_user_notify`). */
+  send_telegram?: boolean
+}
+/** `POST /admin/users/mail` result: e-mails queued and users messaged on Telegram. */
+export interface AdminUserMailResult {
+  queued: number
+  telegram: number
 }
 export interface AdminOrderFilters extends ListQuery {
   trade_no?: string

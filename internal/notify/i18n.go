@@ -41,6 +41,7 @@ var texts = map[string]map[string]string{
 		"title.remind_expire":     "订阅即将到期",
 		"title.remind_traffic":    "流量即将用尽",
 		"title.test":              "测试消息",
+		"title.broadcast":         "📢 通知",
 
 		"label.email":        "邮箱",
 		"label.user":         "用户",
@@ -110,6 +111,7 @@ var texts = map[string]map[string]string{
 		"title.remind_expire":     "Subscription expires soon",
 		"title.remind_traffic":    "Traffic almost used up",
 		"title.test":              "Test message",
+		"title.broadcast":         "📢 Announcement",
 
 		"label.email":        "Email",
 		"label.user":         "User",

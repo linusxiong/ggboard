@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### 新增
+
+- 群发消息（**用户 → 群发消息**）支持 Markdown 并可预览，除了邮件，还可以同时（或只）发到用户的 Telegram。Telegram 只发给筛选结果里已绑定的用户，需要配置机器人并开启 `telegram_user_notify`，Markdown 会转成 Telegram 支持的格式，内容过长时拆成几条发送。API：`POST /admin/users/mail` 新增 `markdown`、`send_email`、`send_telegram`，返回值在 `queued` 之外新增 `telegram`。
+
 ### 修复
 
 - 面板语言为中文时，服务器返回的错误提示是英文（例如生成邀请码时显示“you already have the maximum number of unused invite codes”）。现在服务器按请求的语言（`Accept-Language`，面板会设成当前界面语言）返回：所有错误信息和字段提示都有中文翻译，新增的提示缺少翻译时测试会失败。不发送中文 `Accept-Language` 的 API 客户端仍然收到英文。前端对支付失败和操作频繁的错误也显示服务器给出的具体原因，并补上了请求被取消、响应格式错误、内容过大和格式不支持时的提示。

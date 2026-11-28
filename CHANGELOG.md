@@ -6,6 +6,10 @@ Notable changes to GG Bond (ggboard), per version. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+
+- Bulk messages to users (**Users → Send a message**) are written in Markdown, with a preview, and can go to the users' Telegram as well as, or instead of, their e-mail. Telegram reaches the matching users who bound it, needs the bot and `telegram_user_notify`, and gets the Markdown in the formats Telegram supports; a long message is split into several. API: `POST /admin/users/mail` takes `markdown`, `send_email` and `send_telegram` and returns `telegram` next to `queued`.
+
 ### Fixed
 
 - With the panel in Chinese, error messages from the server were shown in English (for example "you already have the maximum number of unused invite codes" when generating an invite code). The server now answers in the language of the request (`Accept-Language`, which the panel sets to its own language): every message and field message has a Chinese translation, and a test fails when a new message lacks one. API clients that send no Chinese `Accept-Language` still get English. The frontend also shows the server's specific text for payment and rate-limit errors, and has messages for cancelled requests, malformed responses, oversized bodies and unsupported formats.

@@ -463,7 +463,7 @@ nodes/users keep their ranking rows with an empty `name`/`email`.
 | GET | `/admin/users/:id/subscription/access-log` | — | array `[{ip, ip_bucket, token_tag, client, format, at, location}]`, newest 100 first, unmasked; `location` as in [GeoIP](#geoip) |
 | POST | `/admin/users/generate` | `{email_prefix?, email_suffix*, count* (1..500), plan_id?, expired_at?, password? (8..128)}` | `{count, csv}` |
 | POST | `/admin/users/export` | same filters as the list, in the JSON body | `text/csv` attachment |
-| POST | `/admin/users/mail` | `{<filters>, subject* (≤255), content*}` | `{queued}` |
+| POST | `/admin/users/mail` | `{<filters>, subject* (≤255), content* (≤65535 bytes), markdown? (false), send_email? (true), send_telegram? (false)}` | `{queued, telegram}`: e-mails queued and users messaged on Telegram. `markdown` renders `content` as Markdown (the e-mail like a custom template body, Telegram with its HTML subset; otherwise plain text, blank lines separate paragraphs). `send_telegram` messages the matching users with a bound chat (`telegram_id`), event `broadcast`, split into several messages when long; 400 `send_telegram` without a bot token or with `telegram_user_notify` off, 400 `send_email` when neither channel is chosen |
 
 Users rules (`internal/service/adminuser`): only `GET /admin/users` and `GET /admin/users/:id` are open to staff, and staff get `uuid`
 and `token` blanked; the `uuid` and `token` list filters are ignored for staff (they would confirm a guessed or leaked

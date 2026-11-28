@@ -5,7 +5,7 @@
   "saved": "用户资料已保存",
   "noChanges": "没有需要保存的修改",
   "toolbar": {
-    "mail": "群发邮件",
+    "mail": "群发消息",
     "export": "导出 CSV",
     "generate": "批量生成",
     "create": "新建用户"
@@ -178,15 +178,20 @@
     "download": "下载 CSV"
   },
   "mail": {
-    "title": "群发邮件",
+    "title": "群发消息",
     "recipients": "将发送给当前筛选的 {count} 个用户",
     "recipientsUnknown": "将发送给当前筛选的用户",
     "allUsers": "未设置筛选条件：将发送给全部用户",
     "subject": "主题",
     "content": "内容",
-    "contentHint": "纯文本，保留换行，不解析 Markdown；邮件由后台队列异步发送",
+    "contentHint": "支持 Markdown：粗体、列表、链接、引用等，写好后可切换到预览查看效果；单独一行的链接在邮件里显示为按钮。消息由后台队列异步发送",
     "send": "加入发送队列",
-    "queued": "已加入队列：{count} 封邮件"
+    "queued": "已加入队列：{count} 封邮件",
+    "sendEmail": "发送邮件",
+    "sendEmailHint": "发给当前筛选到的每个用户",
+    "sendTelegram": "同时发到 Telegram",
+    "sendTelegramHint": "只发给已绑定 Telegram 的用户。需要先在系统设置的 Telegram 里填写 Bot Token 并开启「用户通知」；Telegram 不支持的格式（表格、图片）会转成文字和链接",
+    "queuedWithTelegram": "已加入队列：{count} 封邮件，{telegram} 位用户的 Telegram 消息"
   },
   "subscription": {
     "tab": "订阅",

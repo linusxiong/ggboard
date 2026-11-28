@@ -115,9 +115,9 @@ func TestMailMoreThanQueueCapacity(t *testing.T) {
 	if err := a.DB.CreateInBatches(&users, 500).Error; err != nil {
 		t.Fatal(err)
 	}
-	queued, err := New(a).Mail(context.Background(), MailInput{Filters: Filters{Email: "bulk"}, Subject: "s", Content: "c"}, time.Now())
-	if err != nil || queued != n {
-		t.Fatalf("queued = %d, %v", queued, err)
+	res, err := New(a).Mail(context.Background(), MailInput{Filters: Filters{Email: "bulk"}, Subject: "s", Content: "c"}, time.Now())
+	if err != nil || res.Queued != n || res.Telegram != 0 {
+		t.Fatalf("queued = %+v, %v", res, err)
 	}
 	box := testutil.Mailbox(t, a)
 	deadline := time.Now().Add(20 * time.Second)

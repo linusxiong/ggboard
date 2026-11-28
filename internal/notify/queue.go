@@ -153,6 +153,19 @@ func Emit(a *app.App, ev Event) {
 	}
 }
 
+// TryEmit queues ev like Emit without blocking, but returns ErrQueueFull or ErrQueueClosed instead of dropping
+// it, so a producer of many events can hand the rest to EmitWait. nil when no driver is configured.
+func TryEmit(a *app.App, ev Event) error {
+	if a == nil || len(Active(a)) == 0 {
+		return nil
+	}
+	q := queueFor(a)
+	if q == nil {
+		return ErrQueueClosed
+	}
+	return q.enqueue(ev)
+}
+
 // EmitWait queues ev, waiting while the queue is full until ctx is done. Producers that emit one event per user
 // (reminder jobs) use it instead of Emit so a large batch is throttled instead of dropped.
 func EmitWait(ctx context.Context, a *app.App, ev Event) error {

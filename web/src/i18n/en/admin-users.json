@@ -5,7 +5,7 @@
   "saved": "User saved",
   "noChanges": "Nothing to save",
   "toolbar": {
-    "mail": "Send mail",
+    "mail": "Send a message",
     "export": "Export CSV",
     "generate": "Generate",
     "create": "New user"
@@ -178,15 +178,20 @@
     "download": "Download CSV"
   },
   "mail": {
-    "title": "Send mail",
+    "title": "Send a message",
     "recipients": "Goes to the {count} users matching the current filters",
     "recipientsUnknown": "Goes to the users matching the current filters",
     "allUsers": "No filters set: every user receives it",
     "subject": "Subject",
     "content": "Content",
-    "contentHint": "Plain text: line breaks are kept, Markdown is not rendered. The mail queue sends it in the background",
-    "send": "Queue mail",
-    "queued": "Queued {count} e-mails"
+    "contentHint": "Markdown: bold, lists, links, quotes and more; switch to the preview to check it. A link on a line of its own becomes a button in the e-mail. The queue sends it in the background",
+    "send": "Queue",
+    "queued": "Queued {count} e-mails",
+    "sendEmail": "Send by e-mail",
+    "sendEmailHint": "To every user matching the current filters",
+    "sendTelegram": "Also send to Telegram",
+    "sendTelegramHint": "Only to users who linked Telegram. Needs the bot token and User notifications on in Settings → Telegram; formats Telegram lacks (tables, images) become text and links",
+    "queuedWithTelegram": "Queued {count} e-mails and Telegram messages to {telegram} users"
   },
   "subscription": {
     "tab": "Subscription",

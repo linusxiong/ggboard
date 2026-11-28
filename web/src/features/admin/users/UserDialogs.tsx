@@ -3,12 +3,14 @@ import { Button, Chip, Modal } from '@heroui/react'
 import { useQuery } from '@tanstack/react-query'
 import { Download, Shuffle } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
+import { MarkdownEditor } from '@/components/editor/MarkdownEditor'
 import { FormError, useAppForm } from '@/components/form'
+import { fieldErrorMessage } from '@/components/form/fieldError'
 import { submitError } from '@/components/form/submitError'
 import { useT } from '@/i18n'
 import * as adminApi from '@/lib/api/admin'
 import { adminGroupsQuery, adminPlansQuery } from '@/lib/api/queries'
-import type { AdminUserGenerateResult } from '@/lib/api/types'
+import type { AdminUserGenerateResult, AdminUserMailInput } from '@/lib/api/types'
 import { toast } from '@/lib/toast'
 import { localInputToIso } from '../shared/datetime'
 import { downloadText, stampedName } from '../shared/download'
@@ -407,20 +409,32 @@ export function MailUsersDialog({
   matching,
   filterSummary,
 }: DialogProps & { filters: UserFilterParams; matching: number | undefined; filterSummary: string[] }) {
-  const t = useT(['admin-users', 'common'])
+  // admin-support holds the Markdown editor's strings (editor.*).
+  const t = useT(['admin-users', 'common', 'admin-support'])
   const [formError, setFormError] = useState<string>()
   const send = useAdminMutation({
-    mutationFn: (input: { subject: string; content: string }) => adminApi.mailUsers({ ...filters, ...input }),
+    mutationFn: (input: Omit<AdminUserMailInput, keyof UserFilterParams>) =>
+      adminApi.mailUsers({ ...filters, ...input }),
     invalidate: [],
     silentError: true,
   })
   const form = useAppForm({
-    defaultValues: { subject: '', content: '' },
+    defaultValues: { subject: '', content: '', send_email: true, send_telegram: false },
     onSubmit: async ({ value, formApi }) => {
       setFormError(undefined)
       try {
-        const { queued } = await send.mutateAsync({ subject: value.subject.trim(), content: value.content })
-        toast.success(t('mail.queued', { count: queued }))
+        const { queued, telegram } = await send.mutateAsync({
+          subject: value.subject.trim(),
+          content: value.content,
+          markdown: true,
+          send_email: value.send_email,
+          send_telegram: value.send_telegram,
+        })
+        toast.success(
+          value.send_telegram
+            ? t('mail.queuedWithTelegram', { count: queued, telegram })
+            : t('mail.queued', { count: queued }),
+        )
         onOpenChange(false)
       } catch (error) {
         setFormError(submitError(formApi, error))
@@ -468,19 +482,31 @@ export function MailUsersDialog({
       >
         {(f) => <f.TextField label={t('mail.subject')} isRequired />}
       </form.AppField>
-      <form.AppField
+      <form.Field
         name="content"
         validators={{ onSubmit: ({ value }) => (value.trim() ? undefined : t('errors.required')) }}
       >
         {(f) => (
-          <f.TextAreaField
+          <MarkdownEditor
             label={t('mail.content')}
-            rows={8}
+            name="content"
+            value={f.state.value}
+            onChange={(v) => f.handleChange(v)}
             description={t('mail.contentHint')}
+            error={fieldErrorMessage(f.state.meta)}
             isRequired
+            rows={10}
           />
         )}
-      </form.AppField>
+      </form.Field>
+      <div className="flex flex-col gap-1">
+        <form.AppField name="send_email">
+          {(f) => <f.SwitchField label={t('mail.sendEmail')} description={t('mail.sendEmailHint')} />}
+        </form.AppField>
+        <form.AppField name="send_telegram">
+          {(f) => <f.SwitchField label={t('mail.sendTelegram')} description={t('mail.sendTelegramHint')} />}
+        </form.AppField>
+      </div>
     </DialogFrame>
   )
 }

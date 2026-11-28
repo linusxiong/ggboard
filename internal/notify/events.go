@@ -40,6 +40,13 @@ func New(a *app.App, t Type, body string, fields ...Field) Event {
 	return ev
 }
 
+// Broadcast is an administrator's message to one user (bulk mail sent to Telegram as well): title is the mail
+// subject, body the content (Markdown when markdown is set). It is not delivered to administrators.
+func Broadcast(userID uint64, title, body string, markdown bool) Event {
+	return forUser(Event{Type: TypeBroadcast, Title: strings.TrimSpace(title), Body: body, Markdown: markdown, At: time.Now()},
+		userID, false)
+}
+
 func forUser(ev Event, userID uint64, admin bool) Event {
 	id := userID
 	ev.UserID, ev.Admin = &id, admin

@@ -7,6 +7,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	htmltemplate "html/template"
 	"io"
 	"strconv"
 	"strings"
@@ -19,6 +20,8 @@ import (
 	"github.com/linusxiong/ggboard/internal/httpx"
 	"github.com/linusxiong/ggboard/internal/mail"
 	"github.com/linusxiong/ggboard/internal/model"
+	"github.com/linusxiong/ggboard/internal/notify"
+	"github.com/linusxiong/ggboard/internal/notify/telegram"
 	"github.com/linusxiong/ggboard/internal/service/maintenance"
 	usersvc "github.com/linusxiong/ggboard/internal/service/user"
 )
@@ -278,40 +281,105 @@ func (s *Service) ExportWithDB(db *gorm.DB, w io.Writer, f Filters, now time.Tim
 
 // ---------------------------------------------------------------- bulk mail
 
-// MailInput is POST /admin/users/mail: the list filters plus the message (plain text; blank lines separate
-// paragraphs). The broadcast ignores remind_* preferences.
+// MailInput is POST /admin/users/mail: the list filters plus the message. Content is plain text (blank lines
+// separate paragraphs) or, with markdown, Markdown (rendered for the e-mail and for Telegram). send_email (default
+// true) mails every matching user; send_telegram also messages the matching users who bound Telegram, which needs
+// the bot (telegram_bot_token) and telegram_user_notify. The broadcast ignores remind_* preferences.
 type MailInput struct {
 	Filters
-	Subject string `json:"subject" binding:"required,max=255"`
-	Content string `json:"content" binding:"required,max=65535"`
+	Subject      string `json:"subject" binding:"required,max=255"`
+	Content      string `json:"content" binding:"required,max=65535"`
+	Markdown     bool   `json:"markdown"`
+	SendEmail    *bool  `json:"send_email"`
+	SendTelegram bool   `json:"send_telegram"`
 }
 
-// Mail queues the notify template to every user matching in.Filters and returns how many were queued.
-// What does not fit into the mail queue right away is handed to a background sender that waits for room.
-func (s *Service) Mail(ctx context.Context, in MailInput, now time.Time) (int, error) {
-	emails, err := s.MailRecipientsWithDB(s.a.DB.WithContext(ctx), in, now)
-	if err != nil {
-		return 0, err
+// SendsEmail reports whether the broadcast is mailed (send_email, default true).
+func (in MailInput) SendsEmail() bool { return in.SendEmail == nil || *in.SendEmail }
+
+// MailResult is the response of POST /admin/users/mail.
+type MailResult struct {
+	Queued   int `json:"queued"`   // e-mails queued
+	Telegram int `json:"telegram"` // users messaged on Telegram
+}
+
+// MailRecipients is who a broadcast reaches, snapshotted in the caller's authorization transaction.
+type MailRecipients struct {
+	Emails   []string
+	Telegram []uint64 // ids of matching users with a bound Telegram chat
+}
+
+// CheckMail validates the channels of in: at least one, and Telegram only while the bot can message users.
+func (s *Service) CheckMail(in MailInput) error {
+	if !in.SendsEmail() && !in.SendTelegram {
+		return httpx.FieldError("send_email", "choose e-mail, Telegram or both")
 	}
-	return s.MailToRecipients(ctx, emails, in)
+	if in.SendTelegram {
+		if !telegram.Enabled(s.a) {
+			return httpx.FieldError("send_telegram", "the Telegram bot is not set up (telegram_bot_token)")
+		}
+		if !s.a.Settings.Bool(telegram.KeyUserNotify) {
+			return httpx.FieldError("send_telegram", "Telegram notifications to users are turned off (telegram_user_notify)")
+		}
+	}
+	return nil
+}
+
+// Mail sends in to every user matching in.Filters (see MailInput) and returns how many were queued per channel.
+func (s *Service) Mail(ctx context.Context, in MailInput, now time.Time) (MailResult, error) {
+	if err := s.CheckMail(in); err != nil {
+		return MailResult{}, err
+	}
+	r, err := s.MailRecipientsWithDB(s.a.DB.WithContext(ctx), in, now)
+	if err != nil {
+		return MailResult{}, err
+	}
+	return s.SendMail(ctx, r, in)
 }
 
 // MailRecipientsWithDB snapshots recipients inside the caller's authorization transaction.
-func (s *Service) MailRecipientsWithDB(db *gorm.DB, in MailInput, now time.Time) ([]string, error) {
-	var emails []string
-	if err := in.Apply(db.Model(&model.User{}), now).Order("users.id").
-		Pluck("users.email", &emails).Error; err != nil {
-		return nil, fmt.Errorf("adminuser: mail recipients: %w", err)
+func (s *Service) MailRecipientsWithDB(db *gorm.DB, in MailInput, now time.Time) (MailRecipients, error) {
+	var r MailRecipients
+	if in.SendsEmail() {
+		if err := in.Apply(db.Model(&model.User{}), now).Order("users.id").
+			Pluck("users.email", &r.Emails).Error; err != nil {
+			return r, fmt.Errorf("adminuser: mail recipients: %w", err)
+		}
 	}
-	return emails, nil
+	if in.SendTelegram {
+		if err := in.Apply(db.Model(&model.User{}), now).Where("users.telegram_id IS NOT NULL AND users.telegram_id <> 0").
+			Order("users.id").Pluck("users.id", &r.Telegram).Error; err != nil {
+			return r, fmt.Errorf("adminuser: telegram recipients: %w", err)
+		}
+	}
+	return r, nil
 }
 
-// MailToRecipients queues mail for recipients authorized by a committed snapshot.
-func (s *Service) MailToRecipients(ctx context.Context, emails []string, in MailInput) (int, error) {
+// SendMail queues in for recipients authorized by a committed snapshot. What does not fit into the mail or
+// notification queue right away is handed to a background sender that waits for room.
+func (s *Service) SendMail(ctx context.Context, r MailRecipients, in MailInput) (MailResult, error) {
+	var res MailResult
+	var err error
+	if res.Queued, err = s.mailToRecipients(ctx, r.Emails, in); err != nil {
+		return res, err
+	}
+	res.Telegram, err = s.telegramToRecipients(ctx, r.Telegram, in)
+	return res, err
+}
+
+func (s *Service) mailToRecipients(ctx context.Context, emails []string, in MailInput) (int, error) {
 	if len(emails) == 0 {
 		return 0, nil
 	}
-	msg, err := s.a.Mailer.Render(emails[0], mail.TplNotify, mail.Data{"Subject": in.Subject, "Content": in.Content})
+	data := mail.Data{"Subject": in.Subject, "Content": in.Content}
+	if in.Markdown {
+		body, text, err := mail.RenderMarkdown(in.Content)
+		if err != nil {
+			return 0, fmt.Errorf("adminuser: render mail: %w", err)
+		}
+		data["Content"], data["ContentHTML"] = text, htmltemplate.HTML(body) //nolint:gosec // G203: rendered by mail.RenderMarkdown
+	}
+	msg, err := s.a.Mailer.Render(emails[0], mail.TplNotify, data)
 	if err != nil {
 		return 0, err
 	}
@@ -327,8 +395,36 @@ func (s *Service) MailToRecipients(ctx context.Context, emails []string, in Mail
 			return i, err
 		}
 	}
-	s.a.Log.Info("admin bulk mail queued", "recipients", len(emails), "subject", in.Subject)
+	s.a.Log.Info("admin bulk mail queued", "recipients", len(emails), "subject", in.Subject, "markdown", in.Markdown)
 	return len(emails), nil
+}
+
+func (s *Service) telegramToRecipients(ctx context.Context, ids []uint64, in MailInput) (int, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	for i, id := range ids {
+		err := notify.TryEmit(s.a, notify.Broadcast(id, in.Subject, in.Content, in.Markdown))
+		if errors.Is(err, notify.ErrQueueFull) {
+			go s.telegramRest(context.WithoutCancel(ctx), ids[i:], in) // outlives the request on purpose
+			break
+		}
+		if err != nil {
+			return i, err
+		}
+	}
+	s.a.Log.Info("admin bulk telegram queued", "recipients", len(ids), "subject", in.Subject, "markdown", in.Markdown)
+	return len(ids), nil
+}
+
+// telegramRest queues the remaining Telegram recipients, waiting for room in the notification queue.
+func (s *Service) telegramRest(ctx context.Context, ids []uint64, in MailInput) {
+	for i, id := range ids {
+		if err := notify.EmitWait(ctx, s.a, notify.Broadcast(id, in.Subject, in.Content, in.Markdown)); err != nil {
+			s.a.Log.Warn("admin bulk telegram stopped", "unsent", len(ids)-i, "err", err)
+			return
+		}
+	}
 }
 
 // mailRest queues the remaining recipients, waiting for room in the mail queue (stops when it closes).

@@ -139,7 +139,21 @@ func (n *Notifier) SendUser(ctx context.Context, chatRef string, ev notify.Event
 	if ev.Admin && Subscribed(n.a, ev.Type) && slices.Contains(AdminChats(n.a), chatRef) {
 		return notify.ErrSkipped
 	}
-	return classify(n.client.SendMessage(ctx, chatRef, Render(ev, notify.Locale(n.a))))
+	if ev.Type != notify.TypeBroadcast && !ev.Markdown {
+		return classify(n.client.SendMessage(ctx, chatRef, Render(ev, notify.Locale(n.a))))
+	}
+	// A broadcast may take several messages: a retry resumes after the parts already sent.
+	for i, part := range RenderLong(ev) {
+		key := chatRef + "#" + strconv.Itoa(i)
+		if notify.Done(ctx, key) {
+			continue
+		}
+		if err := classify(n.client.SendMessage(ctx, chatRef, part)); err != nil {
+			return err
+		}
+		notify.MarkDone(ctx, key)
+	}
+	return nil
 }
 
 // classify marks Bot API refusals (4xx other than 429: chat not found, bot blocked, bad token) as permanent.

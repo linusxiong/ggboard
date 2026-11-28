@@ -340,6 +340,13 @@ func flushRun(b *strings.Builder, s string, inQuotes bool, quoted, markup *strin
 	}
 }
 
+// RenderMarkdown renders an administrator's Markdown message (a bulk mail) like a custom template body without
+// placeholders: the HTML of the card's content with the layout's inline styles (raw HTML is kept, the author is an
+// administrator) and the plain-text part. Pass both to TplNotify as ContentHTML and Content.
+func RenderMarkdown(src string) (htmlBody, text string, err error) {
+	return renderMarkdown(src, nil)
+}
+
 // renderMarkdown renders a custom body with vals: the HTML of the card's content and the plain text.
 func renderMarkdown(body string, vals map[string]customValue) (string, string, error) {
 	tok := newTokens(vals)

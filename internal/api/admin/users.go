@@ -336,19 +336,27 @@ func usersMailHandler(a *app.App) gin.HandlerFunc {
 			httpx.Fail(c, err)
 			return
 		}
-		var n int
+		svc := adminuser.New(a)
+		if err := svc.CheckMail(in); err != nil {
+			httpx.Fail(c, err)
+			return
+		}
+		// Recipients are snapshotted while the admin's role is checked; nothing is sent unless that commits.
+		var rcpt adminuser.MailRecipients
 		err := withLiveAdmin(c, a, func(tx *gorm.DB) error {
-			emails, err := adminuser.New(a).MailRecipientsWithDB(tx, in, time.Now())
-			if err != nil {
-				return err
-			}
-			n, err = adminuser.New(a).MailToRecipients(c.Request.Context(), emails, in)
+			var err error
+			rcpt, err = svc.MailRecipientsWithDB(tx, in, time.Now())
 			return err
 		})
 		if err != nil {
 			httpx.Fail(c, err)
 			return
 		}
-		httpx.OK(c, gin.H{"queued": n})
+		res, err := svc.SendMail(c.Request.Context(), rcpt, in)
+		if err != nil {
+			httpx.Fail(c, err)
+			return
+		}
+		httpx.OK(c, res)
 	}
 }

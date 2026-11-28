@@ -20,6 +20,7 @@ import type {
   AdminUserGenerateInput,
   AdminUserGenerateResult,
   AdminUserMailInput,
+  AdminUserMailResult,
   AdminUserUpdateInput,
   CommissionStatus,
   Coupon,
@@ -113,9 +114,8 @@ export const generateUsers = (input: AdminUserGenerateInput) =>
 export const exportUsers = (filters: Omit<AdminUserFilters, keyof ListQuery> = {}) =>
   requestBlob('POST', '/admin/users/export', { body: filters })
 
-/** `POST /admin/users/mail` → `{queued}` */
-export const mailUsers = (input: AdminUserMailInput) =>
-  api.post<{ queued: number }>('/admin/users/mail', input)
+/** `POST /admin/users/mail` → `{queued, telegram}` */
+export const mailUsers = (input: AdminUserMailInput) => api.post<AdminUserMailResult>('/admin/users/mail', input)
 
 /** `POST /admin/users/:id/traffic-reset` */
 export const resetUserTraffic = (id: ID) => api.post<User>(`/admin/users/${id}/traffic-reset`)
