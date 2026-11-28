@@ -29,6 +29,10 @@
     "payment_failed": "Payment failed.",
     "validation_failed": "Please check the highlighted fields.",
     "internal": "Server error. Please try again later.",
+    "aborted": "The request was cancelled.",
+    "bad_response": "The server sent an unexpected response. Please try again later.",
+    "payload_too_large": "What you sent is too large.",
+    "unsupported_media_type": "This request format is not supported.",
     "unknown": "Unknown error."
   }
 }

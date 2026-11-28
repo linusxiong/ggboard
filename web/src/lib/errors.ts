@@ -1,17 +1,16 @@
 import { isApiError } from '@/lib/api/client'
 import { t } from '@/i18n'
 
+/** Codes whose server message says more than the generic text (the server writes it in the UI language). */
+const SPECIFIC = new Set(['validation_failed', 'conflict', 'forbidden', 'payment_failed', 'rate_limited'])
+
 /**
- * Human message for any thrown value. Server messages win for validation/conflict errors
- * (they are specific); otherwise a localized message per error code (`common:errors.*`).
+ * Human message for any thrown value. The server's message wins for business errors (it is specific and
+ * localized from `Accept-Language`); otherwise a localized message per error code (`core:errors.*`).
  */
 export function errorMessage(error: unknown): string {
   if (isApiError(error)) {
-    if (
-      (error.code === 'validation_failed' || error.code === 'conflict' || error.code === 'forbidden') &&
-      error.message
-    )
-      return error.message
+    if (SPECIFIC.has(error.code) && error.message) return error.message
     const key = `errors.${error.code}`
     const text = t('core', key)
     if (text !== key) return text

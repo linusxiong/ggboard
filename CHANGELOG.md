@@ -6,6 +6,10 @@ Notable changes to GG Bond (ggboard), per version. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+
+- With the panel in Chinese, error messages from the server were shown in English (for example "you already have the maximum number of unused invite codes" when generating an invite code). The server now answers in the language of the request (`Accept-Language`, which the panel sets to its own language): every message and field message has a Chinese translation, and a test fails when a new message lacks one. API clients that send no Chinese `Accept-Language` still get English. The frontend also shows the server's specific text for payment and rate-limit errors, and has messages for cancelled requests, malformed responses, oversized bodies and unsupported formats.
+
 ## [1.1.1] - 2026-11-28
 
 A fix for upgrade credit. No database or setting changes.

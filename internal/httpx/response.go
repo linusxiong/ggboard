@@ -28,7 +28,8 @@ func List[T any](c *gin.Context, items []T, total int64) {
 	c.JSON(http.StatusOK, gin.H{"data": items, "total": total})
 }
 
-// Fail aborts the request with err rendered by AsError. 5xx errors are logged with their cause.
+// Fail aborts the request with err rendered by AsError, its messages in the request's language (RequestLocale).
+// 5xx errors are logged with their cause.
 func Fail(c *gin.Context, err error) {
 	e := AsError(err)
 	if e == nil {
@@ -41,7 +42,7 @@ func Fail(c *gin.Context, err error) {
 		c.Abort()
 		return
 	}
-	c.AbortWithStatusJSON(e.Status, e)
+	c.AbortWithStatusJSON(e.Status, e.Localized(RequestLocale(c)))
 }
 
 // Logger returns the request-scoped logger (with request_id) or slog.Default().

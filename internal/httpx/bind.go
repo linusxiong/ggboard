@@ -152,7 +152,7 @@ func fromKnown(err error) *Error {
 		if field == "" {
 			return BadRequest("invalid JSON body").WithCause(err)
 		}
-		return BadRequest("validation failed").WithField(field, "must be "+kindName(ute.Type)).WithCause(err)
+		return BadRequest("validation failed").WithField(field, typeMessage(ute.Type)).WithCause(err)
 	case errors.As(err, &se), errors.Is(err, io.ErrUnexpectedEOF):
 		return BadRequest("invalid JSON body").WithCause(err)
 	case errors.As(err, &num):
@@ -172,36 +172,34 @@ func fieldPath(fe validator.FieldError) string {
 	return fe.Field()
 }
 
-func kindName(t reflect.Type) string {
+// typeMessage is the field message for a JSON value of the wrong type (whole sentences, so they translate).
+func typeMessage(t reflect.Type) string {
 	if t == nil {
-		return "a valid value"
+		return "must be a valid value"
 	}
 	switch t.Kind() {
 	case reflect.String:
-		return "a string"
+		return "must be a string"
 	case reflect.Bool:
-		return "a boolean"
+		return "must be a boolean"
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return "an integer"
+		return "must be an integer"
 	case reflect.Float32, reflect.Float64:
-		return "a number"
+		return "must be a number"
 	case reflect.Slice, reflect.Array:
-		return "an array"
+		return "must be an array"
 	case reflect.Map, reflect.Struct:
-		return "an object"
+		return "must be an object"
 	}
-	return "a valid value"
+	return "must be a valid value"
 }
 
 func message(fe validator.FieldError) string {
 	p := fe.Param()
 	kind := fe.Kind()
 	isLen := kind == reflect.String || kind == reflect.Slice || kind == reflect.Map || kind == reflect.Array
-	unit := "characters"
-	if kind != reflect.String {
-		unit = "items"
-	}
+	chars := kind == reflect.String
 	switch fe.Tag() {
 	case "required", "required_if", "required_unless", "required_with", "required_without", "required_with_all", "required_without_all":
 		return "is required"
@@ -212,18 +210,27 @@ func message(fe validator.FieldError) string {
 	case "uuid", "uuid4", "uuid_rfc4122":
 		return "must be a valid UUID"
 	case "min":
-		if isLen {
-			return fmt.Sprintf("must be at least %s %s", p, unit)
+		switch {
+		case chars:
+			return fmt.Sprintf("must be at least %s characters", p)
+		case isLen:
+			return fmt.Sprintf("must be at least %s items", p)
 		}
 		return "must be at least " + p
 	case "max":
-		if isLen {
-			return fmt.Sprintf("must be at most %s %s", p, unit)
+		switch {
+		case chars:
+			return fmt.Sprintf("must be at most %s characters", p)
+		case isLen:
+			return fmt.Sprintf("must be at most %s items", p)
 		}
 		return "must be at most " + p
 	case "len":
-		if isLen {
-			return fmt.Sprintf("must be exactly %s %s", p, unit)
+		switch {
+		case chars:
+			return fmt.Sprintf("must be exactly %s characters", p)
+		case isLen:
+			return fmt.Sprintf("must be exactly %s items", p)
 		}
 		return "must be " + p
 	case "gte":

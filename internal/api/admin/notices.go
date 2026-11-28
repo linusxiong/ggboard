@@ -256,7 +256,11 @@ func contentDelete[T any](c *gin.Context, a *app.App, kind string) bool {
 		return false
 	}
 	if affected == 0 {
-		httpx.Fail(c, httpx.NotFound(kind+" not found"))
+		msg := "notice not found"
+		if kind == "knowledge" {
+			msg = "article not found"
+		}
+		httpx.Fail(c, httpx.NotFound(msg))
 		return false
 	}
 	httpx.Logger(c).Info("admin: "+kind+" deleted", "id", id, "staff_id", auth.CurrentUser(c).ID)

@@ -244,7 +244,11 @@ React Aria JS) — see "Performance".
   next one, or back to where it came from. Use `announce(text)` for any other result that appears without a toast.
 - Confirm: `if (await confirm({ title, description, tone: 'danger' })) …` (`@/components/feedback/confirm`), or the
   controlled `<ConfirmDialog isOpen onOpenChange onConfirm={() => mutation.mutateAsync()} />` (pending state, keeps open on error).
-- `errorMessage(e)` (`@/lib/errors`) → localized text for transport errors, server text for business errors.
+- `errorMessage(e)` (`@/lib/errors`) → localized text for transport errors, server text for business errors
+  (`validation_failed`, `conflict`, `forbidden`, `payment_failed`, `rate_limited`). The client sends the UI locale as
+  `Accept-Language` and the server answers in it (`internal/httpx/i18n.go`), so never show a server message that the
+  request did not localize, and add a Chinese translation to `internal/httpx/messages_zh.go` with every new server
+  message (a Go test enforces it).
 
 ## Shared components (`src/components`)
 

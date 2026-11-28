@@ -104,7 +104,11 @@ tables (lipgloss) on a terminal. `serve` prints a startup summary unless `log.fo
 
 - Success is `200 {"data": …}` and creates are `201 {"data": …}`. Lists are `{"data": [...], "total": N}`.
   An empty success is `{"data": true}`.
-- Errors are status + `{"code", "message", "errors": {"field": ["msg"]}}`.
+- Errors are status + `{"code", "message", "errors": {"field": ["msg"]}}`. Messages are written in English;
+  `httpx.Fail` translates `message` and the field messages into the request's language (`Accept-Language`, zh-CN or
+  en) from the catalog in `internal/httpx/messages_zh.go`, whose keys may be patterns (`{}` any text, `{n}` a number).
+  `TestEveryErrorMessageIsTranslated` scans `internal/` and fails for a message without a translation, so a new
+  error message needs its Chinese text in the same change.
   - Standard codes: `validation_failed` (400), `unauthorized` (401), `payment_failed` (402), `forbidden` (403),
     `not_found` (404), `conflict` (409), `payload_too_large` (413), `unsupported_media_type` (415), `rate_limited` (429),
     `internal` (500).
